@@ -1,0 +1,901 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  sessions           Session[]
+  watchAssets        WatchAsset[]
+  ventureProjects    VentureProject[]
+  alertRules         AlertRule[]
+  clientProfiles     ClientProfile[]
+  advisorNotes       AdvisorNote[]
+  meetingTasks       MeetingTask[]
+  documentVaultItems DocumentVaultItem[]
+  investorGoals      InvestorGoal[]
+  researchNotes      ResearchNote[]
+  alertEvents        AlertEvent[]
+  investorInsights   InvestorInsight[]
+  intelligenceRuns   IntelligenceRun[]
+  headlineDecisions  HeadlineDecision[]
+  newsSourceConfigs          NewsSourceConfig[]
+  intelligenceRetentionPolicy IntelligenceRetentionPolicy?
+  notificationPreferences NotificationPreference[]
+  notificationDeliveries  NotificationDelivery[]
+  digestReports           DigestReport[]
+  briefingReports BriefingReport[]
+  investorAccounts InvestorAccount[]
+  investorHoldings InvestorHolding[]
+  allocationModels AllocationModel[]
+  rebalanceReports RebalanceReport[]
+  scenarioReports  ScenarioReport[]
+  auditLogs             AuditLog[]
+  disclosureAcceptances DisclosureAcceptance[]
+  securitySetting       UserSecuritySetting?
+  createdFirms          Firm[]          @relation("FirmCreatedBy")
+  firmMemberships       FirmMembership[]
+  firmInvitesSent       FirmInvite[]    @relation("FirmInviteSentBy")
+  agendaComments        AgendaComment[]
+  opportunitySignals OpportunitySignal[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WatchAsset {
+  id        String   @id @default(cuid())
+  userId    String
+  ticker    String
+  name      String
+  assetType String   @default("Stock")
+  price     String?
+  move      String?
+  ma50      String?
+  ma200     String?
+  volume    String?
+  rsi       String?
+  signal    String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, ticker])
+}
+
+model VentureProject {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  founder      String
+  sector       String
+  stage        String
+  relationship String
+  thesis       String
+  risk         String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AlertRule {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  channel   String
+  trigger   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ClientProfile {
+  id             String   @id @default(cuid())
+  userId         String
+  fullName       String
+  email          String?
+  householdName  String?
+  clientType     String   @default("Private Client")
+  riskProfile    String   @default("Balanced")
+  liquidityNeeds String   @default("Moderate")
+  timeHorizon    String   @default("5-10 years")
+  objective      String   @default("Long-term wealth growth")
+  portfolioValue String?
+  status         String   @default("Active")
+  notes          String?
+  createdAt      DateTime @default(now())
+  briefingReports BriefingReport[]
+
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings  PortfolioHolding[]
+  notesList AdvisorNote[]
+  tasks     MeetingTask[]
+  reviews   RiskReview[]
+  documents DocumentVaultItem[]
+
+  @@index([userId])
+}
+
+model PortfolioHolding {
+  id            String   @id @default(cuid())
+  clientId      String
+  symbol        String
+  assetName     String
+  assetClass    String   @default("Stock")
+  value         String?
+  allocationPct String?
+  costBasis     String?
+  riskLevel     String   @default("Medium")
+  thesis        String?
+  createdAt     DateTime @default(now())
+
+  client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model AdvisorNote {
+  id        String   @id @default(cuid())
+  userId    String
+  clientId  String?
+  title     String
+  body      String
+  noteType  String   @default("General")
+  createdAt DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+model MeetingTask {
+  id          String    @id @default(cuid())
+  userId      String
+  clientId    String?
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    String    @default("Medium")
+  status      String    @default("Open")
+  createdAt   DateTime  @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+model RiskReview {
+  id                String   @id @default(cuid())
+  clientId          String
+  score             Int
+  suitabilityStatus String
+  summary           String
+  flagsJson         String   @default("[]")
+  createdAt         DateTime @default(now())
+
+  client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model DocumentVaultItem {
+  id           String   @id @default(cuid())
+  userId       String
+  clientId     String?
+  fileName     String
+  documentType String   @default("General")
+  status       String   @default("Needs Review")
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+}
+
+model InvestorGoal {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  goalType      String   @default("Wealth Growth")
+  targetAmount  String?
+  currentAmount String?
+  targetDate    String?
+  priority      String   @default("Medium")
+  status        String   @default("Active")
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ResearchNote {
+  id          String   @id @default(cuid())
+  userId      String
+  ticker      String?
+  title       String
+  thesis      String
+  risks       String?
+  decision    String   @default("Watch")
+  conviction  String   @default("Medium")
+  sourceLinks String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AlertEvent {
+  id        String    @id @default(cuid())
+  userId    String
+  dedupeKey String
+  title     String
+  body      String
+  source    String
+  ticker    String?
+  urgency   String   @default("Medium")
+  score     Int      @default(50)
+  channel   String   @default("Dashboard")
+  status    String   @default("Unread")
+  createdAt DateTime @default(now())
+  readAt    DateTime?
+  deliveries NotificationDelivery[]
+  sourceUrl  String?
+  aiBriefing String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@unique([userId, dedupeKey])
+}
+
+model InvestorInsight {
+  id           String   @id @default(cuid())
+  userId       String
+  title        String
+  category     String
+  score        Int      @default(50)
+  summary      String
+  actionStatus String   @default("Open")
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NewsDecision {
+  id          String   @id @default(cuid())
+  title       String
+  sourceName  String
+  link        String?
+  score       Int
+  urgency     String
+  shouldAlert Boolean
+  reasonsJson String
+  createdAt   DateTime @default(now())
+}
+
+model IntelligenceRun {
+  id             String   @id @default(cuid())
+  userId         String
+  mode           String   @default("demo")
+  scannedCount   Int      @default(0)
+  retainedCount  Int      @default(0)
+  alertCount     Int      @default(0)
+  digestCount    Int      @default(0)
+  discardedCount Int      @default(0)
+  durationMs     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model HeadlineDecision {
+  id                 String   @id @default(cuid())
+  userId             String
+  dedupeKey          String
+  title              String
+  summary            String?
+  sourceName         String
+  sourceTier         String
+  url                String?
+  category           String
+  subcategory        String
+  importanceTier     String
+  action             String
+  urgency            String
+  score              Int
+  materialityScore   Int
+  relevanceScore     Int
+  trustScore         Int
+  matchedTickersJson String   @default("[]")
+  matchedAreasJson   String   @default("[]")
+  reasonsJson        String   @default("[]")
+  channelsJson       String   @default("[]")
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  opportunitySignals OpportunitySignal[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, importanceTier])
+  @@index([expiresAt])
+}
+
+model SourceCheckpoint {
+  id            String   @id @default(cuid())
+  sourceId      String   @unique
+  sourceName    String
+  lastFetchedAt DateTime?
+  lastSeenHash  String?
+  lastStatus    String   @default("Pending")
+  lastItemCount Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+model NewsSourceConfig {
+  id               String   @id @default(cuid())
+  userId           String
+  sourceId         String
+  name             String
+  description      String?
+  sourceTier       String
+  category         String
+  sourceUrl        String?
+  enabled          Boolean  @default(true)
+  minScoreToRetain Int      @default(55)
+  minScoreToAlert  Int      @default(88)
+  maxItemsPerRun   Int      @default(25)
+  cooldownMinutes  Int      @default(15)
+  priority         Int      @default(1)
+  lastRunAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceId])
+  @@index([userId])
+}
+
+model IntelligenceRetentionPolicy {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  minScoreToStore        Int      @default(55)
+  minScoreToAlert        Int      @default(88)
+  maxRetainedPerRun      Int      @default(40)
+  maxRetainedDecisions   Int      @default(600)
+  maxRetainedRuns        Int      @default(50)
+  maxAlertEvents         Int      @default(400)
+  urgentRetentionDays    Int      @default(45)
+  reviewRetentionDays    Int      @default(30)
+  digestRetentionDays    Int      @default(14)
+  watchRetentionDays     Int      @default(5)
+  readAlertRetentionDays Int      @default(30)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  userId            String
+  channel           String
+  enabled           Boolean  @default(true)
+  minUrgency        String   @default("High")
+  minScore          Int      @default(75)
+  digestOnly        Boolean  @default(false)
+  quietHoursStart   String?
+  quietHoursEnd     String?
+  cooldownMinutes   Int      @default(30)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@index([userId])
+}
+
+model NotificationDelivery {
+  id           String    @id @default(cuid())
+  userId       String
+  alertEventId String?
+  channel      String
+  destination  String?
+  status       String    @default("Queued")
+  urgency      String
+  score        Int
+  title        String
+  body         String
+  reason       String?
+  simulated    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  deliveredAt  DateTime?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertEvent AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([alertEventId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DigestReport {
+  id             String   @id @default(cuid())
+  userId         String
+  title          String
+  summary        String
+  itemCount      Int      @default(0)
+  urgencyMixJson String   @default("{}")
+  itemsJson      String   @default("[]")
+  status         String   @default("Generated")
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model BriefingReport {
+  id                 String   @id @default(cuid())
+  userId             String
+  clientId           String?
+  title              String
+  audience           String   @default("Investor")
+  briefType          String   @default("Daily")
+  executiveSummary   String
+  marketSummary      String
+  alertSummary       String
+  portfolioSummary   String
+  alternativeSummary String
+  riskSummary        String
+  actionItemsJson    String   @default("[]")
+  sourceItemsJson    String   @default("[]")
+  status             String   @default("Generated")
+  createdAt          DateTime @default(now())
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+model InvestorAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  accountType String   @default("Taxable Brokerage")
+  custodian   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings InvestorHolding[]
+
+  @@index([userId])
+}
+
+model InvestorHolding {
+  id          String   @id @default(cuid())
+  userId      String
+  accountId   String?
+  symbol      String
+  assetName   String
+  assetClass  String   @default("Stock")
+  valueNumber Float    @default(0)
+  costBasis   Float?
+  targetRole  String   @default("Core")
+  riskLevel   String   @default("Medium")
+  thesis      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account InvestorAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([accountId])
+}
+
+model AllocationModel {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  riskLevel   String   @default("Balanced")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targets AllocationTarget[]
+  reports RebalanceReport[]
+
+  @@index([userId])
+}
+
+model AllocationTarget {
+  id         String   @id @default(cuid())
+  modelId    String
+  assetClass String
+  targetPct  Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  model AllocationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@index([modelId])
+  @@unique([modelId, assetClass])
+}
+
+model RebalanceReport {
+  id                     String   @id @default(cuid())
+  userId                 String
+  modelId                String?
+  title                  String
+  summary                String
+  totalValue             Float    @default(0)
+  currentAllocationsJson String   @default("[]")
+  targetAllocationsJson  String   @default("[]")
+  driftJson              String   @default("[]")
+  recommendationsJson    String   @default("[]")
+  status                 String   @default("Generated")
+  createdAt              DateTime @default(now())
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  model AllocationModel? @relation(fields: [modelId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([modelId])
+  @@index([createdAt])
+}
+
+model ScenarioReport {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  scenarioType  String
+  totalBefore   Float    @default(0)
+  totalAfter    Float    @default(0)
+  impactAmount  Float    @default(0)
+  impactPct     Float    @default(0)
+  shockJson     String   @default("{}")
+  beforeJson    String   @default("[]")
+  afterJson     String   @default("[]")
+  summary       String
+  actionsJson   String   @default("[]")
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  eventType    String
+  severity     String   @default("Info")
+  area         String   @default("General")
+  title        String
+  detail       String?
+  metadataJson String   @default("{}")
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model DisclosureAcceptance {
+  id              String   @id @default(cuid())
+  userId          String
+  disclosureKey   String
+  title           String
+  version         String
+  acceptedAt      DateTime @default(now())
+  acceptedByName  String
+  acceptedByEmail String
+  contentSnapshot String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, disclosureKey, version])
+  @@index([userId])
+}
+
+model UserSecuritySetting {
+  id                                String   @id @default(cuid())
+  userId                            String   @unique
+  mfaEnabled                         Boolean  @default(false)
+  requireReauthForSensitiveActions   Boolean  @default(true)
+  alertOnNewLogin                    Boolean  @default(true)
+  advisorModeEnabled                 Boolean  @default(false)
+  sessionTimeoutMinutes              Int      @default(43200)
+  lastSecurityReviewAt               DateTime?
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Firm {
+  id              String   @id @default(cuid())
+  name            String
+  firmEmail       String?
+  firmCode        String   @unique
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User @relation("FirmCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  memberships   FirmMembership[]
+  invites       FirmInvite[]
+  projects      FirmProject[]
+  weeklyAgendas WeeklyAgenda[]
+  agendaTasks   FirmAgendaTask[]
+  posts         FirmPost[]
+
+  @@index([createdByUserId])
+}
+
+model FirmMembership {
+  id                  String   @id @default(cuid())
+  firmId              String
+  userId              String
+  role                String   @default("Member")
+  status              String   @default("Active")
+  canAccessPortfolios Boolean  @default(true)
+  canManageProjects   Boolean  @default(false)
+  canInviteMembers    Boolean  @default(false)
+  canManageFirm       Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  calendarColor       String   @default("#ef4444")
+
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectAssignments FirmProjectAssignment[]
+  weeklyAgendas      WeeklyAgenda[]
+  posts              FirmPost[]
+
+  @@unique([firmId, userId])
+  @@index([userId])
+  @@index([firmId])
+}
+
+model FirmInvite {
+  id            String    @id @default(cuid())
+  firmId        String
+  email         String
+  role          String    @default("Member")
+  inviteCode    String    @unique
+  status        String    @default("Pending")
+  expiresAt     DateTime?
+  sentByUserId  String
+  acceptedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  sentBy User @relation("FirmInviteSentBy", fields: [sentByUserId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([email])
+}
+
+model FirmProject {
+  id          String   @id @default(cuid())
+  firmId      String
+  title       String
+  description String?
+  status      String   @default("Active")
+  priority    String   @default("Medium")
+  dueDate     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  firm        Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  assignments FirmProjectAssignment[]
+  agendaTasks FirmAgendaTask[]
+  posts       FirmPost[]
+
+  @@index([firmId])
+}
+
+model FirmProjectAssignment {
+  id           String   @id @default(cuid())
+  projectId    String
+  membershipId String
+  projectRole  String   @default("Contributor")
+  createdAt    DateTime @default(now())
+
+  project    FirmProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  membership FirmMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, membershipId])
+  @@index([membershipId])
+}
+
+model WeeklyAgenda {
+  id           String   @id @default(cuid())
+  firmId       String
+  membershipId String
+  weekStart    String
+  title        String
+  focus        String?
+  blockers     String?
+  status       String   @default("Open")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  firm       Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  membership FirmMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  tasks    FirmAgendaTask[]
+  comments AgendaComment[]
+
+  @@index([firmId])
+  @@index([membershipId])
+  @@index([weekStart])
+}
+
+model FirmAgendaTask {
+  id          String    @id @default(cuid())
+  firmId      String
+  agendaId    String
+  projectId   String?
+  title       String
+  detail      String?
+  status      String    @default("Open")
+  priority    String    @default("Medium")
+  dueDate     String?
+  delayReason String?
+  inquiry     String?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  agenda  WeeklyAgenda  @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  project FirmProject?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  comments AgendaComment[]
+
+  @@index([firmId])
+  @@index([agendaId])
+  @@index([projectId])
+  @@index([dueDate])
+}
+
+model AgendaComment {
+  id          String   @id @default(cuid())
+  agendaId    String?
+  taskId      String?
+  userId      String
+  body        String
+  commentType String   @default("Comment")
+  createdAt   DateTime @default(now())
+
+  agenda WeeklyAgenda?  @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  task   FirmAgendaTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([agendaId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model FirmPost {
+  id                 String   @id @default(cuid())
+  firmId             String
+  projectId          String?
+  authorMembershipId String?
+  title              String
+  body               String
+  postType           String   @default("Update")
+  createdAt          DateTime @default(now())
+
+  firm             Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  project          FirmProject?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  authorMembership FirmMembership? @relation(fields: [authorMembershipId], references: [id], onDelete: SetNull)
+
+  @@index([firmId])
+  @@index([projectId])
+  @@index([authorMembershipId])
+}
+
+model OpportunitySignal {
+  id                      String   @id @default(cuid())
+  userId                  String
+  headlineDecisionId      String?
+  dedupeKey               String
+  title                   String
+  summary                 String?
+  sourceName              String
+  signalType              String   @default("Review")
+  priorityTier            String   @default("Medium")
+  portfolioRelevanceScore Int      @default(0)
+  opportunityScore        Int      @default(0)
+  riskScore               Int      @default(0)
+  confidenceScore         Int      @default(0)
+  actionabilityScore      Int      @default(0)
+  compositeScore          Int      @default(0)
+  tickersJson             String   @default("[]")
+  categoriesJson          String   @default("[]")
+  evidenceJson            String   @default("[]")
+  suggestedAction         String
+  advisorNotes            String?
+  status                  String   @default("Open")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  sourceUrl               String?
+  aiBriefing              String?
+  issuerCredibilityScore  Int      @default(0)
+  estimatedImpactScore    Int      @default(0)
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headlineDecision HeadlineDecision? @relation(fields: [headlineDecisionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId])
+  @@index([status])
+  @@index([priorityTier])
+  @@index([compositeScore])
+  @@index([createdAt])
+}
