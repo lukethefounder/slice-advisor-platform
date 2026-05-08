@@ -1,18 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import type { RawHeadline } from "@/lib/news-triage";
 
-type FetchableSource = {
+export type FetchableSource = {
   sourceId: string;
   name: string;
   sourceUrl: string | null;
   sourceTier: string;
-  category: string;
-  maxItemsPerRun: number;
-  cooldownMinutes: number;
-  lastRunAt: Date | null;
+  category?: string | null;
+  enabled?: boolean | null;
+  minScoreToRetain?: number | null;
+  minScoreToAlert?: number | null;
+  maxItemsPerRun?: number | null;
+  cooldownMinutes?: number | null;
+  priority?: number | null;
+  lastRunAt?: Date | null;
 };
 
-type FetchResult = {
+export type FetchResult = {
   sourceId: string;
   sourceName: string;
   ok: boolean;
@@ -23,6 +27,8 @@ type FetchResult = {
 };
 
 const MAX_TOTAL_LIVE_HEADLINES = 120;
+const DEFAULT_MAX_ITEMS_PER_SOURCE = 25;
+const DEFAULT_COOLDOWN_MINUTES = 15;
 
 function decodeEntities(value: string) {
   return value
@@ -74,7 +80,28 @@ function normalizeSourceTier(value: string): RawHeadline["sourceTier"] {
   if (value === "market-news") return "market-news";
   if (value === "crypto-source") return "crypto-source";
   if (value === "venture-source") return "venture-source";
+
   return "unknown";
+}
+
+function maxItemsForSource(source: FetchableSource) {
+  const value = source.maxItemsPerRun ?? DEFAULT_MAX_ITEMS_PER_SOURCE;
+
+  if (!Number.isFinite(value)) {
+    return DEFAULT_MAX_ITEMS_PER_SOURCE;
+  }
+
+  return Math.max(1, Math.min(100, Math.round(value)));
+}
+
+function cooldownMinutesForSource(source: FetchableSource) {
+  const value = source.cooldownMinutes ?? DEFAULT_COOLDOWN_MINUTES;
+
+  if (!Number.isFinite(value)) {
+    return DEFAULT_COOLDOWN_MINUTES;
+  }
+
+  return Math.max(0, Math.round(value));
 }
 
 function parseRssOrAtom(xml: string, source: FetchableSource): RawHeadline[] {
@@ -83,7 +110,7 @@ function parseRssOrAtom(xml: string, source: FetchableSource): RawHeadline[] {
     xml.match(/<entry[\s\S]*?<\/entry>/gi) ??
     [];
 
-  return blocks.slice(0, source.maxItemsPerRun).map((block) => {
+  return blocks.slice(0, maxItemsForSource(source)).map((block) => {
     const title = extractTag(block, ["title"]) || "Untitled source item";
     const summary = extractTag(block, ["description", "summary", "content"]);
     const url = extractLink(block);
@@ -106,7 +133,7 @@ function parseRssOrAtom(xml: string, source: FetchableSource): RawHeadline[] {
   });
 }
 
-function isValidHttpUrl(value: string | null) {
+function isValidHttpUrl(value: string | null | undefined): value is string {
   if (!value) return false;
 
   try {
@@ -121,7 +148,7 @@ function isCoolingDown(source: FetchableSource) {
   if (!source.lastRunAt) return false;
 
   const msSinceRun = Date.now() - source.lastRunAt.getTime();
-  const cooldownMs = source.cooldownMinutes * 60 * 1000;
+  const cooldownMs = cooldownMinutesForSource(source) * 60 * 1000;
 
   return msSinceRun < cooldownMs;
 }
@@ -150,7 +177,9 @@ async function updateCheckpoint(result: FetchResult) {
 }
 
 async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
-  if (!isValidHttpUrl(source.sourceUrl)) {
+  const sourceUrl = source.sourceUrl;
+
+  if (!isValidHttpUrl(sourceUrl)) {
     const result: FetchResult = {
       sourceId: source.sourceId,
       sourceName: source.name,
@@ -184,12 +213,13 @@ async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
   const timeout = setTimeout(() => controller.abort(), 9000);
 
   try {
-    const response = await fetch(source.sourceUrl as string, {
+    const response = await fetch(sourceUrl, {
       signal: controller.signal,
       cache: "no-store",
       headers: {
         "User-Agent": "SliceWealthIntelligence/0.1 founder@example.com",
-        Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+        Accept:
+          "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
       },
     });
 
@@ -271,8 +301,9 @@ export async function fetchFreeHeadlineBatch(sources: FetchableSource[]) {
     results.push(result);
   }
 
-  const headlines = dedupeHeadlines(results.flatMap((result) => result.headlines))
-    .slice(0, MAX_TOTAL_LIVE_HEADLINES);
+  const headlines = dedupeHeadlines(
+    results.flatMap((result) => result.headlines)
+  ).slice(0, MAX_TOTAL_LIVE_HEADLINES);
 
   return {
     sourceResults: results,

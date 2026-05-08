@@ -14,39 +14,46 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  sessions           Session[]
-  watchAssets        WatchAsset[]
-  ventureProjects    VentureProject[]
-  alertRules         AlertRule[]
-  clientProfiles     ClientProfile[]
-  advisorNotes       AdvisorNote[]
-  meetingTasks       MeetingTask[]
-  documentVaultItems DocumentVaultItem[]
-  investorGoals      InvestorGoal[]
-  researchNotes      ResearchNote[]
-  alertEvents        AlertEvent[]
-  investorInsights   InvestorInsight[]
-  intelligenceRuns   IntelligenceRun[]
-  headlineDecisions  HeadlineDecision[]
-  newsSourceConfigs          NewsSourceConfig[]
-  intelligenceRetentionPolicy IntelligenceRetentionPolicy?
-  notificationPreferences NotificationPreference[]
-  notificationDeliveries  NotificationDelivery[]
-  digestReports           DigestReport[]
-  briefingReports BriefingReport[]
-  investorAccounts InvestorAccount[]
-  investorHoldings InvestorHolding[]
-  allocationModels AllocationModel[]
-  rebalanceReports RebalanceReport[]
-  scenarioReports  ScenarioReport[]
-  auditLogs             AuditLog[]
-  disclosureAcceptances DisclosureAcceptance[]
-  securitySetting       UserSecuritySetting?
-  createdFirms          Firm[]          @relation("FirmCreatedBy")
-  firmMemberships       FirmMembership[]
-  firmInvitesSent       FirmInvite[]    @relation("FirmInviteSentBy")
-  agendaComments        AgendaComment[]
-  opportunitySignals OpportunitySignal[]
+  sessions                      Session[]
+  watchAssets                   WatchAsset[]
+  ventureProjects               VentureProject[]
+  alertRules                    AlertRule[]
+  clientProfiles                ClientProfile[]
+  advisorNotes                  AdvisorNote[]
+  meetingTasks                  MeetingTask[]
+  documentVaultItems            DocumentVaultItem[]
+  investorGoals                 InvestorGoal[]
+  researchNotes                 ResearchNote[]
+  alertEvents                   AlertEvent[]
+  investorInsights              InvestorInsight[]
+  intelligenceRuns              IntelligenceRun[]
+  headlineDecisions             HeadlineDecision[]
+  newsSourceConfigs             NewsSourceConfig[]
+  intelligenceRetentionPolicy   IntelligenceRetentionPolicy?
+  notificationPreferences       NotificationPreference[]
+  notificationDeliveries        NotificationDelivery[]
+  digestReports                 DigestReport[]
+  briefingReports               BriefingReport[]
+  investorAccounts              InvestorAccount[]
+  investorHoldings              InvestorHolding[]
+  allocationModels              AllocationModel[]
+  rebalanceReports              RebalanceReport[]
+  scenarioReports               ScenarioReport[]
+  auditLogs                     AuditLog[]
+  disclosureAcceptances         DisclosureAcceptance[]
+  securitySetting               UserSecuritySetting?
+  createdFirms                  Firm[]                       @relation("FirmCreatedBy")
+  firmMemberships               FirmMembership[]
+  firmInvitesSent               FirmInvite[]                 @relation("FirmInviteSentBy")
+  agendaComments                AgendaComment[]
+  opportunitySignals            OpportunitySignal[]
+  alternativeVenturesCreated    AlternativeVenture[]         @relation("AlternativeVentureCreatedBy")
+  alternativePennyStocksCreated AlternativePennyStock[]      @relation("AlternativePennyStockCreatedBy")
+  platformStatus                String                       @default("Active")
+  governanceReason              String?
+  governedAt                    DateTime?
+  namedWatchlists               NamedWatchlist[]
+  namedWatchlistItems           NamedWatchlistItem[]
 }
 
 model Session {
@@ -79,8 +86,54 @@ model WatchAsset {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([userId, ticker])
+  @@index([userId])
+}
+
+model NamedWatchlist {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  focus       String   @default("General")
+  riskLevel   String   @default("Mixed")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items NamedWatchlistItem[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model NamedWatchlistItem {
+  id            String   @id @default(cuid())
+  userId        String
+  watchlistId   String
+  symbol        String
+  assetName     String
+  assetType     String   @default("Stock")
+  sourceType    String   @default("Manual")
+  sourceId      String?
+  sourceTitle   String?
+  sourceUrl     String?
+  originalScore Int?
+  thesis        String?
+  riskNotes     String?
+  status        String   @default("Watching")
+  priority      String   @default("Medium")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchlist NamedWatchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, symbol])
+  @@index([userId])
+  @@index([watchlistId])
+  @@index([symbol])
+  @@index([assetType])
 }
 
 model VentureProject {
@@ -115,20 +168,20 @@ model AlertRule {
 }
 
 model ClientProfile {
-  id             String   @id @default(cuid())
-  userId         String
-  fullName       String
-  email          String?
-  householdName  String?
-  clientType     String   @default("Private Client")
-  riskProfile    String   @default("Balanced")
-  liquidityNeeds String   @default("Moderate")
-  timeHorizon    String   @default("5-10 years")
-  objective      String   @default("Long-term wealth growth")
-  portfolioValue String?
-  status         String   @default("Active")
-  notes          String?
-  createdAt      DateTime @default(now())
+  id              String           @id @default(cuid())
+  userId          String
+  fullName        String
+  email           String?
+  householdName   String?
+  clientType      String           @default("Private Client")
+  riskProfile     String           @default("Balanced")
+  liquidityNeeds  String           @default("Moderate")
+  timeHorizon     String           @default("5-10 years")
+  objective       String           @default("Long-term wealth growth")
+  portfolioValue  String?
+  status          String           @default("Active")
+  notes           String?
+  createdAt       DateTime         @default(now())
   briefingReports BriefingReport[]
 
   user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -262,27 +315,27 @@ model ResearchNote {
 }
 
 model AlertEvent {
-  id        String    @id @default(cuid())
-  userId    String
-  dedupeKey String
-  title     String
-  body      String
-  source    String
-  ticker    String?
-  urgency   String   @default("Medium")
-  score     Int      @default(50)
-  channel   String   @default("Dashboard")
-  status    String   @default("Unread")
-  createdAt DateTime @default(now())
-  readAt    DateTime?
+  id         String                 @id @default(cuid())
+  userId     String
+  dedupeKey  String
+  title      String
+  body       String
+  source     String
+  ticker     String?
+  urgency    String                 @default("Medium")
+  score      Int                    @default(50)
+  channel    String                 @default("Dashboard")
+  status     String                 @default("Unread")
+  createdAt  DateTime               @default(now())
+  readAt     DateTime?
   deliveries NotificationDelivery[]
   sourceUrl  String?
   aiBriefing String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([userId, dedupeKey])
+  @@index([userId])
 }
 
 model InvestorInsight {
@@ -331,7 +384,7 @@ model IntelligenceRun {
 }
 
 model HeadlineDecision {
-  id                 String   @id @default(cuid())
+  id                 String              @id @default(cuid())
   userId             String
   dedupeKey          String
   title              String
@@ -348,12 +401,12 @@ model HeadlineDecision {
   materialityScore   Int
   relevanceScore     Int
   trustScore         Int
-  matchedTickersJson String   @default("[]")
-  matchedAreasJson   String   @default("[]")
-  reasonsJson        String   @default("[]")
-  channelsJson       String   @default("[]")
+  matchedTickersJson String              @default("[]")
+  matchedAreasJson   String              @default("[]")
+  reasonsJson        String              @default("[]")
+  channelsJson       String              @default("[]")
   expiresAt          DateTime
-  createdAt          DateTime @default(now())
+  createdAt          DateTime            @default(now())
   opportunitySignals OpportunitySignal[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -366,19 +419,19 @@ model HeadlineDecision {
 }
 
 model SourceCheckpoint {
-  id            String   @id @default(cuid())
-  sourceId      String   @unique
+  id            String    @id @default(cuid())
+  sourceId      String    @unique
   sourceName    String
   lastFetchedAt DateTime?
   lastSeenHash  String?
-  lastStatus    String   @default("Pending")
-  lastItemCount Int      @default(0)
-  updatedAt     DateTime @updatedAt
-  createdAt     DateTime @default(now())
+  lastStatus    String    @default("Pending")
+  lastItemCount Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
 }
 
 model NewsSourceConfig {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
   sourceId         String
   name             String
@@ -386,16 +439,16 @@ model NewsSourceConfig {
   sourceTier       String
   category         String
   sourceUrl        String?
-  enabled          Boolean  @default(true)
-  minScoreToRetain Int      @default(55)
-  minScoreToAlert  Int      @default(88)
-  maxItemsPerRun   Int      @default(25)
-  cooldownMinutes  Int      @default(15)
-  priority         Int      @default(1)
+  enabled          Boolean   @default(true)
+  minScoreToRetain Int       @default(55)
+  minScoreToAlert  Int       @default(88)
+  maxItemsPerRun   Int       @default(25)
+  cooldownMinutes  Int       @default(15)
+  priority         Int       @default(1)
   lastRunAt        DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sourceId])
@@ -423,18 +476,18 @@ model IntelligenceRetentionPolicy {
 }
 
 model NotificationPreference {
-  id                String   @id @default(cuid())
-  userId            String
-  channel           String
-  enabled           Boolean  @default(true)
-  minUrgency        String   @default("High")
-  minScore          Int      @default(75)
-  digestOnly        Boolean  @default(false)
-  quietHoursStart   String?
-  quietHoursEnd     String?
-  cooldownMinutes   Int      @default(30)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String   @id @default(cuid())
+  userId          String
+  channel         String
+  enabled         Boolean  @default(true)
+  minUrgency      String   @default("High")
+  minScore        Int      @default(75)
+  digestOnly      Boolean  @default(false)
+  quietHoursStart String?
+  quietHoursEnd   String?
+  cooldownMinutes Int      @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -556,7 +609,7 @@ model AllocationModel {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   targets AllocationTarget[]
   reports RebalanceReport[]
 
@@ -573,8 +626,8 @@ model AllocationTarget {
 
   model AllocationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
-  @@index([modelId])
   @@unique([modelId, assetClass])
+  @@index([modelId])
 }
 
 model RebalanceReport {
@@ -600,20 +653,20 @@ model RebalanceReport {
 }
 
 model ScenarioReport {
-  id            String   @id @default(cuid())
-  userId        String
-  title         String
-  scenarioType  String
-  totalBefore   Float    @default(0)
-  totalAfter    Float    @default(0)
-  impactAmount  Float    @default(0)
-  impactPct     Float    @default(0)
-  shockJson     String   @default("{}")
-  beforeJson    String   @default("[]")
-  afterJson     String   @default("[]")
-  summary       String
-  actionsJson   String   @default("[]")
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  title        String
+  scenarioType String
+  totalBefore  Float    @default(0)
+  totalAfter   Float    @default(0)
+  impactAmount Float    @default(0)
+  impactPct    Float    @default(0)
+  shockJson    String   @default("{}")
+  beforeJson   String   @default("[]")
+  afterJson    String   @default("[]")
+  summary      String
+  actionsJson  String   @default("[]")
+  createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -659,16 +712,16 @@ model DisclosureAcceptance {
 }
 
 model UserSecuritySetting {
-  id                                String   @id @default(cuid())
-  userId                            String   @unique
-  mfaEnabled                         Boolean  @default(false)
-  requireReauthForSensitiveActions   Boolean  @default(true)
-  alertOnNewLogin                    Boolean  @default(true)
-  advisorModeEnabled                 Boolean  @default(false)
-  sessionTimeoutMinutes              Int      @default(43200)
-  lastSecurityReviewAt               DateTime?
-  createdAt                          DateTime @default(now())
-  updatedAt                          DateTime @updatedAt
+  id                               String    @id @default(cuid())
+  userId                           String    @unique
+  mfaEnabled                       Boolean   @default(false)
+  requireReauthForSensitiveActions Boolean   @default(true)
+  alertOnNewLogin                  Boolean   @default(true)
+  advisorModeEnabled               Boolean   @default(false)
+  sessionTimeoutMinutes            Int       @default(43200)
+  lastSecurityReviewAt             DateTime?
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -684,14 +737,79 @@ model Firm {
 
   createdBy User @relation("FirmCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
-  memberships   FirmMembership[]
-  invites       FirmInvite[]
-  projects      FirmProject[]
-  weeklyAgendas WeeklyAgenda[]
-  agendaTasks   FirmAgendaTask[]
-  posts         FirmPost[]
+  memberships            FirmMembership[]
+  invites                FirmInvite[]
+  projects               FirmProject[]
+  weeklyAgendas          WeeklyAgenda[]
+  agendaTasks            FirmAgendaTask[]
+  posts                  FirmPost[]
+  alternativeVentures    AlternativeVenture[]
+  alternativePennyStocks AlternativePennyStock[]
+  platformStatus         String                  @default("Active")
+  governanceReason       String?
+  governedAt             DateTime?
 
   @@index([createdByUserId])
+}
+
+model AlternativeVenture {
+  id                 String   @id @default(cuid())
+  firmId             String
+  createdByUserId    String
+  startupName        String
+  founderName        String?
+  sector             String   @default("Technology")
+  stage              String   @default("Seed")
+  website            String?
+  background         String
+  problemToSolve     String
+  solution           String?
+  equityOfferedPct   Float    @default(0)
+  tentativeValuation Float    @default(0)
+  amountSought       Float?
+  traction           String?
+  thesis             String?
+  keyRisks           String?
+  monitoringStatus   String   @default("Watching")
+  riskLevel          String   @default("Very High")
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  createdBy User @relation("AlternativeVentureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([createdByUserId])
+  @@index([monitoringStatus])
+  @@index([sector])
+}
+
+model AlternativePennyStock {
+  id              String   @id @default(cuid())
+  firmId          String
+  createdByUserId String
+  ticker          String
+  companyName     String
+  sector          String   @default("Unknown")
+  thesis          String?
+  catalyst        String?
+  riskNotes       String?
+  targetEntry     String?
+  maxPositionPct  Float?
+  status          String   @default("Watching")
+  riskLevel       String   @default("Extreme")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  createdBy User @relation("AlternativePennyStockCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([createdByUserId])
+  @@index([ticker])
+  @@index([status])
 }
 
 model FirmMembership {
@@ -721,16 +839,16 @@ model FirmMembership {
 }
 
 model FirmInvite {
-  id            String    @id @default(cuid())
-  firmId        String
-  email         String
-  role          String    @default("Member")
-  inviteCode    String    @unique
-  status        String    @default("Pending")
-  expiresAt     DateTime?
-  sentByUserId  String
-  acceptedAt    DateTime?
-  createdAt     DateTime  @default(now())
+  id           String    @id @default(cuid())
+  firmId       String
+  email        String
+  role         String    @default("Member")
+  inviteCode   String    @unique
+  status       String    @default("Pending")
+  expiresAt    DateTime?
+  sentByUserId String
+  acceptedAt   DateTime?
+  createdAt    DateTime  @default(now())
 
   firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   sentBy User @relation("FirmInviteSentBy", fields: [sentByUserId], references: [id], onDelete: Cascade)
@@ -811,9 +929,9 @@ model FirmAgendaTask {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  firm    Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  agenda  WeeklyAgenda  @relation(fields: [agendaId], references: [id], onDelete: Cascade)
-  project FirmProject?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  firm    Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  agenda  WeeklyAgenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  project FirmProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   comments AgendaComment[]
 
@@ -832,7 +950,7 @@ model AgendaComment {
   commentType String   @default("Comment")
   createdAt   DateTime @default(now())
 
-  agenda WeeklyAgenda?  @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  agenda WeeklyAgenda?   @relation(fields: [agendaId], references: [id], onDelete: Cascade)
   task   FirmAgendaTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 

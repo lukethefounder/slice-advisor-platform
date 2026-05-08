@@ -6,6 +6,7 @@ import {
   sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
+import { isFounderEmail } from "@/lib/founder-access";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -42,10 +43,55 @@ export async function POST(request: Request) {
       );
     }
 
+    if (user.platformStatus === "Banned") {
+      return NextResponse.json(
+        {
+          error:
+            user.governanceReason ||
+            "This account has been banned by platform governance.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (user.platformStatus === "Suspended") {
+      return NextResponse.json(
+        {
+          error:
+            user.governanceReason ||
+            "This account has been suspended by platform governance.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const isFounder = isFounderEmail(user.email);
+
+    const activeMembership = await prisma.firmMembership.findFirst({
+      where: {
+        userId: user.id,
+        status: "Active",
+        firm: {
+          platformStatus: "Active",
+        },
+      },
+    });
+
+    if (!isFounder && !activeMembership) {
+      return NextResponse.json(
+        {
+          error:
+            "This account is not connected to an active firm workspace. Ask a firm owner to invite or restore access.",
+        },
+        { status: 403 }
+      );
+    }
+
     const session = await createSession(user.id);
 
     const response = NextResponse.json({
       user: publicUser(user),
+      isFounder,
     });
 
     response.cookies.set(

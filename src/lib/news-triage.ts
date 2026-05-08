@@ -19,8 +19,11 @@ export type RawHeadline = {
 
 export type TriageProfile = {
   watchTickers: string[];
+  namedWatchlistTickers: string[];
+  namedWatchlistNames: string[];
   companyNames: string[];
   clientHoldingTickers: string[];
+  portfolioHoldingTickers: string[];
   ventureSectors: string[];
   researchTickers: string[];
   goalThemes: string[];
@@ -411,7 +414,10 @@ export function demoHeadlineBatch() {
 }
 
 function normalize(value: string) {
-  return ` ${value.toLowerCase().replace(/[^a-z0-9$ ]/g, " ").replace(/\s+/g, " ")} `;
+  return ` ${value
+    .toLowerCase()
+    .replace(/[^a-z0-9$ ]/g, " ")
+    .replace(/\s+/g, " ")} `;
 }
 
 function hash(value: string) {
@@ -426,6 +432,16 @@ function includesTicker(text: string, ticker: string) {
   const escaped = ticker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(^|[^A-Z0-9])\\$?${escaped}([^A-Z0-9]|$)`, "i");
   return regex.test(text);
+}
+
+function uniqueSymbols(symbols: string[]) {
+  return Array.from(
+    new Set(
+      symbols
+        .map((symbol) => symbol.trim().replace(/^\$/, "").toUpperCase())
+        .filter(Boolean)
+    )
+  );
 }
 
 function sourceTrustScore(sourceTier: RawHeadline["sourceTier"]) {
@@ -481,34 +497,60 @@ export function triageHeadline(
     reasons.push(`Recency score: ${recentScore}.`);
   }
 
-  for (const ticker of profile.watchTickers) {
+  for (const ticker of uniqueSymbols(profile.portfolioHoldingTickers)) {
     if (includesTicker(text, ticker)) {
-      matchedTickers.add(ticker.toUpperCase());
-      relevanceScore += 34;
-      reasons.push(`Direct watchlist ticker match: ${ticker.toUpperCase()}.`);
+      matchedTickers.add(ticker);
+      relevanceScore += 52;
+      reasons.push(
+        `Highest emphasis: direct portfolio holding match (${ticker}).`
+      );
     }
   }
 
-  for (const ticker of profile.clientHoldingTickers) {
+  for (const ticker of uniqueSymbols(profile.clientHoldingTickers)) {
     if (includesTicker(text, ticker)) {
-      matchedTickers.add(ticker.toUpperCase());
-      relevanceScore += 38;
-      reasons.push(`Client holding ticker match: ${ticker.toUpperCase()}.`);
+      matchedTickers.add(ticker);
+      relevanceScore += 46;
+      reasons.push(`Client holding match: ${ticker}.`);
     }
   }
 
-  for (const ticker of profile.researchTickers) {
+  for (const ticker of uniqueSymbols(profile.namedWatchlistTickers)) {
     if (includesTicker(text, ticker)) {
-      matchedTickers.add(ticker.toUpperCase());
-      relevanceScore += 18;
-      reasons.push(`Research ticker match: ${ticker.toUpperCase()}.`);
+      matchedTickers.add(ticker);
+      relevanceScore += 42;
+      reasons.push(`Named watchlist emphasis match: ${ticker}.`);
+    }
+  }
+
+  for (const ticker of uniqueSymbols(profile.watchTickers)) {
+    if (includesTicker(text, ticker)) {
+      matchedTickers.add(ticker);
+      relevanceScore += 30;
+      reasons.push(`General watchlist ticker match: ${ticker}.`);
+    }
+  }
+
+  for (const ticker of uniqueSymbols(profile.researchTickers)) {
+    if (includesTicker(text, ticker)) {
+      matchedTickers.add(ticker);
+      relevanceScore += 20;
+      reasons.push(`Research ticker match: ${ticker}.`);
     }
   }
 
   for (const name of profile.companyNames) {
     if (name.length > 2 && normalized.includes(normalize(name))) {
-      relevanceScore += 22;
+      relevanceScore += 20;
       reasons.push(`Company name match: ${name}.`);
+    }
+  }
+
+  for (const listName of profile.namedWatchlistNames) {
+    if (listName.length > 2 && normalized.includes(normalize(listName))) {
+      relevanceScore += 12;
+      matchedAreas.add(`Watchlist theme: ${listName}`);
+      reasons.push(`Named watchlist theme match: ${listName}.`);
     }
   }
 
@@ -521,7 +563,9 @@ export function triageHeadline(
   }
 
   for (const rule of MATERIALITY_RULES) {
-    const matched = rule.terms.some((term) => normalized.includes(normalize(term)));
+    const matched = rule.terms.some((term) =>
+      normalized.includes(normalize(term))
+    );
 
     if (matched) {
       materialityScore += rule.weight;
@@ -545,8 +589,35 @@ export function triageHeadline(
   relevanceScore = clamp(relevanceScore, 0, 100);
   materialityScore = clamp(materialityScore, 0, 100);
 
+  const hasPortfolioMatch = uniqueSymbols(profile.portfolioHoldingTickers).some(
+    (ticker) => includesTicker(text, ticker)
+  );
+
+  const hasNamedWatchlistMatch = uniqueSymbols(profile.namedWatchlistTickers).some(
+    (ticker) => includesTicker(text, ticker)
+  );
+
+  const extraEmphasisBoost = hasPortfolioMatch
+    ? 10
+    : hasNamedWatchlistMatch
+      ? 7
+      : 0;
+
+  if (hasPortfolioMatch) {
+    reasons.push("Portfolio holding boost applied to final score.");
+  }
+
+  if (hasNamedWatchlistMatch) {
+    reasons.push("Named watchlist boost applied to final score.");
+  }
+
   const rawScore =
-    trustScore + recentScore + relevanceScore + materialityScore - noisePenalty;
+    trustScore +
+    recentScore +
+    relevanceScore +
+    materialityScore +
+    extraEmphasisBoost -
+    noisePenalty;
 
   const score = clamp(rawScore, 0, 100);
 
@@ -559,9 +630,13 @@ export function triageHeadline(
   const exactPortfolioMatch = matchedTickers.size > 0;
   const majorMaterialEvent = materialityScore >= 55;
   const trustedCriticalSource =
-    raw.sourceTier === "official-regulatory" || raw.sourceTier === "official-exchange";
+    raw.sourceTier === "official-regulatory" ||
+    raw.sourceTier === "official-exchange";
 
-  if (score >= 88 && (exactPortfolioMatch || majorMaterialEvent || trustedCriticalSource)) {
+  if (
+    score >= 88 &&
+    (exactPortfolioMatch || majorMaterialEvent || trustedCriticalSource)
+  ) {
     urgency = "Critical";
     importanceTier = "URGENT_PORTFOLIO_ALERT";
     action = "CREATE_ALERT";
@@ -596,7 +671,11 @@ export function triageHeadline(
   const shouldAlert = action === "CREATE_ALERT";
   const shouldPersist =
     action !== "DISCARD" &&
-    (score >= 55 || exactPortfolioMatch || materialityScore >= 40);
+    (score >= 55 ||
+      exactPortfolioMatch ||
+      materialityScore >= 40 ||
+      hasNamedWatchlistMatch ||
+      hasPortfolioMatch);
 
   const summary = (raw.summary ?? "").slice(0, 700);
   const dedupeKey = hash(`${raw.sourceId}:${raw.title}:${raw.url ?? ""}`);
@@ -619,7 +698,7 @@ export function triageHeadline(
     trustScore,
     matchedTickers: Array.from(matchedTickers),
     matchedAreas: Array.from(matchedAreas).slice(0, 8),
-    reasons: Array.from(new Set(reasons)).slice(0, 10),
+    reasons: Array.from(new Set(reasons)).slice(0, 12),
     channels,
     shouldPersist,
     shouldAlert,
