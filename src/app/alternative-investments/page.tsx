@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 type View = "overview" | "crypto" | "penny-stocks" | "venture" | "risk";
 
@@ -152,9 +152,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function money(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
 
   if (Math.abs(value) >= 1_000_000_000_000) {
     return `$${(value / 1_000_000_000_000).toFixed(2)}T`;
@@ -176,9 +174,7 @@ function money(value: number | null | undefined) {
 }
 
 function numberFormat(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
 
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
@@ -186,10 +182,7 @@ function numberFormat(value: number | null | undefined) {
 }
 
 function pct(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return "—";
-  }
-
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
@@ -208,6 +201,16 @@ function toneFromScore(score: number): "red" | "green" | "amber" | "slate" | "pu
   if (score >= 70) return "amber";
   if (score >= 55) return "purple";
   if (score >= 40) return "green";
+  return "slate";
+}
+
+function toneForStatus(status: string): "red" | "green" | "amber" | "slate" | "purple" {
+  const lower = status.toLowerCase();
+
+  if (lower.includes("pass") || lower.includes("blocked") || lower.includes("extreme")) return "red";
+  if (lower.includes("active") || lower.includes("diligence")) return "green";
+  if (lower.includes("watch") || lower.includes("review")) return "amber";
+  if (lower.includes("venture") || lower.includes("crypto")) return "purple";
   return "slate";
 }
 
@@ -458,6 +461,14 @@ const inputClass =
 const selectClass =
   "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition focus:ring-2";
 
+const viewTabs: Array<{ id: View; label: string; description: string }> = [
+  { id: "overview", label: "Overview", description: "Alternative dashboard" },
+  { id: "crypto", label: "Crypto Markets", description: "Live crypto data" },
+  { id: "penny-stocks", label: "Penny Stocks", description: "Speculative equities" },
+  { id: "venture", label: "Venture Monitor", description: "Startup opportunities" },
+  { id: "risk", label: "Risk Framework", description: "Suitability guardrails" },
+];
+
 export default function AlternativeInvestmentsPage() {
   const [data, setData] = useState<AlternativeData | null>(null);
   const [activeView, setActiveView] = useState<View>("overview");
@@ -511,28 +522,25 @@ export default function AlternativeInvestmentsPage() {
   const pennyStocks = data?.pennyStocks ?? [];
 
   const aggregateCryptoMarketCap = useMemo(() => {
-    return cryptoMarkets.reduce(
-      (sum, coin) => sum + (coin.market_cap ?? 0),
-      0
-    );
+    return cryptoMarkets.reduce((sum, coin) => sum + (coin.market_cap ?? 0), 0);
   }, [cryptoMarkets]);
 
   const aggregateCryptoVolume = useMemo(() => {
-    return cryptoMarkets.reduce(
-      (sum, coin) => sum + (coin.total_volume ?? 0),
-      0
-    );
+    return cryptoMarkets.reduce((sum, coin) => sum + (coin.total_volume ?? 0), 0);
   }, [cryptoMarkets]);
 
   const cryptoBreadth = useMemo(() => {
     if (!cryptoMarkets.length) return 0;
-
-    const positive = cryptoMarkets.filter(
-      (coin) => (coin.price_change_percentage_24h ?? 0) > 0
-    ).length;
-
+    const positive = cryptoMarkets.filter((coin) => (coin.price_change_percentage_24h ?? 0) > 0).length;
     return Math.round((positive / cryptoMarkets.length) * 100);
   }, [cryptoMarkets]);
+
+  function setView(view: View) {
+    setActiveView(view);
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", view);
+    window.history.replaceState({}, "", url.toString());
+  }
 
   async function loadData() {
     const response = await fetch("/api/alternative-investments", {
@@ -550,7 +558,10 @@ export default function AlternativeInvestmentsPage() {
   }
 
   async function postAction(body: Record<string, unknown>) {
-    if (!firm) return null;
+    if (!firm) {
+      setMessage("A firm workspace is required before saving alternative investments.");
+      return null;
+    }
 
     setSaving(true);
     setMessage("");
@@ -609,6 +620,7 @@ export default function AlternativeInvestmentsPage() {
         riskLevel: "Very High",
         notes: "",
       });
+      setView("venture");
       setMessage("Venture added to firm monitor.");
     }
   }
@@ -621,6 +633,7 @@ export default function AlternativeInvestmentsPage() {
     });
 
     if (payload) {
+      setView("venture");
       setMessage(`Venture status updated to ${monitoringStatus}.`);
     }
   }
@@ -647,6 +660,7 @@ export default function AlternativeInvestmentsPage() {
         riskLevel: "Extreme",
         notes: "",
       });
+      setView("penny-stocks");
       setMessage("Penny stock added to watchlist.");
     }
   }
@@ -659,11 +673,19 @@ export default function AlternativeInvestmentsPage() {
     });
 
     if (payload) {
+      setView("penny-stocks");
       setMessage(`Penny stock status updated to ${status}.`);
     }
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view") as View | null;
+
+    if (view && viewTabs.some((tab) => tab.id === view)) {
+      setActiveView(view);
+    }
+
     async function run() {
       try {
         await loadData();
@@ -700,9 +722,7 @@ export default function AlternativeInvestmentsPage() {
               Create or join a firm first.
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-400">
-              Alternative investments are tracked at the firm level so advisors
-              can share the same crypto dashboard, penny stock watchlist, and
-              venture monitor.
+              Alternative investments are tracked at the firm level so advisors can share the same crypto dashboard, penny-stock watchlist, and venture monitor.
             </p>
 
             <a
@@ -742,10 +762,10 @@ export default function AlternativeInvestmentsPage() {
               </a>
 
               <a
-                href="/investment-comparison"
+                href="/market-visuals"
                 className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/20"
               >
-                Compare
+                Market Visuals
               </a>
 
               <button
@@ -757,26 +777,28 @@ export default function AlternativeInvestmentsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {[
-              ["overview", "Overview"],
-              ["crypto", "Crypto Markets"],
-              ["penny-stocks", "Penny Stocks"],
-              ["venture", "Venture Monitor"],
-              ["risk", "Risk Framework"],
-            ].map(([id, label]) => (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {viewTabs.map((tab) => (
               <button
-                key={id}
+                key={tab.id}
                 type="button"
-                onClick={() => setActiveView(id as View)}
+                onClick={() => setView(tab.id)}
                 className={cx(
-                  "shrink-0 rounded-full px-4 py-2 text-sm font-black transition",
-                  activeView === id
-                    ? "bg-gradient-to-r from-red-600 to-red-950 text-white shadow-lg shadow-red-950/40"
-                    : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                  "rounded-2xl px-4 py-3 text-left transition",
+                  activeView === tab.id
+                    ? "bg-white text-slate-950 shadow-lg shadow-red-950/30"
+                    : "bg-white/[0.055] text-white hover:bg-white/[0.09]"
                 )}
               >
-                {label}
+                <div className="truncate text-sm font-black">{tab.label}</div>
+                <div
+                  className={cx(
+                    "mt-1 truncate text-[10px] font-semibold",
+                    activeView === tab.id ? "text-slate-600" : "text-slate-500"
+                  )}
+                >
+                  {tab.description}
+                </div>
               </button>
             ))}
           </div>
@@ -798,44 +820,58 @@ export default function AlternativeInvestmentsPage() {
                   <SectionTitle
                     eyebrow="High-risk allocation layer"
                     title="Alternative investments for less risk-averse strategies."
-                    description="This page highlights riskier investment segments with potential for higher return: crypto markets, crypto trade trends, penny-stock watchlists, and firm-controlled venture monitoring."
-                    action={
-                      <Pill tone="red">
-                        Not suitable for conservative portfolios
-                      </Pill>
-                    }
+                    description="Crypto, penny stocks, and venture opportunities are isolated from safer client portfolios while still giving the firm a serious monitoring layer."
+                    action={<Pill tone="red">High risk only</Pill>}
                   />
 
                   <div className="mt-5 grid gap-3 md:grid-cols-4">
-                    <MetricBubble
-                      label="Tracked Crypto"
-                      value={cryptoMarkets.length}
-                      helper="Live market cards"
-                      tone="purple"
-                    />
-                    <MetricBubble
-                      label="Crypto Market Cap"
-                      value={money(aggregateCryptoMarketCap)}
-                      helper="Tracked basket"
-                      tone="green"
-                    />
-                    <MetricBubble
-                      label="24h Breadth"
-                      value={`${cryptoBreadth}%`}
-                      helper="Positive movers"
-                      tone="amber"
-                    />
-                    <MetricBubble
-                      label="Fear & Greed"
-                      value={data?.crypto.fearGreed.value ?? "—"}
-                      helper={data?.crypto.fearGreed.classification ?? "Unavailable"}
-                      tone="red"
-                    />
+                    <MetricBubble label="Tracked Crypto" value={cryptoMarkets.length} helper="Live market cards" tone="purple" />
+                    <MetricBubble label="Crypto Market Cap" value={money(aggregateCryptoMarketCap)} helper="Tracked basket" tone="green" />
+                    <MetricBubble label="24h Breadth" value={`${cryptoBreadth}%`} helper="Positive movers" tone="amber" />
+                    <MetricBubble label="Fear & Greed" value={data?.crypto.fearGreed.value ?? "—"} helper={data?.crypto.fearGreed.classification ?? "Unavailable"} tone="red" />
                   </div>
                 </div>
               </Card>
 
-              <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+              <div className="grid gap-5 xl:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setView("crypto")}
+                  className="rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+                >
+                  <Pill tone="purple">Crypto</Pill>
+                  <h3 className="mt-4 text-2xl font-black">Crypto Markets</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Live crypto prices, sentiment, volatility, liquidity, and opportunity scoring.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setView("penny-stocks")}
+                  className="rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+                >
+                  <Pill tone="red">Extreme Risk</Pill>
+                  <h3 className="mt-4 text-2xl font-black">Penny Stocks</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Track speculative tickers, catalysts, thesis, entry ideas, and risk notes.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setView("venture")}
+                  className="rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+                >
+                  <Pill tone="amber">Venture</Pill>
+                  <h3 className="mt-4 text-2xl font-black">Venture Monitor</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Track startups, founders, valuation, equity offered, traction, thesis, and diligence status.
+                  </p>
+                </button>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
                 <Card className="p-5">
                   <SectionTitle
                     eyebrow="Market sentiment"
@@ -889,47 +925,13 @@ export default function AlternativeInvestmentsPage() {
                   />
 
                   <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    <MetricBubble
-                      label="Venture Deals"
-                      value={data?.stats.ventureStats.count ?? 0}
-                      helper="Firm added"
-                      tone="purple"
-                    />
-                    <MetricBubble
-                      label="Penny Stocks"
-                      value={data?.stats.pennyStats.count ?? 0}
-                      helper="Firm watchlist"
-                      tone="red"
-                    />
-                    <MetricBubble
-                      label="Avg Venture Valuation"
-                      value={money(data?.stats.ventureStats.averageValuation ?? 0)}
-                      helper="Tentative"
-                      tone="green"
-                    />
-                    <MetricBubble
-                      label="Avg Equity Offered"
-                      value={`${numberFormat(
-                        data?.stats.ventureStats.averageEquityOffered ?? 0
-                      )}%`}
-                      helper="Founder offer"
-                      tone="amber"
-                    />
+                    <MetricBubble label="Venture Deals" value={data?.stats.ventureStats.count ?? 0} helper="Firm added" tone="purple" />
+                    <MetricBubble label="Penny Stocks" value={data?.stats.pennyStats.count ?? 0} helper="Firm watchlist" tone="red" />
+                    <MetricBubble label="Avg Venture Valuation" value={money(data?.stats.ventureStats.averageValuation ?? 0)} helper="Tentative" tone="green" />
+                    <MetricBubble label="Avg Equity Offered" value={`${numberFormat(data?.stats.ventureStats.averageEquityOffered ?? 0)}%`} helper="Founder offer" tone="amber" />
                   </div>
                 </Card>
-              </section>
-
-              <section className="grid gap-5 xl:grid-cols-3">
-                {data?.riskFramework.map((item) => (
-                  <Card key={item.label} className="p-5">
-                    <Pill tone="red">{item.riskLevel}</Pill>
-                    <h3 className="mt-4 text-2xl font-black">{item.label}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {item.primaryRisks}
-                    </p>
-                  </Card>
-                ))}
-              </section>
+              </div>
             </>
           ) : null}
 
@@ -937,254 +939,106 @@ export default function AlternativeInvestmentsPage() {
             <>
               <Card className="p-5 md:p-6">
                 <SectionTitle
-                  eyebrow="Crypto market dashboard"
-                  title="Live crypto markets, trend signals, and trade risk."
-                  description="Crypto data refreshes at runtime from public market data. Use this as a high-risk decision-support layer, not a standalone trade recommendation engine."
+                  eyebrow="Crypto Markets"
+                  title="Live crypto monitoring"
+                  description="Crypto is treated as a high-risk, high-volatility segment. This dashboard shows price, liquidity, risk score, opportunity score, and 7-day momentum."
+                  action={<Pill tone="purple">{data?.crypto.sources.join(" · ")}</Pill>}
                 />
 
                 <div className="mt-5 grid gap-3 md:grid-cols-4">
-                  <MetricBubble
-                    label="Basket Market Cap"
-                    value={money(aggregateCryptoMarketCap)}
-                    helper="Tracked assets"
-                    tone="green"
-                  />
-                  <MetricBubble
-                    label="Basket Volume"
-                    value={money(aggregateCryptoVolume)}
-                    helper="24h"
-                    tone="purple"
-                  />
-                  <MetricBubble
-                    label="Positive Breadth"
-                    value={`${cryptoBreadth}%`}
-                    helper="24h movers"
-                    tone="amber"
-                  />
-                  <MetricBubble
-                    label="Sentiment"
-                    value={data?.crypto.fearGreed.classification ?? "—"}
-                    helper={`${data?.crypto.fearGreed.value ?? "—"} / 100`}
-                    tone="red"
-                  />
+                  <MetricBubble label="Market Cap" value={money(aggregateCryptoMarketCap)} helper="Tracked coins" tone="green" />
+                  <MetricBubble label="Volume" value={money(aggregateCryptoVolume)} helper="Tracked 24h" tone="amber" />
+                  <MetricBubble label="Breadth" value={`${cryptoBreadth}%`} helper="Positive 24h movers" tone="purple" />
+                  <MetricBubble label="Sentiment" value={data?.crypto.fearGreed.classification ?? "—"} helper={`${data?.crypto.fearGreed.value ?? "—"}/100`} tone="red" />
                 </div>
               </Card>
 
-              <section className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
-                <Card className="p-5">
-                  <SectionTitle
-                    eyebrow="Crypto watch grid"
-                    title="Risk and opportunity by asset"
-                    description="Scores are heuristic and designed for fast advisor review."
-                  />
-
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    {cryptoMarkets.map((coin) => (
-                      <div
-                        key={coin.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-3">
-                              {coin.image ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={coin.image}
-                                  alt={coin.name}
-                                  className="h-8 w-8 rounded-full"
-                                />
-                              ) : null}
-                              <div>
-                                <h3 className="truncate text-lg font-black">
-                                  {coin.name}
-                                </h3>
-                                <div className="text-xs font-bold uppercase text-slate-500">
-                                  {coin.symbol}
-                                </div>
-                              </div>
-                            </div>
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {cryptoMarkets.map((coin) => (
+                  <Card key={coin.id} className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {coin.image ? (
+                          <img src={coin.image} alt="" className="h-10 w-10 rounded-full" />
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className="truncate text-xl font-black">{coin.name}</div>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                            {coin.symbol} · Rank {coin.market_cap_rank ?? "—"}
                           </div>
-
-                          <Pill tone={toneFromScore(coin.riskScore)}>
-                            {coin.riskLevel}
-                          </Pill>
-                        </div>
-
-                        <div className="mt-4">
-                          <Sparkline values={coin.sparkline_in_7d?.price ?? []} />
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          <SoftCard>
-                            <div className="text-[10px] font-black uppercase text-slate-500">
-                              Price
-                            </div>
-                            <div className="mt-1 text-xl font-black">
-                              {money(coin.current_price)}
-                            </div>
-                          </SoftCard>
-
-                          <SoftCard>
-                            <div className="text-[10px] font-black uppercase text-slate-500">
-                              24h
-                            </div>
-                            <div
-                              className={cx(
-                                "mt-1 text-xl font-black",
-                                changeTone(coin.price_change_percentage_24h)
-                              )}
-                            >
-                              {pct(coin.price_change_percentage_24h)}
-                            </div>
-                          </SoftCard>
-                        </div>
-
-                        <div className="mt-4 grid gap-3">
-                          <div>
-                            <div className="mb-2 flex justify-between text-[10px] font-black uppercase text-slate-500">
-                              <span>Risk</span>
-                              <span>{coin.riskScore}</span>
-                            </div>
-                            <ScoreBar
-                              value={coin.riskScore}
-                              tone={toneFromScore(coin.riskScore)}
-                            />
-                          </div>
-
-                          <div>
-                            <div className="mb-2 flex justify-between text-[10px] font-black uppercase text-slate-500">
-                              <span>Opportunity</span>
-                              <span>{coin.opportunityScore}</span>
-                            </div>
-                            <ScoreBar
-                              value={coin.opportunityScore}
-                              tone="green"
-                            />
-                          </div>
-
-                          <div>
-                            <div className="mb-2 flex justify-between text-[10px] font-black uppercase text-slate-500">
-                              <span>Liquidity</span>
-                              <span>{coin.liquidityScore}</span>
-                            </div>
-                            <ScoreBar
-                              value={coin.liquidityScore}
-                              tone="purple"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-xs font-semibold leading-5 text-slate-400">
-                          {coin.trendLabel}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </Card>
+                      <Pill tone={toneFromScore(coin.riskScore)}>{coin.riskLevel}</Pill>
+                    </div>
 
-                <div className="grid gap-5">
-                  <Card className="p-5">
-                    <SectionTitle
-                      eyebrow="Momentum leaders"
-                      title="Potential upside candidates"
-                      description="Highest opportunity scores in the tracked crypto basket."
-                    />
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <MetricBubble label="Price" value={money(coin.current_price)} helper="Current" tone="purple" />
+                      <MetricBubble label="24h" value={pct(coin.price_change_percentage_24h)} helper="Move" tone={(coin.price_change_percentage_24h ?? 0) >= 0 ? "green" : "red"} />
+                    </div>
 
-                    <div className="mt-5 grid gap-3">
-                      {data?.crypto.leaders.map((coin, index) => (
-                        <SoftCard key={coin.id}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-black">
-                                #{index + 1} {coin.name}
-                              </div>
-                              <div className="mt-1 truncate text-xs text-slate-500">
-                                {coin.trendLabel}
-                              </div>
-                            </div>
-                            <Pill tone="green">{coin.opportunityScore}</Pill>
-                          </div>
-                        </SoftCard>
-                      ))}
+                    <div className="mt-4">
+                      <Sparkline values={coin.sparkline_in_7d?.price ?? []} />
+                    </div>
+
+                    <div className="mt-4 grid gap-3">
+                      <div>
+                        <div className="mb-1 flex justify-between text-[10px] font-black uppercase text-slate-500">
+                          <span>Opportunity</span>
+                          <span>{coin.opportunityScore}/100</span>
+                        </div>
+                        <ScoreBar value={coin.opportunityScore} tone="green" />
+                      </div>
+                      <div>
+                        <div className="mb-1 flex justify-between text-[10px] font-black uppercase text-slate-500">
+                          <span>Risk</span>
+                          <span>{coin.riskScore}/100</span>
+                        </div>
+                        <ScoreBar value={coin.riskScore} tone={toneFromScore(coin.riskScore)} />
+                      </div>
+                      <div>
+                        <div className="mb-1 flex justify-between text-[10px] font-black uppercase text-slate-500">
+                          <span>Liquidity</span>
+                          <span>{coin.liquidityScore}/100</span>
+                        </div>
+                        <ScoreBar value={coin.liquidityScore} tone="purple" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="text-sm font-black text-white">{coin.trendLabel}</div>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        {coin.advisorNotes[0]}
+                      </p>
                     </div>
                   </Card>
-
-                  <Card className="p-5">
-                    <SectionTitle
-                      eyebrow="Risk leaders"
-                      title="Highest risk names"
-                      description="These names have the highest volatility/liquidity risk profile."
-                    />
-
-                    <div className="mt-5 grid gap-3">
-                      {data?.crypto.highestRisk.map((coin, index) => (
-                        <SoftCard key={coin.id}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-black">
-                                #{index + 1} {coin.name}
-                              </div>
-                              <div className="mt-1 truncate text-xs text-slate-500">
-                                {coin.riskLevel}
-                              </div>
-                            </div>
-                            <Pill tone="red">{coin.riskScore}</Pill>
-                          </div>
-                        </SoftCard>
-                      ))}
-                    </div>
-                  </Card>
-
-                  <Card className="p-5">
-                    <SectionTitle
-                      eyebrow="Data sources"
-                      title="Current data layer"
-                      description="Crypto market information uses runtime public API calls."
-                    />
-
-                    <div className="mt-5 grid gap-3">
-                      {data?.crypto.sources.map((source) => (
-                        <SoftCard key={source}>
-                          <div className="text-sm font-black">{source}</div>
-                        </SoftCard>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-              </section>
+                ))}
+              </div>
             </>
           ) : null}
 
           {activeView === "penny-stocks" ? (
-            <section className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+            <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
               <Card className="p-5">
                 <SectionTitle
-                  eyebrow="Penny stock watchlist"
-                  title="Add high-risk public microcap ideas."
-                  description="This watchlist is firm-controlled. Live penny stock pricing should be connected later through a reliable equities data vendor."
+                  eyebrow="Penny Stocks"
+                  title="Add speculative equity watch"
+                  description="Track ultra-high-risk tickers separately from client portfolios."
                 />
 
-                {!canManage ? (
-                  <div className="mt-5 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm font-bold text-amber-200">
-                    You can view this watchlist, but only firm managers can add
-                    or update records.
-                  </div>
-                ) : (
-                  <form onSubmit={createPennyStock} className="mt-5 space-y-3">
+                {canManage ? (
+                  <form onSubmit={createPennyStock} className="mt-5 grid gap-3">
                     <div className="grid gap-3 md:grid-cols-2">
                       <input
                         value={pennyForm.ticker}
                         onChange={(event) =>
                           setPennyForm((current) => ({
                             ...current,
-                            ticker: event.target.value,
+                            ticker: event.target.value.toUpperCase(),
                           }))
                         }
                         className={inputClass}
                         placeholder="Ticker"
                       />
-
                       <input
                         value={pennyForm.companyName}
                         onChange={(event) =>
@@ -1198,262 +1052,215 @@ export default function AlternativeInvestmentsPage() {
                       />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <input
-                        value={pennyForm.sector}
-                        onChange={(event) =>
-                          setPennyForm((current) => ({
-                            ...current,
-                            sector: event.target.value,
-                          }))
-                        }
-                        className={inputClass}
-                        placeholder="Sector"
-                      />
-
-                      <select
-                        value={pennyForm.status}
-                        onChange={(event) =>
-                          setPennyForm((current) => ({
-                            ...current,
-                            status: event.target.value,
-                          }))
-                        }
-                        className={selectClass}
-                      >
-                        <option>Watching</option>
-                        <option>Active Review</option>
-                        <option>Passed</option>
-                        <option>Do Not Touch</option>
-                      </select>
-                    </div>
+                    <input
+                      value={pennyForm.sector}
+                      onChange={(event) =>
+                        setPennyForm((current) => ({ ...current, sector: event.target.value }))
+                      }
+                      className={inputClass}
+                      placeholder="Sector"
+                    />
 
                     <textarea
                       value={pennyForm.thesis}
                       onChange={(event) =>
-                        setPennyForm((current) => ({
-                          ...current,
-                          thesis: event.target.value,
-                        }))
+                        setPennyForm((current) => ({ ...current, thesis: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-24")}
+                      className={inputClass}
                       placeholder="Thesis"
+                      rows={3}
                     />
 
                     <textarea
                       value={pennyForm.catalyst}
                       onChange={(event) =>
-                        setPennyForm((current) => ({
-                          ...current,
-                          catalyst: event.target.value,
-                        }))
+                        setPennyForm((current) => ({ ...current, catalyst: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
-                      placeholder="Potential catalyst"
+                      className={inputClass}
+                      placeholder="Catalyst"
+                      rows={3}
                     />
 
                     <textarea
                       value={pennyForm.riskNotes}
                       onChange={(event) =>
-                        setPennyForm((current) => ({
-                          ...current,
-                          riskNotes: event.target.value,
-                        }))
+                        setPennyForm((current) => ({ ...current, riskNotes: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
-                      placeholder="Risk notes: dilution, liquidity, filings, promotion risk, etc."
+                      className={inputClass}
+                      placeholder="Risk notes"
+                      rows={3}
                     />
 
                     <div className="grid gap-3 md:grid-cols-2">
                       <input
                         value={pennyForm.targetEntry}
                         onChange={(event) =>
-                          setPennyForm((current) => ({
-                            ...current,
-                            targetEntry: event.target.value,
-                          }))
+                          setPennyForm((current) => ({ ...current, targetEntry: event.target.value }))
                         }
                         className={inputClass}
-                        placeholder="Target entry notes"
+                        placeholder="Target entry"
                       />
-
                       <input
                         value={pennyForm.maxPositionPct}
                         onChange={(event) =>
-                          setPennyForm((current) => ({
-                            ...current,
-                            maxPositionPct: event.target.value,
-                          }))
+                          setPennyForm((current) => ({ ...current, maxPositionPct: event.target.value }))
                         }
                         className={inputClass}
                         placeholder="Max position %"
                       />
                     </div>
 
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <select
+                        value={pennyForm.status}
+                        onChange={(event) =>
+                          setPennyForm((current) => ({ ...current, status: event.target.value }))
+                        }
+                        className={selectClass}
+                      >
+                        <option>Watching</option>
+                        <option>Active Review</option>
+                        <option>Passed</option>
+                      </select>
+
+                      <select
+                        value={pennyForm.riskLevel}
+                        onChange={(event) =>
+                          setPennyForm((current) => ({ ...current, riskLevel: event.target.value }))
+                        }
+                        className={selectClass}
+                      >
+                        <option>Extreme</option>
+                        <option>Very High</option>
+                        <option>High</option>
+                      </select>
+                    </div>
+
                     <button
                       disabled={saving}
-                      className="w-full rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+                      className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
                     >
                       Add Penny Stock
                     </button>
                   </form>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    You need project-management or firm-admin permission to add penny stocks.
+                  </div>
                 )}
               </Card>
 
-              <Card className="p-5">
-                <SectionTitle
-                  eyebrow="Watchlist"
-                  title="Firm penny stock monitor"
-                  description="Keep speculative public names separate from the standard portfolio lab."
-                />
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  {pennyStocks.length ? (
-                    pennyStocks.map((stock) => (
-                      <div
-                        key={stock.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-2xl font-black">
-                              {stock.ticker}
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-slate-400">
-                              {stock.companyName}
-                            </div>
-                          </div>
+              <div className="grid gap-4">
+                {pennyStocks.length ? (
+                  pennyStocks.map((stock) => (
+                    <Card key={stock.id} className="p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-2xl font-black">{stock.ticker}</div>
+                          <div className="mt-1 text-sm text-slate-400">{stock.companyName}</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={toneForStatus(stock.status)}>{stock.status}</Pill>
                           <Pill tone="red">{stock.riskLevel}</Pill>
                         </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Pill tone="purple">{stock.sector}</Pill>
-                          <Pill tone="amber">{stock.status}</Pill>
-                          {stock.maxPositionPct !== null ? (
-                            <Pill tone="slate">
-                              Max {stock.maxPositionPct}% position
-                            </Pill>
-                          ) : null}
-                        </div>
-
-                        {stock.thesis ? (
-                          <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-400">
-                            {stock.thesis}
-                          </p>
-                        ) : null}
-
-                        {stock.catalyst ? (
-                          <SoftCard className="mt-4">
-                            <div className="text-[10px] font-black uppercase text-slate-500">
-                              Catalyst
-                            </div>
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                              {stock.catalyst}
-                            </p>
-                          </SoftCard>
-                        ) : null}
-
-                        {stock.riskNotes ? (
-                          <SoftCard className="mt-4">
-                            <div className="text-[10px] font-black uppercase text-red-300">
-                              Risk notes
-                            </div>
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                              {stock.riskNotes}
-                            </p>
-                          </SoftCard>
-                        ) : null}
-
-                        {canManage ? (
-                          <div className="mt-4 grid gap-2 md:grid-cols-2">
-                            {["Watching", "Active Review", "Passed", "Do Not Touch"].map(
-                              (status) => (
-                                <button
-                                  key={status}
-                                  onClick={() => updatePennyStatus(stock.id, status)}
-                                  disabled={saving}
-                                  className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/20 disabled:opacity-60"
-                                >
-                                  {status}
-                                </button>
-                              )
-                            )}
-                          </div>
-                        ) : null}
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No penny stocks added yet.
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </section>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <MetricBubble label="Sector" value={stock.sector} helper="Market area" tone="purple" />
+                        <MetricBubble label="Target Entry" value={stock.targetEntry ?? "—"} helper="Internal view" tone="amber" />
+                        <MetricBubble label="Max Position" value={stock.maxPositionPct ? `${stock.maxPositionPct}%` : "—"} helper="Risk cap" tone="red" />
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Thesis</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{stock.thesis ?? "No thesis recorded."}</p>
+                        </SoftCard>
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Risks</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{stock.riskNotes ?? "No risk notes recorded."}</p>
+                        </SoftCard>
+                      </div>
+
+                      {canManage ? (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {["Watching", "Active Review", "Passed"].map((status) => (
+                            <button
+                              key={`${stock.id}-${status}`}
+                              type="button"
+                              onClick={() => updatePennyStatus(stock.id, status)}
+                              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-white hover:bg-white/10"
+                            >
+                              Mark {status}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </Card>
+                  ))
+                ) : (
+                  <Card className="p-8 text-center">
+                    <Pill tone="amber">No penny stocks</Pill>
+                    <h3 className="mt-4 text-2xl font-black">No speculative equities added yet.</h3>
+                    <p className="mt-2 text-sm text-slate-400">Use the form to add the first firm-level penny stock record.</p>
+                  </Card>
+                )}
+              </div>
+            </div>
           ) : null}
 
           {activeView === "venture" ? (
-            <section className="grid gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+            <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
               <Card className="p-5">
                 <SectionTitle
-                  eyebrow="Venture monitor"
-                  title="Add startups the firm wants to track."
-                  description="Only firm-added ventures appear here. Each record captures founder background, problem solved, equity offered, tentative valuation, traction, thesis, and risk notes."
+                  eyebrow="Venture Monitor"
+                  title="Add startup opportunity"
+                  description="This tab now works as a direct firm-level venture tracker. Add startups, founder details, background, valuation, equity offered, traction, thesis, and risk notes."
                 />
 
-                {!canManage ? (
-                  <div className="mt-5 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm font-bold text-amber-200">
-                    You can view venture records, but only firm managers can add
-                    or update them.
-                  </div>
-                ) : (
-                  <form onSubmit={createVenture} className="mt-5 space-y-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <input
-                        value={ventureForm.startupName}
-                        onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            startupName: event.target.value,
-                          }))
-                        }
-                        className={inputClass}
-                        placeholder="Startup name"
-                      />
+                {canManage ? (
+                  <form onSubmit={createVenture} className="mt-5 grid gap-3">
+                    <input
+                      value={ventureForm.startupName}
+                      onChange={(event) =>
+                        setVentureForm((current) => ({ ...current, startupName: event.target.value }))
+                      }
+                      className={inputClass}
+                      placeholder="Startup name"
+                    />
 
+                    <div className="grid gap-3 md:grid-cols-2">
                       <input
                         value={ventureForm.founderName}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            founderName: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, founderName: event.target.value }))
                         }
                         className={inputClass}
                         placeholder="Founder name"
                       />
+                      <input
+                        value={ventureForm.website}
+                        onChange={(event) =>
+                          setVentureForm((current) => ({ ...current, website: event.target.value }))
+                        }
+                        className={inputClass}
+                        placeholder="Website"
+                      />
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-2">
                       <input
                         value={ventureForm.sector}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            sector: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, sector: event.target.value }))
                         }
                         className={inputClass}
                         placeholder="Sector"
                       />
-
                       <select
                         value={ventureForm.stage}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            stage: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, stage: event.target.value }))
                         }
                         className={selectClass}
                       >
@@ -1461,388 +1268,244 @@ export default function AlternativeInvestmentsPage() {
                         <option>Pre-Seed</option>
                         <option>Seed</option>
                         <option>Series A</option>
-                        <option>Series B</option>
                         <option>Growth</option>
                       </select>
-
-                      <input
-                        value={ventureForm.website}
-                        onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            website: event.target.value,
-                          }))
-                        }
-                        className={inputClass}
-                        placeholder="Website"
-                      />
                     </div>
 
                     <textarea
                       value={ventureForm.background}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          background: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, background: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-24")}
+                      className={inputClass}
                       placeholder="Short background"
+                      rows={3}
                     />
 
                     <textarea
                       value={ventureForm.problemToSolve}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          problemToSolve: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, problemToSolve: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-24")}
+                      className={inputClass}
                       placeholder="Problem to solve"
+                      rows={3}
                     />
 
                     <textarea
                       value={ventureForm.solution}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          solution: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, solution: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
+                      className={inputClass}
                       placeholder="Solution"
+                      rows={3}
                     />
 
                     <div className="grid gap-3 md:grid-cols-3">
                       <input
                         value={ventureForm.equityOfferedPct}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            equityOfferedPct: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, equityOfferedPct: event.target.value }))
                         }
                         className={inputClass}
                         placeholder="Equity offered %"
                       />
-
                       <input
                         value={ventureForm.tentativeValuation}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            tentativeValuation: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, tentativeValuation: event.target.value }))
                         }
                         className={inputClass}
-                        placeholder="Tentative valuation $"
+                        placeholder="Tentative valuation"
                       />
-
                       <input
                         value={ventureForm.amountSought}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            amountSought: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, amountSought: event.target.value }))
                         }
                         className={inputClass}
-                        placeholder="Amount sought $"
+                        placeholder="Amount sought"
                       />
                     </div>
 
                     <textarea
                       value={ventureForm.traction}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          traction: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, traction: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
+                      className={inputClass}
                       placeholder="Traction"
+                      rows={3}
                     />
 
                     <textarea
                       value={ventureForm.thesis}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          thesis: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, thesis: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
+                      className={inputClass}
                       placeholder="Investment thesis"
+                      rows={3}
                     />
 
                     <textarea
                       value={ventureForm.keyRisks}
                       onChange={(event) =>
-                        setVentureForm((current) => ({
-                          ...current,
-                          keyRisks: event.target.value,
-                        }))
+                        setVentureForm((current) => ({ ...current, keyRisks: event.target.value }))
                       }
-                      className={cx(inputClass, "min-h-20")}
+                      className={inputClass}
                       placeholder="Key risks"
+                      rows={3}
                     />
 
                     <div className="grid gap-3 md:grid-cols-2">
                       <select
                         value={ventureForm.monitoringStatus}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            monitoringStatus: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, monitoringStatus: event.target.value }))
                         }
                         className={selectClass}
                       >
                         <option>Watching</option>
                         <option>Diligence</option>
-                        <option>Negotiating</option>
-                        <option>Invested</option>
                         <option>Passed</option>
                       </select>
 
                       <select
                         value={ventureForm.riskLevel}
                         onChange={(event) =>
-                          setVentureForm((current) => ({
-                            ...current,
-                            riskLevel: event.target.value,
-                          }))
+                          setVentureForm((current) => ({ ...current, riskLevel: event.target.value }))
                         }
                         className={selectClass}
                       >
-                        <option>High</option>
-                        <option>Very High</option>
                         <option>Extreme</option>
+                        <option>Very High</option>
+                        <option>High</option>
                       </select>
                     </div>
 
                     <button
                       disabled={saving}
-                      className="w-full rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+                      className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
                     >
                       Add Venture
                     </button>
                   </form>
+                ) : (
+                  <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                    You need project-management or firm-admin permission to add ventures.
+                  </div>
                 )}
               </Card>
 
-              <Card className="p-5">
-                <SectionTitle
-                  eyebrow="Firm venture pipeline"
-                  title="Tracked private opportunities"
-                  description="This keeps venture ideas controlled, monitored, and separate from public-market workflows."
-                />
-
-                <div className="mt-5 grid gap-4">
-                  {ventures.length ? (
-                    ventures.map((venture) => (
-                      <div
-                        key={venture.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5"
-                      >
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap gap-2">
-                              <Pill tone="red">{venture.riskLevel}</Pill>
-                              <Pill tone="purple">{venture.stage}</Pill>
-                              <Pill tone="amber">{venture.monitoringStatus}</Pill>
-                              <Pill tone="slate">{venture.sector}</Pill>
-                            </div>
-
-                            <h3 className="mt-4 text-2xl font-black">
-                              {venture.startupName}
-                            </h3>
-
-                            {venture.founderName ? (
-                              <div className="mt-1 text-sm font-semibold text-slate-500">
-                                Founder: {venture.founderName}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-slate-500">
-                                Equity
-                              </div>
-                              <div className="mt-1 text-xl font-black">
-                                {venture.equityOfferedPct}%
-                              </div>
-                            </SoftCard>
-
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-slate-500">
-                                Valuation
-                              </div>
-                              <div className="mt-1 text-xl font-black">
-                                {money(venture.tentativeValuation)}
-                              </div>
-                            </SoftCard>
-
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-slate-500">
-                                Seeking
-                              </div>
-                              <div className="mt-1 text-xl font-black">
-                                {money(venture.amountSought)}
-                              </div>
-                            </SoftCard>
+              <div className="grid gap-4">
+                {ventures.length ? (
+                  ventures.map((venture) => (
+                    <Card key={venture.id} className="p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-2xl font-black">{venture.startupName}</div>
+                          <div className="mt-1 text-sm text-slate-400">
+                            {venture.founderName ?? "Unknown founder"} · {venture.sector} · {venture.stage}
                           </div>
                         </div>
-
-                        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                          <SoftCard>
-                            <div className="text-[10px] font-black uppercase text-slate-500">
-                              Short background
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-400">
-                              {venture.background}
-                            </p>
-                          </SoftCard>
-
-                          <SoftCard>
-                            <div className="text-[10px] font-black uppercase text-slate-500">
-                              Problem to solve
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-slate-400">
-                              {venture.problemToSolve}
-                            </p>
-                          </SoftCard>
-
-                          {venture.solution ? (
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-slate-500">
-                                Solution
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-400">
-                                {venture.solution}
-                              </p>
-                            </SoftCard>
-                          ) : null}
-
-                          {venture.traction ? (
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-slate-500">
-                                Traction
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-400">
-                                {venture.traction}
-                              </p>
-                            </SoftCard>
-                          ) : null}
-
-                          {venture.thesis ? (
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-emerald-300">
-                                Thesis
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-400">
-                                {venture.thesis}
-                              </p>
-                            </SoftCard>
-                          ) : null}
-
-                          {venture.keyRisks ? (
-                            <SoftCard>
-                              <div className="text-[10px] font-black uppercase text-red-300">
-                                Key risks
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-400">
-                                {venture.keyRisks}
-                              </p>
-                            </SoftCard>
-                          ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={toneForStatus(venture.monitoringStatus)}>{venture.monitoringStatus}</Pill>
+                          <Pill tone="red">{venture.riskLevel}</Pill>
                         </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-4">
+                        <MetricBubble label="Valuation" value={money(venture.tentativeValuation)} helper="Tentative" tone="green" />
+                        <MetricBubble label="Equity" value={`${numberFormat(venture.equityOfferedPct)}%`} helper="Offered" tone="amber" />
+                        <MetricBubble label="Amount" value={money(venture.amountSought)} helper="Sought" tone="purple" />
+                        <MetricBubble label="Updated" value={shortDate(venture.updatedAt)} helper="Last review" tone="slate" />
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Background</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{venture.background}</p>
+                        </SoftCard>
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Problem</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{venture.problemToSolve}</p>
+                        </SoftCard>
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Thesis</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{venture.thesis ?? "No thesis recorded."}</p>
+                        </SoftCard>
+                        <SoftCard>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Risks</div>
+                          <p className="mt-2 text-sm leading-6 text-slate-300">{venture.keyRisks ?? "No risks recorded."}</p>
+                        </SoftCard>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {venture.website ? (
+                          <a
+                            href={venture.website.startsWith("http") ? venture.website : `https://${venture.website}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
+                          >
+                            Open Website
+                          </a>
+                        ) : null}
 
                         {canManage ? (
-                          <div className="mt-5 grid gap-2 md:grid-cols-5">
-                            {[
-                              "Watching",
-                              "Diligence",
-                              "Negotiating",
-                              "Invested",
-                              "Passed",
-                            ].map((status) => (
+                          <>
+                            {["Watching", "Diligence", "Passed"].map((status) => (
                               <button
-                                key={status}
-                                onClick={() =>
-                                  updateVentureStatus(venture.id, status)
-                                }
-                                disabled={saving}
-                                className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/20 disabled:opacity-60"
+                                key={`${venture.id}-${status}`}
+                                type="button"
+                                onClick={() => updateVentureStatus(venture.id, status)}
+                                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-white hover:bg-white/10"
                               >
-                                {status}
+                                Mark {status}
                               </button>
                             ))}
-                          </div>
+                          </>
                         ) : null}
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No ventures added yet.
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </section>
+                    </Card>
+                  ))
+                ) : (
+                  <Card className="p-8 text-center">
+                    <Pill tone="amber">No ventures</Pill>
+                    <h3 className="mt-4 text-2xl font-black">No venture opportunities added yet.</h3>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Use the form to add the first startup to the firm’s venture monitor.
+                    </p>
+                  </Card>
+                )}
+              </div>
+            </div>
           ) : null}
 
           {activeView === "risk" ? (
-            <section className="grid gap-5">
+            <div className="grid gap-5">
               <Card className="p-5 md:p-6">
                 <SectionTitle
-                  eyebrow="Alternative investment risk framework"
-                  title="This page is intentionally separated from standard portfolio work."
-                  description="Crypto, penny stocks, and venture investments can produce outsized returns, but they can also lead to severe or total losses. This module should be used for tracking, research, and controlled advisor review."
+                  eyebrow="Risk Framework"
+                  title="Alternative-investment guardrails"
+                  description="This section keeps high-risk investments clearly separated from core advisor workflows and conservative client portfolios."
                 />
-
-                <div className="mt-5 grid gap-5 lg:grid-cols-3">
-                  {data?.riskFramework.map((item) => (
-                    <SoftCard key={item.label}>
-                      <Pill tone="red">{item.riskLevel}</Pill>
-                      <h3 className="mt-4 text-2xl font-black">{item.label}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">
-                        {item.primaryRisks}
-                      </p>
-                    </SoftCard>
-                  ))}
-                </div>
               </Card>
 
-              <Card className="p-5">
-                <SectionTitle
-                  eyebrow="Advisor guardrails"
-                  title="Suggested controls before any high-risk allocation."
-                  description="These guardrails are here to keep the platform useful without making risky investments look easy."
-                />
-
-                <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                  {[
-                    "Require written thesis, catalyst, downside case, and exit conditions.",
-                    "Cap position size according to the client’s risk tolerance and liquidity needs.",
-                    "Separate speculative ideas from core portfolio holdings.",
-                    "Document whether the investment is liquid, restricted, speculative, or illiquid.",
-                    "Use source-backed data and avoid promotional material, social hype, and unverified claims.",
-                    "For ventures, track founder quality, problem severity, market size, traction, dilution risk, and exit path.",
-                    "For penny stocks, assume dilution, manipulation, and liquidity risk until proven otherwise.",
-                    "For crypto, monitor custody, exchange, smart contract, regulatory, and volatility risk.",
-                  ].map((item) => (
-                    <SoftCard key={item}>
-                      <p className="text-sm font-semibold leading-6 text-slate-300">
-                        {item}
-                      </p>
-                    </SoftCard>
-                  ))}
-                </div>
-              </Card>
-            </section>
+              <div className="grid gap-5 xl:grid-cols-3">
+                {data?.riskFramework.map((item) => (
+                  <Card key={item.label} className="p-5">
+                    <Pill tone="red">{item.riskLevel}</Pill>
+                    <h3 className="mt-4 text-2xl font-black">{item.label}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {item.primaryRisks}
+                    </p>
+                  </Card>
+                ))}
+              </div>
+            </div>
           ) : null}
         </section>
       </div>

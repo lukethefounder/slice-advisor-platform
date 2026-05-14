@@ -49,11 +49,13 @@ model User {
   opportunitySignals            OpportunitySignal[]
   alternativeVenturesCreated    AlternativeVenture[]         @relation("AlternativeVentureCreatedBy")
   alternativePennyStocksCreated AlternativePennyStock[]      @relation("AlternativePennyStockCreatedBy")
+  namedWatchlists               NamedWatchlist[]
+  namedWatchlistItems           NamedWatchlistItem[]
   platformStatus                String                       @default("Active")
   governanceReason              String?
   governedAt                    DateTime?
-  namedWatchlists               NamedWatchlist[]
-  namedWatchlistItems           NamedWatchlistItem[]
+
+  @@index([email])
 }
 
 model Session {
@@ -88,6 +90,7 @@ model WatchAsset {
 
   @@unique([userId, ticker])
   @@index([userId])
+  @@index([ticker])
 }
 
 model NamedWatchlist {
@@ -192,6 +195,7 @@ model ClientProfile {
   documents DocumentVaultItem[]
 
   @@index([userId])
+  @@index([fullName])
 }
 
 model PortfolioHolding {
@@ -210,6 +214,7 @@ model PortfolioHolding {
   client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([symbol])
 }
 
 model AdvisorNote {
@@ -244,6 +249,7 @@ model MeetingTask {
 
   @@index([userId])
   @@index([clientId])
+  @@index([status])
 }
 
 model RiskReview {
@@ -312,30 +318,35 @@ model ResearchNote {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([ticker])
 }
 
 model AlertEvent {
-  id         String                 @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   dedupeKey  String
   title      String
   body       String
   source     String
   ticker     String?
-  urgency    String                 @default("Medium")
-  score      Int                    @default(50)
-  channel    String                 @default("Dashboard")
-  status     String                 @default("Unread")
-  createdAt  DateTime               @default(now())
+  urgency    String    @default("Medium")
+  score      Int       @default(50)
+  channel    String    @default("Dashboard")
+  status     String    @default("Unread")
+  createdAt  DateTime  @default(now())
   readAt     DateTime?
-  deliveries NotificationDelivery[]
   sourceUrl  String?
   aiBriefing String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
 
   @@unique([userId, dedupeKey])
   @@index([userId])
+  @@index([ticker])
+  @@index([status])
+  @@index([score])
+  @@index([createdAt])
 }
 
 model InvestorInsight {
@@ -384,7 +395,7 @@ model IntelligenceRun {
 }
 
 model HeadlineDecision {
-  id                 String              @id @default(cuid())
+  id                 String   @id @default(cuid())
   userId             String
   dedupeKey          String
   title              String
@@ -401,15 +412,15 @@ model HeadlineDecision {
   materialityScore   Int
   relevanceScore     Int
   trustScore         Int
-  matchedTickersJson String              @default("[]")
-  matchedAreasJson   String              @default("[]")
-  reasonsJson        String              @default("[]")
-  channelsJson       String              @default("[]")
+  matchedTickersJson String   @default("[]")
+  matchedAreasJson   String   @default("[]")
+  reasonsJson        String   @default("[]")
+  channelsJson       String   @default("[]")
   expiresAt          DateTime
-  createdAt          DateTime            @default(now())
-  opportunitySignals OpportunitySignal[]
+  createdAt          DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunitySignals OpportunitySignal[]
 
   @@unique([userId, dedupeKey])
   @@index([userId])
@@ -598,6 +609,7 @@ model InvestorHolding {
 
   @@index([userId])
   @@index([accountId])
+  @@index([symbol])
 }
 
 model AllocationModel {
@@ -727,13 +739,16 @@ model UserSecuritySetting {
 }
 
 model Firm {
-  id              String   @id @default(cuid())
-  name            String
-  firmEmail       String?
-  firmCode        String   @unique
-  createdByUserId String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String    @id @default(cuid())
+  name             String
+  firmEmail        String?
+  firmCode         String    @unique
+  createdByUserId  String
+  platformStatus   String    @default("Active")
+  governanceReason String?
+  governedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   createdBy User @relation("FirmCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
@@ -745,9 +760,6 @@ model Firm {
   posts                  FirmPost[]
   alternativeVentures    AlternativeVenture[]
   alternativePennyStocks AlternativePennyStock[]
-  platformStatus         String                  @default("Active")
-  governanceReason       String?
-  governedAt             DateTime?
 
   @@index([createdByUserId])
 }
@@ -822,9 +834,9 @@ model FirmMembership {
   canManageProjects   Boolean  @default(false)
   canInviteMembers    Boolean  @default(false)
   canManageFirm       Boolean  @default(false)
+  calendarColor       String   @default("#ef4444")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
-  calendarColor       String   @default("#ef4444")
 
   firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -976,18 +988,18 @@ model FirmPost {
   @@index([firmId])
   @@index([projectId])
   @@index([authorMembershipId])
+  @@index([createdAt])
 }
 
 model OpportunitySignal {
   id                      String   @id @default(cuid())
   userId                  String
   headlineDecisionId      String?
-  dedupeKey               String
   title                   String
   summary                 String?
   sourceName              String
-  signalType              String   @default("Review")
-  priorityTier            String   @default("Medium")
+  signalType              String
+  priorityTier            String
   portfolioRelevanceScore Int      @default(0)
   opportunityScore        Int      @default(0)
   riskScore               Int      @default(0)
@@ -1002,18 +1014,1404 @@ model OpportunitySignal {
   status                  String   @default("Open")
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
-  sourceUrl               String?
-  aiBriefing              String?
-  issuerCredibilityScore  Int      @default(0)
-  estimatedImpactScore    Int      @default(0)
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   headlineDecision HeadlineDecision? @relation(fields: [headlineDecisionId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, dedupeKey])
   @@index([userId])
-  @@index([status])
+  @@index([headlineDecisionId])
+  @@index([signalType])
   @@index([priorityTier])
+  @@index([status])
   @@index([compositeScore])
   @@index([createdAt])
+}
+
+model AdvisorOperatingNode {
+  id              String   @id @default(cuid())
+  userId          String
+  firmId          String?
+  name            String
+  category        String
+  ownerName       String?
+  status          String   @default("Active")
+  confidenceScore Int      @default(75)
+  riskScore       Int      @default(25)
+  dataJson        String   @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([category])
+  @@index([status])
+}
+
+model PortfolioImpactTwin {
+  id                 String   @id @default(cuid())
+  userId             String
+  firmId             String?
+  clientName         String?
+  title              String
+  eventTitle         String
+  scenarioType       String   @default("Market Shock")
+  shockPct           Float    @default(0)
+  totalBefore        Float    @default(0)
+  totalAfter         Float    @default(0)
+  impactAmount       Float    @default(0)
+  impactPct          Float    @default(0)
+  affectedAssetsJson String   @default("[]")
+  actionsJson        String   @default("[]")
+  summary            String
+  status             String   @default("Generated")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([clientName])
+  @@index([createdAt])
+}
+
+model PersonalAdvisorBot {
+  id              String   @id @default(cuid())
+  userId          String
+  firmId          String?
+  botName         String
+  ownerName       String?
+  persona         String
+  tone            String   @default("Professional")
+  coverageJson    String   @default("[]")
+  tasksJson       String   @default("[]")
+  permissionsJson String   @default("{}")
+  status          String   @default("Active")
+  lastRunSummary  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+}
+
+model SourceCredibilityProfile {
+  id                String    @id @default(cuid())
+  userId            String
+  firmId            String?
+  sourceName        String
+  domain            String
+  sourceType        String    @default("News")
+  credibilityScore  Int       @default(70)
+  biasRisk          Int       @default(30)
+  transparencyScore Int       @default(70)
+  historyJson       String    @default("[]")
+  flagsJson         String    @default("[]")
+  status            String    @default("Approved")
+  lastReviewedAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, domain])
+  @@index([userId])
+  @@index([firmId])
+  @@index([credibilityScore])
+  @@index([status])
+}
+
+model EventActionAutopilot {
+  id                     String   @id @default(cuid())
+  userId                 String
+  firmId                 String?
+  eventTitle             String
+  sourceName             String
+  sourceUrl              String?
+  sourceCredibilityScore Int      @default(70)
+  impactScore            Int      @default(50)
+  urgency                String   @default("Medium")
+  actionType             String   @default("Review")
+  recommendedAction      String
+  assignedTo             String?
+  status                 String   @default("Queued")
+  rationaleJson          String   @default("[]")
+  guardrailsJson         String   @default("[]")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([urgency])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ComplianceMemoryVaultItem {
+  id           String    @id @default(cuid())
+  userId       String
+  firmId       String?
+  clientName   String?
+  subject      String
+  category     String    @default("Communication")
+  retentionTag String    @default("Advisor Review")
+  sourceTitle  String?
+  sourceUrl    String?
+  summary      String
+  riskLevel    String    @default("Medium")
+  status       String    @default("Stored")
+  evidenceJson String    @default("[]")
+  expiresAt    DateTime?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([clientName])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ClientCommunicationDraft {
+  id                  String   @id @default(cuid())
+  userId              String
+  firmId              String?
+  clientName          String?
+  channel             String   @default("Email")
+  audience            String   @default("Client")
+  title               String
+  body                String
+  sourceSummaryJson   String   @default("[]")
+  complianceNotesJson String   @default("[]")
+  status              String   @default("Draft")
+  tone                String   @default("Clear and reassuring")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([clientName])
+  @@index([channel])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MeetingPrepPacket {
+  id            String   @id @default(cuid())
+  userId        String
+  firmId        String?
+  clientName    String?
+  meetingTitle  String
+  meetingDate   String?
+  objective     String
+  briefingJson  String   @default("[]")
+  questionsJson String   @default("[]")
+  openItemsJson String   @default("[]")
+  followUpJson  String   @default("[]")
+  status        String   @default("Ready")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([clientName])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AdvisorPlaybook {
+  id                  String   @id @default(cuid())
+  userId              String
+  firmId              String?
+  title               String
+  playbookType        String   @default("Opportunity Response")
+  trigger             String
+  description         String
+  stepsJson           String   @default("[]")
+  escalationRulesJson String   @default("[]")
+  status              String   @default("Active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([playbookType])
+  @@index([status])
+}
+
+model FirmIntelligencePulse {
+  id                  String   @id @default(cuid())
+  userId              String
+  firmId              String?
+  title               String
+  category            String   @default("Market Intelligence")
+  summary             String
+  confidenceScore     Int      @default(75)
+  affectedClientsJson String   @default("[]")
+  sourceItemsJson     String   @default("[]")
+  actionsJson         String   @default("[]")
+  status              String   @default("Active")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AdvisorWorkflowRule {
+  id                      String    @id @default(cuid())
+  userId                  String
+  firmId                  String?
+  title                   String
+  ruleType                String    @default("Autopilot")
+  trigger                 String
+  minimumCredibilityScore Int       @default(75)
+  minimumImpactScore      Int       @default(70)
+  actionTemplate          String
+  approvalRequired        Boolean   @default(true)
+  channelsJson            String    @default("[]")
+  guardrailsJson          String    @default("[]")
+  status                  String    @default("Active")
+  lastRunAt               DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([ruleType])
+  @@index([status])
+}
+
+model AdvisorWorkflowAutomationRun {
+  id                    String   @id @default(cuid())
+  userId                String
+  firmId                String?
+  runType               String   @default("Phase 2 Workflow Automation")
+  status                String   @default("Complete")
+  summary               String
+  sourceActionId        String?
+  createdFirmTaskId     String?
+  createdMeetingTaskId  String?
+  createdBriefingId     String?
+  createdDraftId        String?
+  createdVaultItemId    String?
+  createdNotificationId String?
+  metricsJson           String   @default("{}")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AdvisorAdaptiveMemory {
+  id              String    @id @default(cuid())
+  userId          String
+  firmId          String?
+  subjectType     String    @default("Advisor")
+  subjectName     String
+  memoryKey       String
+  memoryValue     String
+  confidenceScore Int       @default(70)
+  evidenceJson    String    @default("[]")
+  lastAppliedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, subjectType, subjectName, memoryKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([subjectType])
+  @@index([confidenceScore])
+}
+
+model ClientPreferenceProfile {
+  id                    String   @id @default(cuid())
+  userId                String
+  firmId                String?
+  clientName            String
+  communicationStyle    String   @default("Clear and reassuring")
+  detailLevel           String   @default("Balanced")
+  preferredChannel      String   @default("Email")
+  meetingCadence        String   @default("Quarterly")
+  volatilitySensitivity Int      @default(60)
+  behavioralNotesJson   String   @default("[]")
+  doJson                String   @default("[]")
+  dontJson              String   @default("[]")
+  confidenceScore       Int      @default(70)
+  status                String   @default("Active")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, clientName])
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+}
+
+model BotLearningProfile {
+  id                  String   @id @default(cuid())
+  userId              String
+  firmId              String?
+  botName             String
+  styleInstructions   String
+  decisionRulesJson   String   @default("[]")
+  escalationRulesJson String   @default("[]")
+  memoryWeight        Int      @default(70)
+  autonomyLevel       String   @default("Advisor Approval Required")
+  successScore        Int      @default(72)
+  status              String   @default("Learning")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, botName])
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+  @@index([successScore])
+}
+
+model SourceReliabilitySignal {
+  id               String   @id @default(cuid())
+  userId           String
+  firmId           String?
+  sourceName       String
+  domain           String
+  signalType       String   @default("Outcome")
+  outcome          String
+  reliabilityDelta Int      @default(0)
+  notes            String?
+  evidenceJson     String   @default("[]")
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([domain])
+  @@index([sourceName])
+  @@index([createdAt])
+}
+
+model AdvisorFeedbackSignal {
+  id          String    @id @default(cuid())
+  userId      String
+  firmId      String?
+  targetType  String
+  targetId    String?
+  rating      Int       @default(0)
+  feedback    String
+  actionTaken String    @default("Learn")
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([targetType])
+  @@index([processedAt])
+  @@index([createdAt])
+}
+
+model AdaptiveRecommendation {
+  id              String   @id @default(cuid())
+  userId          String
+  firmId          String?
+  title           String
+  category        String   @default("Adaptive Intelligence")
+  recommendation  String
+  reasonJson      String   @default("[]")
+  confidenceScore Int      @default(70)
+  status          String   @default("Open")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([category])
+  @@index([status])
+  @@index([confidenceScore])
+}
+
+model FirmLearningSnapshot {
+  id                    String   @id @default(cuid())
+  userId                String
+  firmId                String?
+  title                 String
+  summary               String
+  score                 Int      @default(70)
+  memoryJson            String   @default("[]")
+  sourceReliabilityJson String   @default("[]")
+  botUpdatesJson        String   @default("[]")
+  clientStyleJson       String   @default("[]")
+  recommendationsJson   String   @default("[]")
+  createdAt             DateTime @default(now())
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([score])
+  @@index([createdAt])
+}
+
+model PersonalUserBotProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  firmId             String?
+  botName            String   @default("Slice Bot")
+  onboardingComplete Boolean  @default(false)
+  answersJson        String   @default("{}")
+  personalityJson    String   @default("{}")
+  riskJson           String   @default("{}")
+  capabilitiesJson   String   @default("[]")
+  preferredTone      String   @default("Professional")
+  commandStyle       String   @default("Concise")
+  autonomyLevel      String   @default("Advisor approval required")
+  voiceEnabled       Boolean  @default(true)
+  customInstructions String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([onboardingComplete])
+}
+
+model PersonalUserBotMessage {
+  id           String   @id @default(cuid())
+  userId       String
+  profileId    String?
+  role         String
+  content      String
+  intent       String   @default("General")
+  status       String   @default("Stored")
+  metadataJson String   @default("{}")
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+model PersonalUserBotCommand {
+  id            String   @id @default(cuid())
+  userId        String
+  profileId     String?
+  firmId        String?
+  commandText   String
+  commandType   String   @default("General")
+  status        String   @default("Queued")
+  resultSummary String?
+  actionJson    String   @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([commandType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PersonalUserBotWorkspaceTab {
+  id                 String   @id @default(cuid())
+  userId             String
+  profileId          String?
+  tabName            String   @default("My Bot")
+  layoutJson         String   @default("{}")
+  pinnedCommandsJson String   @default("[]")
+  notes              String?
+  status             String   @default("Active")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, tabName])
+  @@index([userId])
+  @@index([profileId])
+  @@index([status])
+}
+
+model PersonalUserUiPreference {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  accentName       String   @default("Slice Red")
+  accentHex        String   @default("#dc2626")
+  accentDarkHex    String   @default("#7f1d1d")
+  accentSoftHex    String   @default("#fee2e2")
+  backgroundStyle  String   @default("Premium Dark")
+  preferenceSource String   @default("Personal Bot")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([accentName])
+}
+
+model PersonalUserBotEmailDraft {
+  id             String   @id @default(cuid())
+  userId         String
+  profileId      String?
+  firmId         String?
+  targetTicker   String?
+  recipientJson  String   @default("[]")
+  subject        String
+  body           String
+  status         String   @default("Draft")
+  deliveryMode   String   @default("Approval Required")
+  complianceJson String   @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([targetTicker])
+  @@index([status])
+}
+
+model PersonalUserBotPdfReport {
+  id            String   @id @default(cuid())
+  userId        String
+  profileId     String?
+  firmId        String?
+  title         String
+  reportType    String   @default("Advisor Intelligence")
+  status        String   @default("Ready")
+  summary       String
+  sectionsJson  String   @default("[]")
+  designJson    String   @default("{}")
+  downloadToken String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([reportType])
+  @@index([status])
+}
+
+model PersonalUserBotAutomationRule {
+  id                String    @id @default(cuid())
+  userId            String
+  profileId         String?
+  firmId            String?
+  ruleName          String
+  triggerPrompt     String
+  targetTicker      String?
+  minScore          Int       @default(80)
+  channelsJson      String    @default("[]")
+  audience          String    @default("Investors")
+  autoDraftEmail    Boolean   @default(true)
+  autoDraftText     Boolean   @default(false)
+  approvalRequired  Boolean   @default(true)
+  status            String    @default("Active")
+  processedKeysJson String    @default("[]")
+  lastRunAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([targetTicker])
+  @@index([status])
+}
+
+model PersonalUserBotMemory {
+  id              String   @id @default(cuid())
+  userId          String
+  profileId       String?
+  firmId          String?
+  memoryKey       String
+  memoryType      String   @default("Preference")
+  title           String
+  value           String
+  confidenceScore Int      @default(75)
+  sourcePrompt    String?
+  status          String   @default("Active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, memoryKey])
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([memoryType])
+  @@index([status])
+}
+
+model PersonalUserBotSkill {
+  id                 String   @id @default(cuid())
+  userId             String
+  profileId          String?
+  skillKey           String
+  skillName          String
+  category           String   @default("Platform")
+  description        String
+  examplePromptsJson String   @default("[]")
+  enabled            Boolean  @default(true)
+  successCount       Int      @default(0)
+  failureCount       Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, skillKey])
+  @@index([userId])
+  @@index([profileId])
+  @@index([category])
+  @@index([enabled])
+}
+
+model PersonalUserBotProactiveInsight {
+  id                String   @id @default(cuid())
+  userId            String
+  profileId         String?
+  firmId            String?
+  title             String
+  insightType       String   @default("Opportunity")
+  priority          String   @default("Medium")
+  summary           String
+  recommendedAction String
+  sourceJson        String   @default("[]")
+  status            String   @default("Open")
+  score             Int      @default(70)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([insightType])
+  @@index([priority])
+  @@index([status])
+  @@index([score])
+}
+
+model PersonalUserBotApprovalItem {
+  id            String   @id @default(cuid())
+  userId        String
+  profileId     String?
+  firmId        String?
+  title         String
+  actionType    String
+  riskLevel     String   @default("Medium")
+  summary       String
+  payloadJson   String   @default("{}")
+  status        String   @default("Pending")
+  approvalNotes String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([actionType])
+  @@index([riskLevel])
+  @@index([status])
+}
+
+model PersonalUserBotDataView {
+  id         String   @id @default(cuid())
+  userId     String
+  profileId  String?
+  viewName   String
+  viewType   String   @default("General")
+  filterJson String   @default("{}")
+  sortJson   String   @default("{}")
+  resultJson String   @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, viewName])
+  @@index([userId])
+  @@index([profileId])
+  @@index([viewType])
+}
+
+model ClientBrainProfile {
+  id                 String    @id @default(cuid())
+  userId             String
+  firmId             String?
+  clientId           String
+  clientName         String
+  householdName      String?
+  riskProfile        String    @default("Balanced")
+  communicationStyle String    @default("Clear and professional")
+  preferredTone      String    @default("Plain English")
+  portfolioSummary   String
+  riskPulse          String
+  opportunityPulse   String
+  nextAction         String
+  keyFactsJson       String    @default("[]")
+  holdingsJson       String    @default("[]")
+  notesJson          String    @default("[]")
+  tagsJson           String    @default("[]")
+  score              Int       @default(70)
+  status             String    @default("Active")
+  lastInteractionAt  DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, clientId])
+  @@index([userId])
+  @@index([firmId])
+  @@index([clientId])
+  @@index([clientName])
+  @@index([score])
+  @@index([status])
+}
+
+model NextBestAction {
+  id                 String    @id @default(cuid())
+  userId             String
+  firmId             String?
+  dedupeKey          String
+  title              String
+  actionType         String    @default("Review")
+  priority           String    @default("Medium")
+  score              Int       @default(70)
+  clientId           String?
+  clientName         String?
+  sourceType         String?
+  sourceId           String?
+  sourceTitle        String?
+  sourceUrl          String?
+  reason             String
+  recommendedCommand String?
+  evidenceJson       String    @default("[]")
+  status             String    @default("Open")
+  dueDate            String?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, dedupeKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([priority])
+  @@index([status])
+  @@index([score])
+  @@index([clientId])
+}
+
+model ComplianceProofTrail {
+  id           String   @id @default(cuid())
+  userId       String
+  firmId       String?
+  dedupeKey    String
+  actionType   String
+  subject      String
+  summary      String
+  sourceType   String?
+  sourceId     String?
+  sourceTitle  String?
+  sourceUrl    String?
+  clientId     String?
+  clientName   String?
+  aiReasoning  String
+  humanStatus  String   @default("Needs Review")
+  riskLevel    String   @default("Medium")
+  evidenceJson String   @default("[]")
+  approvalJson String   @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, dedupeKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([actionType])
+  @@index([humanStatus])
+  @@index([riskLevel])
+  @@index([clientId])
+}
+
+model FirmKnowledgeEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  firmId     String?
+  entryKey   String
+  title      String
+  category   String   @default("General")
+  body       String
+  sourceType String?
+  sourceId   String?
+  sourceUrl  String?
+  tagsJson   String   @default("[]")
+  score      Int      @default(50)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, entryKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([category])
+  @@index([score])
+}
+
+model AdvisorDayBrief {
+  id             String   @id @default(cuid())
+  userId         String
+  firmId         String?
+  title          String
+  summary        String
+  topActionsJson String   @default("[]")
+  metricsJson    String   @default("{}")
+  status         String   @default("Generated")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model WatchlistPriceAlert {
+  id                  String    @id @default(cuid())
+  userId              String
+  watchlistId         String?
+  watchlistItemId     String?
+  symbol              String
+  assetName           String?
+  upperTargetPrice    Float?
+  lowerTargetPrice    Float?
+  lastPrice           Float?
+  lastProvider        String?
+  lastCheckedAt       DateTime?
+  triggeredHighAt     DateTime?
+  triggeredLowAt      DateTime?
+  triggerCount        Int       @default(0)
+  notificationChannel String    @default("Dashboard")
+  status              String    @default("Active")
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([watchlistId])
+  @@index([watchlistItemId])
+  @@index([symbol])
+  @@index([status])
+  @@index([lastCheckedAt])
+}
+
+model WatchlistPriceAlertEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  alertId       String
+  symbol        String
+  triggerType   String
+  targetPrice   Float
+  observedPrice Float
+  provider      String
+  message       String
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([alertId])
+  @@index([symbol])
+  @@index([triggerType])
+  @@index([createdAt])
+}
+
+model BackendPlatformEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  firmId       String?
+  eventKey     String
+  eventType    String
+  area         String   @default("General")
+  actorName    String?
+  title        String
+  detail       String?
+  severity     String   @default("Info")
+  status       String   @default("Recorded")
+  sourceType   String?
+  sourceId     String?
+  metadataJson String   @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, eventKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([eventType])
+  @@index([area])
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BackendRolePolicy {
+  id              String   @id @default(cuid())
+  userId          String
+  firmId          String?
+  policyKey       String   @unique
+  roleKey         String
+  roleName        String
+  description     String
+  permissionsJson String   @default("[]")
+  status          String   @default("Active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([roleKey])
+  @@index([status])
+}
+
+model BackendApprovalItem {
+  id            String    @id @default(cuid())
+  userId        String
+  firmId        String?
+  title         String
+  actionType    String
+  riskLevel     String    @default("Medium")
+  summary       String
+  payloadJson   String    @default("{}")
+  requestedBy   String?
+  approvedBy    String?
+  approvalNotes String?
+  status        String    @default("Pending")
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([actionType])
+  @@index([riskLevel])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BackendNotificationRule {
+  id               String   @id @default(cuid())
+  userId           String
+  firmId           String?
+  ownerRuleKey     String   @unique
+  ruleName         String
+  scopeType        String   @default("Global")
+  scopeValue       String?
+  channel          String   @default("Dashboard")
+  minScore         Int      @default(80)
+  minUrgency       String   @default("High")
+  digestOnly       Boolean  @default(false)
+  quietHoursStart  String?
+  quietHoursEnd    String?
+  maxPerDay        Int      @default(25)
+  approvalRequired Boolean  @default(true)
+  status           String   @default("Active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([scopeType])
+  @@index([channel])
+  @@index([status])
+}
+
+model BackendDataQualityRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  firmId          String?
+  entityType      String
+  entityId        String
+  sourceName      String
+  liveStatus      String    @default("Unknown")
+  freshnessStatus String    @default("Unknown")
+  asOfAt          DateTime?
+  lastCheckedAt   DateTime?
+  qualityScore    Int       @default(50)
+  fallbackUsed    Boolean   @default(false)
+  warning         String?
+  warningsJson    String    @default("[]")
+  status          String    @default("Tracked")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, entityType, entityId, sourceName])
+  @@index([userId])
+  @@index([firmId])
+  @@index([entityType])
+  @@index([sourceName])
+  @@index([freshnessStatus])
+  @@index([qualityScore])
+}
+
+model BackendAiTool {
+  id               String   @id @default(cuid())
+  userId           String
+  firmId           String?
+  ownerToolKey     String   @unique
+  toolKey          String
+  toolName         String
+  category         String   @default("Platform")
+  description      String
+  inputSchemaJson  String   @default("{}")
+  outputSchemaJson String   @default("{}")
+  approvalRequired Boolean  @default(false)
+  enabled          Boolean  @default(true)
+  successCount     Int      @default(0)
+  failureCount     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([toolKey])
+  @@index([category])
+  @@index([enabled])
+}
+
+model BackendJobDefinition {
+  id             String    @id @default(cuid())
+  userId         String
+  firmId         String?
+  ownerJobKey    String    @unique
+  jobKey         String
+  jobName        String
+  category       String    @default("Automation")
+  description    String
+  scheduleLabel  String
+  cadence        String    @default("Manual")
+  status         String    @default("Planned")
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  lastResultJson String    @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([jobKey])
+  @@index([category])
+  @@index([status])
+}
+
+model BackendSystemHealthCheck {
+  id            String   @id @default(cuid())
+  userId        String
+  firmId        String?
+  ownerCheckKey String   @unique
+  checkKey      String
+  label         String
+  category      String   @default("System")
+  status        String   @default("Unknown")
+  score         Int      @default(50)
+  detailsJson   String   @default("{}")
+  lastCheckedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([checkKey])
+  @@index([category])
+  @@index([status])
+  @@index([score])
+}
+
+model BackendTenantAccessCheck {
+  id            String   @id @default(cuid())
+  userId        String
+  firmId        String?
+  checkName     String
+  status        String   @default("Unknown")
+  detail        String
+  detailsJson   String   @default("{}")
+  lastCheckedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([checkName])
+  @@index([status])
+}
+
+model BackendDemoSeedRun {
+  id         String   @id @default(cuid())
+  userId     String
+  firmId     String?
+  status     String   @default("Complete")
+  summary    String
+  countsJson String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BackendVendorIntegration {
+  id                  String    @id @default(cuid())
+  userId              String
+  firmId              String?
+  vendorKey           String
+  vendorName          String
+  category            String    @default("General")
+  purpose             String
+  envKeyName          String?
+  status              String    @default("Missing")
+  riskLevel           String    @default("Medium")
+  dataAccessJson      String    @default("[]")
+  fallbackBehavior    String?
+  lastHealthStatus    String?
+  lastHealthCheckedAt DateTime?
+  lastError           String?
+  enabled             Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([userId, vendorKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([vendorKey])
+  @@index([category])
+  @@index([status])
+  @@index([enabled])
+}
+
+model BackendFeatureFlag {
+  id                String   @id @default(cuid())
+  userId            String
+  firmId            String?
+  flagKey           String
+  flagName          String
+  category          String   @default("Platform")
+  description       String
+  enabled           Boolean  @default(false)
+  requiresProvider  Boolean  @default(false)
+  requiredVendorKey String?
+  status            String   @default("Planned")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, flagKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([flagKey])
+  @@index([category])
+  @@index([enabled])
+}
+
+model BackendJobRun {
+  id          String    @id @default(cuid())
+  userId      String
+  firmId      String?
+  jobKey      String
+  jobName     String
+  status      String    @default("Running")
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  durationMs  Int?
+  resultJson  String    @default("{}")
+  error       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([jobKey])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model BackendOutboundDelivery {
+  id               String    @id @default(cuid())
+  userId           String
+  firmId           String?
+  channel          String
+  destination      String?
+  title            String
+  body             String
+  payloadJson      String    @default("{}")
+  provider         String?
+  status           String    @default("Queued")
+  urgency          String    @default("Medium")
+  score            Int       @default(50)
+  approvalRequired Boolean   @default(false)
+  approvedAt       DateTime?
+  sentAt           DateTime?
+  failureReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([channel])
+  @@index([status])
+  @@index([urgency])
+  @@index([score])
+  @@index([createdAt])
+}
+
+model BackendDataSyncCheckpoint {
+  id           String    @id @default(cuid())
+  userId       String
+  firmId       String?
+  sourceKey    String
+  scopeKey     String
+  lastCursor   String?
+  lastSyncedAt DateTime?
+  status       String    @default("Pending")
+  detailJson   String    @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, sourceKey, scopeKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([sourceKey])
+  @@index([status])
+}
+
+model BackendAiToolRun {
+  id         String   @id @default(cuid())
+  userId     String
+  firmId     String?
+  toolKey    String
+  toolName   String
+  inputJson  String   @default("{}")
+  outputJson String   @default("{}")
+  status     String   @default("Complete")
+  approvalId String?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([firmId])
+  @@index([toolKey])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PersonalUserBotVoiceSession {
+  id              String    @id @default(cuid())
+  userId          String
+  profileId       String?
+  firmId          String?
+  sessionKey      String
+  language        String    @default("en-US")
+  transcript      String    @default("")
+  finalTranscript String?
+  status          String    @default("Listening")
+  confidenceScore Int       @default(50)
+  commandId       String?
+  metadataJson    String    @default("{}")
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, sessionKey])
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PersonalUserBotCommandCorrection {
+  id                      String   @id @default(cuid())
+  userId                  String
+  profileId               String?
+  firmId                  String?
+  originalCommand         String
+  interpretedIntent       String?
+  correctedIntent         String
+  correctedRoute          String?
+  correctionNotes         String?
+  correctedParametersJson String   @default("{}")
+  status                  String   @default("Active")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([correctedIntent])
+  @@index([status])
+}
+
+model PersonalUserBotTrainingPhrase {
+  id               String    @id @default(cuid())
+  userId           String
+  profileId        String?
+  firmId           String?
+  phraseKey        String
+  phrase           String
+  normalizedPhrase String
+  targetIntent     String
+  targetRoute      String?
+  parametersJson   String    @default("{}")
+  usageCount       Int       @default(0)
+  successCount     Int       @default(0)
+  lastUsedAt       DateTime?
+  status           String    @default("Active")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, phraseKey])
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([targetIntent])
+  @@index([targetRoute])
+  @@index([status])
+}
+
+model PersonalUserBotPlatformMapItem {
+  id                 String    @id @default(cuid())
+  userId             String
+  firmId             String?
+  itemKey            String
+  label              String
+  route              String
+  category           String    @default("Platform")
+  aliasesJson        String    @default("[]")
+  capabilitiesJson   String    @default("[]")
+  examplePromptsJson String    @default("[]")
+  confidenceScore    Int       @default(90)
+  lastVerifiedAt     DateTime?
+  status             String    @default("Active")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, itemKey])
+  @@index([userId])
+  @@index([firmId])
+  @@index([category])
+  @@index([route])
+  @@index([status])
+}
+
+model PersonalUserBotResearchRun {
+  id                 String   @id @default(cuid())
+  userId             String
+  profileId          String?
+  firmId             String?
+  query              String
+  ticker             String?
+  depth              String   @default("standard")
+  status             String   @default("Complete")
+  answerJson         String   @default("{}")
+  sourceSnapshotJson String   @default("{}")
+  confidenceScore    Int      @default(70)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([firmId])
+  @@index([ticker])
+  @@index([depth])
+  @@index([status])
 }

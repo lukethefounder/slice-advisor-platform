@@ -49,6 +49,16 @@ export async function GET() {
     firmAgendaCount,
     firmAgendaTaskCount,
     firmPostCount,
+    advisorOperatingNodeCount,
+    impactTwinCount,
+    personalBotCount,
+    sourceCredibilityProfileCount,
+    eventActionAutopilotCount,
+    complianceVaultItemCount,
+    communicationDraftCount,
+    meetingPrepPacketCount,
+    advisorPlaybookCount,
+    firmIntelligencePulseCount,
     recentAlerts,
     recentBriefings,
     recentDecisions,
@@ -56,6 +66,9 @@ export async function GET() {
     recentAuditLogs,
     recentFirmPosts,
     recentFirmAgendas,
+    recentAdvisorActions,
+    recentSourceProfiles,
+    recentFirmPulses,
     sourceHealth,
     intelligenceSettings,
     notificationPreferences,
@@ -138,6 +151,17 @@ export async function GET() {
         })
       : Promise.resolve(0),
 
+    prisma.advisorOperatingNode.count({ where: { userId: user.id } }),
+    prisma.portfolioImpactTwin.count({ where: { userId: user.id } }),
+    prisma.personalAdvisorBot.count({ where: { userId: user.id } }),
+    prisma.sourceCredibilityProfile.count({ where: { userId: user.id } }),
+    prisma.eventActionAutopilot.count({ where: { userId: user.id } }),
+    prisma.complianceMemoryVaultItem.count({ where: { userId: user.id } }),
+    prisma.clientCommunicationDraft.count({ where: { userId: user.id } }),
+    prisma.meetingPrepPacket.count({ where: { userId: user.id } }),
+    prisma.advisorPlaybook.count({ where: { userId: user.id } }),
+    prisma.firmIntelligencePulse.count({ where: { userId: user.id } }),
+
     prisma.alertEvent.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -208,6 +232,21 @@ export async function GET() {
           take: 6,
         })
       : Promise.resolve([]),
+    prisma.eventActionAutopilot.findMany({
+      where: { userId: user.id },
+      orderBy: [{ status: "asc" }, { impactScore: "desc" }],
+      take: 6,
+    }),
+    prisma.sourceCredibilityProfile.findMany({
+      where: { userId: user.id },
+      orderBy: [{ credibilityScore: "desc" }, { sourceName: "asc" }],
+      take: 6,
+    }),
+    prisma.firmIntelligencePulse.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    }),
     prisma.sourceCheckpoint.findMany({
       orderBy: { updatedAt: "desc" },
       take: 8,
@@ -228,6 +267,18 @@ export async function GET() {
     (preference) => preference.enabled
   ).length;
 
+  const advisorOsTotal =
+    advisorOperatingNodeCount +
+    impactTwinCount +
+    personalBotCount +
+    sourceCredibilityProfileCount +
+    eventActionAutopilotCount +
+    complianceVaultItemCount +
+    communicationDraftCount +
+    meetingPrepPacketCount +
+    advisorPlaybookCount +
+    firmIntelligencePulseCount;
+
   const readinessItems = [
     {
       area: "Authentication",
@@ -240,6 +291,12 @@ export async function GET() {
       status: "Ready",
       detail: "Single login routes users into the unified Slice workspace.",
       score: 90,
+    },
+    {
+      area: "Advisor OS",
+      status: advisorOsTotal > 0 ? "Active" : "Ready",
+      detail: `${personalBotCount} personal bots, ${eventActionAutopilotCount} autopilot actions, ${sourceCredibilityProfileCount} source profiles, ${firmIntelligencePulseCount} firm pulses.`,
+      score: advisorOsTotal > 0 ? 91 : 72,
     },
     {
       area: "Firm Workspace",
@@ -286,12 +343,14 @@ export async function GET() {
     {
       area: "Security",
       status:
-        acceptedDisclosures === disclosures.length && securitySetting.lastSecurityReviewAt
+        acceptedDisclosures === disclosures.length &&
+        securitySetting.lastSecurityReviewAt
           ? "Ready"
           : "Needs Review",
       detail: `${acceptedDisclosures}/${disclosures.length} disclosures accepted.`,
       score:
-        acceptedDisclosures === disclosures.length && securitySetting.lastSecurityReviewAt
+        acceptedDisclosures === disclosures.length &&
+        securitySetting.lastSecurityReviewAt
           ? 90
           : 60,
     },
@@ -309,6 +368,13 @@ export async function GET() {
       description:
         "Single authenticated workspace with tabs for the entire Slice platform.",
       status: "Primary",
+    },
+    {
+      title: "Advisor OS",
+      path: "/advisor-os",
+      description:
+        "Advisor operating graph, portfolio impact twin, personal AI bots, source credibility, action autopilot, compliance memory, communications, meeting prep, playbooks, and firm intelligence.",
+      status: "Moat Layer",
     },
     {
       title: "Main Platform",
@@ -421,6 +487,17 @@ export async function GET() {
       firmAgendaCount,
       firmAgendaTaskCount,
       firmPostCount,
+      advisorOperatingNodeCount,
+      impactTwinCount,
+      personalBotCount,
+      sourceCredibilityProfileCount,
+      eventActionAutopilotCount,
+      complianceVaultItemCount,
+      communicationDraftCount,
+      meetingPrepPacketCount,
+      advisorPlaybookCount,
+      firmIntelligencePulseCount,
+      advisorOsTotal,
     },
     recent: {
       alerts: recentAlerts,
@@ -431,6 +508,9 @@ export async function GET() {
       sourceHealth,
       firmPosts: recentFirmPosts,
       firmAgendas: recentFirmAgendas,
+      advisorActions: recentAdvisorActions,
+      sourceProfiles: recentSourceProfiles,
+      firmPulses: recentFirmPulses,
     },
   });
 }

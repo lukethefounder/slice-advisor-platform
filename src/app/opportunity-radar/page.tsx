@@ -351,9 +351,9 @@ export default function OpportunityRadarPage() {
                 "Earnings, M&A, AI/product, and macro catalysts can create opportunity signals.",
                 "Crypto and private venture items are separated as high-risk opportunity signals.",
                 "Every signal includes evidence and an advisor-safe suggested action.",
-              ].map((item) => (
+              ].map((item, index) => (
                 <div
-                  key={item}
+                  key={`ranking-logic-${index}-${item}`}
                   className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-slate-300"
                 >
                   {item}
@@ -449,8 +449,13 @@ export default function OpportunityRadarPage() {
                           </p>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {tickers.map((ticker) => (
-                              <Pill key={String(ticker)} tone="red">
+                            {tickers.map((ticker, tickerIndex) => (
+                              <Pill
+                                key={`${signal.id}-ticker-${tickerIndex}-${String(
+                                  ticker
+                                )}`}
+                                tone="red"
+                              >
                                 {String(ticker)}
                               </Pill>
                             ))}
@@ -476,7 +481,7 @@ export default function OpportunityRadarPage() {
                           ["Actionable", signal.actionabilityScore],
                         ].map(([label, value]) => (
                           <div
-                            key={String(label)}
+                            key={`${signal.id}-score-${String(label)}`}
                             className="rounded-2xl border border-white/10 bg-black/30 p-4"
                           >
                             <div className="text-xs font-black uppercase text-slate-500">
@@ -504,8 +509,13 @@ export default function OpportunityRadarPage() {
                             Categories
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {categories.slice(0, 6).map((category) => (
-                              <Pill key={String(category)} tone="purple">
+                            {categories.slice(0, 6).map((category, categoryIndex) => (
+                              <Pill
+                                key={`${signal.id}-category-${categoryIndex}-${String(
+                                  category
+                                )}`}
+                                tone="purple"
+                              >
                                 {String(category)}
                               </Pill>
                             ))}
@@ -517,9 +527,11 @@ export default function OpportunityRadarPage() {
                             Evidence
                           </div>
                           <ul className="mt-2 space-y-1">
-                            {evidence.slice(0, 7).map((item) => (
+                            {evidence.slice(0, 7).map((item, evidenceIndex) => (
                               <li
-                                key={String(item)}
+                                key={`${signal.id}-evidence-${evidenceIndex}-${String(
+                                  item
+                                )}`}
                                 className="text-sm text-slate-400"
                               >
                                 • {String(item)}

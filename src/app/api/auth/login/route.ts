@@ -6,8 +6,23 @@ import {
   sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
-import { isFounderEmail } from "@/lib/founder-access";
+import {
+  TEMP_FIRM_ADVISOR_EMAIL,
+  TEMP_FOUNDER_EMAIL,
+  isFounderEmail,
+  temporaryLoginsEnabled,
+} from "@/lib/founder-access";
+import { ensureTemporaryLogins } from "@/lib/temporary-logins";
 import { prisma } from "@/lib/prisma";
+
+function isTemporaryLoginEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  return (
+    normalizedEmail === TEMP_FOUNDER_EMAIL ||
+    normalizedEmail === TEMP_FIRM_ADVISOR_EMAIL
+  );
+}
 
 export async function POST(request: Request) {
   try {
@@ -28,16 +43,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = await prisma.user.findUnique({
+    const temporarySeedResult = isTemporaryLoginEmail(email)
+      ? await ensureTemporaryLogins()
+      : null;
+
+    if (
+      isTemporaryLoginEmail(email) &&
+      !temporaryLoginsEnabled()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Temporary logins are disabled. Add ENABLE_TEMP_LOGINS=true to .env.local, restart the dev server, and try again.",
+        },
+        { status: 403 }
+      );
+    }
+
+    let user = await prisma.user.findUnique({
       where: {
         email,
       },
     });
 
+    if (!user && isTemporaryLoginEmail(email)) {
+      await ensureTemporaryLogins();
+
+      user = await prisma.user.findUnique({
+        where: {
+          email,
+        },
+      });
+    }
+
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return NextResponse.json(
         {
-          error: "Invalid email or password.",
+          error:
+            isTemporaryLoginEmail(email)
+              ? "Temporary login was found, but the password does not match. Use SliceFounder!2026 for founder or SliceAdvisor!2026 for firm advisor."
+              : "Invalid email or password.",
+          seedError: temporarySeedResult?.seedError ?? null,
         },
         { status: 401 }
       );
@@ -82,6 +128,7 @@ export async function POST(request: Request) {
         {
           error:
             "This account is not connected to an active firm workspace. Ask a firm owner to invite or restore access.",
+          seedError: temporarySeedResult?.seedError ?? null,
         },
         { status: 403 }
       );
@@ -92,6 +139,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       user: publicUser(user),
       isFounder,
+      temporarySeedError: temporarySeedResult?.seedError ?? null,
     });
 
     response.cookies.set(
@@ -104,8 +152,10 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "Login failed.",
-        detail: error instanceof Error ? error.message : "Unknown error",
+        error:
+          error instanceof Error
+            ? `Login failed: ${error.message}`
+            : "Login failed: Unknown error",
       },
       { status: 500 }
     );

@@ -1,10 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import PersonalBotWidget from "@/components/personal-bot-widget";
+import UserThemeProvider from "@/components/user-theme-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Slice | Real-Time Market Intelligence",
+  title: {
+    default: "Slice | Advisor Intelligence Operating System",
+    template: "%s | Slice",
+  },
   description:
-    "Slice is a real-time market intelligence and alert platform for investors, advisors, and institutions.",
+    "Slice is a premium advisor intelligence operating system for source credibility, portfolio-aware alerts, adaptive AI bots, client communication, meeting prep, compliance memory, and firm-wide intelligence.",
+  applicationName: "Slice",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#050505",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -14,7 +25,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <UserThemeProvider />
+        {children}
+        <PersonalBotWidget />
+      </body>
     </html>
   );
 }
