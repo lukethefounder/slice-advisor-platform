@@ -6,28 +6,41 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  Brush,
   CartesianGrid,
   Cell,
   ComposedChart,
   Legend,
   Line,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ReferenceLine,
   ResponsiveContainer,
-  Scatter,
-  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-type ViewMode = "dashboard" | "trader" | "forecast" | "platform" | "data";
-type CandleLimit = 40 | 80 | 120 | 180;
+type ViewMode = "dashboard" | "forecast" | "technicals" | "platform" | "data";
+type ConfidenceLevel = 68 | 80 | 90 | 95 | 99;
+type HorizonSteps = 5 | 10 | 20 | 30;
+
+type Candle = {
+  date: string;
+  label: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  sma20: number | null;
+  sma50: number | null;
+  ema9: number | null;
+  vwap: number | null;
+  rsi14: number | null;
+  macd: number | null;
+  macdSignal: number | null;
+  macdHistogram: number | null;
+  bollingerUpper: number | null;
+  bollingerLower: number | null;
+};
 
 type MarketVisualPayload = {
   symbol: string;
@@ -97,25 +110,7 @@ type MarketVisualPayload = {
     macd: number | null;
     asOf: string;
   } | null;
-  candles: Array<{
-    date: string;
-    label: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-    sma20: number | null;
-    sma50: number | null;
-    ema9: number | null;
-    vwap: number | null;
-    rsi14: number | null;
-    macd: number | null;
-    macdSignal: number | null;
-    macdHistogram: number | null;
-    bollingerUpper: number | null;
-    bollingerLower: number | null;
-  }>;
+  candles: Candle[];
   predictions: Array<{
     date: string;
     label: string;
@@ -161,72 +156,57 @@ type MarketVisualPayload = {
   };
 };
 
-const COLORS = {
-  bg: "#09090b",
-  grid: "rgba(255,255,255,0.08)",
-  text: "#cbd5e1",
-  muted: "#94a3b8",
-  red: "#ef4444",
-  redSoft: "rgba(239, 68, 68, 0.18)",
-  green: "#22c55e",
-  greenSoft: "rgba(34, 197, 94, 0.18)",
-  amber: "#f59e0b",
-  amberSoft: "rgba(245, 158, 11, 0.18)",
-  cyan: "#06b6d4",
-  cyanSoft: "rgba(6, 182, 212, 0.18)",
-  purple: "#a855f7",
-  purpleSoft: "rgba(168, 85, 247, 0.18)",
-  blue: "#3b82f6",
-  pink: "#ec4899",
-  slate: "#64748b",
-  white: "#f8fafc",
+type PredictivePoint = {
+  step: number;
+  label: string;
+  projected: number;
+  lower: number;
+  upper: number;
+  bearish: number;
+  bullish: number;
 };
 
-const BAR_COLORS = [
-  COLORS.red,
-  COLORS.cyan,
-  COLORS.purple,
-  COLORS.green,
-  COLORS.amber,
-  COLORS.blue,
-  COLORS.pink,
-  COLORS.slate,
+type PredictiveAnalysis = {
+  currentPrice: number;
+  confidenceLevel: ConfidenceLevel;
+  zScore: number;
+  horizonSteps: HorizonSteps;
+  projectedFinal: number;
+  lowerFinal: number;
+  upperFinal: number;
+  probabilityUp: number;
+  probabilityDown: number;
+  expectedMovePct: number;
+  downsideMovePct: number;
+  upsideMovePct: number;
+  driftPerStep: number;
+  ewmaVolatility: number;
+  realisedVolatility: number;
+  atrPct: number;
+  trendSlopePct: number;
+  momentumScore: number;
+  volatilityRegime: "Low" | "Normal" | "Elevated" | "Extreme";
+  modelQualityScore: number;
+  forecast: PredictivePoint[];
+  explanation: string[];
+};
+
+const VIEW_TABS: Array<{ id: ViewMode; label: string; description: string }> = [
+  { id: "dashboard", label: "Dashboard", description: "Overview" },
+  { id: "forecast", label: "Predictive Analysis", description: "Confidence interval model" },
+  { id: "technicals", label: "Technicals", description: "Price, RSI, MACD, VWAP" },
+  { id: "platform", label: "Platform Intelligence", description: "Alerts and source data" },
+  { id: "data", label: "Data", description: "Candle table" },
 ];
 
-const VIEW_TABS: Array<{
-  id: ViewMode;
-  label: string;
-  description: string;
-}> = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    description: "Everything important",
-  },
-  {
-    id: "trader",
-    label: "Trader Charts",
-    description: "Price, volume, RSI, MACD",
-  },
-  {
-    id: "forecast",
-    label: "Forecast",
-    description: "Projection and levels",
-  },
-  {
-    id: "platform",
-    label: "Platform Intelligence",
-    description: "Alerts, sources, watchlists",
-  },
-  {
-    id: "data",
-    label: "Data Table",
-    description: "Candle detail",
-  },
-];
+const BAR_COLORS = ["#ef4444", "#06b6d4", "#a855f7", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899"];
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function money(value: number | null | undefined) {
@@ -236,7 +216,7 @@ function money(value: number | null | undefined) {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: Math.abs(value) >= 10 ? 2 : 4,
-  }).format(value || 0);
+  }).format(value);
 }
 
 function compactNumber(value: number | null | undefined) {
@@ -248,61 +228,286 @@ function compactNumber(value: number | null | undefined) {
   }).format(value);
 }
 
+function percent(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+}
+
+function rawPercent(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `${value.toFixed(digits)}%`;
+}
+
 function signed(value: number | null | undefined, suffix = "") {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value}${suffix}`;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}${suffix}`;
 }
 
-function timeAgo(dateString: string | null) {
-  if (!dateString) return "No timestamp";
-
-  const minutes = Math.round((Date.now() - new Date(dateString).getTime()) / 60000);
-
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-
-  const hours = Math.round(minutes / 60);
-
-  if (hours < 48) return `${hours}h ago`;
-
-  return new Date(dateString).toLocaleString();
+function mean(values: number[]) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function percent(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+function standardDeviation(values: number[]) {
+  if (values.length < 2) return 0;
+
+  const avg = mean(values);
+  const variance = values.reduce((sum, value) => sum + (value - avg) ** 2, 0) / (values.length - 1);
+
+  return Math.sqrt(Math.max(variance, 0));
+}
+
+function exponentialWeightedMean(values: number[], lambda = 0.94) {
+  if (!values.length) return 0;
+
+  let weighted = 0;
+  let totalWeight = 0;
+
+  values.forEach((value, index) => {
+    const age = values.length - 1 - index;
+    const weight = (1 - lambda) * lambda ** age;
+    weighted += value * weight;
+    totalWeight += weight;
+  });
+
+  return totalWeight ? weighted / totalWeight : mean(values);
+}
+
+function ewmaVolatility(values: number[], lambda = 0.94) {
+  if (values.length < 2) return 0;
+
+  const drift = exponentialWeightedMean(values, lambda);
+  let variance = 0;
+  let totalWeight = 0;
+
+  values.forEach((value, index) => {
+    const age = values.length - 1 - index;
+    const weight = (1 - lambda) * lambda ** age;
+    variance += weight * (value - drift) ** 2;
+    totalWeight += weight;
+  });
+
+  return Math.sqrt(totalWeight ? variance / totalWeight : variance);
+}
+
+function regressionSlope(values: number[]) {
+  if (values.length < 2) return 0;
+
+  const xs = values.map((_, index) => index + 1);
+  const xMean = mean(xs);
+  const yMean = mean(values);
+
+  const numerator = values.reduce((sum, y, index) => sum + (xs[index] - xMean) * (y - yMean), 0);
+  const denominator = xs.reduce((sum, x) => sum + (x - xMean) ** 2, 0);
+
+  return denominator ? numerator / denominator : 0;
+}
+
+function averageTrueRangePct(candles: Candle[]) {
+  const recent = candles.slice(-20);
+
+  if (!recent.length) return 0;
+
+  const ranges = recent.map((candle) => {
+    const close = candle.close || 1;
+    return Math.abs(candle.high - candle.low) / close;
+  });
+
+  return mean(ranges);
+}
+
+function erf(value: number) {
+  const sign = value >= 0 ? 1 : -1;
+  const x = Math.abs(value);
+
+  const a1 = 0.254829592;
+  const a2 = -0.284496736;
+  const a3 = 1.421413741;
+  const a4 = -1.453152027;
+  const a5 = 1.061405429;
+  const p = 0.3275911;
+
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x));
+
+  return sign * y;
+}
+
+function normalCdf(value: number) {
+  return 0.5 * (1 + erf(value / Math.sqrt(2)));
+}
+
+function zScoreForConfidence(confidence: ConfidenceLevel) {
+  const scores: Record<ConfidenceLevel, number> = {
+    68: 1,
+    80: 1.2816,
+    90: 1.6449,
+    95: 1.96,
+    99: 2.5758,
+  };
+
+  return scores[confidence];
+}
+
+function buildPredictiveAnalysis(
+  candles: Candle[],
+  confidenceLevel: ConfidenceLevel,
+  horizonSteps: HorizonSteps,
+  providerQualityScore: number,
+  backendModelConfidence: number
+): PredictiveAnalysis | null {
+  const clean = candles.filter((candle) => Number.isFinite(candle.close) && candle.close > 0);
+
+  if (clean.length < 15) return null;
+
+  const closes = clean.map((candle) => candle.close);
+  const latest = clean[clean.length - 1];
+  const currentPrice = latest.close;
+  const returns = closes.slice(1).map((close, index) => Math.log(close / closes[index]));
+  const recentReturns = returns.slice(-80);
+  const shortReturns = returns.slice(-20);
+  const longReturns = returns.slice(-120);
+
+  const realisedVolatility = standardDeviation(recentReturns);
+  const shortVolatility = standardDeviation(shortReturns);
+  const longVolatility = standardDeviation(longReturns.length ? longReturns : recentReturns);
+  const ewmaVol = ewmaVolatility(recentReturns);
+  const atrPct = averageTrueRangePct(clean);
+  const zScore = zScoreForConfidence(confidenceLevel);
+
+  const logCloses = closes.slice(-60).map((close) => Math.log(close));
+  const trendSlope = regressionSlope(logCloses);
+  const trendSlopePct = Math.exp(trendSlope) - 1;
+
+  const latestRsi = latest.rsi14 ?? 50;
+  const rsiAdjustment = clamp((latestRsi - 50) / 50, -1, 1) * 0.0015;
+  const macdAdjustment = latest.macdHistogram ? clamp(latest.macdHistogram / currentPrice, -0.006, 0.006) : 0;
+  const vwapAdjustment =
+    latest.vwap && latest.vwap > 0
+      ? clamp((currentPrice - latest.vwap) / latest.vwap, -0.035, 0.035) * 0.08
+      : 0;
+  const meanReversionAdjustment =
+    latest.sma20 && latest.sma20 > 0
+      ? clamp((latest.sma20 - currentPrice) / currentPrice, -0.05, 0.05) * 0.05
+      : 0;
+
+  const weightedDrift =
+    exponentialWeightedMean(recentReturns) * 0.35 +
+    mean(shortReturns) * 0.2 +
+    trendSlopePct * 0.25 +
+    rsiAdjustment +
+    macdAdjustment +
+    vwapAdjustment +
+    meanReversionAdjustment;
+
+  const driftPerStep = clamp(weightedDrift, -0.035, 0.035);
+  const baseSigma = Math.max(ewmaVol, realisedVolatility * 0.85, atrPct * 0.45, 0.001);
+
+  const regimeRatio = longVolatility > 0 ? shortVolatility / longVolatility : 1;
+  const volatilityRegime: PredictiveAnalysis["volatilityRegime"] =
+    regimeRatio >= 1.8 ? "Extreme" : regimeRatio >= 1.25 ? "Elevated" : regimeRatio <= 0.7 ? "Low" : "Normal";
+
+  const regimeMultiplier =
+    volatilityRegime === "Extreme"
+      ? 1.35
+      : volatilityRegime === "Elevated"
+        ? 1.15
+        : volatilityRegime === "Low"
+          ? 0.9
+          : 1;
+
+  const sigma = baseSigma * regimeMultiplier;
+
+  const modelQualityScore = Math.round(
+    clamp(
+      providerQualityScore * 0.35 +
+        backendModelConfidence * 0.25 +
+        clamp(clean.length / 120, 0, 1) * 20 +
+        clamp(1 - Math.min(regimeRatio, 2.5) / 2.5, 0, 1) * 10 +
+        (latest.rsi14 !== null ? 5 : 0) +
+        (latest.vwap !== null ? 5 : 0),
+      15,
+      98
+    )
+  );
+
+  const forecast: PredictivePoint[] = Array.from({ length: horizonSteps }).map((_, index) => {
+    const step = index + 1;
+    const expectedLogPrice = Math.log(currentPrice) + driftPerStep * step;
+    const sigmaStep = sigma * Math.sqrt(step);
+
+    const projected = Math.exp(expectedLogPrice);
+    const lower = Math.exp(expectedLogPrice - zScore * sigmaStep);
+    const upper = Math.exp(expectedLogPrice + zScore * sigmaStep);
+
+    return {
+      step,
+      label: `+${step}`,
+      projected,
+      lower,
+      upper,
+      bearish: Math.exp(expectedLogPrice - 0.65 * zScore * sigmaStep),
+      bullish: Math.exp(expectedLogPrice + 0.65 * zScore * sigmaStep),
+    };
+  });
+
+  const finalPoint = forecast[forecast.length - 1];
+  const finalSigma = sigma * Math.sqrt(horizonSteps);
+  const probabilityUp = normalCdf((Math.log(currentPrice) + driftPerStep * horizonSteps - Math.log(currentPrice)) / Math.max(finalSigma, 0.0001));
+
+  const momentumScore = Math.round(
+    clamp(
+      50 +
+        (latestRsi - 50) * 0.45 +
+        (latest.macdHistogram ? clamp(latest.macdHistogram / currentPrice, -0.03, 0.03) * 500 : 0) +
+        (latest.vwap && currentPrice > latest.vwap ? 8 : latest.vwap && currentPrice < latest.vwap ? -8 : 0) +
+        (latest.sma20 && latest.sma50 && latest.sma20 > latest.sma50 ? 8 : latest.sma20 && latest.sma50 && latest.sma20 < latest.sma50 ? -8 : 0),
+      0,
+      100
+    )
+  );
+
+  return {
+    currentPrice,
+    confidenceLevel,
+    zScore,
+    horizonSteps,
+    projectedFinal: finalPoint.projected,
+    lowerFinal: finalPoint.lower,
+    upperFinal: finalPoint.upper,
+    probabilityUp: probabilityUp * 100,
+    probabilityDown: (1 - probabilityUp) * 100,
+    expectedMovePct: ((finalPoint.projected / currentPrice) - 1) * 100,
+    downsideMovePct: ((finalPoint.lower / currentPrice) - 1) * 100,
+    upsideMovePct: ((finalPoint.upper / currentPrice) - 1) * 100,
+    driftPerStep,
+    ewmaVolatility: sigma,
+    realisedVolatility,
+    atrPct,
+    trendSlopePct,
+    momentumScore,
+    volatilityRegime,
+    modelQualityScore,
+    forecast,
+    explanation: [
+      "EWMA volatility uses heavier weighting on recent candles so the range reacts faster to volatility changes.",
+      "The expected path blends weighted return drift, short-term realised return, regression trend slope, RSI, MACD histogram, VWAP distance, and mean-reversion pressure.",
+      "The confidence range is log-normal, so the lower and upper bands scale with volatility and the selected confidence interval.",
+      "Model quality is reduced when data volume is thin, provider quality is weak, or the volatility regime is unstable.",
+    ],
+  };
 }
 
 function toneFor(value: string | number): "red" | "green" | "amber" | "purple" | "cyan" | "slate" {
   const text = String(value).toLowerCase();
 
-  if (text.includes("fresh") || text.includes("live") || text.includes("regular") || text.includes("bullish") || text.includes("ready")) {
-    return "green";
-  }
-
-  if (text.includes("stale") || text.includes("demo") || text.includes("closed") || text.includes("bearish") || text.includes("missing") || text.includes("failed")) {
-    return "red";
-  }
-
-  if (text.includes("mixed") || text.includes("after") || text.includes("pre") || text.includes("warning") || text.includes("market closed")) {
-    return "amber";
-  }
-
-  if (text.includes("ai") || text.includes("opportunity") || text.includes("forecast")) {
-    return "purple";
-  }
-
-  if (text.includes("provider") || text.includes("backend") || text.includes("quality")) {
-    return "cyan";
-  }
+  if (text.includes("fresh") || text.includes("live") || text.includes("bullish") || text.includes("ready")) return "green";
+  if (text.includes("stale") || text.includes("demo") || text.includes("closed") || text.includes("bearish") || text.includes("missing")) return "red";
+  if (text.includes("mixed") || text.includes("warning") || text.includes("market closed") || text.includes("elevated")) return "amber";
+  if (text.includes("ai") || text.includes("opportunity") || text.includes("forecast")) return "purple";
+  if (text.includes("provider") || text.includes("backend") || text.includes("quality")) return "cyan";
 
   return "slate";
-}
-
-function qualityTone(score: number): "red" | "green" | "amber" | "purple" | "cyan" | "slate" {
-  if (score >= 80) return "green";
-  if (score >= 60) return "amber";
-  return "red";
 }
 
 function changeTone(value: number | null | undefined): "red" | "green" | "slate" {
@@ -329,31 +534,15 @@ function Pill({
   };
 
   return (
-    <span
-      className={cx(
-        "inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
-        tones[tone]
-      )}
-    >
+    <span className={cx("inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1", tones[tone])}>
       {children}
     </span>
   );
 }
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={cx(
-        "overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
-        className
-      )}
-    >
+    <div className={cx("overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -381,45 +570,12 @@ function Metric({
 
   return (
     <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
-      <div
-        className={cx(
-          "absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
-          glows[tone]
-        )}
-      />
+      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
       <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-          {label}
-        </div>
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
         <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
         {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
       </div>
-    </div>
-  );
-}
-
-function ChartHeader({
-  eyebrow,
-  title,
-  description,
-  action,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div>
-        <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-          {eyebrow}
-        </div>
-        <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{description}</p>
-      </div>
-
-      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -434,15 +590,10 @@ function CustomTooltip({ active, payload, label }: any) {
         {payload.map((item: any, index: number) => (
           <div key={`${item.dataKey}-${index}`} className="flex items-center justify-between gap-5">
             <span className="flex items-center gap-2 text-slate-400">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: item.color || item.fill || BAR_COLORS[index % BAR_COLORS.length] }}
-              />
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color || item.fill || BAR_COLORS[index % BAR_COLORS.length] }} />
               {item.name || item.dataKey}
             </span>
-            <span className="font-black text-white">
-              {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
-            </span>
+            <span className="font-black text-white">{typeof item.value === "number" ? item.value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : item.value}</span>
           </div>
         ))}
       </div>
@@ -452,45 +603,9 @@ function CustomTooltip({ active, payload, label }: any) {
 
 function EmptyChart({ label = "No chart data available yet." }: { label?: string }) {
   return (
-    <div className="flex h-full min-h-[260px] items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.025] p-6 text-center text-sm font-bold text-slate-500">
+    <div className="flex h-full min-h-[280px] items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 bg-white/[0.025] p-6 text-center text-sm font-bold text-slate-500">
       {label}
     </div>
-  );
-}
-
-function ChartToggle({
-  label,
-  enabled,
-  onClick,
-  tone = "cyan",
-}: {
-  label: string;
-  enabled: boolean;
-  onClick: () => void;
-  tone?: "red" | "green" | "amber" | "purple" | "cyan" | "slate";
-}) {
-  const active = {
-    red: "border-red-500/40 bg-red-500/15 text-red-100",
-    green: "border-emerald-500/40 bg-emerald-500/15 text-emerald-100",
-    amber: "border-amber-500/40 bg-amber-500/15 text-amber-100",
-    purple: "border-purple-500/40 bg-purple-500/15 text-purple-100",
-    cyan: "border-cyan-500/40 bg-cyan-500/15 text-cyan-100",
-    slate: "border-slate-500/40 bg-slate-500/15 text-slate-100",
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "rounded-2xl border px-3 py-2 text-xs font-black transition",
-        enabled
-          ? active[tone]
-          : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
-      )}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -499,24 +614,15 @@ export default function MarketVisualsPage() {
   const [compareSymbol, setCompareSymbol] = useState("AAPL");
   const [showCompare, setShowCompare] = useState(false);
   const [interval, setInterval] = useState("5min");
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [view, setView] = useState<ViewMode>("dashboard");
-  const [candleLimit, setCandleLimit] = useState<CandleLimit>(80);
+  const [confidenceLevel, setConfidenceLevel] = useState<ConfidenceLevel>(95);
+  const [horizonSteps, setHorizonSteps] = useState<HorizonSteps>(10);
   const [data, setData] = useState<MarketVisualPayload | null>(null);
   const [compareData, setCompareData] = useState<MarketVisualPayload | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
-
-  const [overlays, setOverlays] = useState({
-    sma20: true,
-    sma50: true,
-    ema9: false,
-    vwap: true,
-    bollinger: true,
-    support: true,
-    resistance: true,
-  });
 
   async function fetchVisuals(nextSymbol: string, nextInterval: string) {
     const params = new URLSearchParams({
@@ -580,76 +686,63 @@ export default function MarketVisualsPage() {
   }, [autoRefresh, interval, symbol, showCompare, compareSymbol]);
 
   const latest = data?.latest ?? null;
+  const chartData = useMemo(() => data?.candles.slice(-90) ?? [], [data]);
 
-  const chartData = useMemo(() => data?.candles.slice(-candleLimit) ?? [], [data, candleLimit]);
-  const compareChartData = useMemo(() => compareData?.candles.slice(-candleLimit) ?? [], [compareData, candleLimit]);
+  const predictiveAnalysis = useMemo(
+    () =>
+      data
+        ? buildPredictiveAnalysis(
+            data.candles,
+            confidenceLevel,
+            horizonSteps,
+            data.quality.score,
+            data.modelConfidence
+          )
+        : null,
+    [data, confidenceLevel, horizonSteps]
+  );
 
-  const compareOverlayData = useMemo(() => {
-    if (!showCompare || !compareChartData.length || !chartData.length) return chartData;
+  const predictionChartData = useMemo(() => {
+    const history = chartData.slice(-45).map((item) => ({
+      label: item.label,
+      close: item.close,
+      projected: null,
+      lower: null,
+      upper: null,
+      bearish: null,
+      bullish: null,
+    }));
 
-    return chartData.map((point, index) => {
-      const comparisonPoint = compareChartData[index + Math.max(0, compareChartData.length - chartData.length)];
-
-      return {
-        ...point,
-        [`${compareData?.symbol ?? "Compare"} Close`]: comparisonPoint?.close ?? null,
-      };
-    });
-  }, [chartData, compareChartData, compareData?.symbol, showCompare]);
-
-  const predictionChartData = useMemo(
-    () => [
-      ...(data?.candles.slice(-50).map((item) => ({
-        label: item.label,
-        close: item.close,
-        projected: null,
-        upper: null,
-        lower: null,
-      })) ?? []),
-      ...(data?.predictions.map((item) => ({
+    const forecast =
+      predictiveAnalysis?.forecast.map((item) => ({
         label: item.label,
         close: null,
         projected: item.projected,
-        upper: item.upper,
         lower: item.lower,
-      })) ?? []),
-    ],
-    [data]
-  );
+        upper: item.upper,
+        bearish: item.bearish,
+        bullish: item.bullish,
+      })) ?? [];
 
-  const radarData = [
-    {
-      metric: "RSI",
-      value: latest?.rsi14 ?? 50,
-      fullMark: 100,
-    },
-    {
-      metric: "Trend",
-      value:
-        latest?.sma20 && latest?.sma50
-          ? Math.max(0, Math.min(100, 50 + (latest.sma20 - latest.sma50) * 2))
-          : 50,
-      fullMark: 100,
-    },
-    {
-      metric: "MACD",
-      value: latest?.macd ? Math.max(0, Math.min(100, 50 + latest.macd * 4)) : 50,
-      fullMark: 100,
-    },
-    {
-      metric: "VWAP",
-      value:
-        latest?.vwap && latest.close
-          ? Math.max(0, Math.min(100, 50 + (latest.close - latest.vwap) * 2))
-          : 50,
-      fullMark: 100,
-    },
-    {
-      metric: "Confidence",
-      value: data?.modelConfidence ?? 50,
-      fullMark: 100,
-    },
-  ];
+    return [...history, ...forecast];
+  }, [chartData, predictiveAnalysis]);
+
+  const compareOverlayData = useMemo(() => {
+    if (!showCompare || !compareData?.candles.length || !chartData.length) return chartData;
+
+    const compareCandles = compareData.candles.slice(-chartData.length);
+    const baseStart = chartData[0]?.close || 1;
+    const compareStart = compareCandles[0]?.close || 1;
+
+    return chartData.map((point, index) => {
+      const comparisonPoint = compareCandles[index];
+
+      return {
+        ...point,
+        compareClose: comparisonPoint ? (comparisonPoint.close / compareStart) * baseStart : null,
+      };
+    });
+  }, [chartData, compareData, showCompare]);
 
   const technicalScore = useMemo(() => {
     if (!latest) return 50;
@@ -665,35 +758,29 @@ export default function MarketVisualsPage() {
     if (latest.macd !== null && latest.macd > 0) score += 6;
     if (latest.macd !== null && latest.macd < 0) score -= 6;
 
-    return Math.max(0, Math.min(100, Math.round(score)));
+    return clamp(Math.round(score), 0, 100);
   }, [latest]);
 
-  const primaryChangeTone = changeTone(latest?.change);
-  const platformOverview = data?.platform.platformOverview ?? [];
   const alertScores = data?.platform.alertScores ?? [];
   const opportunityMatrix = data?.platform.opportunityMatrix ?? [];
   const sourceCredibility = data?.platform.sourceCredibility ?? [];
   const watchlistHeatmap = data?.platform.watchlistHeatmap ?? [];
   const taskStatusCounts = data?.platform.taskStatusCounts ?? [];
+  const platformOverview = data?.platform.platformOverview ?? [];
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.20),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(168,85,247,0.16),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.20),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1700px] gap-6">
         <header className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-red-600/20 to-transparent" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                Slice Market Visuals
-              </div>
-              <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                Market intelligence, beautifully visualized.
-              </h1>
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">Slice Market Visuals</div>
+              <h1 className="mt-2 text-4xl font-black md:text-6xl">Market intelligence with predictive ranges.</h1>
               <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-                One clean command center for live-aware quotes, technical charts, trend overlays, volume,
-                RSI, MACD, VWAP, Bollinger bands, prediction ranges, source credibility, watchlist heat,
-                alert intensity, opportunity risk, and backend data-quality warnings.
+                Enhanced technical analysis with an algorithmic confidence interval engine using EWMA volatility, realised returns,
+                ATR, trend regression, RSI, MACD, VWAP distance, mean reversion, and data-quality scoring.
               </p>
             </div>
 
@@ -707,9 +794,6 @@ export default function MarketVisualsPage() {
               <a href="/advisor-command-center" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100">
                 AI Command
               </a>
-              <a href="/backend-kernel" className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100">
-                Backend Kernel
-              </a>
             </div>
           </div>
         </header>
@@ -721,7 +805,7 @@ export default function MarketVisualsPage() {
         ) : null}
 
         <Card>
-          <form onSubmit={submit} className="grid gap-3 xl:grid-cols-[1fr_1fr_190px_190px_auto]">
+          <form onSubmit={submit} className="grid gap-3 xl:grid-cols-[1fr_1fr_170px_170px_170px_auto]">
             <input
               value={symbol}
               onChange={(event) => setSymbol(event.target.value.toUpperCase())}
@@ -735,16 +819,14 @@ export default function MarketVisualsPage() {
                 onChange={(event) => setCompareSymbol(event.target.value.toUpperCase())}
                 disabled={!showCompare}
                 className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-40"
-                placeholder="Compare ticker, e.g. AAPL"
+                placeholder="Compare ticker"
               />
               <button
                 type="button"
                 onClick={() => setShowCompare((current) => !current)}
                 className={cx(
                   "rounded-2xl border px-4 py-3 text-xs font-black",
-                  showCompare
-                    ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/10 bg-white/[0.04] text-slate-400"
+                  showCompare ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-100" : "border-white/10 bg-white/[0.04] text-slate-400"
                 )}
               >
                 Compare {showCompare ? "On" : "Off"}
@@ -765,20 +847,29 @@ export default function MarketVisualsPage() {
             </select>
 
             <select
-              value={candleLimit}
-              onChange={(event) => setCandleLimit(Number(event.target.value) as CandleLimit)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+              value={confidenceLevel}
+              onChange={(event) => setConfidenceLevel(Number(event.target.value) as ConfidenceLevel)}
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-purple-500 focus:ring-2"
             >
-              <option value={40}>Last 40 candles</option>
-              <option value={80}>Last 80 candles</option>
-              <option value={120}>Last 120 candles</option>
-              <option value={180}>Last 180 candles</option>
+              <option value={68}>68% confidence</option>
+              <option value={80}>80% confidence</option>
+              <option value={90}>90% confidence</option>
+              <option value={95}>95% confidence</option>
+              <option value={99}>99% confidence</option>
             </select>
 
-            <button
-              disabled={loading}
-              className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+            <select
+              value={horizonSteps}
+              onChange={(event) => setHorizonSteps(Number(event.target.value) as HorizonSteps)}
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 focus:ring-2"
             >
+              <option value={5}>5-candle horizon</option>
+              <option value={10}>10-candle horizon</option>
+              <option value={20}>20-candle horizon</option>
+              <option value={30}>30-candle horizon</option>
+            </select>
+
+            <button disabled={loading} className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50">
               {loading ? "Loading..." : "Load Visuals"}
             </button>
           </form>
@@ -789,9 +880,7 @@ export default function MarketVisualsPage() {
               onClick={() => setAutoRefresh((current) => !current)}
               className={cx(
                 "rounded-2xl border px-4 py-2 text-xs font-black",
-                autoRefresh
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                  : "border-white/10 bg-white/5 text-white"
+                autoRefresh ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100" : "border-white/10 bg-white/5 text-white"
               )}
             >
               Auto-refresh {autoRefresh ? "On" : "Off"}
@@ -805,7 +894,7 @@ export default function MarketVisualsPage() {
                 <Pill tone={toneFor(data.freshness.status)}>{data.freshness.status}</Pill>
                 <Pill tone={toneFor(data.marketSession.session)}>{data.marketSession.session}</Pill>
                 <span className="text-xs font-semibold leading-6 text-slate-500">
-                  Loaded {timeAgo(lastLoadedAt)} · Candle as of {timeAgo(data.freshness.asOf)}
+                  Loaded {lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "—"}
                 </span>
               </>
             ) : null}
@@ -822,607 +911,418 @@ export default function MarketVisualsPage() {
                   onClick={() => setView(tab.id)}
                   className={cx(
                     "rounded-2xl px-4 py-3 text-left transition",
-                    view === tab.id
-                      ? "bg-white text-slate-950 shadow-lg shadow-red-950/20"
-                      : "bg-white/[0.045] text-white hover:bg-white/[0.08]"
+                    view === tab.id ? "bg-white text-slate-950 shadow-lg shadow-red-950/20" : "bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
                   )}
                 >
-                  <div className="truncate text-sm font-black">{tab.label}</div>
-                  <div className={cx("mt-1 truncate text-[10px] font-semibold", view === tab.id ? "text-slate-600" : "text-slate-500")}>
+                  <div className="text-sm font-black">{tab.label}</div>
+                  <div className={cx("mt-1 text-[11px] font-semibold", view === tab.id ? "text-slate-600" : "text-slate-500")}>
                     {tab.description}
                   </div>
                 </button>
               ))}
             </nav>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-8">
-              <Metric label="Last" value={money(latest?.close)} helper={data.quote?.price ? "Quote validated" : "Chart close"} tone="purple" />
-              <Metric label="Change" value={signed(latest?.change)} helper={percent(latest?.changePct)} tone={primaryChangeTone} />
-              <Metric label="Quality" value={`${data.quality.score}%`} helper="Data quality" tone={qualityTone(data.quality.score)} />
-              <Metric label="Session" value={data.marketSession.session} helper={data.marketSession.description} tone={toneFor(data.marketSession.session)} />
-              <Metric label="Technical" value={`${technicalScore}%`} helper={data.signals.directionalBias} tone={qualityTone(technicalScore)} />
-              <Metric label="Model" value={`${data.modelConfidence}%`} helper="Forecast confidence" tone={qualityTone(data.modelConfidence)} />
-              <Metric label="RSI 14" value={latest?.rsi14 ?? "—"} helper={data.signals.riskState} tone={latest?.rsi14 && latest.rsi14 >= 70 ? "red" : latest?.rsi14 && latest.rsi14 <= 30 ? "green" : "amber"} />
-              <Metric label="Volume" value={compactNumber(data.quote?.volume ?? chartData[chartData.length - 1]?.volume)} helper="Latest volume" tone="cyan" />
+            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Metric label="Last Price" value={money(latest?.close)} helper={data.symbol} tone={changeTone(latest?.change)} />
+              <Metric label="Move" value={percent(latest?.changePct)} helper={money(latest?.change)} tone={changeTone(latest?.change)} />
+              <Metric label="Technical Score" value={`${technicalScore}/100`} helper={data.signals.directionalBias} tone={technicalScore >= 65 ? "green" : technicalScore >= 45 ? "amber" : "red"} />
+              <Metric label="Forecast Quality" value={`${predictiveAnalysis?.modelQualityScore ?? data.modelConfidence}%`} helper="Data-adjusted" tone={(predictiveAnalysis?.modelQualityScore ?? 0) >= 70 ? "green" : "amber"} />
+              <Metric label={`${confidenceLevel}% Range`} value={predictiveAnalysis ? `${money(predictiveAnalysis.lowerFinal)} – ${money(predictiveAnalysis.upperFinal)}` : "—"} helper={`${horizonSteps} candles`} tone="purple" />
             </section>
 
-            {(view === "dashboard" || view === "trader") ? (
-              <Card>
-                <ChartHeader
-                  eyebrow="Main Price Dashboard"
-                  title={`${data.symbol} price action with overlays`}
-                  description="Toggle moving averages, VWAP, Bollinger bands, support/resistance, and optional comparison ticker. This is the ideal primary chart for visual learners."
-                  action={
-                    <div className="flex flex-wrap gap-2">
-                      <ChartToggle label="SMA 20" enabled={overlays.sma20} onClick={() => setOverlays((current) => ({ ...current, sma20: !current.sma20 }))} tone="cyan" />
-                      <ChartToggle label="SMA 50" enabled={overlays.sma50} onClick={() => setOverlays((current) => ({ ...current, sma50: !current.sma50 }))} tone="purple" />
-                      <ChartToggle label="EMA 9" enabled={overlays.ema9} onClick={() => setOverlays((current) => ({ ...current, ema9: !current.ema9 }))} tone="amber" />
-                      <ChartToggle label="VWAP" enabled={overlays.vwap} onClick={() => setOverlays((current) => ({ ...current, vwap: !current.vwap }))} tone="green" />
-                      <ChartToggle label="Bands" enabled={overlays.bollinger} onClick={() => setOverlays((current) => ({ ...current, bollinger: !current.bollinger }))} tone="slate" />
-                      <ChartToggle label="Levels" enabled={overlays.support || overlays.resistance} onClick={() => setOverlays((current) => ({ ...current, support: !current.support, resistance: !current.resistance }))} tone="red" />
+            {(view === "dashboard" || view === "technicals") ? (
+              <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Live-Aware Chart</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">{data.symbol} price, VWAP, SMA, and comparison overlay</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Comparison is normalised to the primary chart’s starting price for visual relative performance.
+                    </p>
+                  </div>
+
+                  <div className="h-[430px]">
+                    {compareOverlayData.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={compareOverlayData}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
+                          <YAxis stroke="#64748b" domain={["auto", "auto"]} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend />
+                          <Line type="monotone" dataKey="close" name={`${data.symbol} Close`} stroke="#ef4444" strokeWidth={2.5} dot={false} />
+                          <Line type="monotone" dataKey="vwap" name="VWAP" stroke="#06b6d4" strokeWidth={1.5} dot={false} />
+                          <Line type="monotone" dataKey="sma20" name="SMA 20" stroke="#a855f7" strokeWidth={1.5} dot={false} />
+                          <Line type="monotone" dataKey="sma50" name="SMA 50" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
+                          {showCompare && compareData ? (
+                            <Line type="monotone" dataKey="compareClose" name={`${compareData.symbol} Normalised`} stroke="#22c55e" strokeWidth={2} dot={false} />
+                          ) : null}
+                          <ReferenceLine y={data.levels.support} stroke="#22c55e" strokeDasharray="4 4" />
+                          <ReferenceLine y={data.levels.resistance} stroke="#ef4444" strokeDasharray="4 4" />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <EmptyChart />
+                    )}
+                  </div>
+                </Card>
+
+                <div className="grid gap-6">
+                  <Card>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">Signal Summary</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">{data.signals.directionalBias}</h2>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">{data.signals.summary}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Pill tone={toneFor(data.signals.momentum)}>{data.signals.momentum}</Pill>
+                      <Pill tone={toneFor(data.signals.riskState)}>{data.signals.riskState}</Pill>
+                      <Pill tone="cyan">RSI {latest?.rsi14?.toFixed(1) ?? "—"}</Pill>
+                      <Pill tone="purple">MACD {latest?.macd?.toFixed(3) ?? "—"}</Pill>
                     </div>
-                  }
-                />
+                  </Card>
 
-                <div className="h-[520px]">
-                  {chartData.length ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={compareOverlayData}>
-                        <defs>
-                          <linearGradient id="closeGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.red} stopOpacity={0.36} />
-                            <stop offset="95%" stopColor={COLORS.red} stopOpacity={0.02} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                        <XAxis dataKey="label" tick={{ fill: COLORS.muted, fontSize: 11 }} minTickGap={24} />
-                        <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={["auto", "auto"]} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: COLORS.text, fontSize: 12 }} />
+                  <Card>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Volume</div>
+                    <div className="mt-4 h-[220px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.slice(-35)}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
+                          <YAxis stroke="#64748b" tickFormatter={compactNumber} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="volume" name="Volume" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </div>
+              </section>
+            ) : null}
 
-                        <Area
-                          name={`${data.symbol} Close`}
-                          type="monotone"
-                          dataKey="close"
-                          fill="url(#closeGradient)"
-                          stroke={COLORS.red}
-                          strokeWidth={3}
-                          dot={false}
-                        />
+            {(view === "dashboard" || view === "forecast") ? (
+              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">Predictive Analysis Engine</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">
+                      {confidenceLevel}% confidence range over {horizonSteps} candles
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      This is a deterministic predictive range model, not a guarantee. It combines EWMA volatility, realised return distribution,
+                      ATR, regression trend, RSI, MACD, VWAP distance, and mean-reversion pressure to calculate a log-normal projected range.
+                    </p>
+                  </div>
 
-                        {showCompare && compareData ? (
-                          <Line
-                            name={`${compareData.symbol} Close`}
-                            type="monotone"
-                            dataKey={`${compareData.symbol} Close`}
-                            dot={false}
-                            stroke={COLORS.cyan}
-                            strokeWidth={2.5}
-                            strokeDasharray="8 5"
-                          />
-                        ) : null}
+                  <div className="h-[430px]">
+                    {predictiveAnalysis ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={predictionChartData}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="label" stroke="#64748b" minTickGap={18} />
+                          <YAxis stroke="#64748b" domain={["auto", "auto"]} tickFormatter={(value) => `$${Number(value).toFixed(0)}`} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend />
+                          <Area type="monotone" dataKey="upper" name="Upper Confidence Band" stroke="#a855f7" fill="rgba(168,85,247,0.14)" dot={false} connectNulls />
+                          <Area type="monotone" dataKey="lower" name="Lower Confidence Band" stroke="#ef4444" fill="rgba(239,68,68,0.08)" dot={false} connectNulls />
+                          <Line type="monotone" dataKey="close" name="Historical Close" stroke="#f8fafc" strokeWidth={2.25} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="projected" name="Projected Path" stroke="#06b6d4" strokeWidth={2.5} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="bearish" name="Bearish Scenario" stroke="#f59e0b" strokeDasharray="4 4" dot={false} connectNulls />
+                          <Line type="monotone" dataKey="bullish" name="Bullish Scenario" stroke="#22c55e" strokeDasharray="4 4" dot={false} connectNulls />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <EmptyChart label="At least 15 candles are needed to generate a forecast range." />
+                    )}
+                  </div>
+                </Card>
 
-                        {overlays.ema9 ? <Line name="EMA 9" type="monotone" dataKey="ema9" dot={false} stroke={COLORS.amber} strokeWidth={2} /> : null}
-                        {overlays.sma20 ? <Line name="SMA 20" type="monotone" dataKey="sma20" dot={false} stroke={COLORS.cyan} strokeWidth={2} /> : null}
-                        {overlays.sma50 ? <Line name="SMA 50" type="monotone" dataKey="sma50" dot={false} stroke={COLORS.purple} strokeWidth={2} /> : null}
-                        {overlays.vwap ? <Line name="VWAP" type="monotone" dataKey="vwap" dot={false} stroke={COLORS.green} strokeWidth={2.4} /> : null}
-                        {overlays.bollinger ? <Line name="Bollinger Upper" type="monotone" dataKey="bollingerUpper" dot={false} stroke={COLORS.slate} strokeWidth={1.4} strokeDasharray="4 4" /> : null}
-                        {overlays.bollinger ? <Line name="Bollinger Lower" type="monotone" dataKey="bollingerLower" dot={false} stroke={COLORS.slate} strokeWidth={1.4} strokeDasharray="4 4" /> : null}
-                        {overlays.support ? <ReferenceLine y={data.levels.support} stroke={COLORS.green} strokeDasharray="6 5" label={{ value: "Support", fill: COLORS.green, fontSize: 11 }} /> : null}
-                        {overlays.resistance ? <ReferenceLine y={data.levels.resistance} stroke={COLORS.red} strokeDasharray="6 5" label={{ value: "Resistance", fill: COLORS.red, fontSize: 11 }} /> : null}
-                        <Brush dataKey="label" height={28} stroke={COLORS.red} fill="#18181b" travellerWidth={10} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyChart />
-                  )}
+                <div className="grid gap-6">
+                  <Card>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">Calculated Range</div>
+                    {predictiveAnalysis ? (
+                      <div className="mt-4 grid gap-3">
+                        <Metric label="Projected Final" value={money(predictiveAnalysis.projectedFinal)} helper={percent(predictiveAnalysis.expectedMovePct)} tone={predictiveAnalysis.expectedMovePct >= 0 ? "green" : "red"} />
+                        <Metric label="Lower Bound" value={money(predictiveAnalysis.lowerFinal)} helper={percent(predictiveAnalysis.downsideMovePct)} tone="red" />
+                        <Metric label="Upper Bound" value={money(predictiveAnalysis.upperFinal)} helper={percent(predictiveAnalysis.upsideMovePct)} tone="green" />
+                        <Metric label="Probability Up" value={rawPercent(predictiveAnalysis.probabilityUp)} helper={`Down: ${rawPercent(predictiveAnalysis.probabilityDown)}`} tone={predictiveAnalysis.probabilityUp >= 55 ? "green" : predictiveAnalysis.probabilityUp <= 45 ? "red" : "amber"} />
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-400">Not enough data yet.</p>
+                    )}
+                  </Card>
+
+                  {predictiveAnalysis ? (
+                    <Card>
+                      <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">Algorithm Inputs</div>
+                      <div className="mt-4 grid gap-3 text-sm text-slate-300">
+                        <div className="flex justify-between gap-4"><span>EWMA volatility</span><strong>{rawPercent(predictiveAnalysis.ewmaVolatility * 100, 3)}</strong></div>
+                        <div className="flex justify-between gap-4"><span>Realised volatility</span><strong>{rawPercent(predictiveAnalysis.realisedVolatility * 100, 3)}</strong></div>
+                        <div className="flex justify-between gap-4"><span>ATR range</span><strong>{rawPercent(predictiveAnalysis.atrPct * 100, 3)}</strong></div>
+                        <div className="flex justify-between gap-4"><span>Regression drift</span><strong>{rawPercent(predictiveAnalysis.trendSlopePct * 100, 3)}</strong></div>
+                        <div className="flex justify-between gap-4"><span>Momentum score</span><strong>{predictiveAnalysis.momentumScore}/100</strong></div>
+                        <div className="flex justify-between gap-4"><span>Volatility regime</span><strong>{predictiveAnalysis.volatilityRegime}</strong></div>
+                      </div>
+                    </Card>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {view === "forecast" && predictiveAnalysis ? (
+              <Card>
+                <div className="mb-5">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Confidence Interval Detail</div>
+                  <h2 className="mt-2 text-2xl font-black text-white">Forecast path table</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Each row is one future candle. The lower and upper bounds use the selected confidence interval and volatility-scaled time horizon.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      <tr>
+                        <th className="px-3 py-3">Step</th>
+                        <th className="px-3 py-3">Projected</th>
+                        <th className="px-3 py-3">Lower</th>
+                        <th className="px-3 py-3">Upper</th>
+                        <th className="px-3 py-3">Bearish Scenario</th>
+                        <th className="px-3 py-3">Bullish Scenario</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {predictiveAnalysis.forecast.map((point) => (
+                        <tr key={point.step} className="border-t border-white/10">
+                          <td className="px-3 py-3 font-black text-white">+{point.step}</td>
+                          <td className="px-3 py-3 text-cyan-200">{money(point.projected)}</td>
+                          <td className="px-3 py-3 text-red-200">{money(point.lower)}</td>
+                          <td className="px-3 py-3 text-emerald-200">{money(point.upper)}</td>
+                          <td className="px-3 py-3 text-amber-200">{money(point.bearish)}</td>
+                          <td className="px-3 py-3 text-emerald-200">{money(point.bullish)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  {predictiveAnalysis.explanation.map((item) => (
+                    <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300">
+                      {item}
+                    </div>
+                  ))}
                 </div>
               </Card>
             ) : null}
 
-            {view === "dashboard" ? (
-              <>
-                <section className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Accuracy Console"
-                      title="Provider, freshness, and risk"
-                      description="Before making any decision, this panel tells you whether the data is live, stale, delayed, simulated, or missing."
-                    />
-
-                    <div className="grid gap-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Provider Priority</div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {data.sourcePriority.map((provider) => (
-                            <Pill key={provider} tone={provider.includes("Demo") ? "amber" : "green"}>
-                              {provider}
-                            </Pill>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Freshness Warning</div>
-                        <p className="mt-2 text-sm leading-6 text-slate-300">{data.freshness.warning}</p>
-                      </div>
-
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Signal Summary</div>
-                        <div className="mt-2 text-xl font-black text-white">{data.signals.directionalBias}</div>
-                        <p className="mt-2 text-sm leading-6 text-slate-400">{data.signals.summary}</p>
-                      </div>
-
-                      {data.quality.warnings.length ? (
-                        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-                          <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">Quality Notes</div>
-                          <ul className="mt-3 grid gap-2 text-sm leading-6 text-amber-100">
-                            {data.quality.warnings.map((warning) => (
-                              <li key={warning}>• {warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Technical Radar"
-                      title="Momentum, trend, VWAP, and confidence"
-                      description="A single visual snapshot for quick technical interpretation."
-                    />
-
-                    <div className="h-[420px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart data={radarData}>
-                          <PolarGrid stroke={COLORS.grid} />
-                          <PolarAngleAxis dataKey="metric" tick={{ fill: COLORS.text, fontSize: 12 }} />
-                          <PolarRadiusAxis tick={{ fill: COLORS.muted, fontSize: 10 }} />
-                          <Radar name={data.symbol} dataKey="value" fill={COLORS.purple} fillOpacity={0.22} stroke={COLORS.purple} strokeWidth={3} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend wrapperStyle={{ color: COLORS.text, fontSize: 12 }} />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </section>
-
-                <section className="grid gap-6 xl:grid-cols-3">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Trading Levels"
-                      title="Support / resistance"
-                      description="Key price areas based on recent candles."
-                    />
-                    <div className="grid gap-3">
-                      <Metric label="Support" value={money(data.levels.support)} helper={`${data.levels.distanceToSupportPct}% below`} tone="green" />
-                      <Metric label="Resistance" value={money(data.levels.resistance)} helper={`${data.levels.distanceToResistancePct}% above`} tone="red" />
-                      <Metric label="Midpoint" value={money(data.levels.midpoint)} helper="Recent range midpoint" tone="cyan" />
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Quote Validation"
-                      title="Independent quote snapshot"
-                      description="Validates the latest chart close when provider quote data is available."
-                    />
-                    <div className="grid gap-3">
-                      <Metric label="Quote Price" value={money(data.quote?.price)} helper={data.quote?.provider ?? "No quote"} tone="purple" />
-                      <Metric label="Previous Close" value={money(data.quote?.previousClose)} helper={data.quote?.latestTradingDay ?? "No date"} tone="slate" />
-                      <Metric label="Quote Volume" value={compactNumber(data.quote?.volume)} helper="Provider volume" tone="cyan" />
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Quick Actions"
-                      title="Use this insight"
-                      description="Jump directly into execution."
-                    />
-                    <div className="grid gap-3">
-                      <a href={`/watchlist-alerts`} className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-black text-slate-950">
-                        Create Price Alert
-                      </a>
-                      <a href={`/workspace/personal-bot`} className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-center text-sm font-black text-purple-100">
-                        Ask Bot to Research
-                      </a>
-                      <a href={`/opportunity-radar`} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-sm font-black text-amber-100">
-                        Open Opportunity Radar
-                      </a>
-                      <a href={`/portfolio-lab`} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
-                        Open Portfolio Lab
-                      </a>
-                    </div>
-                  </Card>
-                </section>
-              </>
-            ) : null}
-
-            {view === "trader" ? (
-              <>
-                <section className="grid gap-6 xl:grid-cols-2">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Volume"
-                      title="Market participation"
-                      description="High volume gives context to price moves and alert urgency."
-                    />
-
-                    <div className="h-[380px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="label" tick={{ fill: COLORS.muted, fontSize: 11 }} minTickGap={24} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} tickFormatter={(value) => compactNumber(Number(value))} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar name="Volume" dataKey="volume" radius={[8, 8, 0, 0]}>
-                            {chartData.map((item, index) => {
-                              const previous = chartData[index - 1]?.close ?? item.open;
-                              const up = item.close >= previous;
-
-                              return <Cell key={`${item.date}-vol`} fill={up ? COLORS.green : COLORS.red} />;
-                            })}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="RSI"
-                      title="Overbought / oversold pressure"
-                      description="RSI above 70 can indicate overheating; below 30 can indicate oversold pressure."
-                    />
-
-                    <div className="h-[380px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="label" tick={{ fill: COLORS.muted, fontSize: 11 }} minTickGap={24} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <ReferenceLine y={70} stroke={COLORS.red} strokeDasharray="6 4" label={{ value: "70", fill: COLORS.red, fontSize: 11 }} />
-                          <ReferenceLine y={30} stroke={COLORS.green} strokeDasharray="6 4" label={{ value: "30", fill: COLORS.green, fontSize: 11 }} />
-                          <Line name="RSI 14" type="monotone" dataKey="rsi14" dot={false} stroke={COLORS.amber} strokeWidth={3} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </section>
-
+            {view === "technicals" ? (
+              <section className="grid gap-6 xl:grid-cols-2">
                 <Card>
-                  <ChartHeader
-                    eyebrow="MACD"
-                    title="Momentum shift"
-                    description="MACD line, signal line, and histogram show whether momentum is strengthening or weakening."
-                  />
-
-                  <div className="h-[420px]">
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">RSI</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Relative strength</h2>
+                  </div>
+                  <div className="h-[340px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                        <XAxis dataKey="label" tick={{ fill: COLORS.muted, fontSize: 11 }} minTickGap={24} />
-                        <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
+                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
+                        <YAxis stroke="#64748b" domain={[0, 100]} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: COLORS.text, fontSize: 12 }} />
-                        <ReferenceLine y={0} stroke={COLORS.slate} strokeDasharray="5 5" />
-                        <Bar name="MACD Histogram" dataKey="macdHistogram" radius={[6, 6, 0, 0]}>
-                          {chartData.map((item) => (
-                            <Cell
-                              key={`${item.date}-macd`}
-                              fill={(item.macdHistogram ?? 0) >= 0 ? COLORS.green : COLORS.red}
-                            />
-                          ))}
-                        </Bar>
-                        <Line name="MACD" type="monotone" dataKey="macd" dot={false} stroke={COLORS.cyan} strokeWidth={3} />
-                        <Line name="Signal" type="monotone" dataKey="macdSignal" dot={false} stroke={COLORS.purple} strokeWidth={2.5} />
+                        <Line type="monotone" dataKey="rsi14" name="RSI 14" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                        <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="4 4" />
+                        <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="4 4" />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 </Card>
-              </>
-            ) : null}
 
-            {view === "forecast" ? (
-              <section className="grid gap-6">
                 <Card>
-                  <ChartHeader
-                    eyebrow="Predictive Projection"
-                    title="Forward path with volatility bands"
-                    description="A visual estimate from recent momentum and volatility. Use as a planning aid, not a guaranteed forecast."
-                    action={<Pill tone={qualityTone(data.modelConfidence)}>Confidence {data.modelConfidence}%</Pill>}
-                  />
-
-                  <div className="h-[480px]">
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">MACD</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Momentum convergence</h2>
+                  </div>
+                  <div className="h-[340px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={predictionChartData}>
-                        <defs>
-                          <linearGradient id="projectionBand" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.purple} stopOpacity={0.28} />
-                            <stop offset="95%" stopColor={COLORS.purple} stopOpacity={0.02} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                        <XAxis dataKey="label" tick={{ fill: COLORS.muted, fontSize: 11 }} minTickGap={18} />
-                        <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={["auto", "auto"]} />
+                      <ComposedChart data={chartData}>
+                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                        <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
+                        <YAxis stroke="#64748b" />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend wrapperStyle={{ color: COLORS.text, fontSize: 12 }} />
-                        <Area name="Upper Band" type="monotone" dataKey="upper" fill="url(#projectionBand)" stroke={COLORS.purple} strokeDasharray="4 4" strokeWidth={1.5} />
-                        <Line name="Actual Close" type="monotone" dataKey="close" dot={false} stroke={COLORS.red} strokeWidth={3} />
-                        <Line name="Projected" type="monotone" dataKey="projected" dot={false} stroke={COLORS.cyan} strokeWidth={3} />
-                        <Line name="Lower Band" type="monotone" dataKey="lower" dot={false} stroke={COLORS.purple} strokeDasharray="4 4" strokeWidth={1.5} />
+                        <Bar dataKey="macdHistogram" name="MACD Histogram" fill="#a855f7" radius={[8, 8, 0, 0]} />
+                        <Line type="monotone" dataKey="macd" name="MACD" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="macdSignal" name="Signal" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                        <ReferenceLine y={0} stroke="#64748b" />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 </Card>
-
-                <section className="grid gap-6 xl:grid-cols-3">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Forecast Read"
-                      title="Model interpretation"
-                      description="A simple read of the forecast context."
-                    />
-                    <div className="grid gap-3">
-                      <Metric label="Bias" value={data.signals.directionalBias} helper={data.signals.momentum} tone={toneFor(data.signals.directionalBias)} />
-                      <Metric label="Confidence" value={`${data.modelConfidence}%`} helper="Projection model" tone={qualityTone(data.modelConfidence)} />
-                      <Metric label="Data Quality" value={`${data.quality.score}%`} helper={data.freshness.status} tone={qualityTone(data.quality.score)} />
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Range"
-                      title="Support and resistance"
-                      description="Distance to key trading levels."
-                    />
-                    <div className="grid gap-3">
-                      <Metric label="Support" value={money(data.levels.support)} helper={`${data.levels.distanceToSupportPct}% away`} tone="green" />
-                      <Metric label="Resistance" value={money(data.levels.resistance)} helper={`${data.levels.distanceToResistancePct}% away`} tone="red" />
-                      <Metric label="Midpoint" value={money(data.levels.midpoint)} helper="Recent midpoint" tone="cyan" />
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Warning"
-                      title="Decision guardrails"
-                      description="Use the prediction correctly."
-                    />
-                    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-                      Forecast visuals are directional analytics. Confirm source freshness, market session,
-                      volume confirmation, portfolio exposure, and client suitability before taking action.
-                    </div>
-                  </Card>
-                </section>
               </section>
             ) : null}
 
             {view === "platform" ? (
-              <section className="grid gap-6">
-                <section className="grid gap-6 xl:grid-cols-3">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Platform Overview"
-                      title="System data volume"
-                      description="A snapshot of major intelligence objects in Slice."
-                    />
-                    <div className="h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={platformOverview}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="name" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                            {platformOverview.map((_, index) => (
-                              <Cell key={`overview-${index}`} fill={BAR_COLORS[index % BAR_COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Alert Scores"
-                      title="Top alert intensity"
-                      description="Higher scores suggest greater urgency or relevance."
-                    />
-                    <div className="h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={alertScores}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="name" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                            {alertScores.map((item, index) => (
-                              <Cell key={`alert-${index}`} fill={item.score >= 85 ? COLORS.red : item.score >= 70 ? COLORS.amber : COLORS.cyan} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Task Flow"
-                      title="Execution status"
-                      description="Operational status across workspace tasks."
-                    />
-                    <div className="h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={taskStatusCounts}>
-                          <defs>
-                            <linearGradient id="taskGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.35} />
-                              <stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0.02} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="name" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Area dataKey="value" fill="url(#taskGradient)" stroke={COLORS.cyan} strokeWidth={3} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </section>
-
-                <section className="grid gap-6 xl:grid-cols-2">
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Opportunity Matrix"
-                      title="Risk vs opportunity"
-                      description="Each dot represents a stored opportunity signal. Right = higher opportunity. Up = higher risk."
-                    />
-
-                    <div className="h-[420px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ScatterChart>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis type="number" dataKey="opportunity" name="Opportunity" tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
-                          <YAxis type="number" dataKey="risk" name="Risk" tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
-                          <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
-                          <ReferenceLine x={70} stroke={COLORS.green} strokeDasharray="5 5" />
-                          <ReferenceLine y={70} stroke={COLORS.red} strokeDasharray="5 5" />
-                          <Scatter name="Opportunity Signals" data={opportunityMatrix} fill={COLORS.purple}>
-                            {opportunityMatrix.map((item, index) => (
-                              <Cell
-                                key={`opp-${index}`}
-                                fill={
-                                  item.composite >= 85
-                                    ? COLORS.green
-                                    : item.risk >= 80
-                                      ? COLORS.red
-                                      : item.opportunity >= 75
-                                        ? COLORS.cyan
-                                        : COLORS.purple
-                                }
-                              />
-                            ))}
-                          </Scatter>
-                        </ScatterChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <ChartHeader
-                      eyebrow="Source Credibility"
-                      title="Trust and bias profile"
-                      description="Credibility, transparency, and bias-risk scores for tracked sources."
-                    />
-
-                    <div className="h-[420px]">
-                      {sourceCredibility.length ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={sourceCredibility}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                            <XAxis dataKey="name" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                            <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend wrapperStyle={{ color: COLORS.text, fontSize: 12 }} />
-                            <Bar name="Credibility" dataKey="credibility" radius={[8, 8, 0, 0]} fill={COLORS.green} />
-                            <Line name="Transparency" type="monotone" dataKey="transparency" dot={false} stroke={COLORS.cyan} strokeWidth={3} />
-                            <Line name="Bias Risk" type="monotone" dataKey="biasRisk" dot={false} stroke={COLORS.red} strokeWidth={3} />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <EmptyChart label="No source credibility records yet. Run source credibility or triage workflows to populate this chart." />
-                      )}
-                    </div>
-                  </Card>
-                </section>
-
+              <section className="grid gap-6 xl:grid-cols-2">
                 <Card>
-                  <ChartHeader
-                    eyebrow="Watchlist Heat"
-                    title="Tracked asset intensity"
-                    description="Shows which watchlist names are getting the most attention from alerts, priority, bot commands, and radar activity."
-                  />
-
-                  <div className="h-[360px]">
-                    {watchlistHeatmap.length ? (
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Alert Scores</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Highest-priority alerts</h2>
+                  </div>
+                  <div className="h-[330px]">
+                    {alertScores.length ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={watchlistHeatmap}>
-                          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                          <XAxis dataKey="symbol" tick={{ fill: COLORS.muted, fontSize: 11 }} />
-                          <YAxis tick={{ fill: COLORS.muted, fontSize: 11 }} domain={[0, 100]} />
+                        <BarChart data={alertScores.slice(0, 8)}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="name" stroke="#64748b" />
+                          <YAxis stroke="#64748b" />
                           <Tooltip content={<CustomTooltip />} />
-                          <Bar dataKey="score" radius={[8, 8, 0, 0]}>
-                            {watchlistHeatmap.map((item, index) => (
-                              <Cell key={`heat-${index}`} fill={item.score >= 85 ? COLORS.red : item.score >= 70 ? COLORS.amber : COLORS.cyan} />
+                          <Bar dataKey="score" name="Alert Score" radius={[8, 8, 0, 0]}>
+                            {alertScores.slice(0, 8).map((_, index) => (
+                              <Cell key={index} fill={BAR_COLORS[index % BAR_COLORS.length]} />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
-                      <EmptyChart label="No watchlist heat data yet. Add tickers to watchlists or create price alerts." />
+                      <EmptyChart label="No stored alert scores yet." />
                     )}
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">Opportunities</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Opportunity vs risk</h2>
+                  </div>
+                  <div className="h-[330px]">
+                    {opportunityMatrix.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={opportunityMatrix.slice(0, 10)}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="name" stroke="#64748b" />
+                          <YAxis stroke="#64748b" />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar dataKey="opportunity" name="Opportunity" fill="#22c55e" radius={[8, 8, 0, 0]} />
+                          <Bar dataKey="risk" name="Risk" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                          <Line dataKey="composite" name="Composite" stroke="#06b6d4" strokeWidth={2} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <EmptyChart label="No opportunity signals yet." />
+                    )}
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">Source Credibility</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Credibility and transparency</h2>
+                  </div>
+                  <div className="grid gap-3">
+                    {sourceCredibility.slice(0, 8).map((source) => (
+                      <div key={`${source.sourceName}-${source.domain}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-black text-white">{source.sourceName}</div>
+                            <div className="text-xs text-slate-500">{source.domain}</div>
+                          </div>
+                          <Pill tone={toneFor(source.status)}>{source.status}</Pill>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-xs text-slate-300">
+                          <div>Credibility: {source.credibility}</div>
+                          <div>Transparency: {source.transparency}</div>
+                          <div>Bias Risk: {source.biasRisk}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {!sourceCredibility.length ? <div className="text-sm text-slate-500">No source credibility records yet.</div> : null}
+                  </div>
+                </Card>
+
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">Watchlist Heat</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Tracked asset heatmap</h2>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {watchlistHeatmap.slice(0, 10).map((item) => (
+                      <div key={`${item.symbol}-${item.sourceType}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xl font-black text-white">{item.symbol}</div>
+                          <Pill tone={item.score >= 75 ? "green" : item.score >= 50 ? "amber" : "red"}>{item.score}</Pill>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-400">{item.priority} · {item.status} · {item.sourceType}</div>
+                      </div>
+                    ))}
+                    {!watchlistHeatmap.length ? <div className="text-sm text-slate-500">No watchlist heatmap records yet.</div> : null}
                   </div>
                 </Card>
               </section>
             ) : null}
 
             {view === "data" ? (
-              <Card>
-                <ChartHeader
-                  eyebrow="Raw Candle Data"
-                  title={`${data.symbol} candle table`}
-                  description="A clean view of recent OHLCV data and computed indicators."
-                  action={<Pill tone="cyan">{chartData.length} candles</Pill>}
-                />
-
-                <div className="overflow-hidden rounded-[1.5rem] border border-white/10">
-                  <div className="max-h-[720px] overflow-auto">
-                    <table className="w-full min-w-[1100px] border-collapse text-left text-xs">
-                      <thead className="sticky top-0 bg-zinc-950 text-slate-400">
+              <section className="grid gap-6">
+                <Card>
+                  <div className="mb-5">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Data Table</div>
+                    <h2 className="mt-2 text-2xl font-black text-white">Recent candles</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[980px] text-left text-sm">
+                      <thead className="text-xs uppercase tracking-[0.18em] text-slate-500">
                         <tr>
-                          {["Time", "Open", "High", "Low", "Close", "Volume", "SMA20", "SMA50", "VWAP", "RSI", "MACD"].map((heading) => (
-                            <th key={heading} className="border-b border-white/10 px-4 py-3 font-black uppercase tracking-[0.14em]">
-                              {heading}
-                            </th>
-                          ))}
+                          <th className="px-3 py-3">Time</th>
+                          <th className="px-3 py-3">Open</th>
+                          <th className="px-3 py-3">High</th>
+                          <th className="px-3 py-3">Low</th>
+                          <th className="px-3 py-3">Close</th>
+                          <th className="px-3 py-3">Volume</th>
+                          <th className="px-3 py-3">VWAP</th>
+                          <th className="px-3 py-3">RSI</th>
+                          <th className="px-3 py-3">MACD</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {[...chartData].reverse().map((candle) => (
-                          <tr key={candle.date} className="border-b border-white/5 odd:bg-white/[0.025] hover:bg-white/[0.06]">
-                            <td className="px-4 py-3 font-bold text-white">{candle.label}</td>
-                            <td className="px-4 py-3 text-slate-300">{money(candle.open)}</td>
-                            <td className="px-4 py-3 text-emerald-300">{money(candle.high)}</td>
-                            <td className="px-4 py-3 text-red-300">{money(candle.low)}</td>
-                            <td className="px-4 py-3 font-black text-white">{money(candle.close)}</td>
-                            <td className="px-4 py-3 text-cyan-300">{compactNumber(candle.volume)}</td>
-                            <td className="px-4 py-3 text-cyan-300">{money(candle.sma20)}</td>
-                            <td className="px-4 py-3 text-purple-300">{money(candle.sma50)}</td>
-                            <td className="px-4 py-3 text-emerald-300">{money(candle.vwap)}</td>
-                            <td className="px-4 py-3 text-amber-300">{candle.rsi14 ?? "—"}</td>
-                            <td className={cx("px-4 py-3", (candle.macd ?? 0) >= 0 ? "text-emerald-300" : "text-red-300")}>
-                              {candle.macd ?? "—"}
-                            </td>
+                        {chartData.slice().reverse().map((candle) => (
+                          <tr key={`${candle.date}-${candle.close}`} className="border-t border-white/10">
+                            <td className="px-3 py-3 font-bold text-white">{candle.label}</td>
+                            <td className="px-3 py-3 text-slate-300">{money(candle.open)}</td>
+                            <td className="px-3 py-3 text-emerald-200">{money(candle.high)}</td>
+                            <td className="px-3 py-3 text-red-200">{money(candle.low)}</td>
+                            <td className="px-3 py-3 text-cyan-200">{money(candle.close)}</td>
+                            <td className="px-3 py-3 text-slate-300">{compactNumber(candle.volume)}</td>
+                            <td className="px-3 py-3 text-slate-300">{money(candle.vwap)}</td>
+                            <td className="px-3 py-3 text-slate-300">{candle.rsi14?.toFixed(1) ?? "—"}</td>
+                            <td className="px-3 py-3 text-slate-300">{candle.macd?.toFixed(4) ?? "—"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </section>
             ) : null}
 
-            <footer className="pb-8 text-center text-xs font-semibold text-slate-600">
-              Slice Market Visuals · interactive technical dashboard · source-aware · data-quality-first
-            </footer>
+            <Card className="border-amber-500/20 bg-amber-500/5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">Model Disclaimer</div>
+                  <p className="mt-2 text-sm leading-6 text-amber-100/80">
+                    Predictive ranges are statistical estimates only. They are not investment advice, guarantees, or trade instructions.
+                    Verify live data, liquidity, news, client suitability, and risk tolerance before making decisions.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Pill tone={data.quality.score >= 80 ? "green" : data.quality.score >= 60 ? "amber" : "red"}>Quality {data.quality.score}</Pill>
+                  <Pill tone="cyan">Provider {data.provider}</Pill>
+                  <Pill tone="purple">Forecast {confidenceLevel}%</Pill>
+                </div>
+              </div>
+            </Card>
           </>
-        ) : null}
+        ) : (
+          <Card>
+            <EmptyChart label="Load a ticker to begin market visualization." />
+          </Card>
+        )}
       </div>
     </main>
   );

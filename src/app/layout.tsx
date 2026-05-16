@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import PersonalBotWidget from "@/components/personal-bot-widget";
 import UserThemeProvider from "@/components/user-theme-provider";
+import WorkspaceEmailQuickAccess from "@/components/workspace-email-quick-access";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body>
         <UserThemeProvider />
         {children}
+        <WorkspaceEmailQuickAccess />
         <PersonalBotWidget />
       </body>
     </html>

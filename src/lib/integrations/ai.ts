@@ -3,11 +3,16 @@ import { getOptionalEnv } from "@/lib/env";
 export type AiResponseResult = {
   ok: boolean;
   provider: string;
-  status: "completed" | "failed" | "missing";
+  status: "completed" | "failed" | "missing" | "cached" | "timeout";
   text: string;
   raw?: unknown;
   error?: string;
+  latencyMs?: number;
+  model?: string;
+  cacheKey?: string;
 };
+
+export type AiSpeedMode = "instant" | "fast" | "balanced" | "quality";
 
 export type SliceCommandIntent =
   | "navigate"
@@ -93,6 +98,42 @@ type PlatformBrainContext = {
   }>;
 };
 
+export type UniversalAssistantMessage = {
+  role: "user" | "assistant" | string;
+  content: string;
+};
+
+export type UniversalAssistantInput = {
+  prompt: string;
+  userName: string;
+  userEmail: string;
+  botName?: string | null;
+  currentPath?: string | null;
+  pageTitle?: string | null;
+  preferredTone?: string | null;
+  commandStyle?: string | null;
+  autonomyLevel?: string | null;
+  customInstructions?: string | null;
+  personality?: Record<string, unknown> | null;
+  risk?: Record<string, unknown> | null;
+  memory?: string[];
+  recentMessages?: UniversalAssistantMessage[];
+  platformResult?: string | null;
+  commandIntent?: string | null;
+  platformSnapshot?: Record<string, unknown>;
+  model?: string;
+  safetyIdentifier?: string;
+  enableWebSearch?: boolean;
+  speedMode?: AiSpeedMode;
+};
+
+type CacheRecord = {
+  expiresAt: number;
+  result: AiResponseResult;
+};
+
+const aiCache = new Map<string, CacheRecord>();
+
 const FALLBACK_ROUTES = [
   { route: "/workspace", label: "workspace", aliases: ["home", "dashboard", "main page"] },
   { route: "/workspace?tab=command", label: "command layer", aliases: ["command", "backend controls"] },
@@ -111,6 +152,72 @@ const FALLBACK_ROUTES = [
   { route: "/briefings", label: "briefings", aliases: ["reports", "briefing reports"] },
   { route: "/security", label: "security", aliases: ["audit", "compliance"] },
 ];
+
+function hashText(value: string) {
+  let hash = 5381;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 33) ^ value.charCodeAt(index);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function cleanupCache() {
+  const now = Date.now();
+
+  for (const [key, record] of aiCache.entries()) {
+    if (record.expiresAt <= now) {
+      aiCache.delete(key);
+    }
+  }
+
+  if (aiCache.size > 500) {
+    const ordered = Array.from(aiCache.entries()).sort(
+      (a, b) => a[1].expiresAt - b[1].expiresAt
+    );
+
+    for (const [key] of ordered.slice(0, 150)) {
+      aiCache.delete(key);
+    }
+  }
+}
+
+function cacheTtlForMode(mode: AiSpeedMode) {
+  if (mode === "instant") return 10 * 60 * 1000;
+  if (mode === "fast") return 5 * 60 * 1000;
+  if (mode === "balanced") return 3 * 60 * 1000;
+  return 60 * 1000;
+}
+
+function timeoutForMode(mode: AiSpeedMode) {
+  if (mode === "instant") return Number(getOptionalEnv("OPENAI_INSTANT_TIMEOUT_MS")) || 3500;
+  if (mode === "fast") return Number(getOptionalEnv("OPENAI_FAST_TIMEOUT_MS")) || 6500;
+  if (mode === "balanced") return Number(getOptionalEnv("OPENAI_BALANCED_TIMEOUT_MS")) || 14000;
+  return Number(getOptionalEnv("OPENAI_QUALITY_TIMEOUT_MS")) || 28000;
+}
+
+function modelForMode(mode: AiSpeedMode, explicitModel?: string) {
+  if (explicitModel) return explicitModel;
+
+  if (mode === "instant" || mode === "fast") {
+    return (
+      getOptionalEnv("OPENAI_FAST_MODEL") ||
+      getOptionalEnv("OPENAI_MODEL") ||
+      "gpt-5"
+    );
+  }
+
+  if (mode === "quality") {
+    return (
+      getOptionalEnv("OPENAI_QUALITY_MODEL") ||
+      getOptionalEnv("OPENAI_MODEL") ||
+      "gpt-5"
+    );
+  }
+
+  return getOptionalEnv("OPENAI_MODEL") || "gpt-5";
+}
 
 function extractText(payload: any) {
   if (typeof payload?.output_text === "string") return payload.output_text;
@@ -193,6 +300,57 @@ function routeFromPrompt(prompt: string, platformBrain?: PlatformBrainContext) {
   return null;
 }
 
+function toneGuide(preferredTone?: string | null) {
+  const tone = normalize(preferredTone || "professional");
+
+  if (tone.includes("witty")) {
+    return "Use polished, quick British wit. Be clever, not silly. Keep the answer useful first and charming second.";
+  }
+
+  if (tone.includes("brutal") || tone.includes("honest")) {
+    return "Be direct, candid, and tactful. Say what matters plainly, without being rude.";
+  }
+
+  if (tone.includes("encourag")) {
+    return "Be upbeat, steady, and confidence-building while still being honest about risk and uncertainty.";
+  }
+
+  if (tone.includes("calm")) {
+    return "Be calm, measured, and reassuring. Avoid hype.";
+  }
+
+  if (tone.includes("direct")) {
+    return "Be concise and decisive. Lead with the answer, then give only the necessary supporting details.";
+  }
+
+  return "Be professional, polished, concise, and advisor-grade.";
+}
+
+function detailGuide(commandStyle?: string | null) {
+  const style = normalize(commandStyle || "balanced detail");
+
+  if (style.includes("one-line")) return "Answer in one or two crisp sentences unless safety or complexity requires more.";
+  if (style.includes("short")) return "Use a short summary with only the most important details.";
+  if (style.includes("detailed")) return "Give a structured, detailed breakdown with clear next steps.";
+  if (style.includes("deep")) return "Give a deeper research-style response with assumptions, caveats, and practical implications.";
+
+  return "Use balanced detail: enough to be genuinely useful, not a wall of text.";
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function fallbackSliceCommand(prompt: string, platformBrain?: PlatformBrainContext): SliceStructuredCommand {
   const lower = normalize(prompt);
   const route = routeFromPrompt(prompt, platformBrain);
@@ -227,7 +385,7 @@ export function fallbackSliceCommand(prompt: string, platformBrain?: PlatformBra
     route,
     answer:
       intent === "answer"
-        ? "I can navigate Slice, research investments, search firm data, find sources, create tasks, create clients, create projects, add watchlists, create price alerts, draft approval-gated emails, create reports, run backend jobs, decide approvals, remember preferences, and change your theme."
+        ? "I can answer open-ended questions through the universal AI layer, navigate Slice, research investments, search firm data, find sources, create tasks, create clients, create projects, add watchlists, create price alerts, draft approval-gated emails, create reports, run backend jobs, decide approvals, remember preferences, and change your theme."
         : `I interpreted this as: ${intent}.`,
     userFacingSummary: `Interpreted as ${intent}.`,
     parameters: {
@@ -365,39 +523,82 @@ export async function generateAiText(input: {
   model?: string;
   safetyIdentifier?: string;
   enableWebSearch?: boolean;
+  speedMode?: AiSpeedMode;
+  timeoutMs?: number;
+  useCache?: boolean;
+  cacheTtlMs?: number;
+  cacheKey?: string;
+  fallbackText?: string;
 }): Promise<AiResponseResult> {
+  const startedAt = Date.now();
   const apiKey = getOptionalEnv("OPENAI_API_KEY");
+  const speedMode = input.speedMode || "balanced";
+  const model = modelForMode(speedMode, input.model);
+  const timeoutMs = input.timeoutMs ?? timeoutForMode(speedMode);
+  const useCache = input.useCache !== false;
+  const computedCacheKey =
+    input.cacheKey ||
+    `ai:${hashText(
+      JSON.stringify({
+        model,
+        speedMode,
+        instructions: input.instructions,
+        prompt: input.prompt,
+        web: input.enableWebSearch,
+      })
+    )}`;
+
+  cleanupCache();
+
+  if (useCache) {
+    const cached = aiCache.get(computedCacheKey);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return {
+        ...cached.result,
+        status: "cached",
+        provider: `${cached.result.provider} cache`,
+        latencyMs: Date.now() - startedAt,
+        cacheKey: computedCacheKey,
+      };
+    }
+  }
 
   if (!apiKey) {
     return {
       ok: false,
       provider: "OpenAI",
       status: "missing",
-      text: "",
+      text: input.fallbackText || "",
       error: "OPENAI_API_KEY is missing.",
+      latencyMs: Date.now() - startedAt,
+      model,
+      cacheKey: computedCacheKey,
     };
   }
 
-  const model = input.model || getOptionalEnv("OPENAI_MODEL") || "gpt-5";
-
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          instructions:
+            input.instructions ||
+            "You are Slice, a careful fintech AI assistant. Be accurate, source-aware, compliance-aware, fast, and avoid unsupported claims.",
+          input: input.prompt,
+          tools: input.enableWebSearch ? [{ type: "web_search_preview" }] : undefined,
+          safety_identifier: input.safetyIdentifier,
+          store: false,
+        }),
       },
-      body: JSON.stringify({
-        model,
-        instructions:
-          input.instructions ||
-          "You are Slice, a careful fintech AI assistant. Be accurate, source-aware, compliance-aware, and avoid unsupported claims.",
-        input: input.prompt,
-        tools: input.enableWebSearch ? [{ type: "web_search_preview" }] : undefined,
-        safety_identifier: input.safetyIdentifier,
-        store: false,
-      }),
-    });
+      timeoutMs
+    );
 
     const payload = await response.json().catch(() => ({}));
 
@@ -406,28 +607,116 @@ export async function generateAiText(input: {
         ok: false,
         provider: "OpenAI",
         status: "failed",
-        text: "",
+        text: input.fallbackText || "",
         raw: payload,
         error: payload?.error?.message || `OpenAI failed with ${response.status}`,
+        latencyMs: Date.now() - startedAt,
+        model,
+        cacheKey: computedCacheKey,
       };
     }
 
-    return {
+    const result: AiResponseResult = {
       ok: true,
       provider: "OpenAI",
       status: "completed",
       text: extractText(payload),
       raw: payload,
+      latencyMs: Date.now() - startedAt,
+      model,
+      cacheKey: computedCacheKey,
     };
+
+    if (useCache && result.text) {
+      aiCache.set(computedCacheKey, {
+        expiresAt: Date.now() + (input.cacheTtlMs ?? cacheTtlForMode(speedMode)),
+        result,
+      });
+    }
+
+    return result;
   } catch (error) {
+    const timedOut =
+      error instanceof Error &&
+      (error.name === "AbortError" || error.message.toLowerCase().includes("abort"));
+
     return {
       ok: false,
       provider: "OpenAI",
-      status: "failed",
-      text: "",
-      error: error instanceof Error ? error.message : "AI request failed.",
+      status: timedOut ? "timeout" : "failed",
+      text: input.fallbackText || "",
+      error: timedOut
+        ? `AI request exceeded ${timeoutMs}ms. Returned fast fallback to preserve responsiveness.`
+        : error instanceof Error
+          ? error.message
+          : "AI request failed.",
+      latencyMs: Date.now() - startedAt,
+      model,
+      cacheKey: computedCacheKey,
     };
   }
+}
+
+export async function generateUniversalAssistantReply(input: UniversalAssistantInput): Promise<AiResponseResult> {
+  const botName = input.botName || "Slice Bot";
+  const preferredTone = input.preferredTone || "Professional";
+  const commandStyle = input.commandStyle || "Balanced detail";
+  const speedMode = input.speedMode || "fast";
+
+  const fallback = input.platformResult
+    ? `Certainly — here is what I found:\n\n${input.platformResult}`
+    : "Certainly — I can help with that. I can answer questions, navigate Slice, research investments, search firm data, prepare reports, and draft approval-gated communications.";
+
+  const instructions = `
+You are ${botName}, the universal AI assistant inside Slice, an advisor intelligence operating system.
+
+Voice and personality:
+- Use polished British English phrasing.
+- Preferred tone: ${preferredTone}.
+- ${toneGuide(preferredTone)}
+- ${detailGuide(commandStyle)}
+
+Rules:
+- Be fast and useful.
+- If platform context is supplied, preserve its facts exactly.
+- For finance, legal, tax, or compliance matters, avoid guarantees and unsupported recommendations.
+- Do not claim an action was completed unless platformResult proves it.
+`;
+
+  return generateAiText({
+    instructions,
+    prompt: JSON.stringify(
+      {
+        prompt: input.prompt,
+        currentPath: input.currentPath,
+        pageTitle: input.pageTitle,
+        user: {
+          name: input.userName,
+          email: input.userEmail,
+        },
+        style: {
+          preferredTone,
+          commandStyle,
+          autonomyLevel: input.autonomyLevel,
+        },
+        personality: input.personality ?? {},
+        risk: input.risk ?? {},
+        memory: input.memory ?? [],
+        recentMessages: input.recentMessages ?? [],
+        commandIntent: input.commandIntent ?? null,
+        platformResult: input.platformResult ?? null,
+        platformSnapshot: input.platformSnapshot ?? {},
+      },
+      null,
+      2
+    ),
+    model: input.model,
+    enableWebSearch: input.enableWebSearch,
+    safetyIdentifier: input.safetyIdentifier || input.userEmail,
+    speedMode,
+    fallbackText: fallback,
+    useCache: true,
+  });
 }
 
 export async function parseSliceCommandWithAi(input: {
@@ -443,6 +732,10 @@ export async function parseSliceCommandWithAi(input: {
   portfolioValue?: number;
   platformBrain?: PlatformBrainContext;
   voiceTranscript?: string | null;
+  preferredTone?: string | null;
+  commandStyle?: string | null;
+  customInstructions?: string | null;
+  personality?: Record<string, unknown> | null;
 }): Promise<{
   ok: boolean;
   command: SliceStructuredCommand;
@@ -460,7 +753,8 @@ export async function parseSliceCommandWithAi(input: {
     };
   }
 
-  const model = getOptionalEnv("OPENAI_MODEL") || "gpt-5";
+  const speedMode: AiSpeedMode = "fast";
+  const model = modelForMode(speedMode);
 
   const instructions = `
 You are Slice's fintech AI command interpreter.
@@ -470,14 +764,15 @@ Your job:
 - Convert the user's command into one safe structured command.
 - Use learned corrections and training phrases before generic interpretation.
 - Prefer direct platform routing when route intent is obvious.
-- Use platform_search for firm-wide search across clients, notes, tasks, alerts, reports, approvals, watchlists, and research.
-- Use research for investment analysis, ticker analysis, source-backed thesis, client exposure, or diligence questions.
-- Use source_lookup when the user asks for exact source, proof, link, citation, or evidence.
-- Use backend_job for backend, vendor health, watchlist price checks, delivery queue, data quality, or advisor day jobs.
+- Use answer for broad, open-ended questions.
+- Use platform_search for searching firm data.
+- Use research for investment analysis.
+- Use source_lookup for proof, citations, source, or evidence.
+- Use backend_job for backend, vendor health, watchlist checks, delivery queue, data quality, and advisor day.
 - Use approval_decision when user says approve/reject latest.
-- Client-facing email, SMS, delivery, and reports require approval.
-- Never guarantee returns or make unsupported recommendations.
-- Always give a helpful command summary.
+- Match preferred tone: ${input.preferredTone || "Professional"}.
+- Keep client-facing email, SMS, delivery, and reports approval-gated.
+- Never guarantee returns.
 Return only JSON matching the schema.
 `;
 
@@ -486,6 +781,10 @@ Return only JSON matching the schema.
     userEmail: input.userEmail,
     firmName: input.firmName ?? "No active firm",
     botName: input.botName ?? "Slice Bot",
+    preferredTone: input.preferredTone ?? "Professional",
+    commandStyle: input.commandStyle ?? "Balanced detail",
+    customInstructions: input.customInstructions ?? null,
+    personality: input.personality ?? {},
     openTasks: input.openTasks ?? 0,
     unreadAlerts: input.unreadAlerts ?? 0,
     clients: input.clients ?? 0,
@@ -496,38 +795,42 @@ Return only JSON matching the schema.
   };
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        instructions,
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: `Platform context:\n${JSON.stringify(platformContext, null, 2)}\n\nUser command:\n${input.prompt}`,
-              },
-            ],
-          },
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: "slice_structured_command",
-            strict: true,
-            schema: commandSchema(),
-          },
+    const response = await fetchWithTimeout(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-        store: false,
-        safety_identifier: input.userEmail,
-      }),
-    });
+        body: JSON.stringify({
+          model,
+          instructions,
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_text",
+                  text: `Platform context:\n${JSON.stringify(platformContext, null, 2)}\n\nUser command:\n${input.prompt}`,
+                },
+              ],
+            },
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "slice_structured_command",
+              strict: true,
+              schema: commandSchema(),
+            },
+          },
+          store: false,
+          safety_identifier: input.userEmail,
+        }),
+      },
+      timeoutForMode(speedMode)
+    );
 
     const payload = await response.json().catch(() => ({}));
     const text = extractText(payload);
@@ -543,15 +846,21 @@ Return only JSON matching the schema.
 
     return {
       ok: true,
-      provider: "OpenAI",
-      command: parseJsonLoose<SliceStructuredCommand>(text, fallbackSliceCommand(input.prompt, input.platformBrain)),
+      provider: `OpenAI/${model}`,
+      command: parseJsonLoose<SliceStructuredCommand>(
+        text,
+        fallbackSliceCommand(input.prompt, input.platformBrain)
+      ),
     };
   } catch (error) {
     return {
       ok: false,
-      provider: "OpenAI",
+      provider: `OpenAI/${model}`,
       command: fallbackSliceCommand(input.prompt, input.platformBrain),
-      error: error instanceof Error ? error.message : "AI command parsing failed.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "AI command parsing failed.",
     };
   }
 }

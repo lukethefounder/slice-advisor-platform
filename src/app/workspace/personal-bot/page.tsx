@@ -1,6 +1,37 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
+type BotMessage = {
+  id: string;
+  role: string;
+  content: string;
+  intent: string;
+  createdAt: string;
+  metadata?: {
+    clientAction?: {
+      type?: string;
+      href?: string;
+      autoRun?: boolean;
+    };
+    structuredCommand?: Record<string, unknown>;
+    aiParserOk?: boolean;
+    aiParserError?: string;
+    spokenAccent?: string;
+    universalAiProvider?: string;
+    universalAiStatus?: string;
+  };
+};
+
+type BotCommand = {
+  id: string;
+  commandText: string;
+  commandType: string;
+  status: string;
+  resultSummary: string | null;
+  createdAt: string;
+  action?: Record<string, unknown>;
+};
 
 type BotPayload = {
   profile: {
@@ -15,58 +46,30 @@ type BotPayload = {
     personality: Record<string, unknown>;
     risk: Record<string, unknown>;
     capabilities: string[];
+    spokenAccent?: string;
+    speechLanguage?: string;
   };
   aiEngine?: {
     provider: string;
     configured: boolean;
     model: string;
     structuredCommands: boolean;
+    universalAnswers?: boolean;
     approvalGates: boolean;
     platformBrain?: boolean;
     voiceLearning?: boolean;
     webSearchEnabled?: boolean;
+    spokenAccent?: string;
+    speechLanguage?: string;
   };
-  messages: Array<{
-    id: string;
-    role: string;
-    content: string;
-    intent: string;
-    createdAt: string;
-    metadata?: {
-      clientAction?: {
-        type?: string;
-        href?: string;
-        autoRun?: boolean;
-      };
-      structuredCommand?: Record<string, unknown>;
-      aiParserOk?: boolean;
-      aiParserError?: string;
-    };
-  }>;
-  commands: Array<{
-    id: string;
-    commandText: string;
-    commandType: string;
-    status: string;
-    resultSummary: string | null;
-    createdAt: string;
-    action?: Record<string, unknown>;
-  }>;
+  messages: BotMessage[];
+  commands: BotCommand[];
   tabs: Array<{
     id: string;
     tabName: string;
     notes: string | null;
     pinnedCommands: string[];
     status: string;
-  }>;
-  emailDrafts?: Array<{
-    id: string;
-    targetTicker: string | null;
-    subject: string;
-    body: string;
-    status: string;
-    deliveryMode: string;
-    recipients: Array<Record<string, unknown>>;
   }>;
   pdfReports?: Array<{
     id: string;
@@ -99,28 +102,6 @@ type BotPayload = {
     summary: string;
     status: string;
   }>;
-  dataViews?: Array<{
-    id: string;
-    viewName: string;
-    viewType: string;
-    result: Array<Record<string, unknown>>;
-  }>;
-  backendToolRuns?: Array<{
-    id: string;
-    toolKey: string;
-    toolName: string;
-    status: string;
-    createdAt: string;
-  }>;
-  voiceSessions?: Array<{
-    id: string;
-    sessionKey: string;
-    transcript: string;
-    finalTranscript: string | null;
-    status: string;
-    confidenceScore: number;
-    createdAt: string;
-  }>;
   platformMap?: Array<{
     id: string;
     label: string;
@@ -131,85 +112,65 @@ type BotPayload = {
     examplePrompts: string[];
     status: string;
   }>;
-  trainingPhrases?: Array<{
-    id: string;
-    phrase: string;
-    targetIntent: string;
-    targetRoute: string | null;
-    usageCount: number;
-    successCount: number;
-    status: string;
-  }>;
-  corrections?: Array<{
-    id: string;
-    originalCommand: string;
-    interpretedIntent: string | null;
-    correctedIntent: string;
-    correctedRoute: string | null;
-    correctionNotes: string | null;
-    status: string;
-  }>;
-  researchRuns?: Array<{
-    id: string;
-    query: string;
-    ticker: string | null;
-    depth: string;
-    status: string;
-    confidenceScore: number;
-    createdAt: string;
-  }>;
 };
 
-type VoiceMode = "openai" | "browser";
+type SpeechRecognitionResultLike = {
+  0: { transcript: string };
+};
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+const MAX_REQUESTS = 5;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function byNewest<T extends { createdAt?: string }>(items: T[] = []) {
+  return [...items].sort((a, b) => {
+    const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+    return right - left;
+  });
+}
+
+function limitBotPayload(payload: BotPayload): BotPayload {
+  return {
+    ...payload,
+    messages: byNewest(payload.messages).slice(0, MAX_REQUESTS),
+    commands: byNewest(payload.commands).slice(0, MAX_REQUESTS),
+    pdfReports: payload.pdfReports?.slice(0, MAX_REQUESTS),
+    memories: payload.memories?.slice(0, MAX_REQUESTS),
+    approvals: payload.approvals?.slice(0, MAX_REQUESTS),
+    backendApprovals: payload.backendApprovals?.slice(0, MAX_REQUESTS),
+    platformMap: payload.platformMap?.slice(0, 12),
+  };
+}
+
 function toneFor(value: string): "red" | "green" | "amber" | "purple" | "cyan" | "slate" {
   const lower = value.toLowerCase();
 
-  if (
-    lower.includes("high") ||
-    lower.includes("pending") ||
-    lower.includes("failed") ||
-    lower.includes("critical")
-  ) {
-    return "red";
-  }
-
-  if (
-    lower.includes("complete") ||
-    lower.includes("active") ||
-    lower.includes("approved") ||
-    lower.includes("ready") ||
-    lower.includes("configured")
-  ) {
-    return "green";
-  }
-
-  if (
-    lower.includes("medium") ||
-    lower.includes("open") ||
-    lower.includes("queued") ||
-    lower.includes("draft") ||
-    lower.includes("listening")
-  ) {
-    return "amber";
-  }
-
-  if (lower.includes("ai") || lower.includes("bot") || lower.includes("research")) {
-    return "purple";
-  }
-
-  if (
-    lower.includes("backend") ||
-    lower.includes("tool") ||
-    lower.includes("kernel") ||
-    lower.includes("voice")
-  ) {
-    return "cyan";
-  }
+  if (lower.includes("failed") || lower.includes("critical") || lower.includes("high")) return "red";
+  if (lower.includes("complete") || lower.includes("active") || lower.includes("ready") || lower.includes("configured")) return "green";
+  if (lower.includes("open") || lower.includes("queued") || lower.includes("draft") || lower.includes("pending")) return "amber";
+  if (lower.includes("ai") || lower.includes("bot") || lower.includes("research")) return "purple";
+  if (lower.includes("voice") || lower.includes("backend") || lower.includes("tool")) return "cyan";
 
   return "slate";
 }
@@ -231,31 +192,15 @@ function Pill({
   };
 
   return (
-    <span
-      className={cx(
-        "inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
-        tones[tone]
-      )}
-    >
+    <span className={cx("inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1", tones[tone])}>
       {children}
     </span>
   );
 }
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={cx(
-        "rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
-        className
-      )}
-    >
+    <div className={cx("rounded-[1.75rem] border border-white/10 bg-zinc-950/82 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -282,141 +227,68 @@ function Metric({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
+    <div className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4">
       <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
       <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-          {label}
-        </div>
-        <div className="mt-2 text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 text-xs text-slate-500">{helper}</div> : null}
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
+        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
       </div>
     </div>
   );
 }
 
-function FriendlyRobot({
-  listening,
-  recording,
-  thinking,
-  onClick,
-}: {
-  listening: boolean;
-  recording: boolean;
-  thinking: boolean;
-  onClick: () => void;
-}) {
-  const active = listening || recording;
+function formatTime(value: string | null | undefined) {
+  if (!value) return "—";
 
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getBritishVoice(voices: SpeechSynthesisVoice[]) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "group relative flex h-32 w-32 shrink-0 items-center justify-center rounded-[2.5rem] border shadow-2xl transition hover:scale-[1.03]",
-        active
-          ? "border-cyan-300/60 bg-cyan-500/15 shadow-cyan-950/40"
-          : "border-white/10 bg-white/[0.06] shadow-red-950/30"
-      )}
-      aria-label="Tap robot to start or stop voice command"
-    >
-      <div
-        className={cx(
-          "absolute inset-[-10px] rounded-[3rem] border",
-          active ? "animate-pulse border-cyan-400/40" : "border-white/5"
-        )}
-      />
-      <div className="absolute inset-[-18px] rounded-[3.35rem] bg-cyan-400/5 blur-xl" />
-      <div className="relative flex h-24 w-24 flex-col items-center justify-center rounded-[2rem] bg-gradient-to-br from-slate-100 via-white to-slate-300 shadow-inner">
-        <div className="absolute top-[-8px] h-4 w-12 rounded-full bg-slate-200 shadow-sm" />
-        <div className="flex gap-4">
-          <div
-            className={cx(
-              "h-3.5 w-3.5 rounded-full",
-              recording ? "animate-pulse bg-cyan-500" : active ? "bg-cyan-500" : "bg-red-500"
-            )}
-          />
-          <div
-            className={cx(
-              "h-3.5 w-3.5 rounded-full",
-              thinking ? "animate-pulse bg-purple-500" : "bg-slate-800"
-            )}
-          />
-        </div>
-        <div className="mt-3 h-2 w-12 rounded-full bg-slate-800/80" />
-        <div className="absolute bottom-2 left-4 h-3 w-2 rounded-full bg-slate-400" />
-        <div className="absolute bottom-2 right-4 h-3 w-2 rounded-full bg-slate-400" />
-      </div>
-    </button>
+    voices.find((voice) => voice.lang?.toLowerCase() === "en-gb") ??
+    voices.find((voice) => voice.lang?.toLowerCase().startsWith("en-gb")) ??
+    voices.find((voice) => /british|united kingdom|uk english|english \(uk\)/i.test(voice.name)) ??
+    voices.find((voice) => voice.lang?.toLowerCase().startsWith("en")) ??
+    null
   );
 }
 
-function getSupportedMimeType() {
-  if (typeof window === "undefined" || typeof MediaRecorder === "undefined") return "";
-
-  const types = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4",
-    "audio/mpeg",
-    "audio/wav",
-  ];
-
-  return types.find((type) => MediaRecorder.isTypeSupported(type)) || "";
-}
-
-function extensionForMime(type: string) {
-  if (type.includes("mp4")) return "mp4";
-  if (type.includes("mpeg")) return "mp3";
-  if (type.includes("wav")) return "wav";
-  return "webm";
+function stripForSpeech(text: string) {
+  return text
+    .replace(/https?:\/\/\S+/g, "source link available in the chat")
+    .replace(/[`*_>#]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1600);
 }
 
 export default function WorkspacePersonalBotPage() {
   const [data, setData] = useState<BotPayload | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [voiceError, setVoiceError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [browserListening, setBrowserListening] = useState(false);
-  const [serverRecording, setServerRecording] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const [recorderSupported, setRecorderSupported] = useState(false);
-  const [voiceMode, setVoiceMode] = useState<VoiceMode>("openai");
-  const [voiceLanguage, setVoiceLanguage] = useState("en-US");
-  const [autoSendVoice, setAutoSendVoice] = useState(true);
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [speakResponses, setSpeakResponses] = useState(true);
-  const [lastTranscript, setLastTranscript] = useState("");
-  const [lastVoiceProvider, setLastVoiceProvider] = useState("");
-
-  const recognitionRef = useRef<any>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<BlobPart[]>([]);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   const [profileForm, setProfileForm] = useState({
     botName: "",
     preferredTone: "Professional",
-    commandStyle: "Concise",
+    commandStyle: "Balanced detail",
     autonomyLevel: "Advisor approval required",
     customInstructions: "",
     voiceEnabled: true,
-  });
-
-  const [tabForm, setTabForm] = useState({
-    tabName: "My Bot",
-    notes: "",
-    pinnedCommandsText:
-      "What should I do next?\nResearch NVDA\nOpen market visuals\nOpen venture monitor\nFind source for NVDA\nSearch the firm for Apple exposure\nSort opportunities by score\nCreate a price alert for NVDA above 1000\nRun backend vendor health\nCreate a premium PDF report",
-  });
-
-  const [correctionForm, setCorrectionForm] = useState({
-    originalCommand: "",
-    interpretedIntent: "",
-    correctedIntent: "navigate",
-    correctedRoute: "/market-visuals",
-    correctionNotes: "",
   });
 
   async function loadBot() {
@@ -431,67 +303,91 @@ export default function WorkspacePersonalBotPage() {
       return;
     }
 
-    setData(payload);
+    const limited = limitBotPayload(payload);
+    setData(limited);
 
     setProfileForm({
-      botName: payload.profile.botName,
-      preferredTone: payload.profile.preferredTone,
-      commandStyle: payload.profile.commandStyle,
-      autonomyLevel: payload.profile.autonomyLevel,
-      customInstructions: payload.profile.customInstructions ?? "",
-      voiceEnabled: payload.profile.voiceEnabled,
+      botName: limited.profile.botName,
+      preferredTone: limited.profile.preferredTone,
+      commandStyle: limited.profile.commandStyle,
+      autonomyLevel: limited.profile.autonomyLevel,
+      customInstructions: limited.profile.customInstructions ?? "",
+      voiceEnabled: limited.profile.voiceEnabled,
     });
-
-    const tab = payload.tabs?.[0];
-
-    if (tab) {
-      setTabForm({
-        tabName: tab.tabName,
-        notes: tab.notes ?? "",
-        pinnedCommandsText: tab.pinnedCommands.join("\n"),
-      });
-    }
   }
 
-  function speak(text: string) {
-    if (!speakResponses) return;
+  const latestAssistant = useMemo(
+    () => data?.messages.find((item) => item.role === "assistant"),
+    [data]
+  );
+
+  const pendingApprovals = useMemo(
+    () => [
+      ...(data?.approvals?.filter((item) => item.status === "Pending") ?? []),
+      ...(data?.backendApprovals?.filter((item) => item.status === "Pending") ?? []),
+    ].slice(0, MAX_REQUESTS),
+    [data]
+  );
+
+  function speak(text: string, force = false) {
+    if (!force && !speakResponses) return;
     if (typeof window === "undefined") return;
     if (!("speechSynthesis" in window)) return;
 
-    const clean = text.replace(/\s+/g, " ").slice(0, 900);
-    const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.rate = 1;
-    utterance.pitch = 1.02;
-    utterance.volume = 0.92;
+    const clean = stripForSpeech(text);
+
+    if (!clean) return;
 
     window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    const voice = getBritishVoice(voices);
+
+    utterance.lang = "en-GB";
+    utterance.rate = 0.96;
+    utterance.pitch = 1.02;
+    utterance.volume = 1;
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
     window.speechSynthesis.speak(utterance);
   }
 
-  function runClientAction(clientAction?: Record<string, unknown>) {
+  function stopSpeaking() {
+    if (typeof window === "undefined") return;
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }
+
+  function runClientAction(clientAction?: { type?: string; href?: string; autoRun?: boolean }) {
     if (!clientAction) return;
 
     if (clientAction.type === "theme") {
       window.dispatchEvent(new Event("slice-theme-updated"));
     }
 
-    if (typeof clientAction.href === "string" && clientAction.autoRun) {
+    if (clientAction.href && clientAction.autoRun) {
       window.location.href = clientAction.href;
     }
   }
 
   function handleClientAction(payload: BotPayload) {
-    const latestMessage = [...(payload.messages ?? [])]
-      .reverse()
-      .find((item) => item.role === "assistant");
+    const limited = limitBotPayload(payload);
+    const assistant = limited.messages.find((item) => item.role === "assistant");
 
-    const clientAction = latestMessage?.metadata?.clientAction;
-
-    if (latestMessage?.content) {
-      speak(latestMessage.content);
+    if (assistant?.content) {
+      speak(assistant.content);
     }
 
-    runClientAction(clientAction);
+    runClientAction(assistant?.metadata?.clientAction);
   }
 
   async function sendCommand(event?: FormEvent, overridePrompt?: string, voiceTranscript?: string) {
@@ -503,7 +399,6 @@ export default function WorkspacePersonalBotPage() {
 
     setSaving(true);
     setMessage("");
-    setVoiceError("");
 
     try {
       const response = await fetch("/api/personal-bot", {
@@ -515,6 +410,9 @@ export default function WorkspacePersonalBotPage() {
           action: "sendMessage",
           prompt: commandText,
           voiceTranscript,
+          currentPath: window.location.pathname + window.location.search,
+          pageTitle: document.title,
+          preferredSpeechLanguage: "en-GB",
         }),
       });
 
@@ -525,58 +423,12 @@ export default function WorkspacePersonalBotPage() {
         return;
       }
 
-      setData(payload);
+      const limited = limitBotPayload(payload);
+      setData(limited);
       setPrompt("");
-      setInterimTranscript("");
-      handleClientAction(payload);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function sendAudioToOpenAi(blob: Blob) {
-    setSaving(true);
-    setMessage("");
-    setVoiceError("");
-
-    try {
-      const mimeType = blob.type || "audio/webm";
-      const ext = extensionForMime(mimeType);
-
-      const formData = new FormData();
-      formData.set("action", autoSendVoice ? "transcribeAndExecute" : "transcribeOnly");
-      formData.set("language", voiceLanguage);
-      formData.set("fallbackPrompt", prompt);
-      formData.set("fallbackTranscript", lastTranscript);
-      formData.set("audio", blob, `slice-voice-${Date.now()}.${ext}`);
-
-      const response = await fetch("/api/personal-bot/voice", {
-        method: "POST",
-        body: formData,
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setVoiceError(payload.error ?? "Voice transcription had an issue. The bot stayed ready for typed commands.");
-        return;
-      }
-
-      setLastTranscript(payload.transcript ?? "");
-      setLastVoiceProvider(
-        `${payload.transcription?.provider ?? "OpenAI"} · ${payload.transcription?.model ?? "transcription"}`
-      );
-
-      if (payload.transcript && !autoSendVoice) {
-        setPrompt(payload.transcript);
-      }
-
-      if (payload.result?.answer) {
-        speak(payload.result.answer);
-        runClientAction(payload.result.clientAction);
-      }
-
-      await loadBot();
+      handleClientAction(limited);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Command failed.");
     } finally {
       setSaving(false);
     }
@@ -605,319 +457,85 @@ export default function WorkspacePersonalBotPage() {
         return;
       }
 
-      setData(payload);
+      setData(limitBotPayload(payload));
       setMessage("Bot profile updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Profile update failed.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function saveTab() {
-    setSaving(true);
-    setMessage("");
-
-    try {
-      const pinnedCommands = tabForm.pinnedCommandsText
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-      const response = await fetch("/api/personal-bot", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "updateTab",
-          tabName: tabForm.tabName,
-          notes: tabForm.notes,
-          pinnedCommands,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Tab update failed.");
-        return;
-      }
-
-      setData(payload);
-      setMessage("Bot tab updated.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function rebuildPlatformBrain() {
-    setSaving(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/personal-bot", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "rebuildPlatformBrain",
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Platform Brain rebuild failed.");
-        return;
-      }
-
-      setData(payload);
-      setMessage("Platform Brain rebuilt.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveCorrection() {
-    if (!correctionForm.originalCommand.trim() || !correctionForm.correctedIntent.trim()) {
-      setMessage("Original command and corrected intent are required.");
+  function startVoiceCommand() {
+    if (!data?.profile.voiceEnabled) {
+      setMessage("Voice is disabled for this bot profile.");
       return;
     }
 
-    setSaving(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/personal-bot", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "saveCorrection",
-          ...correctionForm,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Correction save failed.");
-        return;
-      }
-
-      setData(payload);
-      setMessage("Correction saved. The bot will use it as training context.");
-      setCorrectionForm({
-        originalCommand: "",
-        interpretedIntent: "",
-        correctedIntent: "navigate",
-        correctedRoute: "/market-visuals",
-        correctionNotes: "",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function startBrowserVoice() {
-    setVoiceError("");
-
-    if (typeof window === "undefined") return;
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setVoiceError("Browser voice recognition is not supported here. Switch to OpenAI Voice mode.");
-      setVoiceMode("openai");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = voiceLanguage;
-    recognition.interimResults = true;
-    recognition.continuous = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      setBrowserListening(true);
-      setInterimTranscript("");
-      setLastVoiceProvider("Browser Speech Recognition");
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
     };
 
-    recognition.onerror = (event: any) => {
-      setVoiceError(
-        event?.error
-          ? `Browser voice error: ${event.error}. Switch to OpenAI Voice if this continues.`
-          : "Browser voice recognition had an issue. Switch to OpenAI Voice if this continues."
-      );
-      setBrowserListening(false);
+    const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setMessage("Voice commands are not supported in this browser. Type the command instead.");
+      return;
+    }
+
+    stopSpeaking();
+
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-GB";
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript ?? "";
+      setPrompt(transcript);
+      setListening(false);
+      void sendCommand(undefined, transcript, transcript);
+    };
+
+    recognition.onerror = () => {
+      setListening(false);
+      setMessage("Voice command failed. Try typing the command instead.");
     };
 
     recognition.onend = () => {
-      setBrowserListening(false);
+      setListening(false);
     };
 
-    recognition.onresult = (event: any) => {
-      let interim = "";
-      let finalText = "";
-
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const transcript = event.results[index][0]?.transcript ?? "";
-
-        if (event.results[index].isFinal) {
-          finalText += transcript;
-        } else {
-          interim += transcript;
-        }
-      }
-
-      if (interim) {
-        setInterimTranscript(interim);
-      }
-
-      if (finalText.trim()) {
-        const clean = finalText.trim();
-        setPrompt(clean);
-        setLastTranscript(clean);
-        setInterimTranscript("");
-
-        if (autoSendVoice) {
-          void sendCommand(undefined, clean, clean);
-        }
-      }
-    };
-
-    recognitionRef.current = recognition;
+    setListening(true);
     recognition.start();
-  }
-
-  async function startOpenAiVoice() {
-    setVoiceError("");
-
-    if (typeof window === "undefined") return;
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setVoiceError("Microphone recording is not supported in this browser.");
-      return;
-    }
-
-    if (!window.isSecureContext && window.location.hostname !== "localhost") {
-      setVoiceError("Voice recording requires HTTPS or localhost.");
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = getSupportedMimeType();
-
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-
-      audioChunksRef.current = [];
-      mediaStreamRef.current = stream;
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstart = () => {
-        setServerRecording(true);
-        setInterimTranscript("Recording voice command...");
-        setLastVoiceProvider("OpenAI Audio Transcription");
-      };
-
-      recorder.onerror = () => {
-        setVoiceError("Recording had an issue. Check microphone permission or try Browser Voice.");
-        setServerRecording(false);
-      };
-
-      recorder.onstop = () => {
-        setServerRecording(false);
-        setInterimTranscript("");
-
-        const type = recorder.mimeType || mimeType || "audio/webm";
-        const blob = new Blob(audioChunksRef.current, { type });
-
-        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-        mediaStreamRef.current = null;
-
-        if (blob.size <= 0) {
-          setVoiceError("No audio was recorded. The bot is still ready for a typed command.");
-          return;
-        }
-
-        void sendAudioToOpenAi(blob);
-      };
-
-      recorder.start();
-    } catch (error) {
-      setVoiceError(
-        error instanceof Error
-          ? `${error.message}. Try Browser Voice or type the command.`
-          : "Could not start microphone recording. Try Browser Voice or type the command."
-      );
-      setServerRecording(false);
-    }
-  }
-
-  function stopOpenAiVoice() {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
-    }
-
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-  }
-
-  function stopBrowserVoice() {
-    recognitionRef.current?.stop?.();
-    setBrowserListening(false);
-  }
-
-  function toggleVoice() {
-    if (browserListening) {
-      stopBrowserVoice();
-      return;
-    }
-
-    if (serverRecording) {
-      stopOpenAiVoice();
-      return;
-    }
-
-    if (voiceMode === "browser") {
-      startBrowserVoice();
-      return;
-    }
-
-    void startOpenAiVoice();
   }
 
   useEffect(() => {
     void loadBot();
+  }, []);
 
-    if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("speechSynthesis" in window)) return;
 
-      setVoiceSupported(Boolean(SpeechRecognition));
-      setRecorderSupported(Boolean(navigator.mediaDevices?.getUserMedia && "MediaRecorder" in window));
+    function updateVoices() {
+      setVoices(window.speechSynthesis.getVoices());
     }
 
+    updateVoices();
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+
     return () => {
-      recognitionRef.current?.stop?.();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      window.speechSynthesis.onvoiceschanged = null;
+      window.speechSynthesis.cancel();
     };
   }, []);
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-[#050505] p-6 text-white">
+      <main className="min-h-screen bg-[#050505] p-4 text-white">
         <Card className="mx-auto max-w-3xl text-center">
           <h1 className="text-3xl font-black">Loading Slice AI command center...</h1>
           {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
@@ -926,92 +544,42 @@ export default function WorkspacePersonalBotPage() {
     );
   }
 
-  const openInsights = data.researchRuns ?? [];
-
-  const pendingApprovals = [
-    ...(data.approvals
-      ?.filter((item) => item.status === "Pending")
-      .map((item) => ({
-        ...item,
-        approvalSource: "bot-approval",
-      })) ?? []),
-    ...(data.backendApprovals
-      ?.filter((item) => item.status === "Pending")
-      .map((item) => ({
-        ...item,
-        approvalSource: "backend-approval",
-      })) ?? []),
-  ];
-
-  const latestAssistant = [...data.messages].reverse().find((item) => item.role === "assistant");
-  const latestStructuredCommand = latestAssistant?.metadata?.structuredCommand;
-  const activeVoice = browserListening || serverRecording;
-
   return (
-    <main className="min-h-screen bg-[#050505] p-5 text-white">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-12%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-red-700/24 blur-3xl" />
-        <div className="absolute right-[-12%] top-[14%] h-[34rem] w-[34rem] rounded-full bg-cyan-700/12 blur-3xl" />
-        <div className="absolute bottom-[-12%] left-[30%] h-[30rem] w-[30rem] rounded-full bg-purple-700/12 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto grid max-w-[1700px] gap-6">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.35),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_32%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-4 text-white md:p-5">
+      <div className="mx-auto grid max-w-[1280px] gap-5">
         <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center">
-              <FriendlyRobot
-                listening={browserListening}
-                recording={serverRecording}
-                thinking={saving}
-                onClick={toggleVoice}
-              />
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+                Slice Personal AI
+              </div>
+              <h1 className="mt-2 truncate text-4xl font-black md:text-5xl">
+                {data.profile.botName}
+              </h1>
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400">
+                Compact command center with newest-first request history. The page keeps only the latest five requests in memory,
+                while the global bot remains available on every page.
+              </p>
 
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                  Slice Personal AI Voice Command Center
-                </div>
-                <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                  {data.profile.botName}
-                </h1>
-                <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-                  This bot uses OpenAI audio transcription, browser voice recognition, fast local command routing,
-                  Platform Brain memory, learned phrase correction, and safe backend execution. Rough commands are
-                  recovered into navigation, research, search, action, answer, or help instead of hard-failing.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Pill tone={data.aiEngine?.configured ? "green" : "amber"}>
-                    {data.aiEngine?.provider ?? "AI Engine"}
-                  </Pill>
-                  <Pill tone="purple">{data.aiEngine?.model ?? "gpt-5"}</Pill>
-                  <Pill tone={recorderSupported ? "green" : "red"}>
-                    OpenAI Voice {recorderSupported ? "Ready" : "Unavailable"}
-                  </Pill>
-                  <Pill tone={voiceSupported ? "green" : "amber"}>
-                    Browser Voice {voiceSupported ? "Ready" : "Fallback Needed"}
-                  </Pill>
-                  <Pill tone="cyan">Fast Router</Pill>
-                  <Pill tone="red">Approval Gates</Pill>
-                </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Pill tone={data.aiEngine?.configured ? "green" : "amber"}>
+                  {data.aiEngine?.provider ?? "AI Engine"}
+                </Pill>
+                <Pill tone="purple">{data.aiEngine?.model ?? "gpt-5"}</Pill>
+                <Pill tone="cyan">British English Voice</Pill>
+                <Pill tone={data.profile.voiceEnabled ? "green" : "red"}>
+                  Voice {data.profile.voiceEnabled ? "Enabled" : "Disabled"}
+                </Pill>
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid shrink-0 grid-cols-2 gap-2">
               <a href="/workspace" className="rounded-2xl bg-white px-4 py-3 text-center text-sm font-black text-slate-950">
-                Workspace Home
+                Workspace
               </a>
-              <a href="/backend-kernel" className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center text-sm font-black text-cyan-100">
-                Backend Kernel
+              <a href="/bot-onboarding" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-black text-red-100">
+                Onboarding
               </a>
-              <a href="/market-visuals" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
-                Market Visuals
-              </a>
-              <button
-                onClick={rebuildPlatformBrain}
-                className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-center text-sm font-black text-purple-100"
-              >
-                Rebuild Brain
-              </button>
             </div>
           </div>
         </header>
@@ -1022,542 +590,206 @@ export default function WorkspacePersonalBotPage() {
           </div>
         ) : null}
 
-        {voiceError ? (
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
-            {voiceError}
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-8">
-          <Metric label="Voice Mode" value={voiceMode === "openai" ? "OpenAI" : "Browser"} helper={lastVoiceProvider || "Ready"} tone="cyan" />
-          <Metric label="Voice Sessions" value={data.voiceSessions?.length ?? 0} helper="Stored sessions" tone="purple" />
-          <Metric label="Training" value={data.trainingPhrases?.length ?? 0} helper="Learned phrases" tone="green" />
-          <Metric label="Corrections" value={data.corrections?.length ?? 0} helper="Fixed commands" tone="amber" />
-          <Metric label="Platform Map" value={data.platformMap?.length ?? 0} helper="Known routes" tone="cyan" />
-          <Metric label="Approvals" value={pendingApprovals.length} helper="Pending decisions" tone={pendingApprovals.length ? "red" : "green"} />
-          <Metric label="Research" value={openInsights.length} helper="Research runs" tone="purple" />
-          <Metric label="Commands" value={data.commands?.length ?? 0} helper="History" tone="slate" />
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <Card className="min-w-0">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                  Voice-to-Command Infrastructure
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+                  Ask Anything
                 </div>
-                <h2 className="mt-2 text-2xl font-black">
-                  Tap robot, speak, execute
+                <h2 className="mt-2 text-2xl font-black text-white">
+                  Universal Slice assistant
                 </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                  Use OpenAI Voice when browser recognition struggles. Use Browser Voice for fast local commands.
-                  Auto-send immediately executes the transcribed command; review mode places the transcript in the text box first.
-                </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setVoiceMode("openai")}
+                  onClick={startVoiceCommand}
+                  disabled={listening || saving || !data.profile.voiceEnabled}
                   className={cx(
-                    "rounded-2xl px-4 py-3 text-xs font-black",
-                    voiceMode === "openai"
-                      ? "bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-500/30"
-                      : "bg-white/5 text-white ring-1 ring-white/10"
+                    "rounded-2xl px-4 py-3 text-xs font-black ring-1 disabled:opacity-50",
+                    listening
+                      ? "bg-cyan-500/20 text-cyan-100 ring-cyan-400/30"
+                      : "bg-white/5 text-white ring-white/10 hover:bg-white/10"
                   )}
                 >
-                  OpenAI Voice
+                  {listening ? "Listening" : "Voice"}
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setVoiceMode("browser")}
+                  onClick={() => {
+                    setSpeakResponses((current) => !current);
+                    if (speakResponses) stopSpeaking();
+                  }}
                   className={cx(
-                    "rounded-2xl px-4 py-3 text-xs font-black",
-                    voiceMode === "browser"
-                      ? "bg-purple-500/15 text-purple-100 ring-1 ring-purple-500/30"
-                      : "bg-white/5 text-white ring-1 ring-white/10"
-                  )}
-                >
-                  Browser Voice
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAutoSendVoice((current) => !current)}
-                  className={cx(
-                    "rounded-2xl px-4 py-3 text-xs font-black",
-                    autoSendVoice
-                      ? "bg-emerald-500/15 text-emerald-100 ring-1 ring-emerald-500/30"
-                      : "bg-white/5 text-white ring-1 ring-white/10"
-                  )}
-                >
-                  Auto-send {autoSendVoice ? "On" : "Off"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSpeakResponses((current) => !current)}
-                  className={cx(
-                    "rounded-2xl px-4 py-3 text-xs font-black",
+                    "rounded-2xl px-4 py-3 text-xs font-black ring-1",
                     speakResponses
-                      ? "bg-amber-500/15 text-amber-100 ring-1 ring-amber-500/30"
-                      : "bg-white/5 text-white ring-1 ring-white/10"
+                      ? "bg-cyan-500/15 text-cyan-100 ring-cyan-400/30"
+                      : "bg-white/5 text-white ring-white/10 hover:bg-white/10"
                   )}
                 >
-                  Speak replies {speakResponses ? "On" : "Off"}
+                  {speakResponses ? "Sound On" : "Sound Off"}
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px]">
-              <select
-                value={voiceLanguage}
-                onChange={(event) => setVoiceLanguage(event.target.value)}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 focus:ring-2"
-              >
-                <option value="en-US">English - US</option>
-                <option value="en-GB">English - UK</option>
-                <option value="es-US">Spanish - US</option>
-                <option value="es-MX">Spanish - Mexico</option>
-              </select>
-
-              <button
-                type="button"
-                onClick={toggleVoice}
-                className={cx(
-                  "rounded-2xl px-5 py-3 text-sm font-black shadow-lg disabled:opacity-50",
-                  activeVoice
-                    ? "bg-cyan-500 text-slate-950 shadow-cyan-950/40"
-                    : "border border-cyan-500/30 bg-cyan-500/10 text-cyan-100 shadow-cyan-950/30"
-                )}
-              >
-                {activeVoice ? "Stop Voice" : "Start Voice"}
-              </button>
-            </div>
-
-            <form onSubmit={sendCommand} className="mt-5">
+            <form onSubmit={sendCommand} className="grid gap-3">
               <textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                className="min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Try: Research NVDA. Open market visuals. Open venture monitor. Find source for Apple. Search firm for Tesla exposure. Create price alert for MSFT below 390. Run backend vendor health. Approve latest."
+                className="min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                placeholder="Ask a question or tell the bot what to do..."
               />
 
-              {interimTranscript ? (
-                <div className="mt-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm font-bold text-cyan-100">
-                  {interimTranscript}
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-slate-400">
+                  Newest requests appear at the top. Only {MAX_REQUESTS} are kept on this page.
                 </div>
-              ) : null}
 
-              {lastTranscript ? (
-                <div className="mt-3 rounded-2xl border border-purple-500/30 bg-purple-500/10 p-3 text-sm font-bold text-purple-100">
-                  Last transcript: {lastTranscript}
-                </div>
-              ) : null}
+                <button
+                  type="button"
+                  onClick={() => latestAssistant?.content && speak(latestAssistant.content, true)}
+                  disabled={!latestAssistant?.content || speaking}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white hover:bg-white/10 disabled:opacity-50"
+                >
+                  {speaking ? "Speaking" : "Speak Latest"}
+                </button>
 
-              <div className="mt-3 flex flex-wrap gap-3">
                 <button
                   disabled={saving || !prompt.trim()}
                   className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
                 >
-                  Execute Command
+                  {saving ? "Thinking..." : "Send"}
                 </button>
-
-                <button
-                  type="button"
-                  onClick={toggleVoice}
-                  className={cx(
-                    "rounded-2xl px-5 py-3 text-sm font-black shadow-lg disabled:opacity-50",
-                    activeVoice
-                      ? "bg-cyan-500 text-slate-950 shadow-cyan-950/40"
-                      : "border border-cyan-500/30 bg-cyan-500/10 text-cyan-100 shadow-cyan-950/30"
-                  )}
-                >
-                  {activeVoice ? "Stop Listening" : "Tap to Speak"}
-                </button>
-
-                {data.tabs[0]?.pinnedCommands.map((command, index) => (
-                  <button
-                    key={`${data.tabs[0].id}-pinned-${index}-${command}`}
-                    type="button"
-                    onClick={() => setPrompt(command)}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white"
-                  >
-                    {command}
-                  </button>
-                ))}
               </div>
             </form>
 
-            {latestStructuredCommand ? (
-              <div className="mt-5 rounded-[1.5rem] border border-cyan-500/20 bg-cyan-500/10 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
-                      Latest AI Interpretation
-                    </div>
-                    <div className="mt-1 text-lg font-black text-white">
-                      {String((latestStructuredCommand as any).intent ?? "unknown")}
-                    </div>
-                  </div>
-                  <Pill tone={(latestStructuredCommand as any).requiresApproval ? "red" : "green"}>
-                    {(latestStructuredCommand as any).requiresApproval ? "Approval Required" : "Direct Action"}
-                  </Pill>
+            {latestAssistant ? (
+              <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Pill tone={toneFor(latestAssistant.intent)}>{latestAssistant.intent}</Pill>
+                  {latestAssistant.metadata?.universalAiProvider ? (
+                    <Pill tone="purple">{latestAssistant.metadata.universalAiProvider}</Pill>
+                  ) : null}
+                  <Pill tone="cyan">British English</Pill>
+                </div>
+                <div className="max-h-[260px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-slate-200">
+                  {latestAssistant.content}
                 </div>
 
-                <pre className="mt-4 max-h-72 overflow-auto rounded-2xl bg-black/40 p-4 text-xs text-slate-300">
-                  {JSON.stringify(latestStructuredCommand, null, 2)}
-                </pre>
+                {latestAssistant.metadata?.clientAction?.href && !latestAssistant.metadata.clientAction.autoRun ? (
+                  <a
+                    href={latestAssistant.metadata.clientAction.href}
+                    className="mt-4 inline-flex rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+                  >
+                    Open Result
+                  </a>
+                ) : null}
               </div>
             ) : null}
-
-            <div className="mt-6 grid gap-3">
-              {data.messages.slice(-12).map((item) => (
-                <div
-                  key={item.id}
-                  className={cx(
-                    "rounded-2xl border p-4 text-sm leading-7",
-                    item.role === "user"
-                      ? "border-red-500/30 bg-red-500/10 text-red-100"
-                      : "border-white/10 bg-white/[0.055] text-slate-300"
-                  )}
-                >
-                  <div className="mb-1 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                    <span>{item.role}</span>
-                    <span>·</span>
-                    <span>{item.intent}</span>
-                    {item.metadata?.aiParserOk === false ? <Pill tone="amber">Fallback Parser</Pill> : null}
-                  </div>
-                  <div className="whitespace-pre-wrap">{item.content}</div>
-
-                  {item.metadata?.clientAction?.href && !item.metadata.clientAction.autoRun ? (
-                    <a
-                      href={item.metadata.clientAction.href}
-                      target={item.metadata.clientAction.type === "source" ? "_blank" : undefined}
-                      rel={item.metadata.clientAction.type === "source" ? "noreferrer" : undefined}
-                      className="mt-3 inline-flex rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-                    >
-                      Open Result
-                    </a>
-                  ) : null}
-                </div>
-              ))}
-            </div>
           </Card>
 
-          <aside className="grid gap-6">
-            <Card>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                Voice Health
-              </div>
-              <div className="mt-4 grid gap-3">
-                <Metric label="OpenAI Voice" value={recorderSupported ? "Ready" : "Unavailable"} helper="Server transcription fallback" tone={recorderSupported ? "green" : "red"} />
-                <Metric label="Browser Voice" value={voiceSupported ? "Ready" : "Fallback"} helper="SpeechRecognition API" tone={voiceSupported ? "green" : "amber"} />
-                <Metric
-                  label="Secure Context"
-                  value={typeof window !== "undefined" && (window.isSecureContext || window.location.hostname === "localhost") ? "Ready" : "Needs HTTPS"}
-                  helper="Mic access requirement"
-                  tone={typeof window !== "undefined" && (window.isSecureContext || window.location.hostname === "localhost") ? "green" : "red"}
-                />
-              </div>
-            </Card>
+          <aside className="grid content-start gap-5">
+            <Metric label="Requests Held" value={data.commands.length} helper={`Max ${MAX_REQUESTS} on this page`} tone="cyan" />
+            <Metric label="Tone" value={data.profile.preferredTone} helper={data.profile.commandStyle} tone="purple" />
+            <Metric label="Approvals" value={pendingApprovals.length} helper="Pending visible items" tone={pendingApprovals.length ? "amber" : "green"} />
 
             <Card>
               <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                Voice Command Examples
+                Quick Commands
               </div>
-
               <div className="mt-4 grid gap-2">
-                {[
+                {(data.tabs[0]?.pinnedCommands ?? [
+                  "What should I do next?",
+                  "Research NVDA",
                   "Open market visuals",
-                  "Open venture monitor",
-                  "Take me to trage",
-                  "Research NVDA deeply",
-                  "Find source for Apple",
-                  "Search the firm for Tesla exposure",
-                  "Create a price alert for MSFT below 390",
                   "Run backend vendor health",
-                  "Approve latest",
-                  "Remember I prefer direct answers",
-                ].map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    onClick={() => setPrompt(example)}
-                    className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-left text-sm font-bold text-white hover:bg-white/[0.08]"
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </Card>
-
-            <Card>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                Teach the Bot
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                If the bot misunderstands a phrase, save the correction here. It will be included in future OpenAI command context.
-              </p>
-
-              <div className="mt-4 grid gap-3">
-                <input
-                  value={correctionForm.originalCommand}
-                  onChange={(event) => setCorrectionForm((current) => ({ ...current, originalCommand: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Original command it misunderstood"
-                />
-
-                <input
-                  value={correctionForm.interpretedIntent}
-                  onChange={(event) => setCorrectionForm((current) => ({ ...current, interpretedIntent: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Interpreted intent, optional"
-                />
-
-                <select
-                  value={correctionForm.correctedIntent}
-                  onChange={(event) => setCorrectionForm((current) => ({ ...current, correctedIntent: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                >
-                  <option value="navigate">navigate</option>
-                  <option value="research">research</option>
-                  <option value="platform_search">platform_search</option>
-                  <option value="source_lookup">source_lookup</option>
-                  <option value="create_task">create_task</option>
-                  <option value="create_price_alert">create_price_alert</option>
-                  <option value="backend_job">backend_job</option>
-                  <option value="approval_decision">approval_decision</option>
-                  <option value="create_report">create_report</option>
-                </select>
-
-                <input
-                  value={correctionForm.correctedRoute}
-                  onChange={(event) => setCorrectionForm((current) => ({ ...current, correctedRoute: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Correct route, optional"
-                />
-
-                <textarea
-                  value={correctionForm.correctionNotes}
-                  onChange={(event) => setCorrectionForm((current) => ({ ...current, correctionNotes: event.target.value }))}
-                  className="min-h-24 resize-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Correction notes"
-                />
-
-                <button
-                  onClick={saveCorrection}
-                  disabled={saving}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                >
-                  Save Correction
-                </button>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                Bot Profile
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <input
-                  value={profileForm.botName}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, botName: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Bot name"
-                />
-
-                <input
-                  value={profileForm.preferredTone}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, preferredTone: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Preferred tone"
-                />
-
-                <textarea
-                  value={profileForm.customInstructions}
-                  onChange={(event) => setProfileForm((current) => ({ ...current, customInstructions: event.target.value }))}
-                  className="min-h-28 resize-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                  placeholder="Custom instructions"
-                />
-
-                <button
-                  onClick={saveProfile}
-                  disabled={saving}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                >
-                  Save Bot Profile
-                </button>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                Custom Pinned Commands
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <input
-                  value={tabForm.tabName}
-                  onChange={(event) => setTabForm((current) => ({ ...current, tabName: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                />
-
-                <textarea
-                  value={tabForm.pinnedCommandsText}
-                  onChange={(event) => setTabForm((current) => ({ ...current, pinnedCommandsText: event.target.value }))}
-                  className="min-h-36 resize-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
-                />
-
-                <button
-                  onClick={saveTab}
-                  disabled={saving}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                >
-                  Save Bot Tab
-                </button>
+                  "Create a premium PDF report",
+                ])
+                  .slice(0, 5)
+                  .map((command) => (
+                    <button
+                      key={command}
+                      type="button"
+                      onClick={() => void sendCommand(undefined, command)}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-xs font-bold text-slate-300 hover:bg-white/[0.07] hover:text-white"
+                    >
+                      {command}
+                    </button>
+                  ))}
               </div>
             </Card>
           </aside>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-4">
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Voice Sessions
-            </div>
-            <div className="mt-4 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
-              {(data.voiceSessions ?? []).slice(0, 12).map((session) => (
-                <div key={session.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="font-black text-white">{session.status}</div>
-                    <Pill tone={toneFor(session.status)}>{session.confidenceScore}%</Pill>
-                  </div>
-                  <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-400">
-                    {session.finalTranscript || session.transcript || "No transcript"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Platform Brain
-            </div>
-            <div className="mt-4 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
-              {(data.platformMap ?? []).slice(0, 14).map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="font-black text-white">{item.label}</div>
-                  <div className="mt-1 text-xs text-slate-500">{item.category} · {item.route}</div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {item.aliases.slice(0, 4).map((alias) => (
-                      <Pill key={`${item.id}-${alias}`} tone="slate">
-                        {alias}
-                      </Pill>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Learned Phrases
-            </div>
-            <div className="mt-4 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
-              {(data.trainingPhrases ?? []).slice(0, 14).map((phrase) => (
-                <div key={phrase.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="font-black text-white">{phrase.phrase}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {phrase.targetIntent} · used {phrase.usageCount}
-                  </div>
-                  {phrase.targetRoute ? (
-                    <div className="mt-2 text-xs text-cyan-300">{phrase.targetRoute}</div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Corrections
-            </div>
-            <div className="mt-4 grid max-h-[420px] gap-3 overflow-y-auto pr-1">
-              {(data.corrections ?? []).slice(0, 14).map((correction) => (
-                <div key={correction.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="font-black text-white">{correction.originalCommand}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    → {correction.correctedIntent}
-                  </div>
-                  {correction.correctedRoute ? (
-                    <div className="mt-2 text-xs text-cyan-300">{correction.correctedRoute}</div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-3">
-          <Card>
-            <div className="flex items-center justify-between gap-3">
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <Card className="min-w-0">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                  Approval Queue
+                  Latest Requests
                 </div>
-                <h2 className="mt-2 text-xl font-black">Human-gated actions</h2>
+                <h2 className="mt-2 text-2xl font-black text-white">Newest first</h2>
               </div>
-              <Pill tone={pendingApprovals.length ? "red" : "green"}>{pendingApprovals.length}</Pill>
+              <Pill tone="cyan">5 max</Pill>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              {pendingApprovals.slice(0, 8).map((approval, index) => (
-                <div
-                  key={`pending-approval-${approval.approvalSource}-${approval.id}-${index}`}
-                  className="rounded-2xl border border-white/10 bg-white/[0.055] p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="font-black text-white">{approval.title}</div>
-                    <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">{approval.actionType} · {approval.riskLevel}</div>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">{approval.summary}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Research Runs
-            </div>
-            <div className="mt-4 grid gap-3">
-              {(data.researchRuns ?? []).slice(0, 10).map((run) => (
-                <div key={run.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="font-black text-white">{run.query}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {run.ticker ?? "No ticker"} · {run.depth} · {run.confidenceScore}%
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-              Backend Tool Runs
-            </div>
-            <div className="mt-4 grid gap-3">
-              {(data.backendToolRuns ?? []).slice(0, 10).map((run) => (
-                <div key={run.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{run.toolName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{run.toolKey} · {new Date(run.createdAt).toLocaleString()}</div>
+            <div className="grid max-h-[520px] gap-3 overflow-y-auto pr-2">
+              {data.commands.map((command) => (
+                <div key={command.id} className="rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-white">
+                        {command.commandText}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        {formatTime(command.createdAt)}
+                      </div>
                     </div>
-                    <Pill tone={toneFor(run.status)}>{run.status}</Pill>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Pill tone={toneFor(command.commandType)}>{command.commandType}</Pill>
+                      <Pill tone={toneFor(command.status)}>{command.status}</Pill>
+                    </div>
+                  </div>
+                  {command.resultSummary ? (
+                    <p className="mt-3 text-sm leading-6 text-slate-400">{command.resultSummary}</p>
+                  ) : null}
+                </div>
+              ))}
+
+              {!data.commands.length ? (
+                <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                  No requests yet.
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+              Latest Conversation
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-white">Five-message memory window</h2>
+
+            <div className="mt-4 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
+              {data.messages.map((item) => (
+                <div
+                  key={item.id}
+                  className={cx(
+                    "rounded-[1.35rem] border p-4",
+                    item.role === "assistant"
+                      ? "border-cyan-500/20 bg-cyan-500/8"
+                      : "border-white/10 bg-white/[0.045]"
+                  )}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <Pill tone={item.role === "assistant" ? "cyan" : "slate"}>{item.role}</Pill>
+                    <span className="text-[11px] font-bold text-slate-500">{formatTime(item.createdAt)}</span>
+                  </div>
+                  <div className="line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+                    {item.content}
                   </div>
                 </div>
               ))}
@@ -1565,22 +797,116 @@ export default function WorkspacePersonalBotPage() {
           </Card>
         </section>
 
-        <Card>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-            Recent Commands
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {data.commands.slice(0, 15).map((command) => (
-              <div key={command.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-3">
-                <div className="text-sm font-black text-white">{command.commandType}</div>
-                <div className="mt-1 text-xs leading-5 text-slate-400">{command.resultSummary ?? command.commandText}</div>
-                <div className="mt-2 inline-flex rounded-full bg-slate-500/10 px-2 py-1 text-[10px] font-black text-slate-300 ring-1 ring-slate-500/30">
-                  {command.status}
-                </div>
+        <section className="grid gap-5 lg:grid-cols-2">
+          <Card>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
+              Bot Profile
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-white">Personality and controls</h2>
+
+            <div className="mt-4 grid gap-3">
+              <input
+                value={profileForm.botName}
+                onChange={(event) => setProfileForm((current) => ({ ...current, botName: event.target.value }))}
+                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                placeholder="Bot name"
+              />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select
+                  value={profileForm.preferredTone}
+                  onChange={(event) => setProfileForm((current) => ({ ...current, preferredTone: event.target.value }))}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                >
+                  <option>Professional</option>
+                  <option>Witty</option>
+                  <option>Direct</option>
+                  <option>Calm</option>
+                  <option>Encouraging</option>
+                  <option>Brutally honest</option>
+                </select>
+
+                <select
+                  value={profileForm.commandStyle}
+                  onChange={(event) => setProfileForm((current) => ({ ...current, commandStyle: event.target.value }))}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                >
+                  <option>One-line answer</option>
+                  <option>Short summary</option>
+                  <option>Balanced detail</option>
+                  <option>Detailed breakdown</option>
+                  <option>Deep research style</option>
+                </select>
               </div>
-            ))}
-          </div>
-        </Card>
+
+              <select
+                value={profileForm.autonomyLevel}
+                onChange={(event) => setProfileForm((current) => ({ ...current, autonomyLevel: event.target.value }))}
+                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+              >
+                <option>Suggest only</option>
+                <option>Draft only</option>
+                <option>Advisor approval required</option>
+                <option>Create tasks with approval</option>
+                <option>High autonomy with review</option>
+              </select>
+
+              <textarea
+                value={profileForm.customInstructions}
+                onChange={(event) => setProfileForm((current) => ({ ...current, customInstructions: event.target.value }))}
+                className="min-h-[110px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                placeholder="Custom instructions for how the bot should talk and behave..."
+              />
+
+              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={profileForm.voiceEnabled}
+                  onChange={(event) => setProfileForm((current) => ({ ...current, voiceEnabled: event.target.checked }))}
+                />
+                Voice enabled
+              </label>
+
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={saving}
+                className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+              >
+                Save Profile
+              </button>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
+              Pending Approvals
+            </div>
+            <h2 className="mt-2 text-2xl font-black text-white">Newest approval items</h2>
+
+            <div className="mt-4 grid max-h-[460px] gap-3 overflow-y-auto pr-2">
+              {pendingApprovals.map((approval) => (
+                <div key={approval.id} className="rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-black text-white">{approval.title}</div>
+                      <div className="mt-1 text-xs text-slate-500">{approval.actionType}</div>
+                    </div>
+                    <Pill tone={toneFor(approval.riskLevel)}>{approval.riskLevel}</Pill>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-400">{approval.summary}</p>
+                  <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
+                </div>
+              ))}
+
+              {!pendingApprovals.length ? (
+                <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                  No pending approvals.
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        </section>
       </div>
     </main>
   );

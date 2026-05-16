@@ -19,24 +19,33 @@ export type FetchableSource = {
 export type FetchResult = {
   sourceId: string;
   sourceName: string;
+  sourceUrl: string | null;
+  sourceTier: string;
+  category: string | null;
   ok: boolean;
   itemCount: number;
   skipped: boolean;
+  status: "OK" | "Skipped" | "Error";
+  parser: "rss" | "atom" | "json-feed" | "json-array" | "unknown";
+  latencyMs: number;
   error?: string;
   headlines: RawHeadline[];
 };
 
-const MAX_TOTAL_LIVE_HEADLINES = 120;
+const MAX_TOTAL_LIVE_HEADLINES = 180;
 const DEFAULT_MAX_ITEMS_PER_SOURCE = 25;
 const DEFAULT_COOLDOWN_MINUTES = 15;
+const DEFAULT_TIMEOUT_MS = 9000;
+const MAX_FETCH_RETRIES = 2;
 
 function decodeEntities(value: string) {
   return value
     .replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
@@ -45,7 +54,16 @@ function decodeEntities(value: string) {
 }
 
 function stripHtml(value: string) {
-  return decodeEntities(value.replace(/<[^>]*>/g, " "));
+  return decodeEntities(value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " "));
+}
+
+function compactText(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+
+  return stripHtml(value)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 2500);
 }
 
 function extractTag(block: string, names: string[]) {
@@ -54,7 +72,7 @@ function extractTag(block: string, names: string[]) {
     const match = block.match(pattern);
 
     if (match?.[1]) {
-      return stripHtml(match[1]);
+      return compactText(match[1]);
     }
   }
 
@@ -64,11 +82,13 @@ function extractTag(block: string, names: string[]) {
 function extractLink(block: string) {
   const linkTag = extractTag(block, ["link"]);
 
-  if (linkTag) {
+  if (linkTag && /^https?:\/\//i.test(linkTag)) {
     return linkTag;
   }
 
-  const atomLink = block.match(/<link[^>]*href=["']([^"']+)["'][^>]*>/i)?.[1];
+  const atomLink =
+    block.match(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["'][^>]*>/i)?.[1] ??
+    block.match(/<link[^>]*href=["']([^"']+)["'][^>]*>/i)?.[1];
 
   return atomLink ? decodeEntities(atomLink) : "";
 }
@@ -104,35 +124,6 @@ function cooldownMinutesForSource(source: FetchableSource) {
   return Math.max(0, Math.round(value));
 }
 
-function parseRssOrAtom(xml: string, source: FetchableSource): RawHeadline[] {
-  const blocks =
-    xml.match(/<item[\s\S]*?<\/item>/gi) ??
-    xml.match(/<entry[\s\S]*?<\/entry>/gi) ??
-    [];
-
-  return blocks.slice(0, maxItemsForSource(source)).map((block) => {
-    const title = extractTag(block, ["title"]) || "Untitled source item";
-    const summary = extractTag(block, ["description", "summary", "content"]);
-    const url = extractLink(block);
-    const publishedAt = extractTag(block, [
-      "pubDate",
-      "updated",
-      "published",
-      "dc:date",
-    ]);
-
-    return {
-      sourceId: source.sourceId,
-      sourceName: source.name,
-      sourceTier: normalizeSourceTier(source.sourceTier),
-      title,
-      summary,
-      url: url || undefined,
-      publishedAt: publishedAt || undefined,
-    };
-  });
-}
-
 function isValidHttpUrl(value: string | null | undefined): value is string {
   if (!value) return false;
 
@@ -153,6 +144,154 @@ function isCoolingDown(source: FetchableSource) {
   return msSinceRun < cooldownMs;
 }
 
+function headlineKey(headline: RawHeadline) {
+  return `${headline.sourceId}:${headline.title}:${headline.url ?? ""}`
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .slice(0, 300);
+}
+
+function parseRssOrAtom(raw: string, source: FetchableSource): {
+  parser: FetchResult["parser"];
+  headlines: RawHeadline[];
+} {
+  const itemBlocks = raw.match(/<item[\s\S]*?<\/item>/gi) ?? [];
+  const entryBlocks = raw.match(/<entry[\s\S]*?<\/entry>/gi) ?? [];
+  const blocks = itemBlocks.length ? itemBlocks : entryBlocks;
+  const parser = itemBlocks.length ? "rss" : entryBlocks.length ? "atom" : "unknown";
+
+  const headlines = blocks.slice(0, maxItemsForSource(source)).map((block) => {
+    const title = extractTag(block, ["title"]) || "Untitled source item";
+    const summary = extractTag(block, ["description", "summary", "content", "content:encoded"]);
+    const url = extractLink(block);
+    const publishedAt = extractTag(block, ["pubDate", "updated", "published", "dc:date"]);
+
+    return {
+      sourceId: source.sourceId,
+      sourceName: source.name,
+      sourceTier: normalizeSourceTier(source.sourceTier),
+      title,
+      summary,
+      url: url || undefined,
+      publishedAt: publishedAt || undefined,
+    };
+  });
+
+  return {
+    parser,
+    headlines,
+  };
+}
+
+function parseJsonFeed(raw: string, source: FetchableSource): {
+  parser: FetchResult["parser"];
+  headlines: RawHeadline[];
+} {
+  const payload = JSON.parse(raw);
+
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.items)
+      ? payload.items
+      : Array.isArray(payload.entries)
+        ? payload.entries
+        : [];
+
+  const parser: FetchResult["parser"] = Array.isArray(payload) ? "json-array" : "json-feed";
+
+  const headlines = items.slice(0, maxItemsForSource(source)).map((item: any) => {
+    const title =
+      compactText(item.title) ||
+      compactText(item.headline) ||
+      compactText(item.name) ||
+      "Untitled source item";
+
+    const summary =
+      compactText(item.summary) ||
+      compactText(item.description) ||
+      compactText(item.content_text) ||
+      compactText(item.content_html) ||
+      compactText(item.body);
+
+    const url =
+      typeof item.url === "string"
+        ? item.url
+        : typeof item.external_url === "string"
+          ? item.external_url
+          : typeof item.link === "string"
+            ? item.link
+            : "";
+
+    const publishedAt =
+      typeof item.date_published === "string"
+        ? item.date_published
+        : typeof item.published === "string"
+          ? item.published
+          : typeof item.pubDate === "string"
+            ? item.pubDate
+            : typeof item.updated === "string"
+              ? item.updated
+              : undefined;
+
+    return {
+      sourceId: source.sourceId,
+      sourceName: source.name,
+      sourceTier: normalizeSourceTier(source.sourceTier),
+      title,
+      summary,
+      url: isValidHttpUrl(url) ? url : undefined,
+      publishedAt,
+    };
+  });
+
+  return {
+    parser,
+    headlines,
+  };
+}
+
+function parseSourcePayload(raw: string, source: FetchableSource, contentType: string | null) {
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return {
+      parser: "unknown" as const,
+      headlines: [],
+    };
+  }
+
+  const looksJson =
+    contentType?.toLowerCase().includes("json") ||
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[");
+
+  if (looksJson) {
+    try {
+      return parseJsonFeed(trimmed, source);
+    } catch {
+      // Fall through to XML parsing. Some sources mislabel XML as JSON.
+    }
+  }
+
+  return parseRssOrAtom(trimmed, source);
+}
+
+function dedupeHeadlines(headlines: RawHeadline[]) {
+  const seen = new Set<string>();
+  const deduped: RawHeadline[] = [];
+
+  for (const headline of headlines) {
+    const key = headlineKey(headline);
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(headline);
+    }
+  }
+
+  return deduped;
+}
+
 async function updateCheckpoint(result: FetchResult) {
   await prisma.sourceCheckpoint.upsert({
     where: {
@@ -161,31 +300,59 @@ async function updateCheckpoint(result: FetchResult) {
     update: {
       sourceName: result.sourceName,
       lastFetchedAt: new Date(),
-      lastStatus: result.ok ? "OK" : result.skipped ? "Skipped" : "Error",
+      lastStatus: result.status,
       lastItemCount: result.itemCount,
-      lastSeenHash: result.headlines[0]?.title ?? null,
+      lastSeenHash: result.headlines[0]?.title ?? result.error ?? null,
     },
     create: {
       sourceId: result.sourceId,
       sourceName: result.sourceName,
       lastFetchedAt: new Date(),
-      lastStatus: result.ok ? "OK" : result.skipped ? "Skipped" : "Error",
+      lastStatus: result.status,
       lastItemCount: result.itemCount,
-      lastSeenHash: result.headlines[0]?.title ?? null,
+      lastSeenHash: result.headlines[0]?.title ?? result.error ?? null,
     },
   });
 }
 
+async function fetchWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: {
+        "User-Agent":
+          process.env.SLICE_FEED_USER_AGENT ||
+          "SliceAdvisorIntelligence/1.0 (+https://slice-advisor-platform.local)",
+        Accept:
+          "application/rss+xml, application/atom+xml, application/feed+json, application/json, application/xml, text/xml, */*",
+      },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
+  const startedAt = Date.now();
   const sourceUrl = source.sourceUrl;
 
   if (!isValidHttpUrl(sourceUrl)) {
     const result: FetchResult = {
       sourceId: source.sourceId,
       sourceName: source.name,
+      sourceUrl,
+      sourceTier: source.sourceTier,
+      category: source.category ?? null,
       ok: false,
       skipped: true,
+      status: "Skipped",
       itemCount: 0,
+      parser: "unknown",
+      latencyMs: Date.now() - startedAt,
       error: "Source has no live URL.",
       headlines: [],
     };
@@ -198,9 +365,15 @@ async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
     const result: FetchResult = {
       sourceId: source.sourceId,
       sourceName: source.name,
+      sourceUrl,
+      sourceTier: source.sourceTier,
+      category: source.category ?? null,
       ok: true,
       skipped: true,
+      status: "Skipped",
       itemCount: 0,
+      parser: "unknown",
+      latencyMs: Date.now() - startedAt,
       error: "Source cooldown active.",
       headlines: [],
     };
@@ -209,90 +382,67 @@ async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
     return result;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
+  let lastError = "";
 
-  try {
-    const response = await fetch(sourceUrl, {
-      signal: controller.signal,
-      cache: "no-store",
-      headers: {
-        "User-Agent": "SliceWealthIntelligence/0.1 founder@example.com",
-        Accept:
-          "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-      },
-    });
+  for (let attempt = 1; attempt <= MAX_FETCH_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(sourceUrl, DEFAULT_TIMEOUT_MS);
 
-    if (!response.ok) {
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}`;
+        continue;
+      }
+
+      const raw = await response.text();
+      const parsed = parseSourcePayload(raw, source, response.headers.get("content-type"));
+      const headlines = dedupeHeadlines(parsed.headlines).slice(0, maxItemsForSource(source));
+
       const result: FetchResult = {
         sourceId: source.sourceId,
         sourceName: source.name,
-        ok: false,
+        sourceUrl,
+        sourceTier: source.sourceTier,
+        category: source.category ?? null,
+        ok: true,
         skipped: false,
-        itemCount: 0,
-        error: `HTTP ${response.status}`,
-        headlines: [],
+        status: "OK",
+        itemCount: headlines.length,
+        parser: parsed.parser,
+        latencyMs: Date.now() - startedAt,
+        headlines,
       };
 
       await updateCheckpoint(result);
       return result;
-    }
-
-    const xml = await response.text();
-    const headlines = parseRssOrAtom(xml, source);
-
-    const result: FetchResult = {
-      sourceId: source.sourceId,
-      sourceName: source.name,
-      ok: true,
-      skipped: false,
-      itemCount: headlines.length,
-      headlines,
-    };
-
-    await updateCheckpoint(result);
-    return result;
-  } catch (error) {
-    const result: FetchResult = {
-      sourceId: source.sourceId,
-      sourceName: source.name,
-      ok: false,
-      skipped: false,
-      itemCount: 0,
-      error: error instanceof Error ? error.message : "Unknown fetch error",
-      headlines: [],
-    };
-
-    await updateCheckpoint(result);
-    return result;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function dedupeHeadlines(headlines: RawHeadline[]) {
-  const seen = new Set<string>();
-  const deduped: RawHeadline[] = [];
-
-  for (const headline of headlines) {
-    const key = `${headline.sourceId}:${headline.title}:${headline.url ?? ""}`
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .slice(0, 260);
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduped.push(headline);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Unknown fetch error";
     }
   }
 
-  return deduped;
+  const result: FetchResult = {
+    sourceId: source.sourceId,
+    sourceName: source.name,
+    sourceUrl,
+    sourceTier: source.sourceTier,
+    category: source.category ?? null,
+    ok: false,
+    skipped: false,
+    status: "Error",
+    itemCount: 0,
+    parser: "unknown",
+    latencyMs: Date.now() - startedAt,
+    error: lastError || "Source fetch failed.",
+    headlines: [],
+  };
+
+  await updateCheckpoint(result);
+  return result;
 }
 
 export async function fetchFreeHeadlineBatch(sources: FetchableSource[]) {
-  const liveSources = sources.filter(
-    (source) => source.enabled !== false && isValidHttpUrl(source.sourceUrl)
-  );
+  const liveSources = sources
+    .filter((source) => source.enabled !== false && isValidHttpUrl(source.sourceUrl))
+    .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
   const results: FetchResult[] = [];
 
@@ -301,12 +451,18 @@ export async function fetchFreeHeadlineBatch(sources: FetchableSource[]) {
     results.push(result);
   }
 
-  const headlines = dedupeHeadlines(
-    results.flatMap((result) => result.headlines)
-  ).slice(0, MAX_TOTAL_LIVE_HEADLINES);
+  const headlines = dedupeHeadlines(results.flatMap((result) => result.headlines))
+    .slice(0, MAX_TOTAL_LIVE_HEADLINES);
 
   return {
     sourceResults: results,
     headlines,
+    health: {
+      sourceCount: liveSources.length,
+      ok: results.filter((result) => result.ok && !result.skipped).length,
+      skipped: results.filter((result) => result.skipped).length,
+      failed: results.filter((result) => !result.ok && !result.skipped).length,
+      itemCount: headlines.length,
+    },
   };
 }

@@ -16,6 +16,7 @@ import {
   startVoiceSession,
   updateVoiceSession,
 } from "@/lib/bot/platform-brain";
+import { generateUniversalAssistantReply } from "@/lib/integrations/ai";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ function deriveBotProfile(answers: Record<string, string>) {
     personality: {
       decisionSpeed: answers.decision_speed ?? "Balanced",
       tone: communicationStyle,
+      spokenAccent: "British English",
       detailLevel,
       researchStyle: answers.research_style ?? "Balanced",
       challengeLevel: answers.challenge_level ?? "Balanced challenge",
@@ -61,12 +63,16 @@ function deriveBotProfile(answers: Record<string, string>) {
       complianceCaution: answers.compliance_caution ?? "Extra cautious",
     },
     capabilities: [
+      "Universal AI conversation layer",
+      "British English spoken voice",
+      "User-personalized tone and answer style",
       "OpenAI structured command interpretation",
       "Browser voice-to-command sessions",
       "Platform Brain routing map",
       "Learned phrase training",
       "Command correction memory",
       "Navigate anywhere in Slice",
+      "Answer open-ended questions",
       "Find source-backed alerts and opportunity evidence",
       "Search firm data",
       "Research investments using platform context",
@@ -84,6 +90,81 @@ function deriveBotProfile(answers: Record<string, string>) {
     preferredTone: communicationStyle,
     commandStyle: detailLevel,
     autonomyLevel: automationComfort,
+  };
+}
+
+async function createUniversalAnswer(input: {
+  user: { id: string; name: string; email: string };
+  profile: {
+    id: string;
+    userId: string;
+    firmId: string | null;
+    botName: string;
+    preferredTone: string;
+    commandStyle: string;
+    autonomyLevel: string;
+    personalityJson: string;
+    riskJson: string;
+    customInstructions: string | null;
+  };
+  prompt: string;
+  platformAnswer: string;
+  commandIntent: string;
+  platformSnapshot?: Record<string, unknown>;
+  currentPath?: string | null;
+  pageTitle?: string | null;
+}) {
+  const [memories, recentMessages] = await Promise.all([
+    prisma.personalUserBotMemory.findMany({
+      where: {
+        userId: input.user.id,
+        status: "Active",
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 12,
+    }),
+    prisma.personalUserBotMessage.findMany({
+      where: {
+        userId: input.user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 12,
+    }),
+  ]);
+
+  const universal = await generateUniversalAssistantReply({
+    prompt: input.prompt,
+    userName: input.user.name,
+    userEmail: input.user.email,
+    botName: input.profile.botName,
+    currentPath: input.currentPath,
+    pageTitle: input.pageTitle,
+    preferredTone: input.profile.preferredTone,
+    commandStyle: input.profile.commandStyle,
+    autonomyLevel: input.profile.autonomyLevel,
+    customInstructions: input.profile.customInstructions,
+    personality: parseJson<Record<string, unknown>>(input.profile.personalityJson, {}),
+    risk: parseJson<Record<string, unknown>>(input.profile.riskJson, {}),
+    memory: memories.map((memory) => `${memory.title}: ${memory.value}`),
+    recentMessages: recentMessages.reverse().map((message) => ({
+      role: message.role,
+      content: message.content,
+    })),
+    platformResult: input.platformAnswer,
+    commandIntent: input.commandIntent,
+    platformSnapshot: input.platformSnapshot ?? {},
+    safetyIdentifier: input.user.email,
+  });
+
+  return {
+    answer: universal.text || input.platformAnswer,
+    provider: universal.provider,
+    status: universal.status,
+    error: universal.error,
   };
 }
 
@@ -209,6 +290,8 @@ async function loadBot(user: { id: string; name: string; email: string }) {
   return {
     profile: {
       ...profile,
+      spokenAccent: "British English",
+      speechLanguage: "en-GB",
       answers: parseJson<Record<string, string>>(profile.answersJson, {}),
       personality: parseJson<Record<string, unknown>>(profile.personalityJson, {}),
       risk: parseJson<Record<string, unknown>>(profile.riskJson, {}),
@@ -219,9 +302,12 @@ async function loadBot(user: { id: string; name: string; email: string }) {
       configured: Boolean(process.env.OPENAI_API_KEY),
       model: process.env.OPENAI_MODEL || "gpt-5",
       structuredCommands: true,
+      universalAnswers: true,
       approvalGates: true,
       platformBrain: true,
       voiceLearning: true,
+      spokenAccent: "British English",
+      speechLanguage: "en-GB",
       webSearchEnabled: process.env.OPENAI_ENABLE_WEB_SEARCH === "true",
     },
     uiPreference,
@@ -408,7 +494,7 @@ export async function POST(request: Request) {
       userId: user.id,
       profileId: profile.id,
       firmId: profile.firmId,
-      language: readText(body.language, "en-US"),
+      language: readText(body.language, "en-GB"),
     });
 
     return NextResponse.json({
@@ -468,12 +554,29 @@ export async function POST(request: Request) {
 
       commandId = result.commandRecord.id;
 
+      const universal = await createUniversalAnswer({
+        user,
+        profile,
+        prompt: transcript,
+        platformAnswer: result.answer,
+        commandIntent: result.intent,
+        currentPath: readText(body.currentPath, null as unknown as string),
+        pageTitle: readText(body.pageTitle, null as unknown as string),
+        platformSnapshot: {
+          resultSummary: result.commandRecord.resultSummary,
+          clientAction: result.clientAction,
+          structuredCommand: result.structuredCommand,
+          aiParserOk: result.aiParserOk,
+          aiParserError: result.aiParserError,
+        },
+      });
+
       await prisma.personalUserBotMessage.create({
         data: {
           userId: user.id,
           profileId: profile.id,
           role: "assistant",
-          content: result.answer,
+          content: universal.answer,
           intent: result.intent,
           metadataJson: asJson({
             commandId: result.commandRecord.id,
@@ -482,6 +585,10 @@ export async function POST(request: Request) {
             aiParserOk: result.aiParserOk,
             aiParserError: result.aiParserError,
             voiceSessionKey: sessionKey,
+            universalAiProvider: universal.provider,
+            universalAiStatus: universal.status,
+            universalAiError: universal.error,
+            spokenAccent: "British English",
           }),
         },
       });
@@ -555,6 +662,10 @@ export async function POST(request: Request) {
         role: "user",
         content: prompt,
         intent: "Command",
+        metadataJson: asJson({
+          currentPath: readText(body.currentPath, ""),
+          pageTitle: readText(body.pageTitle, ""),
+        }),
       },
     });
 
@@ -565,12 +676,29 @@ export async function POST(request: Request) {
       voiceTranscript: typeof body.voiceTranscript === "string" ? body.voiceTranscript : null,
     });
 
+    const universal = await createUniversalAnswer({
+      user,
+      profile,
+      prompt,
+      platformAnswer: result.answer,
+      commandIntent: result.intent,
+      currentPath: readText(body.currentPath, ""),
+      pageTitle: readText(body.pageTitle, ""),
+      platformSnapshot: {
+        resultSummary: result.commandRecord.resultSummary,
+        clientAction: result.clientAction,
+        structuredCommand: result.structuredCommand,
+        aiParserOk: result.aiParserOk,
+        aiParserError: result.aiParserError,
+      },
+    });
+
     await prisma.personalUserBotMessage.create({
       data: {
         userId: user.id,
         profileId: profile.id,
         role: "assistant",
-        content: result.answer,
+        content: universal.answer,
         intent: result.intent,
         metadataJson: asJson({
           commandId: result.commandRecord.id,
@@ -578,6 +706,10 @@ export async function POST(request: Request) {
           structuredCommand: result.structuredCommand,
           aiParserOk: result.aiParserOk,
           aiParserError: result.aiParserError,
+          universalAiProvider: universal.provider,
+          universalAiStatus: universal.status,
+          universalAiError: universal.error,
+          spokenAccent: "British English",
         }),
       },
     });

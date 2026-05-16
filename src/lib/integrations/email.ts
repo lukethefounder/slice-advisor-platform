@@ -19,18 +19,114 @@ export type IntegrationSendResult = {
 };
 
 function normalizeRecipients(to: string | string[]) {
-  return Array.isArray(to) ? to : [to];
+  const recipients = Array.isArray(to) ? to : [to];
+
+  return Array.from(
+    new Set(
+      recipients
+        .flatMap((item) => String(item).split(/[;,]/))
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function escapeHtml(value: string) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function textToHtml(text: string) {
-  return `<p>${text.replace(/\n/g, "<br />")}</p>`;
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+
+  return `
+    <div style="font-family:Inter,Arial,sans-serif;line-height:1.65;color:#0f172a;">
+      ${paragraphs || "<p></p>"}
+    </div>
+  `;
+}
+
+function cleanSubject(subject: string) {
+  return subject
+    .replace(/\r|\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+function cleanBody(value: string | undefined) {
+  return String(value ?? "")
+    .replace(/\u0000/g, "")
+    .trim()
+    .slice(0, 120000);
+}
+
+function configuredFrom() {
+  return getOptionalEnv("RESEND_FROM") || getOptionalEnv("EMAIL_FROM") || "";
+}
+
+function configuredReplyTo() {
+  return getOptionalEnv("RESEND_REPLY_TO") || getOptionalEnv("EMAIL_REPLY_TO") || "";
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendResult> {
   const liveEnabled = boolEnv("ENABLE_LIVE_EMAIL");
   const apiKey = getOptionalEnv("RESEND_API_KEY");
-  const from = input.from || getOptionalEnv("RESEND_FROM");
-  const replyTo = input.replyTo || getOptionalEnv("RESEND_REPLY_TO");
+  const from = input.from || configuredFrom();
+  const replyTo = input.replyTo || configuredReplyTo();
+  const recipients = normalizeRecipients(input.to);
+  const invalidRecipients = recipients.filter((recipient) => !isValidEmail(recipient));
+  const subject = cleanSubject(input.subject);
+  const text = cleanBody(input.text);
+  const html = cleanBody(input.html) || textToHtml(text);
+
+  if (!recipients.length) {
+    return {
+      ok: false,
+      provider: "Resend",
+      status: "failed",
+      error: "At least one email recipient is required.",
+    };
+  }
+
+  if (invalidRecipients.length) {
+    return {
+      ok: false,
+      provider: "Resend",
+      status: "failed",
+      error: `Invalid recipient email(s): ${invalidRecipients.join(", ")}`,
+    };
+  }
+
+  if (!subject) {
+    return {
+      ok: false,
+      provider: "Resend",
+      status: "failed",
+      error: "Email subject is required.",
+    };
+  }
+
+  if (!text && !html) {
+    return {
+      ok: false,
+      provider: "Resend",
+      status: "failed",
+      error: "Email body is required.",
+    };
+  }
 
   if (!liveEnabled) {
     return {
@@ -60,10 +156,10 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       },
       body: JSON.stringify({
         from,
-        to: normalizeRecipients(input.to),
-        subject: input.subject,
-        html: input.html || textToHtml(input.text || ""),
-        text: input.text,
+        to: recipients,
+        subject,
+        html,
+        text: text || undefined,
         reply_to: replyTo || undefined,
       }),
     });

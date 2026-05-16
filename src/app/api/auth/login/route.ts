@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   createSession,
+  hashPassword,
+  needsPasswordRehash,
   publicUser,
   SESSION_COOKIE,
   sessionCookieOptions,
@@ -14,6 +16,14 @@ import {
 } from "@/lib/founder-access";
 import { ensureTemporaryLogins } from "@/lib/temporary-logins";
 import { prisma } from "@/lib/prisma";
+import {
+  checkRateLimit,
+  getClientIp,
+  hashForSecurity,
+  isPotentiallyCrossSiteUnsafeRequest,
+  maskEmail,
+  recordSecurityEvent,
+} from "@/lib/security";
 
 function isTemporaryLoginEmail(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
@@ -24,8 +34,87 @@ function isTemporaryLoginEmail(email: string) {
   );
 }
 
+function blockedResponse(message: string, status = 429, retryAfterSeconds?: number) {
+  const response = NextResponse.json(
+    {
+      error: message,
+    },
+    { status }
+  );
+
+  response.headers.set("Cache-Control", "no-store");
+
+  if (retryAfterSeconds) {
+    response.headers.set("Retry-After", String(retryAfterSeconds));
+  }
+
+  return response;
+}
+
+function genericInvalidLogin(seedError?: string | null) {
+  const response = NextResponse.json(
+    {
+      error: "Invalid email or password.",
+      seedError: seedError ?? null,
+    },
+    { status: 401 }
+  );
+
+  response.headers.set("Cache-Control", "no-store");
+
+  return response;
+}
+
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+
   try {
+    if (isPotentiallyCrossSiteUnsafeRequest(request)) {
+      await recordSecurityEvent({
+        eventType: "auth.login.cross_site_blocked",
+        severity: "High",
+        area: "Authentication",
+        title: "Cross-site login request blocked",
+        detail: "A login attempt was blocked because it appeared to come from a cross-site request.",
+        request,
+      });
+
+      return blockedResponse("Security check failed.", 403);
+    }
+
+    const contentType = request.headers.get("content-type") ?? "";
+
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return blockedResponse("Invalid request format.", 415);
+    }
+
+    const ipLimit = checkRateLimit({
+      key: `login:ip:${hashForSecurity(ip)}`,
+      limit: 25,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!ipLimit.allowed) {
+      await recordSecurityEvent({
+        eventType: "auth.login.ip_rate_limited",
+        severity: "High",
+        area: "Authentication",
+        title: "Login IP rate limit triggered",
+        detail: "Too many login attempts were made from the same IP fingerprint.",
+        metadata: {
+          limit: ipLimit.limit,
+          resetAt: ipLimit.resetAt,
+        },
+        request,
+      });
+
+      return blockedResponse(
+        "Too many login attempts. Try again later.",
+        429,
+        ipLimit.retryAfterSeconds
+      );
+    }
+
     const body = (await request.json()) as {
       email?: string;
       password?: string;
@@ -43,14 +132,48 @@ export async function POST(request: Request) {
       );
     }
 
+    const emailLimit = checkRateLimit({
+      key: `login:email:${hashForSecurity(email)}`,
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!emailLimit.allowed) {
+      await recordSecurityEvent({
+        eventType: "auth.login.email_rate_limited",
+        severity: "High",
+        area: "Authentication",
+        title: "Login email rate limit triggered",
+        detail: `Too many login attempts were made against ${maskEmail(email)}.`,
+        metadata: {
+          emailHash: hashForSecurity(email),
+          limit: emailLimit.limit,
+          resetAt: emailLimit.resetAt,
+        },
+        request,
+      });
+
+      return blockedResponse(
+        "Too many login attempts. Try again later.",
+        429,
+        emailLimit.retryAfterSeconds
+      );
+    }
+
     const temporarySeedResult = isTemporaryLoginEmail(email)
       ? await ensureTemporaryLogins()
       : null;
 
-    if (
-      isTemporaryLoginEmail(email) &&
-      !temporaryLoginsEnabled()
-    ) {
+    if (isTemporaryLoginEmail(email) && !temporaryLoginsEnabled()) {
+      await recordSecurityEvent({
+        eventType: "auth.login.temporary_disabled",
+        severity: "Medium",
+        area: "Authentication",
+        title: "Temporary login attempted while disabled",
+        detail: `Temporary login attempted for ${maskEmail(email)}.`,
+        request,
+      });
+
       return NextResponse.json(
         {
           error:
@@ -77,19 +200,37 @@ export async function POST(request: Request) {
     }
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
-      return NextResponse.json(
-        {
-          error:
-            isTemporaryLoginEmail(email)
-              ? "Temporary login was found, but the password does not match. Use SliceFounder!2026 for founder or SliceAdvisor!2026 for firm advisor."
-              : "Invalid email or password.",
+      await recordSecurityEvent({
+        userId: user?.id ?? null,
+        eventType: "auth.login.failed",
+        severity: user ? "Medium" : "Low",
+        area: "Authentication",
+        title: "Failed login attempt",
+        detail: user
+          ? `Failed login attempt for known account ${maskEmail(email)}.`
+          : `Failed login attempt for unknown account ${maskEmail(email)}.`,
+        metadata: {
+          emailHash: hashForSecurity(email),
+          knownAccount: Boolean(user),
           seedError: temporarySeedResult?.seedError ?? null,
         },
-        { status: 401 }
-      );
+        request,
+      });
+
+      return genericInvalidLogin(temporarySeedResult?.seedError ?? null);
     }
 
     if (user.platformStatus === "Banned") {
+      await recordSecurityEvent({
+        userId: user.id,
+        eventType: "auth.login.banned_blocked",
+        severity: "Critical",
+        area: "Authentication",
+        title: "Banned account login blocked",
+        detail: user.governanceReason || "Banned user attempted login.",
+        request,
+      });
+
       return NextResponse.json(
         {
           error:
@@ -101,6 +242,16 @@ export async function POST(request: Request) {
     }
 
     if (user.platformStatus === "Suspended") {
+      await recordSecurityEvent({
+        userId: user.id,
+        eventType: "auth.login.suspended_blocked",
+        severity: "High",
+        area: "Authentication",
+        title: "Suspended account login blocked",
+        detail: user.governanceReason || "Suspended user attempted login.",
+        request,
+      });
+
       return NextResponse.json(
         {
           error:
@@ -124,6 +275,17 @@ export async function POST(request: Request) {
     });
 
     if (!isFounder && !activeMembership) {
+      await recordSecurityEvent({
+        userId: user.id,
+        eventType: "auth.login.no_active_firm",
+        severity: "Medium",
+        area: "Authentication",
+        title: "Login blocked: no active firm workspace",
+        detail:
+          "A non-founder user attempted login without an active firm workspace.",
+        request,
+      });
+
       return NextResponse.json(
         {
           error:
@@ -134,13 +296,59 @@ export async function POST(request: Request) {
       );
     }
 
+    if (needsPasswordRehash(user.passwordHash)) {
+      await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          passwordHash: hashPassword(password),
+        },
+      });
+    }
+
+    await prisma.userSecuritySetting.upsert({
+      where: {
+        userId: user.id,
+      },
+      update: {
+        lastSecurityReviewAt: new Date(),
+      },
+      create: {
+        userId: user.id,
+        mfaEnabled: false,
+        requireReauthForSensitiveActions: true,
+        alertOnNewLogin: true,
+        advisorModeEnabled: false,
+        sessionTimeoutMinutes: 720,
+        lastSecurityReviewAt: new Date(),
+      },
+    });
+
     const session = await createSession(user.id);
+
+    await recordSecurityEvent({
+      userId: user.id,
+      eventType: "auth.login.success",
+      severity: "Info",
+      area: "Authentication",
+      title: "Successful login",
+      detail: `Successful login for ${maskEmail(user.email)}.`,
+      metadata: {
+        isFounder,
+        firmId: activeMembership?.firmId ?? null,
+        sessionExpiresAt: session.expiresAt,
+      },
+      request,
+    });
 
     const response = NextResponse.json({
       user: publicUser(user),
       isFounder,
       temporarySeedError: temporarySeedResult?.seedError ?? null,
     });
+
+    response.headers.set("Cache-Control", "no-store");
 
     response.cookies.set(
       SESSION_COOKIE,
@@ -150,6 +358,15 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
+    await recordSecurityEvent({
+      eventType: "auth.login.exception",
+      severity: "High",
+      area: "Authentication",
+      title: "Login route exception",
+      detail: error instanceof Error ? error.message : "Unknown login exception.",
+      request,
+    });
+
     return NextResponse.json(
       {
         error:

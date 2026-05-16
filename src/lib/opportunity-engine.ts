@@ -186,8 +186,7 @@ function portfolioRelevanceScore(
     if (exposure.watchlist) score += 22;
     if (exposure.research) score += 18;
 
-    const totalExposure =
-      exposure.firmHoldingValue + exposure.clientHoldingValue;
+    const totalExposure = exposure.firmHoldingValue + exposure.clientHoldingValue;
 
     if (totalExposure >= 1_000_000) score += 24;
     else if (totalExposure >= 250_000) score += 18;
@@ -343,6 +342,20 @@ async function buildExposureMap(userId: string) {
   return map;
 }
 
+async function findExistingOpportunitySignal(input: {
+  userId: string;
+  headlineDecisionId: string;
+  signalType: string;
+}) {
+  return prisma.opportunitySignal.findFirst({
+    where: {
+      userId: input.userId,
+      headlineDecisionId: input.headlineDecisionId,
+      signalType: input.signalType,
+    },
+  });
+}
+
 export async function generateOpportunitySignals(userId: string) {
   const exposureMap = await buildExposureMap(userId);
 
@@ -430,6 +443,7 @@ export async function generateOpportunitySignals(userId: string) {
       `Materiality score: ${decision.materialityScore}`,
       `Risk score: ${risk}`,
       `Opportunity score: ${opportunity}`,
+      `Source URL: ${decision.url ?? "Not available"}`,
       ...reasons.slice(0, 5),
     ];
 
@@ -438,11 +452,7 @@ export async function generateOpportunitySignals(userId: string) {
       tickers,
     });
 
-    const categories = [
-      decision.category,
-      decision.subcategory,
-      ...areas,
-    ].filter(Boolean);
+    const categories = [decision.category, decision.subcategory, ...areas].filter(Boolean);
 
     const aiBriefing = buildAdvisorOpportunityBriefing({
       title: decision.title,
@@ -462,80 +472,65 @@ export async function generateOpportunitySignals(userId: string) {
       estimatedImpactScore: impactScore,
     });
 
-    const dedupeKey = hash(`${userId}:${decision.id}:${signalType}`);
-
-    const existing = await prisma.opportunitySignal.findUnique({
-      where: {
-        userId_dedupeKey: {
-          userId,
-          dedupeKey,
-        },
-      },
+    const existing = await findExistingOpportunitySignal({
+      userId,
+      headlineDecisionId: decision.id,
+      signalType,
     });
 
-    await prisma.opportunitySignal.upsert({
-      where: {
-        userId_dedupeKey: {
-          userId,
-          dedupeKey,
-        },
-      },
-      update: {
-        title: decision.title,
-        summary: decision.summary,
-        sourceName: decision.sourceName,
-        sourceUrl: decision.url,
-        aiBriefing,
-        signalType,
-        priorityTier,
-        portfolioRelevanceScore: portfolioScore,
-        opportunityScore: opportunity,
-        riskScore: risk,
-        confidenceScore: confidence,
-        actionabilityScore: actionability,
-        issuerCredibilityScore: issuerScore,
-        estimatedImpactScore: impactScore,
-        compositeScore: composite,
-        tickersJson: safeJson(tickers),
-        categoriesJson: safeJson(categories),
-        evidenceJson: safeJson(evidence),
-        suggestedAction,
-      },
-      create: {
-        userId,
-        headlineDecisionId: decision.id,
-        dedupeKey,
-        title: decision.title,
-        summary: decision.summary,
-        sourceName: decision.sourceName,
-        sourceUrl: decision.url,
-        aiBriefing,
-        signalType,
-        priorityTier,
-        portfolioRelevanceScore: portfolioScore,
-        opportunityScore: opportunity,
-        riskScore: risk,
-        confidenceScore: confidence,
-        actionabilityScore: actionability,
-        issuerCredibilityScore: issuerScore,
-        estimatedImpactScore: impactScore,
-        compositeScore: composite,
-        tickersJson: safeJson(tickers),
-        categoriesJson: safeJson(categories),
-        evidenceJson: safeJson(evidence),
-        suggestedAction,
-      },
-    });
+    const signalData = {
+      title: decision.title,
+      summary: decision.summary,
+      sourceName: decision.sourceName,
+      signalType,
+      priorityTier,
+      portfolioRelevanceScore: portfolioScore,
+      opportunityScore: opportunity,
+      riskScore: risk,
+      confidenceScore: confidence,
+      actionabilityScore: actionability,
+      compositeScore: composite,
+      tickersJson: safeJson(tickers),
+      categoriesJson: safeJson(categories),
+      evidenceJson: safeJson([
+        ...evidence,
+        `Advisor briefing: ${aiBriefing}`,
+        `Issuer/source credibility score: ${issuerScore}`,
+        `Estimated impact score: ${impactScore}`,
+      ]),
+      suggestedAction,
+      advisorNotes: aiBriefing,
+    };
 
-    if (existing) updated += 1;
-    else created += 1;
+    if (existing) {
+      await prisma.opportunitySignal.update({
+        where: {
+          id: existing.id,
+        },
+        data: signalData,
+      });
+
+      updated += 1;
+    } else {
+      await prisma.opportunitySignal.create({
+        data: {
+          userId,
+          headlineDecisionId: decision.id,
+          ...signalData,
+        },
+      });
+
+      created += 1;
+    }
 
     if (priorityTier === "Critical" || priorityTier === "High") {
+      const dedupeKey = `opportunity-${hash(`${userId}:${decision.id}:${signalType}`)}`;
+
       await prisma.alertEvent.upsert({
         where: {
           userId_dedupeKey: {
             userId,
-            dedupeKey: `opportunity-${dedupeKey}`,
+            dedupeKey,
           },
         },
         update: {
@@ -554,7 +549,7 @@ export async function generateOpportunitySignals(userId: string) {
         },
         create: {
           userId,
-          dedupeKey: `opportunity-${dedupeKey}`,
+          dedupeKey,
           title: decision.title,
           body: suggestedAction,
           source: decision.sourceName,
@@ -574,6 +569,9 @@ export async function generateOpportunitySignals(userId: string) {
 
   const signals = await prisma.opportunitySignal.findMany({
     where: { userId },
+    include: {
+      headlineDecision: true,
+    },
     orderBy: [{ compositeScore: "desc" }, { updatedAt: "desc" }],
     take: 100,
   });
