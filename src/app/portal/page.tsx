@@ -24,7 +24,7 @@ const TEMP_LOGINS = [
     password: "SliceAdvisor!2026",
     description:
       "Use this to test the firm workspace, Advisor OS, task board, client drafts, and workflow automation.",
-    href: "/workspace",
+    href: "/founder-login",
   },
 ];
 
@@ -36,36 +36,40 @@ export default function PortalPage() {
 
         <Card className="p-6 md:p-8">
           <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-red-500/15 to-transparent" />
+
           <div className="relative grid gap-8 xl:grid-cols-[1fr_0.9fr] xl:items-center">
             <div>
               <Pill tone="red">Slice portal</Pill>
+
               <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
-                Choose the right access path.
+                Access Slice or create an advisor workspace.
               </h1>
+
               <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300">
-                Slice is built around firm access, founder controls, and
-                Advisor OS. Use the temporary logins for local testing while
-                the platform is still being built.
+                Slice is built around firm access, founder controls, Advisor OS,
+                autonomous research scanning, client email briefings, and
+                approval-gated communication. Create a real advisor workspace
+                or use demo credentials for testing.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <LinkButton href="/workspace" variant="primary">
-                  Firm Workspace
+                <LinkButton href="/advisor-signup" variant="primary">
+                  Create Advisor Account
                 </LinkButton>
                 <LinkButton href="/founder-login" variant="danger">
-                  Founder Login
+                  Login
                 </LinkButton>
-                <LinkButton href="/advisor-os" variant="secondary">
-                  Advisor OS
+                <LinkButton href="/workspace" variant="secondary">
+                  Firm Workspace
                 </LinkButton>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Metric
-                label="Access model"
-                value="Firm"
-                helper="Invite-controlled"
+                label="Account setup"
+                value="Live"
+                helper="Advisor signup"
                 tone="green"
               />
               <Metric
@@ -90,55 +94,84 @@ export default function PortalPage() {
           </div>
         </Card>
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          {TEMP_LOGINS.map((login) => (
-            <Card key={login.label} className="p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <Pill tone={login.label === "Founder" ? "red" : "green"}>
-                    {login.label}
-                  </Pill>
-                  <h2 className="mt-4 text-2xl font-black">{login.label} Login</h2>
-                  <p className="mt-2 text-sm leading-7 text-slate-400">
-                    {login.description}
-                  </p>
-                </div>
-                <LinkButton
-                  href={login.href}
-                  variant={login.label === "Founder" ? "danger" : "primary"}
-                >
-                  Open
-                </LinkButton>
-              </div>
+        <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          <Card className="p-6">
+            <Pill tone="green">Recommended</Pill>
+            <h2 className="mt-4 text-3xl font-black">
+              Create a real advisor account
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-400">
+              Use this for the actual platform experience. It creates a firm
+              owner, an active firm workspace, starter watchlists, and a logged-in
+              advisor session.
+            </p>
 
-              <div className="mt-5 grid gap-3">
-                <SoftCard>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Email
+            <div className="mt-5">
+              <LinkButton href="/advisor-signup" variant="primary">
+                Start Advisor Signup
+              </LinkButton>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <Pill tone="amber">Demo access</Pill>
+            <h2 className="mt-4 text-3xl font-black">Temporary logins</h2>
+            <p className="mt-3 text-sm leading-7 text-slate-400">
+              Demo logins require ENABLE_TEMP_LOGINS=true in Vercel production
+              environment variables. They are useful for testing but should not
+              replace real advisor account creation.
+            </p>
+
+            <div className="mt-5 grid gap-3">
+              {TEMP_LOGINS.map((login) => (
+                <SoftCard key={login.label}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <Pill tone={login.label === "Founder" ? "red" : "green"}>
+                        {login.label}
+                      </Pill>
+                      <p className="mt-3 text-sm leading-6 text-slate-400">
+                        {login.description}
+                      </p>
+                    </div>
+                    <LinkButton
+                      href={login.href}
+                      variant={login.label === "Founder" ? "danger" : "primary"}
+                    >
+                      Login
+                    </LinkButton>
                   </div>
-                  <div className="mt-2 break-all text-lg font-black text-white">
-                    {login.email}
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                        Email
+                      </div>
+                      <div className="mt-2 break-all text-sm font-black text-white">
+                        {login.email}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                        Password
+                      </div>
+                      <div className="mt-2 break-all text-sm font-black text-white">
+                        {login.password}
+                      </div>
+                    </div>
                   </div>
                 </SoftCard>
-
-                <SoftCard>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    Password
-                  </div>
-                  <div className="mt-2 break-all text-lg font-black text-white">
-                    {login.password}
-                  </div>
-                </SoftCard>
-              </div>
-            </Card>
-          ))}
+              ))}
+            </div>
+          </Card>
         </section>
 
         <Card className="p-6">
           <SectionHeader
-            eyebrow="Testing reminder"
-            title="Temporary logins are for local/demo use."
-            description="Keep these credentials disabled in true production unless you intentionally set ENABLE_TEMP_LOGINS=true. The long-term version should use real firm onboarding, invites, MFA, and founder-only governance."
+            eyebrow="Production reminder"
+            title="Real advisor accounts should be created through advisor signup."
+            description="Temporary logins are useful for testing only. For a real platform workflow, create a firm owner account, use a durable production database, and keep client communications approval-gated."
           />
         </Card>
       </div>
