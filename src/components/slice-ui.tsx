@@ -2,7 +2,14 @@
 
 import type { ReactNode } from "react";
 
-export type SliceTone = "red" | "green" | "amber" | "purple" | "slate" | "blue";
+export type SliceTone =
+  | "red"
+  | "green"
+  | "amber"
+  | "purple"
+  | "slate"
+  | "blue"
+  | "cyan";
 
 export function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -54,6 +61,16 @@ export function toneFor(value: string | number | null | undefined): SliceTone {
     normalized.includes("adaptive")
   ) {
     return "purple";
+  }
+
+  if (
+    normalized.includes("ai") ||
+    normalized.includes("command") ||
+    normalized.includes("intelligence") ||
+    normalized.includes("automation") ||
+    normalized.includes("system")
+  ) {
+    return "cyan";
   }
 
   return "slate";
@@ -169,6 +186,7 @@ export function Pill({
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
     blue: "bg-sky-500/10 text-sky-300 ring-sky-500/30",
+    cyan: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
   };
 
@@ -197,6 +215,7 @@ export function Progress({
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
     blue: "from-sky-700 to-sky-300",
+    cyan: "from-cyan-700 to-cyan-300",
   };
 
   return (
@@ -226,6 +245,7 @@ export function Metric({
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
     blue: "from-sky-500/18",
+    cyan: "from-cyan-500/18",
     slate: "from-slate-400/10",
   };
 
