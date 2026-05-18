@@ -57,21 +57,44 @@ const VALID_INTENTS: SliceCommandIntent[] = [
   "help",
 ];
 
+const COMPANY_TICKERS: Record<string, string> = {
+  nvidia: "NVDA",
+  nvda: "NVDA",
+  apple: "AAPL",
+  microsoft: "MSFT",
+  tesla: "TSLA",
+  meta: "META",
+  facebook: "META",
+  alphabet: "GOOGL",
+  google: "GOOGL",
+  amazon: "AMZN",
+  amd: "AMD",
+  netflix: "NFLX",
+  broadcom: "AVGO",
+  palantir: "PLTR",
+  coinbase: "COIN",
+  microstrategy: "MSTR",
+  spy: "SPY",
+  qqq: "QQQ",
+  iwm: "IWM",
+  tlt: "TLT",
+};
+
 const FALLBACK_ROUTES = [
   {
     label: "Workspace",
     route: "/workspace",
-    aliases: ["home", "dashboard", "main workspace", "main page", "slice home", "start screen"],
+    aliases: ["home", "dashboard", "main workspace", "main page", "slice home"],
   },
   {
     label: "Command Layer",
     route: "/workspace?tab=command",
-    aliases: ["command", "backend controls", "live systems", "integration controls", "control layer"],
+    aliases: ["command", "backend controls", "live systems", "integration controls"],
   },
   {
     label: "Firm Calendar",
     route: "/workspace?tab=firm-calendar",
-    aliases: ["calendar", "calender", "schedule", "agenda", "firm calendar", "my day"],
+    aliases: ["calendar", "schedule", "agenda", "firm calendar", "my day"],
   },
   {
     label: "Team Board",
@@ -81,17 +104,17 @@ const FALLBACK_ROUTES = [
   {
     label: "Watchlists",
     route: "/workspace?tab=watchlists",
-    aliases: ["watchlist", "watch list", "tracked assets", "tracked stocks", "my stocks"],
+    aliases: ["watchlist", "watch list", "tracked assets", "tracked stocks"],
   },
   {
     label: "Clients",
     route: "/workspace?tab=clients",
-    aliases: ["client", "clients", "wealth", "households", "investors"],
+    aliases: ["clients", "client book", "households", "investors"],
   },
   {
     label: "Portfolio",
     route: "/workspace?tab=portfolio",
-    aliases: ["portfolio", "holdings", "allocation", "models", "portfolio tab"],
+    aliases: ["portfolio", "holdings", "allocation", "models"],
   },
   {
     label: "Intelligence",
@@ -106,12 +129,12 @@ const FALLBACK_ROUTES = [
   {
     label: "Personal Bot",
     route: "/workspace/personal-bot",
-    aliases: ["bot", "robot", "assistant", "voice bot", "my bot", "slice bot"],
+    aliases: ["bot", "assistant", "voice bot", "my bot", "slice bot"],
   },
   {
     label: "Backend Kernel",
     route: "/backend-kernel",
-    aliases: ["backend", "kernel", "jobs", "vendor health", "integrations", "backend kernel"],
+    aliases: ["backend", "kernel", "jobs", "vendor health", "integrations"],
   },
   {
     label: "Backend Readiness",
@@ -121,77 +144,37 @@ const FALLBACK_ROUTES = [
   {
     label: "Market Visuals",
     route: "/market-visuals",
-    aliases: [
-      "visuals",
-      "viusals",
-      "charts",
-      "graphs",
-      "market charts",
-      "technical charts",
-      "visual chart thing",
-      "trading charts",
-      "stock charts",
-      "market visual",
-    ],
+    aliases: ["visuals", "charts", "graphs", "market charts", "technical charts"],
   },
   {
     label: "Watchlist Alerts",
     route: "/watchlist-alerts",
-    aliases: ["price alerts", "stock alerts", "high low alerts", "alert page", "ticker alerts"],
+    aliases: ["price alerts", "stock alerts", "ticker alerts"],
   },
   {
     label: "Advisor Command Center",
     route: "/advisor-command-center",
-    aliases: ["advisor command", "client brain", "next best action", "ai command", "advisor ai"],
+    aliases: ["advisor command", "client brain", "next best action", "advisor ai"],
   },
   {
     label: "Triage",
     route: "/triage",
-    aliases: ["trage", "triage", "news triage", "headline triage", "news sorter"],
+    aliases: ["triage", "news triage", "headline triage", "news sorter"],
   },
   {
     label: "Opportunity Radar",
     route: "/opportunity-radar",
-    aliases: ["radar", "opportunities", "opportunity signals", "investment radar", "opportunity page"],
+    aliases: ["radar", "opportunities", "opportunity signals", "investment radar"],
   },
   {
     label: "Portfolio Lab",
     route: "/portfolio-lab",
-    aliases: ["portfolio lab", "portfolio analysis", "allocation lab", "holding lab"],
-  },
-  {
-    label: "Venture Monitor",
-    route: "/alternative-investments?view=venture",
-    aliases: [
-      "ventures",
-      "venture",
-      "alternative ventures",
-      "startup monitor",
-      "startups",
-      "startup deals",
-      "venture tab",
-      "private deals",
-    ],
-  },
-  {
-    label: "Penny Stocks",
-    route: "/alternative-investments?view=penny-stocks",
-    aliases: ["penny stocks", "penny stock", "speculative equities", "microcap", "microcaps"],
-  },
-  {
-    label: "Crypto Markets",
-    route: "/alternative-investments?view=crypto",
-    aliases: ["crypto", "bitcoin", "digital assets", "crypto market"],
-  },
-  {
-    label: "Alternative Risk",
-    route: "/alternative-investments?view=risk",
-    aliases: ["alternative risk", "alts risk", "risk framework", "alternative risk framework"],
+    aliases: ["portfolio lab", "portfolio analysis", "allocation lab"],
   },
   {
     label: "Briefings",
     route: "/briefings",
-    aliases: ["briefings", "reports", "advisor reports", "client reports", "report page"],
+    aliases: ["briefings", "reports", "advisor reports", "client reports"],
   },
   {
     label: "Security",
@@ -241,6 +224,14 @@ const TICKER_STOPWORDS = new Set([
   "PDF",
   "VENTURE",
   "TRIAGE",
+  "WHAT",
+  "WHY",
+  "HOW",
+  "WHEN",
+  "WHERE",
+  "TELL",
+  "ABOUT",
+  "GIVE",
 ]);
 
 function normalize(value: string) {
@@ -255,56 +246,10 @@ function isIntent(value: string): value is SliceCommandIntent {
   return VALID_INTENTS.includes(value as SliceCommandIntent);
 }
 
-function levenshtein(a: string, b: string) {
-  const matrix = Array.from({ length: a.length + 1 }, () =>
-    Array.from({ length: b.length + 1 }, () => 0)
+function isExplicitNavigationPrompt(lower: string) {
+  return /^(open|go to|go|take me to|show me|pull up|bring up|launch|navigate to|switch to)\b/.test(
+    lower
   );
-
-  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
-  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
-
-  for (let i = 1; i <= a.length; i += 1) {
-    for (let j = 1; j <= b.length; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
-      );
-    }
-  }
-
-  return matrix[a.length][b.length];
-}
-
-function similarity(a: string, b: string) {
-  const left = normalize(a);
-  const right = normalize(b);
-
-  if (!left || !right) return 0;
-  if (left === right) return 1;
-  if (left.includes(right) || right.includes(left)) return 0.9;
-
-  const distance = levenshtein(left, right);
-  const longest = Math.max(left.length, right.length);
-
-  return Math.max(0, 1 - distance / longest);
-}
-
-function tokenOverlap(a: string, b: string) {
-  const left = new Set(normalize(a).split(" ").filter(Boolean));
-  const right = new Set(normalize(b).split(" ").filter(Boolean));
-
-  if (!left.size || !right.size) return 0;
-
-  let matches = 0;
-
-  for (const token of left) {
-    if (right.has(token)) matches += 1;
-  }
-
-  return matches / Math.max(left.size, right.size);
 }
 
 function addDays(days: number) {
@@ -335,7 +280,14 @@ function extractDate(prompt: string) {
 }
 
 function extractTicker(prompt: string) {
+  const normalized = normalize(prompt);
   const upper = prompt.toUpperCase();
+
+  for (const [name, ticker] of Object.entries(COMPANY_TICKERS)) {
+    if (new RegExp(`\\b${name}\\b`, "i").test(normalized)) {
+      return ticker;
+    }
+  }
 
   const explicit =
     upper.match(/(?:TICKER|SYMBOL|STOCK|WATCH|RESEARCH|ALERT FOR|PRICE ALERT FOR)\s+([A-Z]{1,6})/) ||
@@ -384,10 +336,12 @@ function extractProjectTitle(prompt: string) {
 }
 
 function cleanTaskTitle(prompt: string) {
-  return prompt
-    .replace(/^(create|add|make)\s+(a\s+)?(task|to do|todo)\s+(to\s+)?/i, "")
-    .replace(/^remind me to\s+/i, "")
-    .trim();
+  return (
+    prompt
+      .replace(/^(create|add|make)\s+(a\s+)?(task|to do|todo)\s+(to\s+)?/i, "")
+      .replace(/^remind me to\s+/i, "")
+      .trim() || prompt
+  );
 }
 
 function routeCandidates(platformBrain?: PlatformBrainContext) {
@@ -412,11 +366,6 @@ function routeCandidates(platformBrain?: PlatformBrainContext) {
 
 function matchRoute(prompt: string, platformBrain?: PlatformBrainContext) {
   const lower = normalize(prompt);
-  const navIntent =
-    /^(open|go to|take me to|show|pull up|bring up|launch|navigate to|get me to|send me to)\b/.test(lower) ||
-    lower.includes("where is") ||
-    lower.includes("i need the");
-
   let best: { route: string; label: string; score: number; phrase: string } | null = null;
 
   for (const item of routeCandidates(platformBrain)) {
@@ -428,24 +377,21 @@ function matchRoute(prompt: string, platformBrain?: PlatformBrainContext) {
       let score = 0;
 
       if (lower === phrase) score = 0.98;
-      else if (navIntent && lower.includes(phrase)) score = 0.96;
-      else if (phrase.length >= 5 && lower.includes(phrase)) score = 0.88;
+      else if (lower.includes(phrase)) score = 0.92;
       else {
-        const overlap = tokenOverlap(lower, phrase);
-        const fuzzy = similarity(lower, phrase);
-        const phraseWords = phrase.split(" ").length;
-
-        if (phraseWords === 1) {
-          score = fuzzy >= 0.78 ? 0.84 : overlap >= 0.5 ? 0.78 : 0;
-        } else {
-          score = Math.max(overlap >= 0.5 ? 0.84 : 0, fuzzy >= 0.72 ? 0.82 : 0);
-        }
+        const lowerTokens = new Set(lower.split(" ").filter(Boolean));
+        const phraseTokens = phrase.split(" ").filter(Boolean);
+        const matched = phraseTokens.filter((token) => lowerTokens.has(token)).length;
+        score = phraseTokens.length ? matched / phraseTokens.length : 0;
       }
 
-      if (navIntent && score >= 0.78) score += 0.06;
-
       if (score > (best?.score ?? 0)) {
-        best = { route: item.route, label: item.label, score: Math.min(score, 0.99), phrase };
+        best = {
+          route: item.route,
+          label: item.label,
+          score: Math.min(score, 0.99),
+          phrase,
+        };
       }
     }
   }
@@ -484,8 +430,12 @@ function baseCommand(input: {
     riskLevel,
     requiresApproval,
     route: input.route ?? input.parameters?.route ?? null,
-    answer: input.answer ?? `I recognized this command as ${input.intent}.`,
-    userFacingSummary: input.summary ?? `Fast command recognized: ${input.intent}.`,
+    answer:
+      input.answer ??
+      (input.intent === "answer"
+        ? "I’ll answer this directly and professionally."
+        : `I recognized this as ${input.intent}.`),
+    userFacingSummary: input.summary ?? `Recognized: ${input.intent}.`,
     parameters: {
       route: input.route ?? input.parameters?.route ?? null,
       ticker: ticker ?? null,
@@ -503,10 +453,14 @@ function baseCommand(input: {
       symbol: input.parameters?.symbol ?? ticker ?? null,
       upperTargetPrice:
         input.parameters?.upperTargetPrice ??
-        (lower.includes("above") || lower.includes("over") || lower.includes("high") ? price : null),
+        (lower.includes("above") || lower.includes("over") || lower.includes("high")
+          ? price
+          : null),
       lowerTargetPrice:
         input.parameters?.lowerTargetPrice ??
-        (lower.includes("below") || lower.includes("under") || lower.includes("low") ? price : null),
+        (lower.includes("below") || lower.includes("under") || lower.includes("low")
+          ? price
+          : null),
       color:
         input.parameters?.color ??
         (lower.includes("blue")
@@ -547,7 +501,9 @@ function baseCommand(input: {
                 : "vendor_health"),
       memory:
         input.parameters?.memory ??
-        (lower.includes("remember") ? input.prompt.replace(/remember/i, "").trim() : null),
+        (lower.includes("remember")
+          ? input.prompt.replace(/remember/i, "").trim()
+          : null),
       approvalDecision:
         input.parameters?.approvalDecision ??
         (lower.includes("reject") || lower.includes("decline")
@@ -576,17 +532,16 @@ function matchLearnedPhrase(prompt: string, platformBrain?: PlatformBrainContext
 
     const exact = lower === phrase;
     const contained = phrase.length >= 7 && lower.includes(phrase);
-    const fuzzy = similarity(lower, phrase) >= 0.82;
 
-    if ((exact || contained || fuzzy) && isIntent(item.targetIntent)) {
+    if ((exact || contained) && isIntent(item.targetIntent)) {
       return {
         matched: true,
-        confidence: exact ? 0.99 : contained ? 0.94 : 0.9,
+        confidence: exact ? 0.99 : 0.94,
         reason: "learned_phrase",
         command: baseCommand({
           intent: item.targetIntent,
           prompt,
-          confidence: exact ? 0.99 : contained ? 0.94 : 0.9,
+          confidence: exact ? 0.99 : 0.94,
           route: item.targetRoute,
           parameters: item.parameters as Partial<SliceStructuredCommand["parameters"]>,
           summary: `Matched learned phrase: ${item.phrase}`,
@@ -602,17 +557,16 @@ function matchLearnedPhrase(prompt: string, platformBrain?: PlatformBrainContext
 
     const exact = lower === phrase;
     const contained = phrase.length >= 7 && lower.includes(phrase);
-    const fuzzy = similarity(lower, phrase) >= 0.82;
 
-    if ((exact || contained || fuzzy) && isIntent(item.correctedIntent)) {
+    if ((exact || contained) && isIntent(item.correctedIntent)) {
       return {
         matched: true,
-        confidence: exact ? 0.99 : contained ? 0.94 : 0.9,
+        confidence: exact ? 0.99 : 0.94,
         reason: "saved_correction",
         command: baseCommand({
           intent: item.correctedIntent,
           prompt,
-          confidence: exact ? 0.99 : contained ? 0.94 : 0.9,
+          confidence: exact ? 0.99 : 0.94,
           route: item.correctedRoute,
           parameters: item.parameters as Partial<SliceStructuredCommand["parameters"]>,
           summary: `Matched saved correction: ${item.originalCommand}`,
@@ -634,12 +588,12 @@ export function matchFastCommand(input: {
   if (!prompt) {
     return {
       matched: true,
-      confidence: 0.84,
-      reason: "empty_prompt_recovery",
+      confidence: 0.96,
+      reason: "empty_prompt_help",
       command: baseCommand({
         intent: "help",
         prompt: "help",
-        confidence: 0.84,
+        confidence: 0.96,
         summary: "Recovered empty command with help.",
       }),
     };
@@ -662,22 +616,24 @@ export function matchFastCommand(input: {
     };
   }
 
-  const route = matchRoute(prompt, input.platformBrain);
+  if (isExplicitNavigationPrompt(lower)) {
+    const route = matchRoute(prompt, input.platformBrain);
 
-  if (route && route.score >= 0.82) {
-    return {
-      matched: true,
-      confidence: route.score,
-      reason: `route_alias:${route.phrase}`,
-      command: baseCommand({
-        intent: "navigate",
-        prompt,
-        confidence: route.score,
-        route: route.route,
-        answer: `Opening ${route.label}.`,
-        summary: `Fast navigation recognized: ${route.label}.`,
-      }),
-    };
+    if (route && route.score >= 0.7) {
+      return {
+        matched: true,
+        confidence: Math.max(route.score, 0.9),
+        reason: `explicit_navigation:${route.phrase}`,
+        command: baseCommand({
+          intent: "navigate",
+          prompt,
+          confidence: Math.max(route.score, 0.9),
+          route: route.route,
+          answer: `I found the ${route.label} section. I will suggest it instead of moving you automatically.`,
+          summary: `Explicit navigation recognized: ${route.label}.`,
+        }),
+      };
+    }
   }
 
   if (/(approve|approved|accept)\s+(latest|last|most recent|pending)/.test(lower)) {
@@ -772,7 +728,10 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/(find|show|get).*(source|proof|citation|link|evidence)/.test(lower) || lower.includes("where did this come from")) {
+  if (
+    /(find|show|get).*(source|proof|citation|link|evidence)/.test(lower) ||
+    lower.includes("where did this come from")
+  ) {
     return {
       matched: true,
       confidence: 0.91,
@@ -786,7 +745,12 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/^(search|find|look through|ask the firm)\b/.test(lower) || lower.includes("firm for") || lower.includes("exposure to")) {
+  if (
+    /^(search|find|look through|ask the firm)\b/.test(lower) ||
+    lower.includes("firm for") ||
+    lower.includes("client exposure") ||
+    lower.includes("exposure to")
+  ) {
     return {
       matched: true,
       confidence: 0.89,
@@ -800,15 +764,19 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/(research|analyze|deep dive|thesis|diligence|look into|what is going on with|what's going on with|tell me about)/.test(lower)) {
+  if (
+    /(research|analyze|deep dive|diligence|investment memo|look into|what is going on with|what's going on with)/.test(
+      lower
+    )
+  ) {
     return {
       matched: true,
-      confidence: 0.88,
+      confidence: 0.9,
       reason: "research_shortcut",
       command: baseCommand({
         intent: "research",
         prompt,
-        confidence: 0.88,
+        confidence: 0.9,
         summary: "Research command recognized.",
       }),
     };
@@ -828,7 +796,10 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/(create|add|set|make).*(price alert|stock alert|alert)/.test(lower) || /(above|below|under|over).*\d/.test(lower)) {
+  if (
+    /(create|add|set|make).*(price alert|stock alert|alert)/.test(lower) ||
+    /(above|below|under|over).*\d/.test(lower)
+  ) {
     return {
       matched: true,
       confidence: 0.91,
@@ -842,7 +813,10 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/^(create|add|make)\s+(a\s+)?(task|to do|todo)\b/.test(lower) || lower.startsWith("remind me to")) {
+  if (
+    /^(create|add|make)\s+(a\s+)?(task|to do|todo)\b/.test(lower) ||
+    lower.startsWith("remind me to")
+  ) {
     return {
       matched: true,
       confidence: 0.91,
@@ -918,15 +892,15 @@ export function matchFastCommand(input: {
     };
   }
 
-  if (/(create|generate|make).*(pdf|report|briefing)/.test(lower)) {
+  if (/(create|generate|make|build).*(pdf|report|briefing)/.test(lower)) {
     return {
       matched: true,
-      confidence: 0.88,
+      confidence: 0.9,
       reason: "report_shortcut",
       command: baseCommand({
         intent: "create_report",
         prompt,
-        confidence: 0.88,
+        confidence: 0.9,
         riskLevel: "High",
         requiresApproval: true,
         summary: "Report command recognized.",
@@ -964,13 +938,18 @@ export function matchFastCommand(input: {
 
   const ticker = extractTicker(prompt);
 
-  if (ticker) {
+  if (
+    ticker &&
+    /(stock|ticker|equity|investment|market|company|shares|valuation|risk|buy|sell|hold)/.test(
+      lower
+    )
+  ) {
     return {
       matched: true,
       confidence: 0.84,
-      reason: "ticker_research_fallback",
+      reason: "ticker_answer_professional",
       command: baseCommand({
-        intent: "research",
+        intent: "answer",
         prompt,
         confidence: 0.84,
         parameters: {
@@ -978,34 +957,20 @@ export function matchFastCommand(input: {
           symbol: ticker,
           query: prompt,
         },
-        summary: `Ticker detected, defaulting to research: ${ticker}.`,
-      }),
-    };
-  }
-
-  if (lower.length >= 8) {
-    return {
-      matched: true,
-      confidence: 0.82,
-      reason: "rough_command_answer_fallback",
-      command: baseCommand({
-        intent: "answer",
-        prompt,
-        confidence: 0.82,
-        summary: "Rough command recovered as an answer/action request.",
+        summary: `Ticker detected but answered in chat first: ${ticker}.`,
       }),
     };
   }
 
   return {
     matched: true,
-    confidence: 0.82,
-    reason: "short_command_help_fallback",
+    confidence: 0.86,
+    reason: "chat_first_universal_answer",
     command: baseCommand({
-      intent: "help",
+      intent: "answer",
       prompt,
-      confidence: 0.82,
-      summary: "Short unclear command recovered with help.",
+      confidence: 0.86,
+      summary: "Universal chat-first answer.",
     }),
   };
 }

@@ -16,6 +16,12 @@ export type IntegrationSendResult = {
   status: "sent" | "simulated" | "failed" | "disabled";
   id?: string;
   error?: string;
+  diagnostics?: {
+    liveEnabled: boolean;
+    hasApiKey: boolean;
+    hasFrom: boolean;
+    recipientCount: number;
+  };
 };
 
 function normalizeRecipients(to: string | string[]) {
@@ -59,7 +65,7 @@ function textToHtml(text: string) {
 }
 
 function cleanSubject(subject: string) {
-  return subject
+  return String(subject ?? "")
     .replace(/\r|\n/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -92,12 +98,20 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
   const text = cleanBody(input.text);
   const html = cleanBody(input.html) || textToHtml(text);
 
+  const diagnostics = {
+    liveEnabled,
+    hasApiKey: Boolean(apiKey),
+    hasFrom: Boolean(from),
+    recipientCount: recipients.length,
+  };
+
   if (!recipients.length) {
     return {
       ok: false,
       provider: "Resend",
       status: "failed",
       error: "At least one email recipient is required.",
+      diagnostics,
     };
   }
 
@@ -107,6 +121,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "failed",
       error: `Invalid recipient email(s): ${invalidRecipients.join(", ")}`,
+      diagnostics,
     };
   }
 
@@ -116,6 +131,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "failed",
       error: "Email subject is required.",
+      diagnostics,
     };
   }
 
@@ -125,6 +141,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "failed",
       error: "Email body is required.",
+      diagnostics,
     };
   }
 
@@ -134,6 +151,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "simulated",
       id: `sim_email_${Date.now()}`,
+      diagnostics,
     };
   }
 
@@ -142,7 +160,9 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       ok: false,
       provider: "Resend",
       status: "failed",
-      error: "RESEND_API_KEY and RESEND_FROM are required for live email.",
+      error:
+        "Live email is enabled, but RESEND_API_KEY and RESEND_FROM or EMAIL_FROM are required.",
+      diagnostics,
     };
   }
 
@@ -171,7 +191,12 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
         ok: false,
         provider: "Resend",
         status: "failed",
-        error: payload?.message || payload?.error || `Resend failed with ${response.status}`,
+        error:
+          payload?.message ||
+          payload?.error?.message ||
+          payload?.error ||
+          `Resend failed with ${response.status}`,
+        diagnostics,
       };
     }
 
@@ -180,6 +205,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "sent",
       id: payload?.id,
+      diagnostics,
     };
   } catch (error) {
     return {
@@ -187,6 +213,7 @@ export async function sendEmail(input: SendEmailInput): Promise<IntegrationSendR
       provider: "Resend",
       status: "failed",
       error: error instanceof Error ? error.message : "Email send failed.",
+      diagnostics,
     };
   }
 }

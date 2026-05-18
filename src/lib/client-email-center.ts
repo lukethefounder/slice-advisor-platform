@@ -83,11 +83,31 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
+function parseAiJson<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    const first = value.indexOf("{");
+    const last = value.lastIndexOf("}");
+
+    if (first >= 0 && last > first) {
+      try {
+        return JSON.parse(value.slice(first, last + 1)) as T;
+      } catch {
+        return fallback;
+      }
+    }
+
+    return fallback;
+  }
+}
+
 function cleanText(value: unknown, fallback = "") {
   if (typeof value !== "string") return fallback;
 
   return value
     .replace(/\u0000/g, "")
+    .replace(/\r|\n/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 8000);
@@ -162,7 +182,7 @@ function holdingSummary(holdings: any[]) {
   if (!holdings.length) return "No holdings currently stored.";
 
   return holdings
-    .slice(0, 12)
+    .slice(0, 14)
     .map((holding) => {
       const pieces = [
         holding.symbol,
@@ -175,6 +195,21 @@ function holdingSummary(holdings: any[]) {
 
       return pieces.join(" · ");
     })
+    .join("\n");
+}
+
+function riskAndClientContext(client: any) {
+  return [
+    `Client name: ${client.fullName}`,
+    client.householdName ? `Household: ${client.householdName}` : null,
+    client.clientType ? `Client type: ${client.clientType}` : null,
+    client.riskProfile ? `Risk profile: ${client.riskProfile}` : null,
+    client.liquidityNeeds ? `Liquidity needs: ${client.liquidityNeeds}` : null,
+    client.timeHorizon ? `Time horizon: ${client.timeHorizon}` : null,
+    client.objective ? `Objective: ${client.objective}` : null,
+    client.notes ? `Notes: ${client.notes}` : null,
+  ]
+    .filter(Boolean)
     .join("\n");
 }
 
@@ -240,60 +275,67 @@ function fallbackDraft(input: {
   const body = [
     `Hello ${input.clientName},`,
     "",
-    `I wanted to send a quick and clear update regarding ${input.topic}.`,
+    `I wanted to send a clear update regarding ${input.topic}.`,
     "",
     input.purpose
       ? `The purpose of this note is to ${input.purpose}.`
       : "The purpose of this note is to keep you informed in a calm, clear, and useful way.",
     "",
-    "The most important point is that we are monitoring the relevant information and keeping your broader financial plan in mind. Headlines and market conditions can move quickly, but your portfolio should always be reviewed in the context of your goals, time horizon, risk tolerance, and liquidity needs.",
+    "The most important point is that we are monitoring the relevant information while keeping your broader financial plan in mind. Headlines and market conditions can move quickly, but any decision should be reviewed in the context of your goals, time horizon, risk tolerance, liquidity needs, and overall plan.",
     "",
-    "Relevant portfolio context we have on file:",
+    input.holdingsSummary ? "Relevant portfolio context we have on file:" : "",
     input.holdingsSummary,
     "",
     input.callToAction
       ? input.callToAction
       : "There is no immediate action required from you at this moment. We will continue reviewing the situation and will reach out if a specific conversation or portfolio decision becomes appropriate.",
     "",
-    "As always, please feel free to reply with any questions. We want you to feel informed, comfortable, and confident in the process.",
+    "Please feel free to reply with any questions. We want you to feel informed, comfortable, and confident in the process.",
     "",
     "Best,",
     input.advisorName,
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n\n");
 
   return { subject, body };
 }
 
-async function polishDraftWithAi(input: {
+async function draftEmailWithAi(input: {
   advisorName: string;
+  advisorEmail: string;
   clientName: string;
   topic: string;
   purpose: string;
   callToAction: string;
   tone: string;
   advisorInstructions: string;
+  clientContext: string;
   holdingsSummary: string;
   fallbackSubject: string;
   fallbackBody: string;
 }) {
   const ai = await generateAiText({
-    safetyIdentifier: input.advisorName,
+    safetyIdentifier: input.advisorEmail,
+    speedMode: "quality",
+    useCache: false,
     instructions: `
-You are an expert wealth-management email writer and communications editor.
+You are a senior wealth-management communications strategist.
 
-Create a polished client email.
+Create one thoughtful client email draft.
 
-Strict requirements:
-- Perfect grammar.
-- Professional and reassuring.
-- Calmly put the client's mind at ease.
-- Avoid hype, fear, or overly technical language.
-- Never guarantee outcomes.
-- Never instruct the client to buy or sell.
-- Do not imply a final recommendation unless the advisor explicitly wrote one.
-- Keep the tone warm, steady, and polished.
-- Preserve compliance safety.
-- Return only valid JSON with exactly these keys: "subject" and "body".
+Strict rules:
+- Return only valid JSON with exactly these keys: "subject", "body", "strategy", "complianceNotes".
+- "subject" must be concise, professional, and not clickbait.
+- "body" must be polished, warm, calm, useful, and client-friendly.
+- Think before drafting: tailor the message to the client context and holdings summary.
+- Do not guarantee outcomes.
+- Do not instruct the client to buy or sell.
+- Do not imply a final recommendation unless the advisor explicitly says so.
+- Do not invent facts, performance numbers, tax claims, or legal conclusions.
+- If the advisor provides a call to action, include it naturally.
+- Keep the email ready for advisor review and easy to edit.
+- Use the requested tone while remaining professional.
 `,
     prompt: JSON.stringify(
       {
@@ -301,9 +343,10 @@ Strict requirements:
         clientName: input.clientName,
         topic: input.topic,
         purpose: input.purpose,
-        callToAction: input.callToAction,
         tone: input.tone,
         advisorInstructions: input.advisorInstructions,
+        callToAction: input.callToAction,
+        clientContext: input.clientContext,
         holdingsSummary: input.holdingsSummary,
         fallbackDraft: {
           subject: input.fallbackSubject,
@@ -313,43 +356,52 @@ Strict requirements:
       null,
       2
     ),
-  });
-
-  if (!ai.ok || !ai.text) {
-    return {
+    fallbackText: JSON.stringify({
       subject: input.fallbackSubject,
       body: input.fallbackBody,
-      aiPolished: false,
-      aiProvider: ai.provider,
-      aiStatus: ai.status,
-      aiError: ai.error ?? null,
-    };
-  }
+      strategy:
+        "Fallback draft used because AI was unavailable. The message remains calm, professional, and review-safe.",
+      complianceNotes: [
+        "Advisor review required before sending.",
+        "No performance guarantee included.",
+        "No trading instruction included.",
+      ],
+    }),
+  });
 
-  try {
-    const parsed = JSON.parse(ai.text) as {
-      subject?: string;
-      body?: string;
-    };
+  const parsed = parseAiJson<{
+    subject?: string;
+    body?: string;
+    strategy?: string;
+    complianceNotes?: string[];
+  }>(ai.text || "", {
+    subject: input.fallbackSubject,
+    body: input.fallbackBody,
+    strategy:
+      "Fallback draft used because AI was unavailable or returned non-JSON output.",
+    complianceNotes: [
+      "Advisor review required before sending.",
+      "No performance guarantee included.",
+      "No trading instruction included.",
+    ],
+  });
 
-    return {
-      subject: cleanText(parsed.subject, input.fallbackSubject),
-      body: cleanMultiline(parsed.body, input.fallbackBody),
-      aiPolished: true,
-      aiProvider: ai.provider,
-      aiStatus: ai.status,
-      aiError: ai.error ?? null,
-    };
-  } catch {
-    return {
-      subject: input.fallbackSubject,
-      body: cleanMultiline(ai.text, input.fallbackBody),
-      aiPolished: true,
-      aiProvider: ai.provider,
-      aiStatus: ai.status,
-      aiError: null,
-    };
-  }
+  return {
+    subject: cleanText(parsed.subject, input.fallbackSubject),
+    body: cleanMultiline(parsed.body, input.fallbackBody),
+    strategy: cleanMultiline(parsed.strategy, "Review-safe advisor email draft."),
+    complianceNotes: Array.isArray(parsed.complianceNotes)
+      ? parsed.complianceNotes.map((item) => cleanText(item)).filter(Boolean)
+      : [
+          "Advisor review required before sending.",
+          "No performance guarantee included.",
+          "No trading instruction included.",
+        ],
+    aiPolished: ai.ok,
+    aiProvider: ai.provider,
+    aiStatus: ai.status,
+    aiError: ai.error ?? null,
+  };
 }
 
 async function getTargetClients(input: {
@@ -357,8 +409,12 @@ async function getTargetClients(input: {
   clientIds?: string[];
   includeAllClients?: boolean;
 }) {
+  if (!input.includeAllClients && !input.clientIds?.length) {
+    return [];
+  }
+
   const where =
-    input.includeAllClients || !input.clientIds?.length
+    input.includeAllClients
       ? {
           userId: input.userId,
           status: {
@@ -368,7 +424,7 @@ async function getTargetClients(input: {
       : {
           userId: input.userId,
           id: {
-            in: input.clientIds,
+            in: input.clientIds ?? [],
           },
           status: {
             not: "Archived",
@@ -475,7 +531,9 @@ export async function listClientEmailCenter(user: CurrentUserShape) {
       draftCount: activeDrafts.length,
       archivedDraftCount: archivedDrafts.length,
       pendingApprovalCount: approvals.filter((approval) => approval.status === "Pending").length,
-      sentCount: publicDrafts.filter((draft) => draft.status === "Sent" || draft.status === "Simulated").length,
+      sentCount: publicDrafts.filter(
+        (draft) => draft.status === "Sent" || draft.status === "Simulated"
+      ).length,
     },
     drafts: activeDrafts,
     archivedDrafts,
@@ -486,17 +544,112 @@ export async function listClientEmailCenter(user: CurrentUserShape) {
   };
 }
 
+async function createScratchAiDraft(input: {
+  user: CurrentUserShape;
+  firmId: string | null;
+  topic: string;
+  purpose: string;
+  tone: string;
+  advisorInstructions: string;
+  callToAction: string;
+  queueForApproval: boolean;
+}) {
+  const fallback = fallbackDraft({
+    advisorName: input.user.name,
+    clientName: "Client",
+    topic: input.topic,
+    purpose: input.purpose,
+    callToAction: input.callToAction,
+    holdingsSummary: "",
+  });
+
+  const aiDraft = await draftEmailWithAi({
+    advisorName: input.user.name,
+    advisorEmail: input.user.email,
+    clientName: "Client",
+    topic: input.topic,
+    purpose: input.purpose,
+    callToAction: input.callToAction,
+    tone: input.tone,
+    advisorInstructions: input.advisorInstructions,
+    clientContext:
+      "This is a scratch email draft. No specific client is assigned yet. Write it so the advisor can quickly adapt it for one or more recipients.",
+    holdingsSummary: "No specific holdings attached because this is a scratch draft.",
+    fallbackSubject: fallback.subject,
+    fallbackBody: fallback.body,
+  });
+
+  const metadata = {
+    scratchDraft: true,
+    clientId: null,
+    clientName: "Unassigned",
+    topic: input.topic,
+    purpose: input.purpose,
+    tone: input.tone,
+    advisorInstructions: input.advisorInstructions,
+    callToAction: input.callToAction,
+    ai: {
+      polished: aiDraft.aiPolished,
+      provider: aiDraft.aiProvider,
+      status: aiDraft.aiStatus,
+      error: aiDraft.aiError,
+      strategy: aiDraft.strategy,
+    },
+    createdBy: input.user.email,
+    createdAt: new Date().toISOString(),
+    editable: true,
+    editHistory: [],
+  };
+
+  const draft = await prisma.clientCommunicationDraft.create({
+    data: {
+      userId: input.user.id,
+      firmId: input.firmId,
+      clientName: "Scratch Draft",
+      channel: "Email",
+      audience: "Advisor Draft",
+      title: encryptSensitiveText(aiDraft.subject) ?? aiDraft.subject,
+      body: encryptSensitiveText(aiDraft.body) ?? aiDraft.body,
+      sourceSummaryJson: asJson(metadata),
+      complianceNotesJson: asJson([
+        "Scratch draft. Assign or adapt to a client before sending.",
+        "Advisor review is required before sending.",
+        "No performance outcome is promised.",
+        "No standalone buy/sell instruction is included.",
+      ]),
+      status: input.queueForApproval ? "Needs Advisor Approval" : "Draft",
+      tone: input.tone,
+    },
+  });
+
+  return {
+    id: draft.id,
+    clientId: null,
+    clientName: "Scratch Draft",
+    email: null,
+    subject: aiDraft.subject,
+    body: aiDraft.body,
+    status: draft.status,
+    aiPolished: aiDraft.aiPolished,
+    aiProvider: aiDraft.aiProvider,
+    aiStatus: aiDraft.aiStatus,
+  };
+}
+
 export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
   const firmId = await resolveFirmId(input.user.id);
   const clientIds = normaliseClientIds(input.clientIds);
   const topic = cleanText(input.topic);
 
   if (!topic) {
-    throw new Error("Email topic is required.");
+    throw new Error("Email topic or prompt is required.");
   }
 
   const purpose = cleanText(input.purpose, "keep the client informed and reassured");
-  const tone = cleanText(input.tone, "Professional, calm, polished, and reassuring");
+  const tone = cleanText(
+    input.tone,
+    "Professional, calm, polished, and reassuring"
+  );
   const advisorInstructions = cleanMultiline(input.advisorInstructions);
   const callToAction = cleanMultiline(input.callToAction);
   const queueForApproval = input.queueForApproval === true;
@@ -509,6 +662,41 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
 
   const eligibleClients = clients.filter((client) => Boolean(client.email));
   const skippedMissingEmail = clients.length - eligibleClients.length;
+
+  if (!clients.length && !input.includeAllClients && !clientIds.length) {
+    const scratchDraft = await createScratchAiDraft({
+      user: input.user,
+      firmId,
+      topic,
+      purpose,
+      tone,
+      advisorInstructions,
+      callToAction,
+      queueForApproval: false,
+    });
+
+    await recordSecurityEvent({
+      userId: input.user.id,
+      eventType: "client_email.scratch_ai_draft_created",
+      severity: "Low",
+      area: "Client Communication",
+      title: "Scratch AI email draft created",
+      detail: "An AI scratch email draft was created without assigned recipients.",
+      metadata: {
+        draftId: scratchDraft.id,
+        topic,
+      },
+    });
+
+    return {
+      created: 1,
+      skippedMissingEmail: 0,
+      approval: null,
+      drafts: [scratchDraft],
+      message:
+        "1 AI scratch email draft created. Select clients later or copy/adapt this draft for many recipients.",
+    };
+  }
 
   if (!eligibleClients.length) {
     return {
@@ -528,6 +716,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
   for (const client of eligibleClients) {
     const holdings = Array.isArray(client.holdings) ? client.holdings : [];
     const summary = holdingSummary(holdings);
+    const clientContext = riskAndClientContext(client);
 
     const fallback = fallbackDraft({
       advisorName: input.user.name,
@@ -538,20 +727,23 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       holdingsSummary: summary,
     });
 
-    const polished = await polishDraftWithAi({
+    const aiDraft = await draftEmailWithAi({
       advisorName: input.user.name,
+      advisorEmail: input.user.email,
       clientName: client.fullName,
       topic,
       purpose,
       callToAction,
       tone,
       advisorInstructions,
+      clientContext,
       holdingsSummary: summary,
       fallbackSubject: fallback.subject,
       fallbackBody: fallback.body,
     });
 
     const metadata = {
+      scratchDraft: false,
       clientId: client.id,
       clientName: client.fullName,
       topic,
@@ -559,6 +751,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       tone,
       advisorInstructions,
       callToAction,
+      clientContext,
       holdings: holdings.map((holding: any) => ({
         symbol: holding.symbol,
         assetName: holding.assetName,
@@ -568,16 +761,27 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
         riskLevel: holding.riskLevel,
       })),
       ai: {
-        polished: polished.aiPolished,
-        provider: polished.aiProvider,
-        status: polished.aiStatus,
-        error: polished.aiError,
+        polished: aiDraft.aiPolished,
+        provider: aiDraft.aiProvider,
+        status: aiDraft.aiStatus,
+        error: aiDraft.aiError,
+        strategy: aiDraft.strategy,
       },
       createdBy: input.user.email,
       createdAt: new Date().toISOString(),
       editable: true,
       editHistory: [],
     };
+
+    const complianceNotes = [
+      "Advisor approval is required before sending.",
+      "Email was generated for informational client communication.",
+      "No performance outcome is promised.",
+      "No standalone buy/sell instruction is included.",
+      "Advisor should verify client suitability, context, and any cited facts before delivery.",
+      "Draft may be manually edited before approval.",
+      ...aiDraft.complianceNotes,
+    ];
 
     const draft = await prisma.clientCommunicationDraft.create({
       data: {
@@ -586,16 +790,10 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
         clientName: client.fullName,
         channel: "Email",
         audience: "Wealth Management Client",
-        title: encryptSensitiveText(polished.subject) ?? polished.subject,
-        body: encryptSensitiveText(polished.body) ?? polished.body,
+        title: encryptSensitiveText(aiDraft.subject) ?? aiDraft.subject,
+        body: encryptSensitiveText(aiDraft.body) ?? aiDraft.body,
         sourceSummaryJson: asJson(metadata),
-        complianceNotesJson: asJson([
-          "Advisor approval is required before sending.",
-          "Email was generated for informational client communication.",
-          "No performance outcome is promised.",
-          "Advisor should verify client suitability, context, and any cited facts before delivery.",
-          "Draft may be manually edited before approval.",
-        ]),
+        complianceNotesJson: asJson(Array.from(new Set(complianceNotes))),
         status: queueForApproval ? "Needs Advisor Approval" : "Draft",
         tone,
       },
@@ -606,10 +804,12 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       clientId: client.id,
       clientName: client.fullName,
       email: decryptSensitiveText(client.email),
-      subject: polished.subject,
-      body: polished.body,
+      subject: aiDraft.subject,
+      body: aiDraft.body,
       status: draft.status,
-      aiPolished: polished.aiPolished,
+      aiPolished: aiDraft.aiPolished,
+      aiProvider: aiDraft.aiProvider,
+      aiStatus: aiDraft.aiStatus,
     });
   }
 
@@ -652,7 +852,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
     skippedMissingEmail,
     approval,
     drafts,
-    message: `${drafts.length} AI client email draft(s) created${
+    message: `${drafts.length} thoughtful AI client email draft(s) created${
       queueForApproval ? " and queued for advisor approval" : ""
     }.`,
   };
@@ -666,9 +866,56 @@ export async function createManualClientEmailDrafts(input: CreateManualDraftInpu
   const tone = cleanText(input.tone, "Professional");
   const queueForApproval = input.queueForApproval === true;
 
-  if (!clientIds.length) throw new Error("At least one client must be selected.");
   if (!subject) throw new Error("Subject is required.");
   if (!body) throw new Error("Body is required.");
+
+  if (!clientIds.length) {
+    const draft = await prisma.clientCommunicationDraft.create({
+      data: {
+        userId: input.user.id,
+        firmId,
+        clientName: "Scratch Draft",
+        channel: "Email",
+        audience: "Advisor Draft",
+        title: encryptSensitiveText(subject) ?? subject,
+        body: encryptSensitiveText(body) ?? body,
+        sourceSummaryJson: asJson({
+          scratchDraft: true,
+          clientId: null,
+          clientName: "Unassigned",
+          manualDraft: true,
+          editable: true,
+          editHistory: [],
+          createdBy: input.user.email,
+          createdAt: new Date().toISOString(),
+        }),
+        complianceNotesJson: asJson([
+          "Scratch draft. Assign or adapt to a client before sending.",
+          "Manual draft should be reviewed for grammar, suitability, and accuracy.",
+        ]),
+        status: "Draft",
+        tone,
+      },
+    });
+
+    return {
+      created: 1,
+      skippedMissingEmail: 0,
+      approval: null,
+      drafts: [
+        {
+          id: draft.id,
+          clientId: null,
+          clientName: "Scratch Draft",
+          email: null,
+          subject,
+          body,
+          status: draft.status,
+        },
+      ],
+      message: "1 manual scratch email draft created.",
+    };
+  }
 
   const clients = await getTargetClients({
     userId: input.user.id,
@@ -689,6 +936,7 @@ export async function createManualClientEmailDrafts(input: CreateManualDraftInpu
         title: encryptSensitiveText(subject) ?? subject,
         body: encryptSensitiveText(body) ?? body,
         sourceSummaryJson: asJson({
+          scratchDraft: false,
           clientId: client.id,
           clientName: client.fullName,
           manualDraft: true,
@@ -788,9 +1036,7 @@ export async function updateClientEmailDraft(input: UpdateDraftInput) {
     },
   });
 
-  if (!existing) {
-    throw new Error("Draft was not found.");
-  }
+  if (!existing) throw new Error("Draft was not found.");
 
   if (existing.status === "Sent" || existing.status === "Simulated") {
     throw new Error("Sent drafts cannot be edited.");
@@ -821,21 +1067,6 @@ export async function updateClientEmailDraft(input: UpdateDraftInput) {
       body: encryptSensitiveText(body) ?? body,
       status,
       sourceSummaryJson: asJson(updatedMetadata),
-    },
-  });
-
-  await recordSecurityEvent({
-    userId: input.user.id,
-    eventType: "client_email.draft_edited",
-    severity: "Medium",
-    area: "Client Communication",
-    title: "Client email draft edited",
-    detail: "An advisor manually edited a client email draft before approval.",
-    metadata: {
-      draftId,
-      clientName: existing.clientName,
-      previousStatus: existing.status,
-      nextStatus: status,
     },
   });
 
@@ -873,12 +1104,15 @@ export async function polishExistingClientEmailDraft(input: PolishDraftInput) {
 
   const ai = await generateAiText({
     safetyIdentifier: input.user.email,
+    speedMode: "quality",
+    useCache: false,
     instructions: `
-You are a world-class wealth-management email editor.
+You are a senior wealth-management communications editor.
 
-Improve the existing draft using the requested polish mode.
+Improve the existing email draft.
 
 Strict requirements:
+- Return only valid JSON with exactly these keys: "subject", "body", "strategy", "complianceNotes".
 - Perfect grammar.
 - Clear, polished, professional, and easy to understand.
 - Reassuring without sounding dismissive.
@@ -887,7 +1121,6 @@ Strict requirements:
 - No unsupported investment recommendation.
 - Do not add facts that are not already present.
 - Preserve the advisor's meaning.
-- Return only valid JSON with keys "subject" and "body".
 `,
     prompt: JSON.stringify(
       {
@@ -902,24 +1135,34 @@ Strict requirements:
       null,
       2
     ),
+    fallbackText: JSON.stringify({
+      subject: currentSubject,
+      body: currentBody,
+      strategy: "AI polish unavailable. Existing draft preserved.",
+      complianceNotes: [
+        "Advisor review required before sending.",
+        "No guarantee included.",
+      ],
+    }),
   });
 
-  let nextSubject = currentSubject;
-  let nextBody = currentBody;
+  const parsed = parseAiJson<{
+    subject?: string;
+    body?: string;
+    strategy?: string;
+    complianceNotes?: string[];
+  }>(ai.text || "", {
+    subject: currentSubject,
+    body: currentBody,
+    strategy: "AI polish unavailable. Existing draft preserved.",
+    complianceNotes: [
+      "Advisor review required before sending.",
+      "No guarantee included.",
+    ],
+  });
 
-  if (ai.ok && ai.text) {
-    try {
-      const parsed = JSON.parse(ai.text) as {
-        subject?: string;
-        body?: string;
-      };
-
-      nextSubject = cleanText(parsed.subject, currentSubject);
-      nextBody = cleanMultiline(parsed.body, currentBody);
-    } catch {
-      nextBody = cleanMultiline(ai.text, currentBody);
-    }
-  }
+  const nextSubject = cleanText(parsed.subject, currentSubject);
+  const nextBody = cleanMultiline(parsed.body, currentBody);
 
   const updatedMetadata = {
     ...metadata,
@@ -931,6 +1174,7 @@ Strict requirements:
       provider: ai.provider,
       status: ai.status,
       error: ai.error ?? null,
+      strategy: cleanMultiline(parsed.strategy),
       polishedAt: new Date().toISOString(),
     },
     editHistory: [
@@ -950,22 +1194,16 @@ Strict requirements:
       body: encryptSensitiveText(nextBody) ?? nextBody,
       status: existing.status === "Draft" ? "Edited" : existing.status,
       sourceSummaryJson: asJson(updatedMetadata),
-    },
-  });
-
-  await recordSecurityEvent({
-    userId: input.user.id,
-    eventType: "client_email.draft_ai_polished",
-    severity: "Medium",
-    area: "Client Communication",
-    title: "Client email draft polished with AI",
-    detail: "An advisor used AI to polish a client email draft before approval.",
-    metadata: {
-      draftId,
-      clientName: existing.clientName,
-      polishMode,
-      provider: ai.provider,
-      status: ai.status,
+      complianceNotesJson: asJson(
+        Array.from(
+          new Set([
+            ...parseJson<string[]>(existing.complianceNotesJson, []),
+            ...(Array.isArray(parsed.complianceNotes)
+              ? parsed.complianceNotes.map((item) => cleanText(item)).filter(Boolean)
+              : []),
+          ])
+        )
+      ),
     },
   });
 
@@ -977,7 +1215,7 @@ Strict requirements:
       status: ai.status,
       error: ai.error ?? null,
     },
-    message: ai.ok ? "Draft polished." : "AI polish unavailable. Existing draft preserved.",
+    message: ai.ok ? "Draft polished with AI." : "AI polish unavailable. Existing draft preserved.",
   };
 }
 
@@ -1010,6 +1248,7 @@ export async function queueClientEmailDraftsForApproval(input: QueueDraftsInput)
   }
 
   const firmId = await resolveFirmId(input.user.id);
+
   const approval = await createApprovalForDrafts({
     user: input.user,
     firmId,
@@ -1064,19 +1303,6 @@ export async function archiveClientEmailDrafts(input: ArchiveDraftsInput) {
     },
   });
 
-  await recordSecurityEvent({
-    userId: input.user.id,
-    eventType: input.restore ? "client_email.drafts_restored" : "client_email.drafts_archived",
-    severity: "Low",
-    area: "Client Communication",
-    title: input.restore ? "Client email drafts restored" : "Client email drafts archived",
-    detail: `${result.count} draft(s) were ${input.restore ? "restored" : "archived"}.`,
-    metadata: {
-      draftIds,
-      nextStatus,
-    },
-  });
-
   return {
     updated: result.count,
     message: `${result.count} draft(s) ${input.restore ? "restored" : "archived"}.`,
@@ -1101,7 +1327,9 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
   }
 
   const payload = parseJson<{ draftIds?: string[] }>(approval.payloadJson, {});
-  const draftIds = Array.isArray(payload.draftIds) ? payload.draftIds.filter(Boolean) : [];
+  const draftIds = Array.isArray(payload.draftIds)
+    ? payload.draftIds.filter(Boolean)
+    : [];
 
   if (!draftIds.length) {
     throw new Error("Approval item does not contain draft IDs.");
@@ -1129,17 +1357,34 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
     const metadata = parseJson<any>(draft.sourceSummaryJson, {});
     const clientId = metadata.clientId;
 
-    const rawClient = clientId
-      ? await prisma.clientProfile.findFirst({
-          where: {
-            id: clientId,
-            userId: input.user.id,
-          },
-        })
-      : null;
+    if (!clientId) {
+      failed += 1;
+
+      await prisma.clientCommunicationDraft.update({
+        where: { id: draft.id },
+        data: { status: "Delivery Failed" },
+      });
+
+      results.push({
+        draftId: draft.id,
+        clientName: draft.clientName,
+        status: "Failed",
+        reason: "Scratch drafts must be assigned or adapted to a client before sending.",
+      });
+
+      continue;
+    }
+
+    const rawClient = await prisma.clientProfile.findFirst({
+      where: {
+        id: clientId,
+        userId: input.user.id,
+      },
+    });
 
     if (!rawClient) {
       failed += 1;
+
       await prisma.clientCommunicationDraft.update({
         where: { id: draft.id },
         data: { status: "Delivery Failed" },
@@ -1159,6 +1404,7 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
 
     if (!clientEmail) {
       failed += 1;
+
       await prisma.clientCommunicationDraft.update({
         where: { id: draft.id },
         data: { status: "Delivery Failed" },
@@ -1196,7 +1442,11 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
         alertEventId: null,
         channel: "Email",
         destination: clientEmail,
-        status: result.ok ? (result.status === "sent" ? "Delivered" : "Simulated") : "Failed",
+        status: result.ok
+          ? result.status === "sent"
+            ? "Delivered"
+            : "Simulated"
+          : "Failed",
         urgency: "Medium",
         score: 75,
         title: subject,
@@ -1212,7 +1462,11 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
     await prisma.clientCommunicationDraft.update({
       where: { id: draft.id },
       data: {
-        status: result.ok ? (result.status === "sent" ? "Sent" : "Simulated") : "Delivery Failed",
+        status: result.ok
+          ? result.status === "sent"
+            ? "Sent"
+            : "Simulated"
+          : "Delivery Failed",
       },
     });
 
@@ -1226,6 +1480,7 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
       status: result.status,
       provider: result.provider,
       error: result.error ?? null,
+      diagnostics: result.diagnostics ?? null,
     });
   }
 
@@ -1252,6 +1507,7 @@ export async function sendApprovedClientEmailDrafts(input: SendApprovedDraftsInp
       simulated,
       failed,
       draftIds,
+      results,
     },
   });
 

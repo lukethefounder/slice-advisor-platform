@@ -62,28 +62,26 @@ export type FastPdfInput = {
 
 const PAGE_WIDTH = 612;
 const PAGE_HEIGHT = 792;
-const MARGIN = 46;
+const MARGIN = 44;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const BOTTOM_SAFE = 58;
+const BOTTOM_SAFE = 66;
 
 const COLORS = {
   bg: "#050505",
   panel: "#111827",
-  panelSoft: "#1f2937",
+  panel2: "#1f2937",
+  border: "#334155",
   white: "#ffffff",
   text: "#e5e7eb",
   muted: "#94a3b8",
-  faint: "#475569",
   red: "#dc2626",
+  redSoft: "#ef4444",
   redDark: "#450a0a",
   green: "#10b981",
   amber: "#f59e0b",
   purple: "#a855f7",
   cyan: "#06b6d4",
   slate: "#64748b",
-  black: "#020617",
-  lightBg: "#f8fafc",
-  darkText: "#0f172a",
 };
 
 function toneColor(tone?: FastPdfTone) {
@@ -95,24 +93,24 @@ function toneColor(tone?: FastPdfTone) {
   return COLORS.red;
 }
 
-function sanitizePdfText(value: unknown) {
+function sanitize(value: unknown) {
   return String(value ?? "")
     .replace(/\u0000/g, "")
     .replace(/\r/g, "")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/[—–]/g, "-")
-    .replace(/\s+\./g, ".")
-    .replace(/\s+,/g, ",")
-    .replace(/\s+;/g, ";")
-    .replace(/\s+:/g, ":")
-    .replace(/\n{4,}/g, "\n\n")
+    .replace(/•/g, "-")
     .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{4,}/g, "\n\n")
     .trim();
 }
 
-function escapePdfText(value: unknown) {
-  return sanitizePdfText(value)
+function escapePdf(value: unknown) {
+  return sanitize(value)
+    .replace(/\n/g, " ")
+    .replace(/\t/g, " ")
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
@@ -120,58 +118,62 @@ function escapePdfText(value: unknown) {
 
 function hexToRgb(hex: string) {
   const clean = hex.replace("#", "");
-  const bigint = parseInt(clean, 16);
+  const value = parseInt(clean, 16);
 
   return {
-    r: ((bigint >> 16) & 255) / 255,
-    g: ((bigint >> 8) & 255) / 255,
-    b: (bigint & 255) / 255,
+    r: ((value >> 16) & 255) / 255,
+    g: ((value >> 8) & 255) / 255,
+    b: (value & 255) / 255,
   };
 }
 
-function setFill(hex: string) {
+function fill(hex: string) {
   const { r, g, b } = hexToRgb(hex);
   return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg`;
 }
 
-function setStroke(hex: string) {
+function stroke(hex: string) {
   const { r, g, b } = hexToRgb(hex);
   return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} RG`;
 }
 
-function pdfY(y: number) {
+function yPdf(y: number) {
   return PAGE_HEIGHT - y;
 }
 
-function rectOp(x: number, y: number, width: number, height: number, fill?: string, stroke?: string) {
+function rect(x: number, y: number, width: number, height: number, fillColor?: string, strokeColor?: string) {
   const ops = ["q"];
 
-  if (fill) ops.push(setFill(fill));
-  if (stroke) ops.push(setStroke(stroke));
+  if (fillColor) ops.push(fill(fillColor));
+  if (strokeColor) ops.push(stroke(strokeColor));
 
-  ops.push(`${x.toFixed(2)} ${(PAGE_HEIGHT - y - height).toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re`);
+  ops.push(
+    `${x.toFixed(2)} ${(PAGE_HEIGHT - y - height).toFixed(2)} ${width.toFixed(
+      2
+    )} ${height.toFixed(2)} re`
+  );
 
-  if (fill && stroke) ops.push("B");
-  else if (fill) ops.push("f");
-  else if (stroke) ops.push("S");
+  if (fillColor && strokeColor) ops.push("B");
+  else if (fillColor) ops.push("f");
+  else if (strokeColor) ops.push("S");
 
   ops.push("Q");
   return ops.join("\n");
 }
 
-function lineOp(x1: number, y1: number, x2: number, y2: number, stroke = COLORS.faint, width = 1) {
+function line(x1: number, y1: number, x2: number, y2: number, color = COLORS.border, width = 1) {
   return [
     "q",
-    setStroke(stroke),
+    stroke(color),
     `${width.toFixed(2)} w`,
-    `${x1.toFixed(2)} ${pdfY(y1).toFixed(2)} m`,
-    `${x2.toFixed(2)} ${pdfY(y2).toFixed(2)} l`,
+    `${x1.toFixed(2)} ${yPdf(y1).toFixed(2)} m`,
+    `${x2.toFixed(2)} ${yPdf(y2).toFixed(2)} l`,
     "S",
     "Q",
   ].join("\n");
 }
 
-function textOp(input: {
+function text(input: {
   x: number;
   y: number;
   text: string;
@@ -185,87 +187,87 @@ function textOp(input: {
 
   return [
     "BT",
-    setFill(color),
+    fill(color),
     `/${font} ${size} Tf`,
-    `1 0 0 1 ${input.x.toFixed(2)} ${pdfY(input.y).toFixed(2)} Tm`,
-    `(${escapePdfText(input.text)}) Tj`,
+    `1 0 0 1 ${input.x.toFixed(2)} ${yPdf(input.y).toFixed(2)} Tm`,
+    `(${escapePdf(input.text)}) Tj`,
     "ET",
   ].join("\n");
 }
 
-function estimateChars(width: number, fontSize: number) {
-  return Math.max(24, Math.floor(width / (fontSize * 0.52)));
-}
-
-function wrapText(value: unknown, maxChars = 90) {
-  const clean = sanitizePdfText(value);
+function wrap(value: unknown, maxChars = 90) {
+  const clean = sanitize(value);
 
   if (!clean) return [];
 
-  const paragraphs = clean.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean);
   const lines: string[] = [];
 
-  for (const paragraph of paragraphs) {
-    const rawLines = paragraph.split(/\n/);
+  for (const paragraph of clean.split(/\n{2,}/)) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    let current = "";
 
-    for (const rawLine of rawLines) {
-      const words = rawLine.split(/\s+/);
-      let line = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
 
-      for (const word of words) {
-        const candidate = line ? `${line} ${word}` : word;
-
-        if (candidate.length > maxChars) {
-          if (line) lines.push(line);
-          line = word;
-        } else {
-          line = candidate;
-        }
+      if (candidate.length > maxChars) {
+        if (current) lines.push(current);
+        current = word;
+      } else {
+        current = candidate;
       }
-
-      if (line) lines.push(line);
     }
 
+    if (current) lines.push(current);
     lines.push("");
   }
 
   return lines;
 }
 
+function metricValue(value: string | number) {
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  }
+
+  return sanitize(value).slice(0, 28) || "-";
+}
+
 class PdfBuilder {
   private pages: string[][] = [[]];
+  private currentPage = 0;
   private cursorY = MARGIN;
-  private currentPageIndex = 0;
   private title: string;
 
   constructor(title: string) {
-    this.title = title;
-    this.paintPageBackground();
+    this.title = sanitize(title || "Slice AI Report");
+    this.paintBackground();
   }
 
   private get ops() {
-    return this.pages[this.currentPageIndex];
+    return this.pages[this.currentPage];
   }
 
-  private paintPageBackground() {
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.bg));
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, 130, COLORS.redDark));
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, 18, COLORS.red));
-    this.ops.push(textOp({
-      x: MARGIN,
-      y: 28,
-      text: "SLICE ADVISOR INTELLIGENCE",
-      size: 8,
-      font: "bold",
-      color: "#fecaca",
-    }));
+  private paintBackground() {
+    this.ops.push(rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.bg));
+    this.ops.push(rect(0, 0, PAGE_WIDTH, 126, COLORS.redDark));
+    this.ops.push(rect(0, 0, PAGE_WIDTH, 18, COLORS.red));
+    this.ops.push(
+      text({
+        x: MARGIN,
+        y: 32,
+        text: "SLICE ADVISOR INTELLIGENCE",
+        size: 8,
+        font: "bold",
+        color: "#fecaca",
+      })
+    );
   }
 
   private newPage() {
     this.pages.push([]);
-    this.currentPageIndex += 1;
+    this.currentPage += 1;
     this.cursorY = MARGIN;
-    this.paintPageBackground();
+    this.paintBackground();
   }
 
   private ensureSpace(height: number) {
@@ -274,580 +276,516 @@ class PdfBuilder {
     }
   }
 
-  addCover(input: FastPdfInput) {
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.bg));
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, 280, COLORS.redDark));
-    this.ops.push(rectOp(0, 0, PAGE_WIDTH, 24, COLORS.red));
-
-    this.ops.push(textOp({
-      x: MARGIN,
-      y: 52,
-      text: "SLICE RESEARCH REPORT",
-      size: 10,
-      font: "bold",
-      color: "#fecaca",
-    }));
-
-    const titleLines = wrapText(input.title, 34).slice(0, 4);
-    let y = 100;
-
-    for (const line of titleLines) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y,
-        text: line,
-        size: 26,
+  cover(input: FastPdfInput) {
+    this.ops.push(rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.bg));
+    this.ops.push(rect(0, 0, PAGE_WIDTH, 292, COLORS.redDark));
+    this.ops.push(rect(0, 0, PAGE_WIDTH, 24, COLORS.red));
+    this.ops.push(rect(MARGIN, 48, 82, 82, COLORS.red, "#fecaca"));
+    this.ops.push(rect(MARGIN + 18, 66, 46, 46, COLORS.bg, COLORS.white));
+    this.ops.push(
+      text({
+        x: MARGIN + 30,
+        y: 97,
+        text: "S",
+        size: 28,
         font: "bold",
         color: COLORS.white,
-      }));
-      y += 31;
+      })
+    );
+
+    this.ops.push(
+      text({
+        x: MARGIN + 104,
+        y: 62,
+        text: "PREMIUM AI REPORT",
+        size: 9,
+        font: "bold",
+        color: "#fecaca",
+      })
+    );
+
+    this.ops.push(
+      text({
+        x: MARGIN + 104,
+        y: 84,
+        text: "Advisor-grade intelligence packet",
+        size: 10,
+        color: "#fca5a5",
+      })
+    );
+
+    let titleY = 153;
+
+    for (const lineText of wrap(input.title, 34).slice(0, 4)) {
+      this.ops.push(
+        text({
+          x: MARGIN,
+          y: titleY,
+          text: lineText,
+          size: 25,
+          font: "bold",
+          color: COLORS.white,
+        })
+      );
+      titleY += 30;
     }
 
     if (input.subtitle) {
-      for (const line of wrapText(input.subtitle, 74).slice(0, 3)) {
-        this.ops.push(textOp({
-          x: MARGIN,
-          y,
-          text: line,
-          size: 11,
-          color: "#fecaca",
-        }));
-        y += 15;
+      for (const lineText of wrap(input.subtitle, 76).slice(0, 3)) {
+        this.ops.push(
+          text({
+            x: MARGIN,
+            y: titleY,
+            text: lineText,
+            size: 10,
+            color: "#fecaca",
+          })
+        );
+        titleY += 14;
       }
     }
 
     const grade = input.investmentGrade || "Advisor Review";
-    const confidence = typeof input.confidenceScore === "number" ? `${input.confidenceScore}/100` : "Review Required";
+    const confidence =
+      typeof input.confidenceScore === "number" ? `${input.confidenceScore}/100` : "Review";
 
-    this.ops.push(rectOp(MARGIN, 308, CONTENT_WIDTH, 104, COLORS.panel, COLORS.faint));
+    this.ops.push(rect(MARGIN, 322, CONTENT_WIDTH, 112, COLORS.panel, COLORS.border));
+    this.ops.push(rect(MARGIN, 322, CONTENT_WIDTH, 5, COLORS.red));
 
-    this.ops.push(textOp({ x: MARGIN + 18, y: 335, text: "Investment Grade", size: 8, font: "bold", color: COLORS.muted }));
-    this.ops.push(textOp({ x: MARGIN + 18, y: 360, text: grade, size: 22, font: "bold", color: COLORS.white }));
+    const cards = [
+      ["Posture", grade, COLORS.white],
+      ["Confidence", confidence, COLORS.cyan],
+      ["Sources", String(input.sources?.length ?? 0), COLORS.amber],
+    ];
 
-    this.ops.push(lineOp(MARGIN + 220, 326, MARGIN + 220, 396, COLORS.faint));
+    cards.forEach(([label, value, color], index) => {
+      const x = MARGIN + 18 + index * 170;
 
-    this.ops.push(textOp({ x: MARGIN + 250, y: 335, text: "Confidence Score", size: 8, font: "bold", color: COLORS.muted }));
-    this.ops.push(textOp({ x: MARGIN + 250, y: 360, text: confidence, size: 22, font: "bold", color: COLORS.cyan }));
+      if (index > 0) {
+        this.ops.push(line(x - 22, 348, x - 22, 410, COLORS.border));
+      }
 
-    this.ops.push(textOp({ x: MARGIN + 425, y: 335, text: "Sources", size: 8, font: "bold", color: COLORS.muted }));
-    this.ops.push(textOp({ x: MARGIN + 425, y: 360, text: String(input.sources?.length ?? 0), size: 22, font: "bold", color: COLORS.amber }));
+      this.ops.push(
+        text({
+          x,
+          y: 356,
+          text: String(label).toUpperCase(),
+          size: 7,
+          font: "bold",
+          color: COLORS.muted,
+        })
+      );
+
+      this.ops.push(
+        text({
+          x,
+          y: 385,
+          text: String(value).slice(0, 25),
+          size: 18,
+          font: "bold",
+          color: String(color),
+        })
+      );
+    });
 
     if (input.summary) {
-      let summaryY = 452;
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: summaryY,
-        text: "Executive Summary",
-        size: 15,
-        font: "bold",
-        color: COLORS.white,
-      }));
-      summaryY += 24;
+      let summaryY = 478;
 
-      for (const line of wrapText(input.summary, 88).slice(0, 15)) {
-        this.ops.push(textOp({
+      this.ops.push(
+        text({
           x: MARGIN,
           y: summaryY,
-          text: line || " ",
-          size: 10,
-          color: COLORS.text,
-        }));
+          text: "Executive Summary",
+          size: 15,
+          font: "bold",
+          color: COLORS.white,
+        })
+      );
+
+      summaryY += 24;
+
+      for (const lineText of wrap(input.summary, 88).slice(0, 14)) {
+        this.ops.push(
+          text({
+            x: MARGIN,
+            y: summaryY,
+            text: lineText || " ",
+            size: 10,
+            color: COLORS.text,
+          })
+        );
         summaryY += 14;
       }
     }
 
     const prepared = [
-      input.preparedFor ? `Prepared for: ${input.preparedFor}` : null,
+      input.preparedFor ? `Prepared for: ${input.preparedFor}` : "Prepared for: Advisor Review",
       input.preparedBy ? `Prepared by: ${input.preparedBy}` : "Prepared by: Slice",
       input.asOf ? `As of: ${input.asOf}` : `As of: ${new Date().toLocaleString()}`,
-    ].filter(Boolean) as string[];
+      "Compliance status: advisor review required before external use",
+    ];
 
-    let metaY = 706;
+    let metaY = 700;
+
     for (const item of prepared) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: metaY,
-        text: item,
-        size: 9,
-        color: COLORS.muted,
-      }));
-      metaY += 13;
+      this.ops.push(
+        text({
+          x: MARGIN,
+          y: metaY,
+          text: item,
+          size: 8,
+          color: COLORS.muted,
+        })
+      );
+      metaY += 12;
     }
 
     this.newPage();
   }
 
-  addHeading(title: string, eyebrow?: string) {
-    this.ensureSpace(64);
+  heading(title: string, eyebrow?: string) {
+    this.ensureSpace(72);
 
     if (eyebrow) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: this.cursorY,
-        text: eyebrow.toUpperCase(),
-        size: 8,
-        font: "bold",
-        color: COLORS.red,
-      }));
+      this.ops.push(
+        text({
+          x: MARGIN,
+          y: this.cursorY,
+          text: eyebrow.toUpperCase(),
+          size: 7,
+          font: "bold",
+          color: COLORS.redSoft,
+        })
+      );
       this.cursorY += 14;
     }
 
-    const lines = wrapText(title, 48).slice(0, 3);
-
-    for (const line of lines) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: this.cursorY,
-        text: line,
-        size: 18,
-        font: "bold",
-        color: COLORS.white,
-      }));
+    for (const lineText of wrap(title, 48).slice(0, 3)) {
+      this.ops.push(
+        text({
+          x: MARGIN,
+          y: this.cursorY,
+          text: lineText,
+          size: 18,
+          font: "bold",
+          color: COLORS.white,
+        })
+      );
       this.cursorY += 22;
     }
 
-    this.cursorY += 8;
+    this.ops.push(line(MARGIN, this.cursorY + 2, PAGE_WIDTH - MARGIN, this.cursorY + 2, COLORS.red, 1.2));
+    this.cursorY += 18;
   }
 
-  addParagraph(body: unknown, options?: { size?: number; color?: string; indent?: number }) {
+  paragraph(body: unknown, options?: { size?: number; color?: string; indent?: number }) {
     const size = options?.size ?? 10;
     const color = options?.color ?? COLORS.text;
     const indent = options?.indent ?? 0;
-    const maxChars = estimateChars(CONTENT_WIDTH - indent, size);
+    const maxChars = Math.max(24, Math.floor((CONTENT_WIDTH - indent) / (size * 0.52)));
 
-    for (const line of wrapText(body, maxChars)) {
-      this.ensureSpace(line ? 16 : 10);
+    for (const lineText of wrap(body, maxChars)) {
+      this.ensureSpace(lineText ? 16 : 10);
 
-      if (!line) {
+      if (!lineText) {
         this.cursorY += 8;
         continue;
       }
 
-      this.ops.push(textOp({
-        x: MARGIN + indent,
-        y: this.cursorY,
-        text: line,
-        size,
-        color,
-      }));
+      this.ops.push(
+        text({
+          x: MARGIN + indent,
+          y: this.cursorY,
+          text: lineText,
+          size,
+          color,
+        })
+      );
 
       this.cursorY += size + 4;
     }
   }
 
-  addBullets(items: string[]) {
+  bullets(items: string[]) {
     for (const item of items.filter(Boolean)) {
-      const lines = wrapText(item, 84);
-      this.ensureSpace(lines.length * 14 + 4);
+      const lines = wrap(item, 84);
+      this.ensureSpace(lines.length * 14 + 8);
 
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: this.cursorY,
-        text: "•",
-        size: 10,
-        font: "bold",
-        color: COLORS.red,
-      }));
-
-      let first = true;
-      for (const line of lines) {
-        this.ops.push(textOp({
-          x: MARGIN + 16,
+      this.ops.push(
+        text({
+          x: MARGIN,
           y: this.cursorY,
-          text: line,
+          text: "-",
           size: 10,
-          color: COLORS.text,
-        }));
-        this.cursorY += first ? 14 : 13;
-        first = false;
+          font: "bold",
+          color: COLORS.redSoft,
+        })
+      );
+
+      for (const lineText of lines) {
+        this.ops.push(
+          text({
+            x: MARGIN + 16,
+            y: this.cursorY,
+            text: lineText,
+            size: 10,
+            color: COLORS.text,
+          })
+        );
+        this.cursorY += 14;
       }
 
       this.cursorY += 4;
     }
   }
 
-  addMetrics(metrics: FastPdfMetric[]) {
+  metrics(metrics: FastPdfMetric[]) {
     if (!metrics.length) return;
 
-    const boxGap = 10;
-    const boxWidth = (CONTENT_WIDTH - boxGap * 2) / 3;
-    const boxHeight = 74;
+    const gap = 10;
+    const width = (CONTENT_WIDTH - gap * 2) / 3;
+    const height = 78;
 
     for (let index = 0; index < metrics.length; index += 3) {
-      this.ensureSpace(boxHeight + 16);
+      this.ensureSpace(height + 18);
 
-      const row = metrics.slice(index, index + 3);
-
-      row.forEach((metric, col) => {
-        const x = MARGIN + col * (boxWidth + boxGap);
+      metrics.slice(index, index + 3).forEach((metric, column) => {
+        const x = MARGIN + column * (width + gap);
         const y = this.cursorY;
         const color = toneColor(metric.tone);
 
-        this.ops.push(rectOp(x, y, boxWidth, boxHeight, COLORS.panel, COLORS.faint));
-        this.ops.push(rectOp(x, y, 5, boxHeight, color));
+        this.ops.push(rect(x, y, width, height, COLORS.panel, COLORS.border));
+        this.ops.push(rect(x, y, 6, height, color));
+        this.ops.push(rect(x + 6, y, width - 6, 4, color));
 
-        this.ops.push(textOp({
-          x: x + 14,
-          y: y + 20,
-          text: metric.label.toUpperCase(),
-          size: 7,
-          font: "bold",
-          color: COLORS.muted,
-        }));
+        this.ops.push(
+          text({
+            x: x + 16,
+            y: y + 21,
+            text: metric.label.toUpperCase().slice(0, 32),
+            size: 7,
+            font: "bold",
+            color: COLORS.muted,
+          })
+        );
 
-        this.ops.push(textOp({
-          x: x + 14,
-          y: y + 43,
-          text: String(metric.value).slice(0, 24),
-          size: 16,
-          font: "bold",
-          color: COLORS.white,
-        }));
+        this.ops.push(
+          text({
+            x: x + 16,
+            y: y + 47,
+            text: metricValue(metric.value),
+            size: 16,
+            font: "bold",
+            color: COLORS.white,
+          })
+        );
 
         if (metric.helper) {
-          this.ops.push(textOp({
-            x: x + 14,
-            y: y + 61,
-            text: metric.helper.slice(0, 38),
-            size: 7,
-            color: COLORS.muted,
-          }));
+          this.ops.push(
+            text({
+              x: x + 16,
+              y: y + 65,
+              text: sanitize(metric.helper).slice(0, 38),
+              size: 7,
+              color: COLORS.muted,
+            })
+          );
         }
       });
 
-      this.cursorY += boxHeight + 14;
+      this.cursorY += height + 16;
     }
   }
 
-  addSources(sources: FastPdfSource[], title = "Source Intelligence") {
+  chart(chart: FastPdfChart) {
+    const data = chart.data.filter((item) => Number.isFinite(item.value)).slice(0, 10);
+
+    if (!data.length) return;
+
+    const height = 205;
+    const chartX = MARGIN;
+    const chartY = this.cursorY + 58;
+    const chartW = CONTENT_WIDTH;
+    const chartH = 138;
+
+    this.ensureSpace(height);
+
+    this.ops.push(
+      text({
+        x: MARGIN,
+        y: this.cursorY,
+        text: chart.title,
+        size: 14,
+        font: "bold",
+        color: COLORS.white,
+      })
+    );
+
+    if (chart.subtitle) {
+      this.ops.push(
+        text({
+          x: MARGIN,
+          y: this.cursorY + 17,
+          text: chart.subtitle,
+          size: 8,
+          color: COLORS.muted,
+        })
+      );
+    }
+
+    this.ops.push(rect(chartX, chartY, chartW, chartH, COLORS.panel, COLORS.border));
+
+    const maxValue = Math.max(1, ...data.map((item) => item.value));
+    const gap = 8;
+    const barWidth = (chartW - 24 - gap * (data.length - 1)) / data.length;
+
+    data.forEach((item, index) => {
+      const barHeight = Math.max(3, (item.value / maxValue) * (chartH - 40));
+      const x = chartX + 12 + index * (barWidth + gap);
+      const y = chartY + chartH - 24 - barHeight;
+      const barTone: FastPdfTone = item.value >= 85 ? "green" : item.value >= 65 ? "amber" : "red";
+
+      this.ops.push(rect(x, y, barWidth, barHeight, toneColor(barTone)));
+      this.ops.push(
+        text({
+          x,
+          y: chartY + chartH - 8,
+          text: item.label.slice(0, 8),
+          size: 6,
+          color: COLORS.muted,
+        })
+      );
+      this.ops.push(
+        text({
+          x,
+          y: y - 5,
+          text: String(Math.round(item.value)),
+          size: 7,
+          font: "bold",
+          color: COLORS.white,
+        })
+      );
+    });
+
+    this.cursorY += height;
+  }
+
+  sources(sources: FastPdfSource[]) {
     if (!sources.length) return;
 
-    this.addHeading(title, "Evidence");
-    this.addParagraph(
+    this.heading("Source Intelligence", "Evidence");
+    this.paragraph(
       "Slice consolidates source context into a reviewable evidence table so the advisor can quickly understand why each item was retained.",
       { color: COLORS.muted }
     );
 
-    const headerHeight = 24;
-    const rowHeight = 54;
-
-    this.ensureSpace(headerHeight + rowHeight);
-
-    this.ops.push(rectOp(MARGIN, this.cursorY, CONTENT_WIDTH, headerHeight, COLORS.panelSoft, COLORS.faint));
-    this.ops.push(textOp({ x: MARGIN + 10, y: this.cursorY + 16, text: "Source", size: 8, font: "bold", color: COLORS.white }));
-    this.ops.push(textOp({ x: MARGIN + 220, y: this.cursorY + 16, text: "Score", size: 8, font: "bold", color: COLORS.white }));
-    this.ops.push(textOp({ x: MARGIN + 285, y: this.cursorY + 16, text: "Finding", size: 8, font: "bold", color: COLORS.white }));
-    this.cursorY += headerHeight;
+    const rowHeight = 58;
 
     for (const source of sources.slice(0, 18)) {
       this.ensureSpace(rowHeight + 8);
 
-      this.ops.push(rectOp(MARGIN, this.cursorY, CONTENT_WIDTH, rowHeight, COLORS.panel, COLORS.faint));
-      this.ops.push(textOp({
-        x: MARGIN + 10,
-        y: this.cursorY + 16,
-        text: sanitizePdfText(source.sourceName || "Source").slice(0, 28),
-        size: 8,
-        font: "bold",
-        color: COLORS.cyan,
-      }));
-      this.ops.push(textOp({
-        x: MARGIN + 10,
-        y: this.cursorY + 32,
-        text: sanitizePdfText(source.url || source.date || "").slice(0, 34),
-        size: 6,
-        color: COLORS.muted,
-      }));
-      this.ops.push(textOp({
-        x: MARGIN + 220,
-        y: this.cursorY + 24,
-        text: source.score === null || source.score === undefined ? "—" : String(source.score),
-        size: 14,
-        font: "bold",
-        color: toneColor(source.score && source.score >= 80 ? "green" : source.score && source.score >= 60 ? "amber" : "slate"),
-      }));
+      const scoreTone: FastPdfTone =
+        source.score && source.score >= 80
+          ? "green"
+          : source.score && source.score >= 60
+            ? "amber"
+            : "slate";
+
+      this.ops.push(rect(MARGIN, this.cursorY, CONTENT_WIDTH, rowHeight, COLORS.panel, COLORS.border));
+      this.ops.push(rect(MARGIN, this.cursorY, 4, rowHeight, toneColor(scoreTone)));
+
+      this.ops.push(
+        text({
+          x: MARGIN + 12,
+          y: this.cursorY + 16,
+          text: sanitize(source.sourceName || "Source").slice(0, 28),
+          size: 8,
+          font: "bold",
+          color: COLORS.cyan,
+        })
+      );
+
+      this.ops.push(
+        text({
+          x: MARGIN + 12,
+          y: this.cursorY + 33,
+          text: sanitize(source.url || source.date || "").slice(0, 34),
+          size: 6,
+          color: COLORS.muted,
+        })
+      );
+
+      this.ops.push(
+        text({
+          x: MARGIN + 220,
+          y: this.cursorY + 27,
+          text: source.score === null || source.score === undefined ? "-" : String(source.score),
+          size: 14,
+          font: "bold",
+          color: toneColor(scoreTone),
+        })
+      );
 
       const finding = `${source.title}${source.summary ? ` - ${source.summary}` : ""}`;
-      const lines = wrapText(finding, 48).slice(0, 3);
+      const lines = wrap(finding, 48).slice(0, 3);
 
-      lines.forEach((line, index) => {
-        this.ops.push(textOp({
-          x: MARGIN + 285,
-          y: this.cursorY + 14 + index * 12,
-          text: line,
-          size: 7,
-          color: COLORS.text,
-        }));
+      lines.forEach((lineText, index) => {
+        this.ops.push(
+          text({
+            x: MARGIN + 285,
+            y: this.cursorY + 14 + index * 12,
+            text: lineText,
+            size: 7,
+            color: COLORS.text,
+          })
+        );
       });
 
       this.cursorY += rowHeight + 6;
     }
   }
 
-  addTable(table: FastPdfTable) {
-    if (!table.columns.length || !table.rows.length) return;
+  section(section: FastPdfSection) {
+    this.heading(section.title, "Research");
 
-    const columnCount = table.columns.length;
-    const columnWidth = CONTENT_WIDTH / columnCount;
-    const headerHeight = 24;
-    const rowHeight = 36;
-
-    this.ensureSpace(headerHeight + rowHeight);
-
-    this.ops.push(rectOp(MARGIN, this.cursorY, CONTENT_WIDTH, headerHeight, COLORS.panelSoft, COLORS.faint));
-
-    table.columns.forEach((column, index) => {
-      this.ops.push(textOp({
-        x: MARGIN + index * columnWidth + 8,
-        y: this.cursorY + 16,
-        text: sanitizePdfText(column).slice(0, 22),
-        size: 8,
-        font: "bold",
-        color: COLORS.white,
-      }));
-    });
-
-    this.cursorY += headerHeight;
-
-    for (const row of table.rows.slice(0, 24)) {
-      this.ensureSpace(rowHeight + 4);
-      this.ops.push(rectOp(MARGIN, this.cursorY, CONTENT_WIDTH, rowHeight, COLORS.panel, COLORS.faint));
-
-      row.forEach((cell, index) => {
-        const lines = wrapText(String(cell ?? "—"), Math.max(10, Math.floor(columnWidth / 5.5))).slice(0, 2);
-
-        lines.forEach((line, lineIndex) => {
-          this.ops.push(textOp({
-            x: MARGIN + index * columnWidth + 8,
-            y: this.cursorY + 14 + lineIndex * 11,
-            text: line,
-            size: 7,
-            color: COLORS.text,
-          }));
-        });
-      });
-
-      this.cursorY += rowHeight + 3;
-    }
-  }
-
-  addBarChart(chart: FastPdfChart) {
-    const data = chart.data.filter((item) => Number.isFinite(item.value)).slice(0, 12);
-
-    if (!data.length) return;
-
-    const height = 205;
-    const chartX = MARGIN;
-    const chartY = this.cursorY + 56;
-    const chartW = CONTENT_WIDTH;
-    const chartH = 135;
-
-    this.ensureSpace(height);
-
-    this.ops.push(textOp({
-      x: MARGIN,
-      y: this.cursorY,
-      text: chart.title,
-      size: 14,
-      font: "bold",
-      color: COLORS.white,
-    }));
-
-    if (chart.subtitle) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: this.cursorY + 17,
-        text: chart.subtitle,
-        size: 8,
-        color: COLORS.muted,
-      }));
-    }
-
-    this.ops.push(rectOp(chartX, chartY, chartW, chartH, COLORS.panel, COLORS.faint));
-
-    const maxValue = Math.max(1, ...data.map((item) => item.value));
-    const gap = 8;
-    const barW = (chartW - 24 - gap * (data.length - 1)) / data.length;
-
-    data.forEach((item, index) => {
-      const barH = Math.max(3, (item.value / maxValue) * (chartH - 36));
-      const x = chartX + 12 + index * (barW + gap);
-      const y = chartY + chartH - 22 - barH;
-      const tone: FastPdfTone = item.value >= 85 ? "green" : item.value >= 65 ? "amber" : "red";
-
-      this.ops.push(rectOp(x, y, barW, barH, toneColor(tone)));
-      this.ops.push(textOp({
-        x,
-        y: chartY + chartH - 8,
-        text: item.label.slice(0, 8),
-        size: 6,
-        color: COLORS.muted,
-      }));
-      this.ops.push(textOp({
-        x,
-        y: y - 5,
-        text: String(Math.round(item.value)),
-        size: 7,
-        font: "bold",
-        color: COLORS.white,
-      }));
-    });
-
-    this.cursorY += height;
-  }
-
-  addLineChart(chart: FastPdfChart) {
-    const data = chart.data.filter((item) => Number.isFinite(item.value)).slice(0, 30);
-
-    if (data.length < 2) return;
-
-    const height = 220;
-    const chartX = MARGIN;
-    const chartY = this.cursorY + 58;
-    const chartW = CONTENT_WIDTH;
-    const chartH = 140;
-
-    this.ensureSpace(height);
-
-    this.ops.push(textOp({
-      x: MARGIN,
-      y: this.cursorY,
-      text: chart.title,
-      size: 14,
-      font: "bold",
-      color: COLORS.white,
-    }));
-
-    if (chart.subtitle) {
-      this.ops.push(textOp({
-        x: MARGIN,
-        y: this.cursorY + 17,
-        text: chart.subtitle,
-        size: 8,
-        color: COLORS.muted,
-      }));
-    }
-
-    this.ops.push(rectOp(chartX, chartY, chartW, chartH, COLORS.panel, COLORS.faint));
-
-    const values = data.map((item) => item.value);
-    const minValue = Math.min(...values);
-    const maxValue = Math.max(...values);
-    const range = maxValue - minValue || 1;
-
-    const points = data.map((item, index) => {
-      const x = chartX + 14 + (index / (data.length - 1)) * (chartW - 28);
-      const y = chartY + 16 + (1 - (item.value - minValue) / range) * (chartH - 38);
-
-      return { x, y, label: item.label, value: item.value };
-    });
-
-    const ops = ["q", setStroke(COLORS.cyan), "2 w"];
-    ops.push(`${points[0].x.toFixed(2)} ${pdfY(points[0].y).toFixed(2)} m`);
-
-    for (const point of points.slice(1)) {
-      ops.push(`${point.x.toFixed(2)} ${pdfY(point.y).toFixed(2)} l`);
-    }
-
-    ops.push("S", "Q");
-    this.ops.push(ops.join("\n"));
-
-    for (const point of points.filter((_, index) => index === 0 || index === points.length - 1)) {
-      this.ops.push(rectOp(point.x - 2, point.y - 2, 4, 4, COLORS.white));
-      this.ops.push(textOp({
-        x: point.x - 8,
-        y: point.y - 8,
-        text: String(Math.round(point.value)),
-        size: 7,
-        font: "bold",
-        color: COLORS.white,
-      }));
-    }
-
-    this.ops.push(textOp({
-      x: chartX + 14,
-      y: chartY + chartH - 7,
-      text: data[0].label.slice(0, 18),
-      size: 6,
-      color: COLORS.muted,
-    }));
-    this.ops.push(textOp({
-      x: chartX + chartW - 90,
-      y: chartY + chartH - 7,
-      text: data[data.length - 1].label.slice(0, 18),
-      size: 6,
-      color: COLORS.muted,
-    }));
-
-    this.cursorY += height;
-  }
-
-  addChart(chart: FastPdfChart) {
-    if (chart.type === "line") {
-      this.addLineChart(chart);
-    } else {
-      this.addBarChart(chart);
-    }
-  }
-
-  addSection(section: FastPdfSection) {
-    this.addHeading(section.title, "Research");
-
-    if (section.metrics?.length) {
-      this.addMetrics(section.metrics);
-    }
-
-    if (section.body) {
-      this.addParagraph(section.body);
-    }
-
-    if (section.bullets?.length) {
-      this.addBullets(section.bullets);
-    }
-
-    if (section.chart) {
-      this.addChart(section.chart);
-    }
-
-    if (section.table) {
-      this.addTable(section.table);
-    }
-
-    if (section.sources?.length) {
-      this.addSources(section.sources, "Section Sources");
-    }
-
-    if (section.footnote) {
-      this.addParagraph(section.footnote, { size: 8, color: COLORS.muted });
-    }
+    if (section.metrics?.length) this.metrics(section.metrics);
+    if (section.body) this.paragraph(section.body);
+    if (section.bullets?.length) this.bullets(section.bullets);
+    if (section.chart) this.chart(section.chart);
+    if (section.sources?.length) this.sources(section.sources);
+    if (section.footnote) this.paragraph(section.footnote, { size: 8, color: COLORS.muted });
 
     this.cursorY += 14;
   }
 
-  addFooterToPages() {
+  footer() {
     const total = this.pages.length;
 
-    this.pages.forEach((ops, index) => {
-      ops.push(lineOp(MARGIN, PAGE_HEIGHT - 42, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 42, COLORS.faint));
-      ops.push(textOp({
-        x: MARGIN,
-        y: PAGE_HEIGHT - 24,
-        text: `Slice Advisor Intelligence - ${this.title.slice(0, 58)}`,
-        size: 7,
-        color: COLORS.muted,
-      }));
-      ops.push(textOp({
-        x: PAGE_WIDTH - MARGIN - 70,
-        y: PAGE_HEIGHT - 24,
-        text: `Page ${index + 1} of ${total}`,
-        size: 7,
-        color: COLORS.muted,
-      }));
+    this.pages.forEach((pageOps, index) => {
+      pageOps.push(line(MARGIN, PAGE_HEIGHT - 42, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 42, COLORS.border));
+      pageOps.push(
+        text({
+          x: MARGIN,
+          y: PAGE_HEIGHT - 24,
+          text: `Slice Advisor Intelligence - ${this.title.slice(0, 58)}`,
+          size: 7,
+          color: COLORS.muted,
+        })
+      );
+      pageOps.push(
+        text({
+          x: PAGE_WIDTH - MARGIN - 72,
+          y: PAGE_HEIGHT - 24,
+          text: `Page ${index + 1} of ${total}`,
+          size: 7,
+          color: COLORS.muted,
+        })
+      );
     });
   }
 
-  toBuffer() {
-    this.addFooterToPages();
+  buffer() {
+    this.footer();
 
     const fontObjectNumber = 3 + this.pages.length * 2;
     const boldFontObjectNumber = fontObjectNumber + 1;
@@ -910,34 +848,35 @@ class PdfBuilder {
 }
 
 export function createFastPdfBuffer(input: FastPdfInput) {
-  const builder = new PdfBuilder(input.title || "Slice Research Report");
+  const builder = new PdfBuilder(input.title || "Slice AI Report");
 
-  builder.addCover(input);
+  builder.cover(input);
 
   if (input.metrics?.length) {
-    builder.addHeading("Advisor Scorecard", "Overview");
-    builder.addMetrics(input.metrics);
-  }
-
-  if (input.sources?.length) {
-    builder.addSources(input.sources);
+    builder.heading("Advisor Scorecard", "Overview");
+    builder.metrics(input.metrics);
   }
 
   if (input.charts?.length) {
-    builder.addHeading("Research Visuals", "Graphs");
+    builder.heading("Research Visuals", "Graphs");
+
     for (const chart of input.charts) {
-      builder.addChart(chart);
+      builder.chart(chart);
     }
   }
 
+  if (input.sources?.length) {
+    builder.sources(input.sources);
+  }
+
   for (const section of input.sections) {
-    builder.addSection(section);
+    builder.section(section);
   }
 
   if (input.footer) {
-    builder.addHeading("Important Notes", "Compliance");
-    builder.addParagraph(input.footer, { color: COLORS.muted });
+    builder.heading("Important Notes", "Compliance");
+    builder.paragraph(input.footer, { color: COLORS.muted });
   }
 
-  return builder.toBuffer();
+  return builder.buffer();
 }

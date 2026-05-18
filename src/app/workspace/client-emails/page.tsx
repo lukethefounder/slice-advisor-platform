@@ -34,8 +34,12 @@ type Draft = {
   createdAt: string;
   updatedAt: string;
   sourceSummary?: {
+    scratchDraft?: boolean;
+    clientId?: string | null;
+    clientName?: string;
     topic?: string;
     purpose?: string;
+    tone?: string;
     editable?: boolean;
     manualDraft?: boolean;
     ai?: {
@@ -43,6 +47,7 @@ type Draft = {
       provider?: string;
       status?: string;
       error?: string | null;
+      strategy?: string;
     };
     aiPolish?: {
       mode?: string;
@@ -50,6 +55,7 @@ type Draft = {
       status?: string;
       error?: string | null;
       polishedAt?: string;
+      strategy?: string;
     };
     editHistory?: Array<{
       editedAt: string;
@@ -115,34 +121,78 @@ type DraftFilterMode =
   | "archived"
   | "all";
 
+type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+
+const EMPTY_PAYLOAD: EmailCenterPayload = {
+  clients: [],
+  drafts: [],
+  archivedDrafts: [],
+  approvals: [],
+  metrics: {
+    clientCount: 0,
+    clientsWithEmail: 0,
+    clientsMissingEmail: 0,
+    draftCount: 0,
+    archivedDraftCount: 0,
+    pendingApprovalCount: 0,
+    sentCount: 0,
+  },
+};
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function toneFor(value: string): "red" | "green" | "amber" | "purple" | "cyan" | "slate" {
-  const lower = value.toLowerCase();
+function toneFor(value: string | null | undefined): Tone {
+  const lower = String(value ?? "").toLowerCase();
 
-  if (lower.includes("failed") || lower.includes("missing") || lower.includes("high")) return "red";
+  if (
+    lower.includes("failed") ||
+    lower.includes("missing") ||
+    lower.includes("high") ||
+    lower.includes("error")
+  ) {
+    return "red";
+  }
+
   if (
     lower.includes("sent") ||
     lower.includes("approved") ||
     lower.includes("delivered") ||
     lower.includes("active") ||
-    lower.includes("ready")
+    lower.includes("ready") ||
+    lower.includes("complete")
   ) {
     return "green";
   }
+
   if (
     lower.includes("pending") ||
     lower.includes("draft") ||
     lower.includes("approval") ||
     lower.includes("simulated") ||
-    lower.includes("edited")
+    lower.includes("edited") ||
+    lower.includes("queued")
   ) {
     return "amber";
   }
-  if (lower.includes("client") || lower.includes("email") || lower.includes("briefing")) return "purple";
-  if (lower.includes("ai") || lower.includes("polished") || lower.includes("preview")) return "cyan";
+
+  if (
+    lower.includes("client") ||
+    lower.includes("email") ||
+    lower.includes("briefing")
+  ) {
+    return "purple";
+  }
+
+  if (
+    lower.includes("ai") ||
+    lower.includes("polished") ||
+    lower.includes("preview") ||
+    lower.includes("scratch")
+  ) {
+    return "cyan";
+  }
 
   return "slate";
 }
@@ -152,9 +202,9 @@ function Pill({
   tone = "slate",
 }: {
   children: React.ReactNode;
-  tone?: "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+  tone?: Tone;
 }) {
-  const tones = {
+  const tones: Record<Tone, string> = {
     red: "bg-red-500/10 text-red-300 ring-red-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
@@ -203,9 +253,9 @@ function Metric({
   label: string;
   value: string | number;
   helper?: string;
-  tone?: "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+  tone?: Tone;
 }) {
-  const glows = {
+  const glows: Record<Tone, string> = {
     red: "from-red-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
@@ -216,11 +266,22 @@ function Metric({
 
   return (
     <div className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4">
-      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
+      <div
+        className={cx(
+          "absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
+          glows[tone]
+        )}
+      />
       <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+          {label}
+        </div>
+        <div className="mt-2 truncate text-2xl font-black text-white">
+          {value}
+        </div>
+        {helper ? (
+          <div className="mt-1 truncate text-xs text-slate-500">{helper}</div>
+        ) : null}
       </div>
     </div>
   );
@@ -263,37 +324,35 @@ function canEditDraft(draft: Draft | null) {
 }
 
 function draftStatusOptions(currentStatus: string) {
-  if (currentStatus === "Sent" || currentStatus === "Simulated") return [currentStatus];
+  if (currentStatus === "Sent" || currentStatus === "Simulated") {
+    return [currentStatus];
+  }
 
   return ["Draft", "Edited", "Needs Advisor Approval"];
 }
 
-export default function ClientEmailsPage() {
-  const [payload, setPayload] = useState<EmailCenterPayload>({
-    clients: [],
-    drafts: [],
-    archivedDrafts: [],
-    approvals: [],
-    metrics: {
-      clientCount: 0,
-      clientsWithEmail: 0,
-      clientsMissingEmail: 0,
-      draftCount: 0,
-      archivedDraftCount: 0,
-      pendingApprovalCount: 0,
-      sentCount: 0,
-    },
-  });
+function getDraftRecipientLabel(draft: Draft | null) {
+  if (!draft) return "No draft selected";
+  if (draft.sourceSummary?.scratchDraft) return "Scratch Draft";
+  return draft.clientName || draft.sourceSummary?.clientName || "Client Draft";
+}
 
+export default function ClientEmailsPage() {
+  const [payload, setPayload] = useState<EmailCenterPayload>(EMPTY_PAYLOAD);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [activeDraftId, setActiveDraftId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [holdingFilter, setHoldingFilter] = useState("");
   const [draftSearch, setDraftSearch] = useState("");
-  const [clientFilterMode, setClientFilterMode] = useState<ClientFilterMode>("with-email");
-  const [draftFilterMode, setDraftFilterMode] = useState<DraftFilterMode>("active");
+  const [clientFilterMode, setClientFilterMode] =
+    useState<ClientFilterMode>("with-email");
+  const [draftFilterMode, setDraftFilterMode] =
+    useState<DraftFilterMode>("active");
   const [previewMode, setPreviewMode] = useState<"email" | "plain">("email");
+  const [activePanel, setActivePanel] = useState<
+    "ai" | "manual" | "drafts" | "approvals"
+  >("ai");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -351,8 +410,14 @@ export default function ClientEmailsPage() {
   );
 
   const selectedClients = useMemo(
-    () => payload.clients.filter((client) => selectedClientIds.includes(client.id)),
+    () =>
+      payload.clients.filter((client) => selectedClientIds.includes(client.id)),
     [payload.clients, selectedClientIds]
+  );
+
+  const selectedDrafts = useMemo(
+    () => allDrafts.filter((draft) => selectedDraftIds.includes(draft.id)),
+    [allDrafts, selectedDraftIds]
   );
 
   const filteredClients = useMemo(() => {
@@ -362,7 +427,12 @@ export default function ClientEmailsPage() {
     return payload.clients.filter((client) => {
       if (clientFilterMode === "with-email" && !client.email) return false;
       if (clientFilterMode === "missing-email" && client.email) return false;
-      if (clientFilterMode === "selected" && !selectedClientIds.includes(client.id)) return false;
+      if (
+        clientFilterMode === "selected" &&
+        !selectedClientIds.includes(client.id)
+      ) {
+        return false;
+      }
 
       const clientText = [
         client.fullName,
@@ -380,12 +450,23 @@ export default function ClientEmailsPage() {
         .join(" ")
         .toLowerCase();
 
-      if (search && !clientText.includes(search) && !holdingText.includes(search)) return false;
-      if (holding && !holdingText.includes(holding)) return false;
+      if (search && !clientText.includes(search) && !holdingText.includes(search)) {
+        return false;
+      }
+
+      if (holding && !holdingText.includes(holding)) {
+        return false;
+      }
 
       return true;
     });
-  }, [payload.clients, clientSearch, holdingFilter, clientFilterMode, selectedClientIds]);
+  }, [
+    payload.clients,
+    clientSearch,
+    holdingFilter,
+    clientFilterMode,
+    selectedClientIds,
+  ]);
 
   const filteredDrafts = useMemo(() => {
     const search = draftSearch.trim().toLowerCase();
@@ -393,11 +474,24 @@ export default function ClientEmailsPage() {
     return allDrafts.filter((draft) => {
       if (draftFilterMode === "active" && draft.status === "Archived") return false;
       if (draftFilterMode === "archived" && draft.status !== "Archived") return false;
-      if (draftFilterMode === "needs-approval" && draft.status !== "Needs Advisor Approval") return false;
+      if (
+        draftFilterMode === "needs-approval" &&
+        draft.status !== "Needs Advisor Approval"
+      ) {
+        return false;
+      }
       if (draftFilterMode === "draft" && draft.status !== "Draft") return false;
       if (draftFilterMode === "edited" && draft.status !== "Edited") return false;
-      if (draftFilterMode === "sent" && draft.status !== "Sent" && draft.status !== "Simulated") return false;
-      if (draftFilterMode === "failed" && draft.status !== "Delivery Failed") return false;
+      if (
+        draftFilterMode === "sent" &&
+        draft.status !== "Sent" &&
+        draft.status !== "Simulated"
+      ) {
+        return false;
+      }
+      if (draftFilterMode === "failed" && draft.status !== "Delivery Failed") {
+        return false;
+      }
 
       if (!search) return true;
 
@@ -408,6 +502,7 @@ export default function ClientEmailsPage() {
         draft.status,
         draft.sourceSummary?.topic,
         draft.sourceSummary?.purpose,
+        draft.sourceSummary?.ai?.strategy,
       ]
         .filter(Boolean)
         .join(" ")
@@ -418,37 +513,54 @@ export default function ClientEmailsPage() {
   }, [allDrafts, draftSearch, draftFilterMode]);
 
   async function loadEmailCenter(nextActiveDraftId = activeDraftId) {
-    const response = await fetch("/api/client-emails", {
-      cache: "no-store",
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Unable to load client email center.");
-      return;
-    }
-
-    setPayload(data);
-
-    const allLoadedDrafts = [...(data.drafts ?? []), ...(data.archivedDrafts ?? [])];
-    const nextActive =
-      allLoadedDrafts.find((draft: Draft) => draft.id === nextActiveDraftId) ??
-      allLoadedDrafts[0] ??
-      null;
-
-    if (nextActive) {
-      setActiveDraftId(nextActive.id);
-      setEditForm({
-        subject: nextActive.title,
-        body: nextActive.body,
-        status:
-          nextActive.status === "Sent" || nextActive.status === "Simulated"
-            ? nextActive.status
-            : nextActive.status === "Needs Advisor Approval"
-              ? "Needs Advisor Approval"
-              : "Edited",
+    try {
+      const response = await fetch("/api/client-emails", {
+        cache: "no-store",
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error ?? "Unable to load client email center.");
+        return;
+      }
+
+      setPayload(data);
+
+      const allLoadedDrafts = [
+        ...(data.drafts ?? []),
+        ...(data.archivedDrafts ?? []),
+      ];
+
+      const nextActive =
+        allLoadedDrafts.find((draft: Draft) => draft.id === nextActiveDraftId) ??
+        allLoadedDrafts[0] ??
+        null;
+
+      if (nextActive) {
+        setActiveDraftId(nextActive.id);
+        setEditForm({
+          subject: nextActive.title,
+          body: nextActive.body,
+          status:
+            nextActive.status === "Sent" || nextActive.status === "Simulated"
+              ? nextActive.status
+              : nextActive.status === "Needs Advisor Approval"
+                ? "Needs Advisor Approval"
+                : "Edited",
+        });
+      } else {
+        setActiveDraftId("");
+        setEditForm({
+          subject: "",
+          body: "",
+          status: "Edited",
+        });
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Unable to load client email center."
+      );
     }
   }
 
@@ -477,7 +589,9 @@ export default function ClientEmailsPage() {
       Array.from(
         new Set([
           ...selectedClientIds,
-          ...filteredClients.filter((client) => client.email).map((client) => client.id),
+          ...filteredClients
+            .filter((client) => client.email)
+            .map((client) => client.id),
         ])
       )
     );
@@ -495,7 +609,9 @@ export default function ClientEmailsPage() {
       if (!client.email) return false;
 
       return client.holdings.some((item) =>
-        `${item.symbol} ${item.assetName} ${item.assetClass}`.toLowerCase().includes(holding)
+        `${item.symbol} ${item.assetName} ${item.assetClass}`
+          .toLowerCase()
+          .includes(holding)
       );
     });
 
@@ -504,7 +620,10 @@ export default function ClientEmailsPage() {
   }
 
   function invertFilteredSelection() {
-    const filteredSelectable = filteredClients.filter((client) => client.email).map((client) => client.id);
+    const filteredSelectable = filteredClients
+      .filter((client) => client.email)
+      .map((client) => client.id);
+
     const selected = new Set(selectedClientIds);
 
     for (const id of filteredSelectable) {
@@ -525,7 +644,12 @@ export default function ClientEmailsPage() {
         new Set([
           ...selectedDraftIds,
           ...filteredDrafts
-            .filter((draft) => draft.status !== "Sent" && draft.status !== "Simulated")
+            .filter(
+              (draft) =>
+                draft.status !== "Sent" &&
+                draft.status !== "Simulated" &&
+                draft.status !== "Archived"
+            )
             .map((draft) => draft.id),
         ])
       )
@@ -553,13 +677,15 @@ export default function ClientEmailsPage() {
       ...current,
       advisorInstructions: "",
     }));
+
+    setActivePanel("drafts");
   }
 
   async function createAiDrafts(event: FormEvent) {
     event.preventDefault();
 
-    if (!aiForm.includeAllClients && !selectedClientIds.length) {
-      setMessage("Select at least one client or choose all clients.");
+    if (!aiForm.topic.trim()) {
+      setMessage("Enter a prompt/topic first. You can create a scratch draft without selecting clients.");
       return;
     }
 
@@ -582,7 +708,9 @@ export default function ClientEmailsPage() {
           tone: aiForm.tone,
           advisorInstructions: aiForm.advisorInstructions,
           callToAction: aiForm.callToAction,
-          queueForApproval: aiForm.queueImmediately,
+          queueForApproval:
+            aiForm.queueImmediately &&
+            (aiForm.includeAllClients || selectedClientIds.length > 0),
         }),
       });
 
@@ -595,9 +723,12 @@ export default function ClientEmailsPage() {
 
       setMessage(data.message ?? "AI email drafts created.");
       setSelectedDraftIds(data.drafts?.map((draft: { id: string }) => draft.id) ?? []);
+      setActivePanel("drafts");
       await loadEmailCenter(data.drafts?.[0]?.id);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to create AI email drafts.");
+      setMessage(
+        error instanceof Error ? error.message : "Unable to create AI email drafts."
+      );
     } finally {
       setLoading(false);
     }
@@ -606,8 +737,13 @@ export default function ClientEmailsPage() {
   async function createManualDrafts(event: FormEvent) {
     event.preventDefault();
 
-    if (!selectedClientIds.length) {
-      setMessage("Select at least one client.");
+    if (!manualForm.subject.trim()) {
+      setMessage("Subject is required.");
+      return;
+    }
+
+    if (!manualForm.body.trim()) {
+      setMessage("Body is required.");
       return;
     }
 
@@ -627,7 +763,8 @@ export default function ClientEmailsPage() {
           subject: manualForm.subject,
           body: manualForm.body,
           tone: manualForm.tone,
-          queueForApproval: manualForm.queueImmediately,
+          queueForApproval:
+            manualForm.queueImmediately && selectedClientIds.length > 0,
         }),
       });
 
@@ -640,9 +777,14 @@ export default function ClientEmailsPage() {
 
       setMessage(data.message ?? "Manual email drafts created.");
       setSelectedDraftIds(data.drafts?.map((draft: { id: string }) => draft.id) ?? []);
+      setActivePanel("drafts");
       await loadEmailCenter(data.drafts?.[0]?.id);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to create manual email drafts.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to create manual email drafts."
+      );
     } finally {
       setLoading(false);
     }
@@ -737,6 +879,17 @@ export default function ClientEmailsPage() {
       return;
     }
 
+    const scratchCount = selectedDrafts.filter(
+      (draft) => draft.sourceSummary?.scratchDraft
+    ).length;
+
+    if (scratchCount) {
+      setMessage(
+        "Scratch drafts are editable working drafts. Assign/adapt them to clients before queueing for sending."
+      );
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -762,9 +915,12 @@ export default function ClientEmailsPage() {
       }
 
       setMessage(data.message ?? "Drafts queued for approval.");
+      setActivePanel("approvals");
       await loadEmailCenter(activeDraftId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to queue selected drafts.");
+      setMessage(
+        error instanceof Error ? error.message : "Unable to queue selected drafts."
+      );
     } finally {
       setLoading(false);
     }
@@ -784,7 +940,9 @@ export default function ClientEmailsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-slice-sensitive-action": restore ? "restore-client-email-drafts" : "archive-client-email-drafts",
+          "x-slice-sensitive-action": restore
+            ? "restore-client-email-drafts"
+            : "archive-client-email-drafts",
         },
         body: JSON.stringify({
           action: "archiveDrafts",
@@ -804,7 +962,9 @@ export default function ClientEmailsPage() {
       setSelectedDraftIds([]);
       await loadEmailCenter(activeDraftId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to update selected drafts.");
+      setMessage(
+        error instanceof Error ? error.message : "Unable to update selected drafts."
+      );
     } finally {
       setLoading(false);
     }
@@ -848,7 +1008,9 @@ export default function ClientEmailsPage() {
 
       await loadEmailCenter(activeDraftId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to approve and send emails.");
+      setMessage(
+        error instanceof Error ? error.message : "Unable to approve and send emails."
+      );
     } finally {
       setLoading(false);
     }
@@ -869,21 +1031,32 @@ export default function ClientEmailsPage() {
                 Slice Client Email Center
               </div>
               <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                Beautiful advisor emails, easier editing, safer sending.
+                AI-drafted emails, scratch drafts, bulk workflows, and approval-safe sending.
               </h1>
               <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-                Choose recipients, generate polished AI drafts, edit them manually, polish again with AI, preview the final email, queue for approval, and send from the platform.
+                Create one scratch draft from a prompt, draft many client emails at once,
+                edit manually, polish with AI, queue for approval, and send through Resend
+                when live email is configured.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <a href="/workspace" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">
+              <a
+                href="/workspace"
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+              >
                 Workspace
               </a>
-              <a href="/workspace/client-briefings" className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100">
+              <a
+                href="/workspace/client-briefings"
+                className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
+              >
                 Holding Briefings
               </a>
-              <a href="/security" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100">
+              <a
+                href="/security"
+                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+              >
                 Security
               </a>
             </div>
@@ -897,731 +1070,951 @@ export default function ClientEmailsPage() {
         ) : null}
 
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Clients" value={payload.metrics.clientCount} helper="Active records" tone="slate" />
-          <Metric label="Email Ready" value={payload.metrics.clientsWithEmail} helper="Can receive emails" tone="green" />
-          <Metric label="Missing Email" value={payload.metrics.clientsMissingEmail} helper="Needs cleanup" tone={payload.metrics.clientsMissingEmail ? "red" : "green"} />
-          <Metric label="Drafts" value={payload.metrics.draftCount} helper="Editable active drafts" tone="purple" />
-          <Metric label="Approvals" value={payload.metrics.pendingApprovalCount} helper="Pending send approval" tone={payload.metrics.pendingApprovalCount ? "amber" : "green"} />
-          <Metric label="Sent" value={payload.metrics.sentCount ?? 0} helper="Delivered or simulated" tone="cyan" />
+          <Metric
+            label="Clients"
+            value={payload.metrics.clientCount}
+            helper="Active records"
+            tone="slate"
+          />
+          <Metric
+            label="Email Ready"
+            value={payload.metrics.clientsWithEmail}
+            helper="Can receive drafts"
+            tone="green"
+          />
+          <Metric
+            label="Missing Email"
+            value={payload.metrics.clientsMissingEmail}
+            helper="Needs cleanup"
+            tone={payload.metrics.clientsMissingEmail ? "red" : "green"}
+          />
+          <Metric
+            label="Active Drafts"
+            value={payload.metrics.draftCount}
+            helper="Working queue"
+            tone="cyan"
+          />
+          <Metric
+            label="Approvals"
+            value={payload.metrics.pendingApprovalCount}
+            helper="Pending send approval"
+            tone={payload.metrics.pendingApprovalCount ? "amber" : "green"}
+          />
+          <Metric
+            label="Sent/Simulated"
+            value={payload.metrics.sentCount ?? 0}
+            helper="Processed emails"
+            tone="purple"
+          />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
-          <Card>
-            <div className="flex items-start justify-between gap-3">
+        <section className="grid gap-3 rounded-[1.75rem] border border-white/10 bg-black/45 p-3 md:grid-cols-4">
+          {[
+            ["ai", "AI Draft Desk", "Prompt-based and bulk drafts"],
+            ["manual", "Manual Drafts", "Scratch or client-specific"],
+            ["drafts", "Draft Workspace", "Edit, polish, queue"],
+            ["approvals", "Send Queue", "Approve and send"],
+          ].map(([key, label, helper]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActivePanel(key as typeof activePanel)}
+              className={cx(
+                "rounded-2xl px-4 py-3 text-left transition",
+                activePanel === key
+                  ? "bg-white text-slate-950"
+                  : "bg-white/[0.055] text-white hover:bg-white/10"
+              )}
+            >
+              <div className="text-sm font-black">{label}</div>
+              <div
+                className={cx(
+                  "mt-1 text-xs font-semibold",
+                  activePanel === key ? "text-slate-600" : "text-slate-500"
+                )}
+              >
+                {helper}
+              </div>
+            </button>
+          ))}
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)_480px]">
+          <Card className="min-h-[760px]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
                   Recipients
                 </div>
-                <h2 className="mt-2 text-2xl font-black">Who receives it?</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Include or exclude clients instantly. Use the holding filter to target specific stocks or funds.
+                <h2 className="mt-2 text-2xl font-black">Client Selector</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Select clients for bulk drafts. Leave empty to create a scratch draft.
                 </p>
               </div>
               <Pill tone="cyan">{selectedClientIds.length} selected</Pill>
             </div>
 
-            {selectedClients.length ? (
-              <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-                  Included Recipients
-                </div>
-                <div className="mt-2 flex max-h-[94px] flex-wrap gap-1.5 overflow-y-auto pr-1">
-                  {selectedClients.map((client) => (
-                    <button
-                      key={client.id}
-                      type="button"
-                      onClick={() => toggleClient(client.id)}
-                      className="rounded-full bg-black/35 px-3 py-1 text-[11px] font-bold text-cyan-100 ring-1 ring-cyan-400/20 hover:bg-red-500/15 hover:text-red-100"
-                      title="Click to remove"
-                    >
-                      {client.fullName} ×
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             <div className="mt-4 grid gap-2">
               <input
                 value={clientSearch}
                 onChange={(event) => setClientSearch(event.target.value)}
+                placeholder="Search clients, emails, holdings..."
                 className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Search client, household, email, or holding..."
               />
 
               <input
                 value={holdingFilter}
                 onChange={(event) => setHoldingFilter(event.target.value)}
+                placeholder="Holding filter, e.g. NVDA, ETF, bond..."
                 className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Filter by holding/ticker, e.g. NVDA, SPY, QQQ..."
               />
 
               <select
                 value={clientFilterMode}
-                onChange={(event) => setClientFilterMode(event.target.value as ClientFilterMode)}
+                onChange={(event) =>
+                  setClientFilterMode(event.target.value as ClientFilterMode)
+                }
                 className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
               >
-                <option value="with-email">Clients with email</option>
+                <option value="with-email">With email</option>
                 <option value="all">All clients</option>
                 <option value="missing-email">Missing email</option>
                 <option value="selected">Selected only</option>
               </select>
-            </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={selectAllWithEmails} className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-950">
-                Select All Ready
-              </button>
-              <button type="button" onClick={selectFilteredWithEmails} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100">
-                Add Filtered
-              </button>
-              <button type="button" onClick={selectByHoldingFilter} className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-xs font-black text-purple-100">
-                Select Holding
-              </button>
-              <button type="button" onClick={invertFilteredSelection} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-black text-amber-100">
-                Invert Filter
-              </button>
-              <button type="button" onClick={clearSelection} className="col-span-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-black text-white hover:bg-white/10">
-                Clear Recipients
-              </button>
-            </div>
-
-            <div className="mt-4 grid max-h-[760px] gap-3 overflow-y-auto pr-2">
-              {filteredClients.map((client) => (
-                <label
-                  key={client.id}
-                  className={cx(
-                    "cursor-pointer rounded-[1.4rem] border p-4 transition",
-                    selectedClientIds.includes(client.id)
-                      ? "border-cyan-400/50 bg-cyan-500/10"
-                      : "border-white/10 bg-white/[0.045] hover:bg-white/[0.065]",
-                    !client.email && "cursor-not-allowed opacity-70"
-                  )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={selectFilteredWithEmails}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
                 >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedClientIds.includes(client.id)}
-                      onChange={() => toggleClient(client.id)}
-                      disabled={!client.email}
-                      className="mt-1"
-                    />
+                  Select Filtered
+                </button>
+                <button
+                  type="button"
+                  onClick={selectAllWithEmails}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
+                >
+                  Select All Email
+                </button>
+                <button
+                  type="button"
+                  onClick={selectByHoldingFilter}
+                  className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20"
+                >
+                  Select By Holding
+                </button>
+                <button
+                  type="button"
+                  onClick={invertFilteredSelection}
+                  className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-3 py-3 text-xs font-black text-purple-100 hover:bg-purple-500/20"
+                >
+                  Invert Filter
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="col-span-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-black text-white">{client.fullName}</div>
-                      <div className="mt-1 truncate text-xs text-slate-400">
-                        {client.email || "No email on file"}
-                      </div>
+            <div className="mt-4 max-h-[460px] space-y-3 overflow-y-auto pr-2">
+              {filteredClients.map((client) => {
+                const selected = selectedClientIds.includes(client.id);
 
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Pill tone={client.email ? "green" : "red"}>
-                          {client.email ? "Email Ready" : "Missing Email"}
-                        </Pill>
-                        <Pill tone="purple">{client.riskProfile}</Pill>
-                        <Pill tone="slate">{client.holdings.length} holdings</Pill>
-                      </div>
-
-                      {client.holdings.length ? (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {client.holdings.slice(0, 8).map((holding) => (
-                            <span
-                              key={holding.id}
-                              className="rounded-full bg-black/35 px-2 py-1 text-[10px] font-black text-slate-300 ring-1 ring-white/10"
-                            >
-                              {holding.symbol}
-                            </span>
-                          ))}
+                return (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => toggleClient(client.id)}
+                    className={cx(
+                      "w-full rounded-[1.25rem] border p-4 text-left transition",
+                      selected
+                        ? "border-cyan-400/50 bg-cyan-500/12"
+                        : "border-white/10 bg-white/[0.045] hover:bg-white/[0.075]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-white">
+                          {client.fullName}
                         </div>
-                      ) : null}
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {client.email ?? "No email on file"}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <Pill tone={client.email ? "green" : "red"}>
+                          {client.email ? "Ready" : "Missing"}
+                        </Pill>
+                      </div>
                     </div>
-                  </div>
-                </label>
-              ))}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Pill tone={toneFor(client.riskProfile)}>
+                        {client.riskProfile}
+                      </Pill>
+                      <Pill tone="slate">{client.clientType}</Pill>
+                      {client.holdings.slice(0, 3).map((holding) => (
+                        <Pill key={holding.id} tone="purple">
+                          {holding.symbol}
+                        </Pill>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
 
               {!filteredClients.length ? (
                 <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                  No clients match this filter.
+                  No clients match the current filter.
                 </div>
               ) : null}
             </div>
+
+            {selectedClients.length ? (
+              <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+                  Selected recipients
+                </div>
+                <div className="mt-2 max-h-28 overflow-y-auto text-sm leading-6 text-cyan-50">
+                  {selectedClients.map((client) => client.fullName).join(", ")}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                No clients selected. AI and manual creation will make a scratch draft.
+              </div>
+            )}
           </Card>
 
           <div className="grid gap-6">
-            <section className="grid gap-6 2xl:grid-cols-[0.95fr_1.05fr]">
+            {activePanel === "ai" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                  Draft Creation
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+                      AI Draft Desk
+                    </div>
+                    <h2 className="mt-2 text-3xl font-black">
+                      Create one draft or many at once
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      Enter a prompt. With no clients selected, Slice creates a scratch draft.
+                      With selected clients, it creates tailored drafts for each recipient.
+                    </p>
+                  </div>
+                  <Pill tone="cyan">Scratch + bulk enabled</Pill>
                 </div>
-                <h2 className="mt-2 text-2xl font-black">Create polished drafts</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Create drafts first, edit them, polish them, preview them, then queue for approval.
-                </p>
 
                 <form onSubmit={createAiDrafts} className="mt-5 grid gap-3">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={aiForm.includeAllClients}
-                        onChange={(event) =>
-                          setAiForm((current) => ({ ...current, includeAllClients: event.target.checked }))
-                        }
-                      />
-                      Draft for all email-ready clients
-                    </label>
-
-                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={aiForm.queueImmediately}
-                        onChange={(event) =>
-                          setAiForm((current) => ({ ...current, queueImmediately: event.target.checked }))
-                        }
-                      />
-                      Queue immediately
-                    </label>
-                  </div>
-
-                  <input
+                  <textarea
                     value={aiForm.topic}
-                    onChange={(event) => setAiForm((current) => ({ ...current, topic: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                    placeholder="Topic, e.g. Market volatility update, NVDA earnings, review reminder..."
+                    onChange={(event) =>
+                      setAiForm((current) => ({
+                        ...current,
+                        topic: event.target.value,
+                      }))
+                    }
+                    placeholder="Prompt/topic: e.g. Draft a reassuring email to clients about recent market volatility and explain that we are monitoring risk carefully..."
+                    className="min-h-[140px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
-                  <input
-                    value={aiForm.purpose}
-                    onChange={(event) => setAiForm((current) => ({ ...current, purpose: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                    placeholder="Purpose of the email..."
-                  />
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <input
+                      value={aiForm.purpose}
+                      onChange={(event) =>
+                        setAiForm((current) => ({
+                          ...current,
+                          purpose: event.target.value,
+                        }))
+                      }
+                      placeholder="Purpose"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    />
+
+                    <input
+                      value={aiForm.tone}
+                      onChange={(event) =>
+                        setAiForm((current) => ({
+                          ...current,
+                          tone: event.target.value,
+                        }))
+                      }
+                      placeholder="Tone"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    />
+                  </div>
 
                   <textarea
                     value={aiForm.advisorInstructions}
-                    onChange={(event) => setAiForm((current) => ({ ...current, advisorInstructions: event.target.value }))}
-                    className="min-h-[105px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                    placeholder="Advisor instructions, talking points, client sensitivity, or details AI should include..."
+                    onChange={(event) =>
+                      setAiForm((current) => ({
+                        ...current,
+                        advisorInstructions: event.target.value,
+                      }))
+                    }
+                    placeholder="Advisor instructions: specific wording, things to avoid, client concerns, compliance reminders..."
+                    className="min-h-[90px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
                   <textarea
                     value={aiForm.callToAction}
-                    onChange={(event) => setAiForm((current) => ({ ...current, callToAction: event.target.value }))}
-                    className="min-h-[82px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                    placeholder="Optional call to action..."
+                    onChange={(event) =>
+                      setAiForm((current) => ({
+                        ...current,
+                        callToAction: event.target.value,
+                      }))
+                    }
+                    placeholder="Optional call to action: e.g. Reply with any questions, schedule a review, no action required..."
+                    className="min-h-[80px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
-                  <button
-                    disabled={loading || !aiForm.topic.trim()}
-                    className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                  >
-                    {loading ? "Drafting..." : "Create AI Drafts"}
-                  </button>
-                </form>
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={aiForm.includeAllClients}
+                        onChange={(event) =>
+                          setAiForm((current) => ({
+                            ...current,
+                            includeAllClients: event.target.checked,
+                          }))
+                        }
+                      />
+                      Draft for all clients with emails
+                    </label>
 
-                <div className="my-5 h-px bg-white/10" />
-
-                <form onSubmit={createManualDrafts} className="grid gap-3">
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                    Manual Draft
+                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={aiForm.queueImmediately}
+                        onChange={(event) =>
+                          setAiForm((current) => ({
+                            ...current,
+                            queueImmediately: event.target.checked,
+                          }))
+                        }
+                      />
+                      Queue client-specific drafts for approval
+                    </label>
                   </div>
 
-                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-slate-300">
-                    <input
-                      type="checkbox"
-                      checked={manualForm.queueImmediately}
-                      onChange={(event) =>
-                        setManualForm((current) => ({ ...current, queueImmediately: event.target.checked }))
-                      }
-                    />
-                    Queue immediately
-                  </label>
+                  <button
+                    disabled={loading}
+                    className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                  >
+                    {loading
+                      ? "Creating..."
+                      : selectedClientIds.length || aiForm.includeAllClients
+                        ? "Create AI Drafts"
+                        : "Create Scratch AI Draft"}
+                  </button>
+                </form>
+              </Card>
+            ) : null}
 
+            {activePanel === "manual" ? (
+              <Card>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
+                      Manual Drafts
+                    </div>
+                    <h2 className="mt-2 text-3xl font-black">
+                      Create editable emails manually
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      With no selected clients, this creates a scratch draft. With selected clients,
+                      it creates one draft per selected recipient.
+                    </p>
+                  </div>
+                  <Pill tone="purple">Scratch + bulk enabled</Pill>
+                </div>
+
+                <form onSubmit={createManualDrafts} className="mt-5 grid gap-3">
                   <input
                     value={manualForm.subject}
-                    onChange={(event) => setManualForm((current) => ({ ...current, subject: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    onChange={(event) =>
+                      setManualForm((current) => ({
+                        ...current,
+                        subject: event.target.value,
+                      }))
+                    }
                     placeholder="Subject"
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
                   <textarea
                     value={manualForm.body}
-                    onChange={(event) => setManualForm((current) => ({ ...current, body: event.target.value }))}
-                    className="min-h-[160px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                    placeholder="Write your email draft..."
+                    onChange={(event) =>
+                      setManualForm((current) => ({
+                        ...current,
+                        body: event.target.value,
+                      }))
+                    }
+                    placeholder="Email body..."
+                    className="min-h-[220px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <input
+                      value={manualForm.tone}
+                      onChange={(event) =>
+                        setManualForm((current) => ({
+                          ...current,
+                          tone: event.target.value,
+                        }))
+                      }
+                      placeholder="Tone"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    />
+
+                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={manualForm.queueImmediately}
+                        onChange={(event) =>
+                          setManualForm((current) => ({
+                            ...current,
+                            queueImmediately: event.target.checked,
+                          }))
+                        }
+                      />
+                      Queue client-specific drafts for approval
+                    </label>
+                  </div>
+
                   <button
-                    disabled={loading || !manualForm.subject.trim() || !manualForm.body.trim()}
-                    className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+                    disabled={loading}
+                    className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
                   >
-                    Create Manual Draft
+                    {loading
+                      ? "Creating..."
+                      : selectedClientIds.length
+                        ? "Create Manual Drafts"
+                        : "Create Scratch Manual Draft"}
                   </button>
                 </form>
               </Card>
+            ) : null}
 
+            {activePanel === "drafts" ? (
               <Card>
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                      Edit & Polish
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black">Draft editor</h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Edit directly, save quickly, then use AI polish buttons for grammar, warmth, brevity, or professional tone.
-                    </p>
-                  </div>
-                  {activeDraft ? <Pill tone={toneFor(activeDraft.status)}>{activeDraft.status}</Pill> : null}
-                </div>
-
-                {activeDraft ? (
-                  <form onSubmit={saveEditedDraft} className="grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Pill tone="purple">{activeDraft.clientName || "Client"}</Pill>
-                        <Pill tone="cyan">{wordCount(editForm.body)} words</Pill>
-                        <Pill tone="slate">{readingTime(editForm.body)} min read</Pill>
-                        {activeDraft.sourceSummary?.ai?.polished ? <Pill tone="cyan">AI generated</Pill> : null}
-                        {activeDraft.sourceSummary?.aiPolish?.mode ? (
-                          <Pill tone="green">Polished: {activeDraft.sourceSummary.aiPolish.mode}</Pill>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <input
-                      value={editForm.subject}
-                      onChange={(event) => setEditForm((current) => ({ ...current, subject: event.target.value }))}
-                      disabled={!canEditDraft(activeDraft)}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50"
-                      placeholder="Subject"
-                    />
-
-                    <textarea
-                      value={editForm.body}
-                      onChange={(event) => setEditForm((current) => ({ ...current, body: event.target.value }))}
-                      disabled={!canEditDraft(activeDraft)}
-                      className="min-h-[360px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold leading-7 text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50"
-                      placeholder="Email body"
-                    />
-
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                      <select
-                        value={editForm.status}
-                        onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
-                        disabled={!canEditDraft(activeDraft)}
-                        className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2 disabled:opacity-50"
-                      >
-                        {draftStatusOptions(activeDraft.status).map((status) => (
-                          <option key={status}>{status}</option>
-                        ))}
-                      </select>
-
-                      <button
-                        disabled={loading || !canEditDraft(activeDraft)}
-                        className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-cyan-950/40 disabled:opacity-50"
-                      >
-                        Save Draft
-                      </button>
-                    </div>
-
-                    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-3">
-                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
-                        AI Polish Tools
-                      </div>
-
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {[
-                          "Grammar and formatting cleanup",
-                          "Warmer and more reassuring",
-                          "More concise",
-                          "More professional",
-                          "More client-friendly",
-                          "Compliance-safe polish",
-                        ].map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => polishActiveDraft(mode)}
-                            disabled={loading || !canEditDraft(activeDraft)}
-                            className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white hover:bg-white/10 disabled:opacity-50"
-                          >
-                            {mode}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 grid gap-2">
-                        <input
-                          value={polishForm.polishMode}
-                          onChange={(event) => setPolishForm((current) => ({ ...current, polishMode: event.target.value }))}
-                          className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 placeholder:text-slate-600 focus:ring-2"
-                          placeholder="Custom polish mode"
-                        />
-                        <textarea
-                          value={polishForm.advisorInstructions}
-                          onChange={(event) => setPolishForm((current) => ({ ...current, advisorInstructions: event.target.value }))}
-                          className="min-h-[80px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 placeholder:text-slate-600 focus:ring-2"
-                          placeholder="Optional polish instructions..."
-                        />
-                        <button
-                          type="button"
-                          onClick={() => polishActiveDraft()}
-                          disabled={loading || !canEditDraft(activeDraft)}
-                          className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-100 disabled:opacity-50"
-                        >
-                          Run Custom AI Polish
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    Select a draft to edit.
-                  </div>
-                )}
-              </Card>
-            </section>
-
-            <section className="grid gap-6 2xl:grid-cols-[0.82fr_1.18fr]">
-              <Card>
-                <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                      Approval Queue
+                      Draft Workspace
                     </div>
-                    <h2 className="mt-2 text-2xl font-black">Approve and send</h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Queue edited drafts for advisor approval, then send only after approval.
+                    <h2 className="mt-2 text-3xl font-black">
+                      Edit, polish, select, and queue
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      Work on many emails at once. Pick drafts on the left list, edit the active draft,
+                      polish with AI, then queue selected client-specific drafts for approval.
                     </p>
                   </div>
-                  <Pill tone="amber">{pendingApprovals.length} pending</Pill>
+                  <Pill tone="amber">{selectedDraftIds.length} selected</Pill>
                 </div>
 
-                <div className="mb-4 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={queueSelectedDrafts}
-                    disabled={loading || !selectedDraftIds.length}
-                    className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-950 disabled:opacity-50"
-                  >
-                    Queue Selected
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => archiveSelectedDrafts(false)}
-                    disabled={loading || !selectedDraftIds.length}
-                    className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100 disabled:opacity-50"
-                  >
-                    Archive Selected
-                  </button>
-                </div>
+                <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid gap-3">
+                    <div className="grid gap-2 lg:grid-cols-[1fr_auto]">
+                      <input
+                        value={draftSearch}
+                        onChange={(event) => setDraftSearch(event.target.value)}
+                        placeholder="Search drafts..."
+                        className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      />
 
-                <div className="grid max-h-[500px] gap-3 overflow-y-auto pr-2">
-                  {pendingApprovals.map((approval) => (
-                    <div key={approval.id} className="rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
-                      <div className="font-black text-white">{approval.title}</div>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">{approval.summary}</p>
+                      <select
+                        value={draftFilterMode}
+                        onChange={(event) =>
+                          setDraftFilterMode(event.target.value as DraftFilterMode)
+                        }
+                        className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                      >
+                        <option value="active">Active</option>
+                        <option value="all">All</option>
+                        <option value="draft">Draft</option>
+                        <option value="edited">Edited</option>
+                        <option value="needs-approval">Needs approval</option>
+                        <option value="sent">Sent/simulated</option>
+                        <option value="failed">Failed</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
-                        <Pill tone={toneFor(approval.riskLevel)}>{approval.riskLevel}</Pill>
-                        <Pill tone="cyan">{formatDate(approval.createdAt)}</Pill>
-                        <Pill tone="purple">{approval.payload?.draftIds?.length ?? 0} drafts</Pill>
-                      </div>
-
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => approveAndSend(approval.id)}
-                        disabled={loading}
-                        className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+                        onClick={selectAllVisibleDrafts}
+                        className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
                       >
-                        Approve & Send
+                        Select Visible
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDraftSelection}
+                        className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
+                      >
+                        Clear Drafts
+                      </button>
+                      <button
+                        type="button"
+                        onClick={queueSelectedDrafts}
+                        className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20"
+                      >
+                        Queue Selected
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => archiveSelectedDrafts(draftFilterMode === "archived")}
+                        className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20"
+                      >
+                        {draftFilterMode === "archived" ? "Restore Selected" : "Archive Selected"}
                       </button>
                     </div>
-                  ))}
 
-                  {!pendingApprovals.length ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                      No pending email approvals.
+                    <div className="max-h-[560px] space-y-3 overflow-y-auto pr-2">
+                      {filteredDrafts.map((draft) => {
+                        const selected = selectedDraftIds.includes(draft.id);
+                        const active = activeDraftId === draft.id;
+
+                        return (
+                          <div
+                            key={draft.id}
+                            className={cx(
+                              "rounded-[1.25rem] border p-4",
+                              active
+                                ? "border-cyan-400/50 bg-cyan-500/10"
+                                : "border-white/10 bg-white/[0.045]"
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => toggleDraft(draft.id)}
+                                className="mt-1"
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => openDraftEditor(draft)}
+                                className="min-w-0 flex-1 text-left"
+                              >
+                                <div className="truncate text-sm font-black text-white">
+                                  {draft.title}
+                                </div>
+                                <div className="mt-1 truncate text-xs text-slate-500">
+                                  {getDraftRecipientLabel(draft)} · {formatDate(draft.updatedAt)}
+                                </div>
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <Pill tone={toneFor(draft.status)}>
+                                    {draft.status}
+                                  </Pill>
+                                  <Pill
+                                    tone={
+                                      draft.sourceSummary?.scratchDraft
+                                        ? "cyan"
+                                        : "purple"
+                                    }
+                                  >
+                                    {draft.sourceSummary?.scratchDraft
+                                      ? "Scratch"
+                                      : "Client"}
+                                  </Pill>
+                                  {draft.sourceSummary?.ai?.polished ? (
+                                    <Pill tone="cyan">AI Drafted</Pill>
+                                  ) : null}
+                                </div>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {!filteredDrafts.length ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                          No drafts match the current filter.
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div>
+                    {activeDraft ? (
+                      <form onSubmit={saveEditedDraft} className="grid gap-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
+                              Active Draft
+                            </div>
+                            <h3 className="mt-1 text-xl font-black">
+                              {getDraftRecipientLabel(activeDraft)}
+                            </h3>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Pill tone={toneFor(activeDraft.status)}>
+                              {activeDraft.status}
+                            </Pill>
+                            <Pill
+                              tone={
+                                activeDraft.sourceSummary?.scratchDraft
+                                  ? "cyan"
+                                  : "purple"
+                              }
+                            >
+                              {activeDraft.sourceSummary?.scratchDraft
+                                ? "Scratch"
+                                : "Client-specific"}
+                            </Pill>
+                          </div>
+                        </div>
+
+                        <input
+                          value={editForm.subject}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              subject: event.target.value,
+                            }))
+                          }
+                          disabled={!canEditDraft(activeDraft)}
+                          className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 disabled:opacity-60 focus:ring-2"
+                          placeholder="Subject"
+                        />
+
+                        <textarea
+                          value={editForm.body}
+                          onChange={(event) =>
+                            setEditForm((current) => ({
+                              ...current,
+                              body: event.target.value,
+                            }))
+                          }
+                          disabled={!canEditDraft(activeDraft)}
+                          className="min-h-[300px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold leading-7 text-white outline-none ring-red-500 placeholder:text-slate-600 disabled:opacity-60 focus:ring-2"
+                          placeholder="Body"
+                        />
+
+                        <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto]">
+                          <select
+                            value={editForm.status}
+                            onChange={(event) =>
+                              setEditForm((current) => ({
+                                ...current,
+                                status: event.target.value,
+                              }))
+                            }
+                            disabled={!canEditDraft(activeDraft)}
+                            className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 disabled:opacity-60 focus:ring-2"
+                          >
+                            {draftStatusOptions(activeDraft.status).map((option) => (
+                              <option key={option}>{option}</option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="submit"
+                            disabled={loading || !canEditDraft(activeDraft)}
+                            className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                          >
+                            Save Draft
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPreviewMode((current) => current === "email" ? "plain" : "email")}
+                            className="rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-3 text-sm font-black text-white hover:bg-white/10"
+                          >
+                            {previewMode === "email" ? "Plain Preview" : "Email Preview"}
+                          </button>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                          <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
+                            AI Polish
+                          </div>
+
+                          <div className="mt-3 grid gap-2">
+                            <select
+                              value={polishForm.polishMode}
+                              onChange={(event) =>
+                                setPolishForm((current) => ({
+                                  ...current,
+                                  polishMode: event.target.value,
+                                }))
+                              }
+                              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                            >
+                              <option>Professional polish</option>
+                              <option>More reassuring</option>
+                              <option>Shorter and cleaner</option>
+                              <option>More premium advisor tone</option>
+                              <option>Compliance-safe rewrite</option>
+                              <option>Warmer client tone</option>
+                            </select>
+
+                            <textarea
+                              value={polishForm.advisorInstructions}
+                              onChange={(event) =>
+                                setPolishForm((current) => ({
+                                  ...current,
+                                  advisorInstructions: event.target.value,
+                                }))
+                              }
+                              placeholder="Optional polish instructions..."
+                              className="min-h-[80px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                            />
+
+                            <div className="grid gap-2 md:grid-cols-3">
+                              <button
+                                type="button"
+                                onClick={() => polishActiveDraft()}
+                                disabled={loading || !canEditDraft(activeDraft)}
+                                className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+                              >
+                                Polish
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => polishActiveDraft("Shorter and cleaner")}
+                                disabled={loading || !canEditDraft(activeDraft)}
+                                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white hover:bg-white/10 disabled:opacity-50"
+                              >
+                                Shorten
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => polishActiveDraft("Compliance-safe rewrite")}
+                                disabled={loading || !canEditDraft(activeDraft)}
+                                className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+                              >
+                                Compliance Safe
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
+                        Select or create a draft to start editing.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ) : null}
+
+            {activePanel === "approvals" ? (
+              <Card>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-green-400">
+                      Send Queue
+                    </div>
+                    <h2 className="mt-2 text-3xl font-black">
+                      Approval-gated email sending
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      Approve pending email batches here. Live sending uses Resend when configured;
+                      otherwise sends are safely simulated.
+                    </p>
+                  </div>
+                  <Pill tone={pendingApprovals.length ? "amber" : "green"}>
+                    {pendingApprovals.length} pending
+                  </Pill>
+                </div>
+
+                <div className="mt-5 grid gap-3">
+                  {payload.approvals.map((approval) => {
+                    const ids = approval.payload?.draftIds ?? [];
+
+                    return (
+                      <div
+                        key={approval.id}
+                        className="rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="font-black text-white">
+                              {approval.title}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {formatDate(approval.createdAt)} · {ids.length} draft(s)
+                            </div>
+                            <p className="mt-3 text-sm leading-6 text-slate-400">
+                              {approval.summary}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 lg:justify-end">
+                            <Pill tone={toneFor(approval.status)}>
+                              {approval.status}
+                            </Pill>
+                            <Pill tone={toneFor(approval.riskLevel)}>
+                              {approval.riskLevel}
+                            </Pill>
+                          </div>
+                        </div>
+
+                        {approval.status === "Pending" ? (
+                          <button
+                            type="button"
+                            onClick={() => approveAndSend(approval.id)}
+                            disabled={loading}
+                            className="mt-4 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+                          >
+                            Approve and Send
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+
+                  {!payload.approvals.length ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
+                      No approval items yet.
                     </div>
                   ) : null}
                 </div>
               </Card>
-
-              <Card>
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                      Final Preview
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black">See what the client sees</h2>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewMode("email")}
-                      className={cx(
-                        "rounded-2xl px-3 py-2 text-xs font-black ring-1",
-                        previewMode === "email"
-                          ? "bg-white text-slate-950 ring-white"
-                          : "bg-white/5 text-white ring-white/10"
-                      )}
-                    >
-                      Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewMode("plain")}
-                      className={cx(
-                        "rounded-2xl px-3 py-2 text-xs font-black ring-1",
-                        previewMode === "plain"
-                          ? "bg-white text-slate-950 ring-white"
-                          : "bg-white/5 text-white ring-white/10"
-                      )}
-                    >
-                      Plain
-                    </button>
-                  </div>
-                </div>
-
-                {activeDraft ? (
-                  previewMode === "email" ? (
-                    <div className="overflow-hidden rounded-[1.5rem] bg-slate-100 p-4 text-slate-900">
-                      <div className="overflow-hidden rounded-[1.3rem] border border-slate-200 bg-white shadow-xl">
-                        <div className="bg-gradient-to-br from-red-950 via-red-800 to-slate-950 p-6">
-                          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-red-200">
-                            Advisor Communication
-                          </div>
-                          <h3 className="mt-2 text-2xl font-black leading-tight text-white">
-                            {editForm.subject || activeDraft.title}
-                          </h3>
-                          <div className="mt-2 text-sm text-red-100">
-                            Prepared for {activeDraft.clientName || "Client"}
-                          </div>
-                        </div>
-                        <div className="max-h-[620px] overflow-y-auto p-6">
-                          {emailParagraphs(editForm.body || activeDraft.body).map((paragraph, index) => (
-                            <p key={`${paragraph.slice(0, 20)}-${index}`} className="mb-4 text-[15px] leading-7 text-slate-700">
-                              {paragraph}
-                            </p>
-                          ))}
-
-                          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-800">
-                              Important note
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-amber-900">
-                              This message is intended for informational advisor-client communication. It is not a guarantee, trade instruction, or standalone recommendation.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="max-h-[700px] overflow-y-auto whitespace-pre-wrap rounded-[1.5rem] border border-white/10 bg-black/35 p-5 text-sm leading-7 text-slate-300">
-                      <div className="mb-4 text-lg font-black text-white">{editForm.subject || activeDraft.title}</div>
-                      {editForm.body || activeDraft.body}
-                    </div>
-                  )
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    Select a draft to preview it.
-                  </div>
-                )}
-              </Card>
-            </section>
+            ) : null}
           </div>
-        </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1fr_400px]">
-          <Card>
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <Card className="min-h-[760px]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                  Draft Library
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
+                  Preview
                 </div>
-                <h2 className="mt-2 text-2xl font-black">Manage every draft</h2>
+                <h2 className="mt-2 text-2xl font-black">
+                  {activeDraft ? activeDraft.title : "No draft selected"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  {activeDraft
+                    ? `${getDraftRecipientLabel(activeDraft)} · ${wordCount(activeDraft.body)} words · ${readingTime(activeDraft.body)} min read`
+                    : "Create or select a draft to preview it here."}
+                </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Pill tone="cyan">{selectedDraftIds.length} selected</Pill>
-                <button
-                  type="button"
-                  onClick={selectAllVisibleDrafts}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white hover:bg-white/10"
-                >
-                  Select Visible
-                </button>
-                <button
-                  type="button"
-                  onClick={clearDraftSelection}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white hover:bg-white/10"
-                >
-                  Clear Drafts
-                </button>
-                {draftFilterMode === "archived" ? (
-                  <button
-                    type="button"
-                    onClick={() => archiveSelectedDrafts(true)}
-                    disabled={loading || !selectedDraftIds.length}
-                    className="rounded-2xl border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs font-black text-green-100 disabled:opacity-50"
+              {activeDraft ? (
+                <div className="flex flex-wrap gap-2">
+                  <Pill tone={toneFor(activeDraft.status)}>{activeDraft.status}</Pill>
+                  <Pill
+                    tone={
+                      activeDraft.sourceSummary?.scratchDraft ? "cyan" : "purple"
+                    }
                   >
-                    Restore Selected
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="mb-4 grid gap-2 md:grid-cols-[1fr_220px]">
-              <input
-                value={draftSearch}
-                onChange={(event) => setDraftSearch(event.target.value)}
-                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Search drafts by client, subject, topic, or body..."
-              />
-
-              <select
-                value={draftFilterMode}
-                onChange={(event) => setDraftFilterMode(event.target.value as DraftFilterMode)}
-                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-              >
-                <option value="active">Active drafts</option>
-                <option value="needs-approval">Needs approval</option>
-                <option value="draft">Draft</option>
-                <option value="edited">Edited</option>
-                <option value="sent">Sent / simulated</option>
-                <option value="failed">Delivery failed</option>
-                <option value="archived">Archived</option>
-                <option value="all">All</option>
-              </select>
-            </div>
-
-            <div className="grid max-h-[900px] gap-3 overflow-y-auto pr-2">
-              {filteredDrafts.map((draft) => (
-                <article
-                  key={draft.id}
-                  className={cx(
-                    "rounded-[1.4rem] border p-4 transition",
-                    activeDraftId === draft.id
-                      ? "border-cyan-400/50 bg-cyan-500/10"
-                      : "border-white/10 bg-white/[0.045]"
-                  )}
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedDraftIds.includes(draft.id)}
-                        onChange={() => toggleDraft(draft.id)}
-                        disabled={draft.status === "Sent" || draft.status === "Simulated"}
-                        className="mt-1"
-                      />
-
-                      <div className="min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => openDraftEditor(draft)}
-                          className="truncate text-left text-lg font-black text-white hover:text-cyan-200"
-                        >
-                          {draft.title}
-                        </button>
-                        <div className="mt-1 text-xs font-bold text-slate-500">
-                          {draft.clientName || "Client"} · Updated {formatDate(draft.updatedAt || draft.createdAt)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <Pill tone={toneFor(draft.status)}>{draft.status}</Pill>
-                      {draft.sourceSummary?.ai?.polished ? <Pill tone="cyan">AI generated</Pill> : null}
-                      {draft.sourceSummary?.aiPolish?.mode ? <Pill tone="green">AI polished</Pill> : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 max-h-[150px] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-7 text-slate-300">
-                    {draft.body}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openDraftEditor(draft)}
-                      className="rounded-2xl bg-white px-3 py-2 text-xs font-black text-slate-950"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openDraftEditor(draft);
-                        setTimeout(() => void polishActiveDraft("Grammar and formatting cleanup"), 50);
-                      }}
-                      disabled={loading || !canEditDraft(draft)}
-                      className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-black text-cyan-100 disabled:opacity-50"
-                    >
-                      Quick Polish
-                    </button>
-                  </div>
-                </article>
-              ))}
-
-              {!filteredDrafts.length ? (
-                <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                  No drafts match this filter.
+                    {activeDraft.sourceSummary?.scratchDraft ? "Scratch" : "Client"}
+                  </Pill>
                 </div>
               ) : null}
             </div>
-          </Card>
 
-          <div className="grid content-start gap-6">
-            <Card className="border-amber-500/20 bg-amber-500/5">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
-                Missing Emails
-              </div>
-              <h2 className="mt-2 text-2xl font-black">Clients not reachable yet</h2>
-              <p className="mt-2 text-sm leading-6 text-amber-100/80">
-                These clients cannot receive emails until an email address is added to their profile.
-              </p>
-
-              <div className="mt-4 grid max-h-[420px] gap-2 overflow-y-auto pr-2">
-                {clientsMissingEmail.map((client) => (
-                  <div key={client.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                    <div className="font-black text-white">{client.fullName}</div>
-                    <div className="mt-1 text-xs text-amber-100/80">No email on file</div>
+            {activeDraft ? (
+              <div className="mt-5 grid gap-4">
+                {activeDraft.sourceSummary?.ai?.strategy ? (
+                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
+                      AI Draft Strategy
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-cyan-50">
+                      {activeDraft.sourceSummary.ai.strategy}
+                    </p>
                   </div>
-                ))}
+                ) : null}
 
-                {!clientsMissingEmail.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-emerald-200">
-                    Every active client has an email on file.
+                {previewMode === "email" ? (
+                  <div className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-slate-100 text-slate-950">
+                    <div className="bg-gradient-to-br from-red-950 via-red-800 to-slate-950 p-6">
+                      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-red-200">
+                        Advisor Communication
+                      </div>
+                      <h3 className="mt-2 text-2xl font-black text-white">
+                        {activeDraft.title}
+                      </h3>
+                      <div className="mt-2 text-sm font-semibold text-red-100">
+                        Prepared for {getDraftRecipientLabel(activeDraft)}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 p-6">
+                      {emailParagraphs(activeDraft.body).map((paragraph, index) => (
+                        <p key={`${paragraph}-${index}`} className="text-sm leading-7 text-slate-700">
+                          {paragraph}
+                        </p>
+                      ))}
+
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                        <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">
+                          Important note
+                        </div>
+                        <p className="mt-2 text-xs leading-6 text-amber-800">
+                          This message is intended for informational advisor-client communication.
+                          It is not a guarantee, trade instruction, or standalone recommendation.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-[1.6rem] border border-white/10 bg-black/45 p-5">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      Subject
+                    </div>
+                    <div className="mt-2 text-lg font-black text-white">
+                      {activeDraft.title}
+                    </div>
+
+                    <div className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      Body
+                    </div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-300">
+                      {activeDraft.body}
+                    </div>
+                  </div>
+                )}
+
+                {activeDraft.complianceNotes?.length ? (
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">
+                      Compliance Notes
+                    </div>
+                    <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-amber-50">
+                      {activeDraft.complianceNotes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {activeDraft.sourceSummary?.holdings?.length ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-300">
+                      Context Used
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activeDraft.sourceSummary.holdings.slice(0, 10).map((holding) => (
+                        <Pill key={`${holding.symbol}-${holding.assetName}`} tone="purple">
+                          {holding.symbol}
+                        </Pill>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
-            </Card>
-
-            <Card>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                Edit History
+            ) : (
+              <div className="mt-5 rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm font-bold text-slate-500">
+                The preview will appear after a draft is created or selected.
               </div>
-              <h2 className="mt-2 text-2xl font-black">Draft trail</h2>
-
-              {activeDraft?.sourceSummary?.editHistory?.length ? (
-                <div className="mt-4 grid max-h-[340px] gap-2 overflow-y-auto pr-2">
-                  {activeDraft.sourceSummary.editHistory.slice().reverse().map((entry, index) => (
-                    <div key={`${entry.editedAt}-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-                      <div className="text-sm font-black text-white">{entry.editType || "Edit"}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {formatDate(entry.editedAt)} · {entry.editedBy}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                  No edit history for the selected draft yet.
-                </div>
-              )}
-            </Card>
-          </div>
+            )}
+          </Card>
         </section>
       </div>
     </main>

@@ -1,15 +1,15 @@
 {
   "crons": [
     {
-      "path": "/api/cron/triage?limit=10&email=1&aiResearch=1&scanMode=fast",
+      "path": "/api/cron/triage?limit=25&email=1&aiResearch=1&scanMode=fast",
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/triage?limit=20&email=1&aiResearch=1&scanMode=broad",
+      "path": "/api/cron/triage?limit=50&email=1&aiResearch=1&scanMode=broad",
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/cron/triage?limit=25&email=1&aiResearch=1&scanMode=deep",
+      "path": "/api/cron/triage?limit=75&email=1&aiResearch=1&scanMode=deep",
       "schedule": "0 * * * *"
     }
   ]

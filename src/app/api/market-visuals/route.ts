@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 type Candle = {
   date: string;
@@ -17,7 +18,10 @@ type Candle = {
 type VisualPoint = Candle & {
   sma20: number | null;
   sma50: number | null;
+  sma100: number | null;
+  sma200: number | null;
   ema9: number | null;
+  ema21: number | null;
   vwap: number | null;
   rsi14: number | null;
   macd: number | null;
@@ -25,6 +29,11 @@ type VisualPoint = Candle & {
   macdHistogram: number | null;
   bollingerUpper: number | null;
   bollingerLower: number | null;
+  atr14: number | null;
+  volumeSma20: number | null;
+  returnPct: number | null;
+  cumulativeReturnPct: number | null;
+  rangePct: number | null;
 };
 
 type QuoteSnapshot = {
@@ -44,6 +53,13 @@ type QuoteSnapshot = {
 function readSearchParam(url: URL, key: string, fallback: string) {
   const value = url.searchParams.get(key);
   return value?.trim() || fallback;
+}
+
+function cleanSymbol(value: string) {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9.-]/g, "")
+    .slice(0, 12);
 }
 
 function round(value: number, places = 2) {
@@ -86,7 +102,8 @@ function easternNowParts() {
   });
 
   const parts = formatter.formatToParts(new Date());
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const get = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
 
   return {
     weekday: get("weekday"),
@@ -154,22 +171,24 @@ function movingAverage(values: number[], period: number) {
     if (index < period - 1) return null;
 
     const slice = values.slice(index - period + 1, index + 1);
-    return round(slice.reduce((sum, value) => sum + value, 0) / period);
+    return round(slice.reduce((sum, value) => sum + value, 0) / period, 4);
   });
 }
 
 function exponentialMovingAverage(values: number[], period: number) {
+  if (!values.length) return [];
+
   const k = 2 / (period + 1);
   let ema = values[0] ?? 0;
 
   return values.map((value, index) => {
     if (index === 0) {
       ema = value;
-      return round(ema);
+      return round(ema, 4);
     }
 
     ema = value * k + ema * (1 - k);
-    return round(ema);
+    return round(ema, 4);
   });
 }
 
@@ -197,8 +216,8 @@ function bollingerBands(values: number[], period = 20) {
     const sd = standardDeviation(slice);
 
     return {
-      upper: round(mean + sd * 2),
-      lower: round(mean - sd * 2),
+      upper: round(mean + sd * 2, 4),
+      lower: round(mean - sd * 2, 4),
     };
   });
 }
@@ -208,11 +227,12 @@ function rsi(values: number[], period = 14) {
     if (index < period) return null;
 
     const changes = values
-      .slice(index - period + 1, index + 1)
+      .slice(index - period, index + 1)
       .map((value, changeIndex, slice) => {
         if (changeIndex === 0) return 0;
         return value - slice[changeIndex - 1];
-      });
+      })
+      .slice(1);
 
     const gains = changes.filter((change) => change > 0);
     const losses = changes.filter((change) => change < 0).map(Math.abs);
@@ -225,7 +245,7 @@ function rsi(values: number[], period = 14) {
     if (averageLoss === 0) return 100;
 
     const rs = averageGain / averageLoss;
-    return round(100 - 100 / (1 + rs));
+    return round(100 - 100 / (1 + rs), 2);
   });
 }
 
@@ -240,7 +260,7 @@ function vwap(candles: Candle[]) {
 
     if (!cumulativeVolume) return null;
 
-    return round(cumulativeTypicalPriceVolume / cumulativeVolume);
+    return round(cumulativeTypicalPriceVolume / cumulativeVolume, 4);
   });
 }
 
@@ -248,11 +268,11 @@ function macd(values: number[]) {
   const ema12 = exponentialMovingAverage(values, 12);
   const ema26 = exponentialMovingAverage(values, 26);
   const macdLine = values.map((_, index) =>
-    round((ema12[index] ?? 0) - (ema26[index] ?? 0))
+    round((ema12[index] ?? 0) - (ema26[index] ?? 0), 4)
   );
   const signalLine = exponentialMovingAverage(macdLine, 9);
   const histogram = macdLine.map((value, index) =>
-    round(value - signalLine[index])
+    round(value - signalLine[index], 4)
   );
 
   return {
@@ -262,21 +282,72 @@ function macd(values: number[]) {
   };
 }
 
+function averageTrueRange(candles: Candle[], period = 14) {
+  const trueRanges = candles.map((candle, index) => {
+    if (index === 0) return candle.high - candle.low;
+
+    const previousClose = candles[index - 1].close;
+
+    return Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose)
+    );
+  });
+
+  return trueRanges.map((_, index) => {
+    if (index < period - 1) return null;
+
+    const slice = trueRanges.slice(index - period + 1, index + 1);
+    return round(slice.reduce((sum, value) => sum + value, 0) / period, 4);
+  });
+}
+
+function returns(values: number[]) {
+  const first = values[0] || 1;
+
+  return values.map((value, index) => {
+    if (index === 0) {
+      return {
+        returnPct: null,
+        cumulativeReturnPct: 0,
+      };
+    }
+
+    const previous = values[index - 1];
+
+    return {
+      returnPct: previous ? round(((value - previous) / previous) * 100, 4) : null,
+      cumulativeReturnPct: first ? round(((value - first) / first) * 100, 4) : null,
+    };
+  });
+}
+
 function enrichCandles(candles: Candle[]) {
   const closes = candles.map((candle) => candle.close);
+  const volumes = candles.map((candle) => candle.volume);
   const sma20 = movingAverage(closes, 20);
   const sma50 = movingAverage(closes, 50);
+  const sma100 = movingAverage(closes, 100);
+  const sma200 = movingAverage(closes, 200);
   const ema9 = exponentialMovingAverage(closes, 9);
+  const ema21 = exponentialMovingAverage(closes, 21);
   const vwapValues = vwap(candles);
   const rsiValues = rsi(closes, 14);
   const macdValues = macd(closes);
   const bands = bollingerBands(closes, 20);
+  const atr14 = averageTrueRange(candles, 14);
+  const volumeSma20 = movingAverage(volumes, 20);
+  const returnValues = returns(closes);
 
   return candles.map<VisualPoint>((candle, index) => ({
     ...candle,
     sma20: sma20[index],
     sma50: sma50[index],
+    sma100: sma100[index],
+    sma200: sma200[index],
     ema9: ema9[index],
+    ema21: ema21[index],
     vwap: vwapValues[index],
     rsi14: rsiValues[index],
     macd: macdValues.macdLine[index],
@@ -284,14 +355,19 @@ function enrichCandles(candles: Candle[]) {
     macdHistogram: macdValues.histogram[index],
     bollingerUpper: bands[index].upper,
     bollingerLower: bands[index].lower,
+    atr14: atr14[index],
+    volumeSma20: volumeSma20[index],
+    returnPct: returnValues[index].returnPct,
+    cumulativeReturnPct: returnValues[index].cumulativeReturnPct,
+    rangePct: candle.close ? round(((candle.high - candle.low) / candle.close) * 100, 4) : null,
   }));
 }
 
 function predictionFromCandles(candles: Candle[]) {
   const closes = candles.map((candle) => candle.close);
-  const recent = closes.slice(-36);
+  const recent = closes.slice(-80);
 
-  if (recent.length < 8) return [];
+  if (recent.length < 20) return [];
 
   const xValues = recent.map((_, index) => index);
   const yValues = recent;
@@ -306,6 +382,7 @@ function predictionFromCandles(candles: Candle[]) {
   const denominator = xValues.reduce((sum, x) => sum + (x - xMean) ** 2, 0);
   const slope = denominator ? numerator / denominator : 0;
   const intercept = yMean - slope * xMean;
+
   const volatility = standardDeviation(
     recent.map((value, index) => {
       if (index === 0) return 0;
@@ -315,31 +392,33 @@ function predictionFromCandles(candles: Candle[]) {
 
   const lastCandle = candles[candles.length - 1];
   const lastDate = new Date(lastCandle.date);
+  const stepMinutes = Math.max(5, Math.round((Date.now() - new Date(candles[candles.length - 2]?.date ?? lastCandle.date).getTime()) / 60000));
 
-  return Array.from({ length: 16 }).map((_, forecastIndex) => {
+  return Array.from({ length: 30 }).map((_, forecastIndex) => {
     const futureX = recent.length + forecastIndex;
     const projected = intercept + slope * futureX;
     const upper = projected + volatility * Math.sqrt(forecastIndex + 1);
     const lower = projected - volatility * Math.sqrt(forecastIndex + 1);
 
     const futureDate = new Date(lastDate);
-    futureDate.setMinutes(lastDate.getMinutes() + (forecastIndex + 1) * 5);
+    futureDate.setMinutes(lastDate.getMinutes() + (forecastIndex + 1) * stepMinutes);
 
     return {
       date: futureDate.toISOString(),
       label: `F${forecastIndex + 1}`,
-      projected: round(projected),
-      upper: round(upper),
-      lower: round(lower),
+      projected: round(projected, 4),
+      upper: round(upper, 4),
+      lower: round(lower, 4),
     };
   });
 }
 
-function calculateModelConfidence(candles: Candle[]) {
-  if (candles.length < 50) return 35;
+function calculateModelConfidence(candles: Candle[], isLive: boolean) {
+  if (candles.length < 50) return isLive ? 40 : 30;
 
   const closes = candles.map((candle) => candle.close);
-  const recent = closes.slice(-36);
+  const recent = closes.slice(-80);
+
   const volatility = standardDeviation(
     recent.map((value, index) => {
       if (index === 0) return 0;
@@ -348,28 +427,52 @@ function calculateModelConfidence(candles: Candle[]) {
   );
 
   const latest = closes[closes.length - 1];
-  const oldest = closes[Math.max(0, closes.length - 36)];
-  const trendStrength = Math.abs((latest - oldest) / oldest);
+  const oldest = closes[Math.max(0, closes.length - 80)];
+  const trendStrength = oldest ? Math.abs((latest - oldest) / oldest) : 0;
+  const historyBonus = Math.min(18, candles.length / 16);
+  const liveBonus = isLive ? 8 : -12;
 
-  const confidence = 72 - volatility * 600 + Math.min(18, trendStrength * 100);
-  return Math.max(25, Math.min(88, Math.round(confidence)));
+  const confidence = 68 + historyBonus + liveBonus - volatility * 600 + Math.min(12, trendStrength * 80);
+
+  return Math.max(25, Math.min(94, Math.round(confidence)));
+}
+
+function symbolBase(symbol: string) {
+  const bases: Record<string, number> = {
+    NVDA: 920,
+    AAPL: 190,
+    MSFT: 420,
+    TSLA: 250,
+    META: 520,
+    GOOGL: 175,
+    GOOG: 175,
+    AMZN: 185,
+    AMD: 160,
+    NFLX: 650,
+    SPY: 520,
+    QQQ: 450,
+    IWM: 210,
+    TLT: 92,
+    AVGO: 1400,
+    CRM: 280,
+    PLTR: 25,
+    COIN: 230,
+    MSTR: 1350,
+  };
+
+  return bases[symbol] ?? 150 + (symbol.charCodeAt(0) % 40) * 3;
+}
+
+function symbolSeed(symbol: string) {
+  return symbol.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
 }
 
 function generateDemoCandles(symbol: string, interval: string) {
-  const count = interval === "daily" ? 140 : 180;
-  const base =
-    symbol === "NVDA"
-      ? 920
-      : symbol === "AAPL"
-        ? 190
-        : symbol === "MSFT"
-          ? 420
-          : symbol === "TSLA"
-            ? 250
-            : 150;
-
+  const count = interval === "daily" ? 320 : 280;
+  const base = symbolBase(symbol);
+  const seed = symbolSeed(symbol);
   const now = new Date();
-  let lastClose = base;
+  let lastClose = base * (0.94 + (seed % 12) / 100);
 
   return Array.from({ length: count }).map((_, index) => {
     const date = new Date(now);
@@ -380,24 +483,37 @@ function generateDemoCandles(symbol: string, interval: string) {
       date.setMinutes(now.getMinutes() - (count - index) * intervalMinutes(interval));
     }
 
-    const wave = Math.sin(index / 8) * (base * 0.012);
-    const trend = index * base * 0.00018;
-    const noise = Math.sin(index * 2.1) * (base * 0.004);
-    const close = Math.max(1, base + trend + wave + noise);
+    const macroTrend = index * base * (0.00008 + (seed % 7) * 0.000006);
+    const cycleOne = Math.sin((index + seed) / 9) * (base * 0.016);
+    const cycleTwo = Math.cos((index + seed) / 31) * (base * 0.026);
+    const micro = Math.sin(index * 2.37 + seed) * (base * 0.0045);
+    const eventPulse =
+      index > count * 0.72
+        ? Math.sin((index - count * 0.72) / 5) * base * 0.012
+        : 0;
+
+    const close = Math.max(1, base + macroTrend + cycleOne + cycleTwo + micro + eventPulse);
     const open = lastClose;
-    const high = Math.max(open, close) + Math.abs(Math.sin(index)) * base * 0.006;
-    const low = Math.min(open, close) - Math.abs(Math.cos(index)) * base * 0.006;
-    const volume = Math.round(1200000 + Math.abs(Math.sin(index / 3)) * 4800000);
+    const spread = base * (0.004 + Math.abs(Math.sin(index / 6 + seed)) * 0.007);
+    const high = Math.max(open, close) + spread;
+    const low = Math.max(0.5, Math.min(open, close) - spread);
+    const volumeBase = interval === "daily" ? 25_000_000 : 1_400_000;
+    const volume =
+      Math.round(
+        volumeBase *
+          (0.65 + Math.abs(Math.sin(index / 5 + seed)) * 1.35) *
+          (index > count * 0.85 ? 1.12 : 1)
+      );
 
     lastClose = close;
 
     return {
       date: date.toISOString(),
       label: labelFor(date.toISOString(), interval),
-      open: round(open),
-      high: round(high),
-      low: round(low),
-      close: round(close),
+      open: round(open, 4),
+      high: round(high, 4),
+      low: round(low, 4),
+      close: round(close, 4),
       volume,
     };
   });
@@ -496,7 +612,7 @@ async function fetchAlphaCandles(symbol: string, interval: string) {
   url.searchParams.set("function", functionName);
   url.searchParams.set("symbol", symbol);
   url.searchParams.set("apikey", apiKey);
-  url.searchParams.set("outputsize", "compact");
+  url.searchParams.set("outputsize", "full");
 
   if (interval !== "daily") {
     url.searchParams.set("interval", interval);
@@ -551,7 +667,7 @@ async function fetchMarketCandles(symbol: string, interval: string) {
       quote,
       isLive: true,
       note: alpha.note,
-      sourcePriority: ["Alpha Vantage", "Demo fallback"],
+      sourcePriority: ["Alpha Vantage full history", "Demo fallback"],
     };
   }
 
@@ -587,8 +703,8 @@ function freshnessReport(candles: Candle[], interval: string, isLive: boolean) {
 
   const maxExpectedAge =
     interval === "daily"
-      ? 60 * 38
-      : intervalMinutes(interval) * 4 + (session.isRegularMarket ? 20 : 90);
+      ? 60 * 42
+      : intervalMinutes(interval) * 4 + (session.isRegularMarket ? 20 : 120);
 
   let status = "Fresh";
   let warning = "Data appears fresh for the selected interval.";
@@ -614,22 +730,32 @@ function freshnessReport(candles: Candle[], interval: string, isLive: boolean) {
 }
 
 function supportResistance(candles: Candle[]) {
-  const recent = candles.slice(-60);
+  const recent = candles.slice(-80);
+
+  if (!recent.length) {
+    return {
+      support: 0,
+      resistance: 0,
+      midpoint: 0,
+      distanceToSupportPct: 0,
+      distanceToResistancePct: 0,
+    };
+  }
+
   const highs = recent.map((item) => item.high);
   const lows = recent.map((item) => item.low);
   const closes = recent.map((item) => item.close);
-
   const support = Math.min(...lows);
   const resistance = Math.max(...highs);
   const midpoint = closes.reduce((sum, value) => sum + value, 0) / closes.length;
-  const latest = closes[closes.length - 1];
+  const latest = closes[closes.length - 1] || 1;
 
   return {
-    support: round(support),
-    resistance: round(resistance),
-    midpoint: round(midpoint),
-    distanceToSupportPct: round(((latest - support) / latest) * 100),
-    distanceToResistancePct: round(((resistance - latest) / latest) * 100),
+    support: round(support, 4),
+    resistance: round(resistance, 4),
+    midpoint: round(midpoint, 4),
+    distanceToSupportPct: round(((latest - support) / latest) * 100, 4),
+    distanceToResistancePct: round(((resistance - latest) / latest) * 100, 4),
   };
 }
 
@@ -646,12 +772,17 @@ function signalSummary(points: VisualPoint[]) {
   }
 
   const aboveVwap = latest.vwap ? latest.close > latest.vwap : false;
+
   const smaTrend =
-    latest.sma20 && latest.sma50
-      ? latest.sma20 > latest.sma50
-        ? "Bullish"
-        : "Bearish"
-      : "Neutral";
+    latest.sma50 && latest.sma200
+      ? latest.sma50 > latest.sma200
+        ? "Bullish Long-Term"
+        : "Bearish Long-Term"
+      : latest.sma20 && latest.sma50
+        ? latest.sma20 > latest.sma50
+          ? "Bullish Short-Term"
+          : "Bearish Short-Term"
+        : "Neutral";
 
   const rsiState =
     latest.rsi14 === null
@@ -669,10 +800,12 @@ function signalSummary(points: VisualPoint[]) {
         : "Negative MACD"
       : "Unknown";
 
+  const above200 = latest.sma200 ? latest.close > latest.sma200 : false;
+
   const directionalBias =
-    smaTrend === "Bullish" && aboveVwap && macdState === "Positive MACD"
+    above200 && aboveVwap && macdState === "Positive MACD"
       ? "Bullish"
-      : smaTrend === "Bearish" && !aboveVwap && macdState === "Negative MACD"
+      : !above200 && !aboveVwap && macdState === "Negative MACD"
         ? "Bearish"
         : "Mixed";
 
@@ -680,7 +813,9 @@ function signalSummary(points: VisualPoint[]) {
     directionalBias,
     momentum: `${rsiState} · ${macdState}`,
     riskState: rsiState,
-    summary: `Bias is ${directionalBias}. Price is ${aboveVwap ? "above" : "below"} VWAP. SMA trend is ${smaTrend}. RSI state is ${rsiState}.`,
+    summary: `Bias is ${directionalBias}. Price is ${aboveVwap ? "above" : "below"} VWAP and ${
+      latest.sma200 ? above200 ? "above" : "below" : "without enough history for"
+    } the 200-period moving average. Moving-average trend is ${smaTrend}. RSI state is ${rsiState}.`,
   };
 }
 
@@ -703,13 +838,18 @@ function qualityScore(input: {
     warnings.push("Fewer than 60 candles are available.");
   }
 
+  if (input.candles.length < 200) {
+    score -= 8;
+    warnings.push("Fewer than 200 candles are available, so the 200-period moving average may be unavailable.");
+  }
+
   if (input.freshness.status === "Stale") {
     score -= 25;
     warnings.push(input.freshness.warning);
   }
 
   if (!input.quote?.price) {
-    score -= 8;
+    score -= 6;
     warnings.push("No independent quote snapshot was available.");
   }
 
@@ -815,7 +955,9 @@ async function platformVisuals(userId: string) {
       priority: item.priority,
       status: item.status,
       sourceType: item.sourceType,
-      score: item.originalScore ?? (item.priority === "High" ? 85 : item.priority === "Medium" ? 65 : 45),
+      score:
+        item.originalScore ??
+        (item.priority === "High" ? 85 : item.priority === "Medium" ? 65 : 45),
     })),
   };
 }
@@ -828,7 +970,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const symbol = readSearchParam(url, "symbol", "NVDA").toUpperCase();
+  const symbol = cleanSymbol(readSearchParam(url, "symbol", "NVDA")) || "NVDA";
   const rawInterval = readSearchParam(url, "interval", "5min");
   const interval = ["1min", "5min", "15min", "30min", "60min", "daily"].includes(rawInterval)
     ? rawInterval
@@ -847,13 +989,12 @@ export async function GET(request: Request) {
   });
   const levels = supportResistance(market.candles);
   const signals = signalSummary(visualPoints);
-  const modelConfidence = calculateModelConfidence(market.candles);
+  const modelConfidence = calculateModelConfidence(market.candles, market.isLive);
 
   const latest = visualPoints[visualPoints.length - 1];
   const previous = visualPoints[visualPoints.length - 2];
   const chartChange = latest && previous ? latest.close - previous.close : 0;
   const chartChangePct = previous ? (chartChange / previous.close) * 100 : 0;
-
   const quoteChange = market.quote?.change ?? null;
   const quoteChangePct = market.quote?.changePct ?? null;
 
@@ -868,7 +1009,7 @@ export async function GET(request: Request) {
       realTimeRequiresProvider: true,
       demoFallbackEnabled: true,
       accuracyReminder:
-        "Use provider timestamps, freshness status, and quote validation before making any trading decision.",
+        "Use provider timestamps, freshness status, quote validation, liquidity, news, and client suitability before making any trading decision.",
     },
     marketSession: freshness.session,
     freshness,
@@ -881,13 +1022,20 @@ export async function GET(request: Request) {
       ? {
           close: market.quote?.price ?? latest.close,
           chartClose: latest.close,
-          change: quoteChange ?? round(chartChange),
-          changePct: quoteChangePct ?? round(chartChangePct),
+          change: quoteChange ?? round(chartChange, 4),
+          changePct: quoteChangePct ?? round(chartChangePct, 4),
           rsi14: latest.rsi14,
           vwap: latest.vwap,
           sma20: latest.sma20,
           sma50: latest.sma50,
+          sma100: latest.sma100,
+          sma200: latest.sma200,
+          ema9: latest.ema9,
+          ema21: latest.ema21,
           macd: latest.macd,
+          atr14: latest.atr14,
+          volumeSma20: latest.volumeSma20,
+          cumulativeReturnPct: latest.cumulativeReturnPct,
           asOf: latest.date,
         }
       : null,

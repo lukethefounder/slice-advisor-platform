@@ -15,6 +15,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/register",
   "/api/founder-bootstrap",
   "/api/cron",
+  "/api/personal-bot/pdf-report",
 ];
 
 const BLOCKED_PATH_PATTERNS = [
@@ -80,7 +81,6 @@ function safeDecodePath(pathname: string) {
 
 function isBlockedPath(pathname: string) {
   const lower = safeDecodePath(pathname);
-
   return BLOCKED_PATH_PATTERNS.some((pattern) => lower.includes(pattern));
 }
 
@@ -188,7 +188,7 @@ function withSecurityHeaders(response: NextResponse, request: NextRequest) {
     response.headers.set(key, value);
   }
 
-  response.headers.set("X-Slice-Security-Layer", "middleware-v1");
+  response.headers.set("X-Slice-Security-Layer", "middleware-v2");
   return response;
 }
 
