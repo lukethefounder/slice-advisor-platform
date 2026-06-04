@@ -1,16 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/cron/triage?limit=25&email=1&aiResearch=1&scanMode=fast",
+      "path": "/api/cron/triage?limit=25&email=1&aiResearch=1&scanMode=fast&technicals=1&technicalUniverse=sp100&technicalLimit=25&technicalMinScore=62&technicalMaxDurationMs=25000",
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/triage?limit=50&email=1&aiResearch=1&scanMode=broad",
+      "path": "/api/cron/triage?limit=50&email=1&aiResearch=1&scanMode=broad&technicals=1&technicalUniverse=sp100&technicalLimit=35&technicalMinScore=60&technicalMaxDurationMs=30000",
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/cron/triage?limit=75&email=1&aiResearch=1&scanMode=deep",
+      "path": "/api/cron/triage?limit=75&email=1&aiResearch=1&scanMode=deep&technicals=1&technicalUniverse=nasdaq100&technicalLimit=40&technicalMinScore=60&technicalMaxDurationMs=35000",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/firm-reminders?limit=150",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

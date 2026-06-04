@@ -1,27 +1,54 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import TeamBoardEmbedded from "@/components/workspace/team-board-embedded";
 
-type User = { id: string; name: string; email: string };
+type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+
+type IconName =
+  | "brain"
+  | "spark"
+  | "team"
+  | "calendar"
+  | "client"
+  | "mail"
+  | "bell"
+  | "market"
+  | "signal"
+  | "portfolio"
+  | "compare"
+  | "diamond"
+  | "report"
+  | "shield"
+  | "system"
+  | "radar"
+  | "target"
+  | "flow"
+  | "chart"
+  | "lock";
 
 type Tab =
   | "overview"
   | "command"
-  | "watchlists"
-  | "firm-calendar"
   | "team-board"
+  | "firm-calendar"
+  | "clients"
+  | "emails"
+  | "watchlists"
+  | "intelligence"
+  | "portfolio"
   | "comparison"
   | "alternatives"
-  | "clients"
-  | "portfolio"
-  | "intelligence"
-  | "notifications"
   | "briefings"
+  | "notifications"
   | "security"
   | "system";
 
-type AuthMode = "login" | "firm-signup" | "invite-signup";
-type CalendarMode = "week" | "month";
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 type Firm = {
   id: string;
@@ -53,6 +80,11 @@ type Project = {
   priority: string;
   dueDate: string | null;
   agendaTasks?: Array<{ id: string; status: string }>;
+  assignments?: Array<{
+    id: string;
+    projectRole: string;
+    membership: Membership;
+  }>;
 };
 
 type AgendaTask = {
@@ -63,10 +95,10 @@ type AgendaTask = {
   status: string;
   priority: string;
   dueDate: string | null;
-  delayReason: string | null;
-  inquiry: string | null;
-  project: Project | null;
-  comments: Array<{
+  delayReason?: string | null;
+  inquiry?: string | null;
+  project?: Project | null;
+  comments?: Array<{
     id: string;
     body: string;
     commentType: string;
@@ -81,6 +113,7 @@ type CalendarTask = AgendaTask & {
   ownerName?: string;
   ownerColor?: string;
   ownerId?: string;
+  ownerUserId?: string;
 };
 
 type Agenda = {
@@ -94,17 +127,6 @@ type Agenda = {
   tasks: AgendaTask[];
 };
 
-type Invite = {
-  id: string;
-  email: string;
-  role: string;
-  inviteCode: string;
-  status: string;
-  expiresAt: string | null;
-  createdAt: string;
-  sentBy: User;
-};
-
 type FirmPost = {
   id: string;
   title: string;
@@ -113,6 +135,20 @@ type FirmPost = {
   createdAt: string;
   project: Project | null;
   authorMembership: Membership | null;
+  fileLinks?: string[];
+  mentions?: string[];
+  ideaStatus?: string;
+  votes?: number;
+};
+
+type DashboardNotification = {
+  id: string;
+  title: string;
+  body: string;
+  urgency: string;
+  score: number;
+  status: string;
+  createdAt: string;
 };
 
 type FirmWorkspace = {
@@ -120,12 +156,46 @@ type FirmWorkspace = {
   firm: Firm | null;
   membership: Membership | null;
   members: Membership[];
-  invites: Invite[];
+  invites: unknown[];
   projects: Project[];
   agendas: Agenda[];
   posts: FirmPost[];
-  inviteCode?: string;
-  inviteLink?: string;
+  operations?: {
+    scrumStatuses: string[];
+    allTasks: CalendarTask[];
+    calendarTasks: CalendarTask[];
+    unifiedMessages: FirmPost[];
+    ideaBoard: FirmPost[];
+    projectDeadlines: Array<
+      Project & {
+        dueStatus: string;
+        assignedNames: string[];
+      }
+    >;
+    timedReminders: Array<{
+      id: string;
+      body: string;
+      commentType: string;
+      createdAt: string;
+      taskId: string;
+      taskTitle: string;
+      ownerName?: string;
+      dueDate?: string | null;
+    }>;
+    openNotifications: DashboardNotification[];
+    sprintMetrics: {
+      total: number;
+      open: number;
+      inProgress: number;
+      review: number;
+      blocked: number;
+      complete: number;
+      overdue: number;
+      ideas: number;
+      deadlines: number;
+      timedReminders: number;
+    };
+  };
 };
 
 type CommandOverview = {
@@ -179,56 +249,162 @@ type BackendKernelSummary = {
   message?: string;
 };
 
-const WORKSPACE_TAB_IDS: Tab[] = [
-  "overview",
-  "command",
-  "watchlists",
-  "firm-calendar",
-  "team-board",
-  "comparison",
-  "alternatives",
-  "clients",
-  "portfolio",
-  "intelligence",
-  "notifications",
-  "briefings",
-  "security",
-  "system",
-];
+type ModuleCardConfig = {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  tone: Tone;
+  icon: IconName;
+  href: string;
+  button: string;
+  category: string;
+  meta?: Array<[string, string | number]>;
+};
+
+const EMPTY_COMMAND: CommandOverview = {
+  readinessScore: 0,
+  counts: {
+    watchlistCount: 0,
+    ventureCount: 0,
+    goalCount: 0,
+    researchCount: 0,
+    unreadAlertCount: 0,
+    totalAlertCount: 0,
+    clientCount: 0,
+    openTaskCount: 0,
+    briefingCount: 0,
+    retainedDecisionCount: 0,
+    triageRunCount: 0,
+    deliveryCount: 0,
+    digestCount: 0,
+    auditLogCount: 0,
+    accountCount: 0,
+    holdingCount: 0,
+    modelCount: 0,
+    portfolioTotalValue: 0,
+    firmCount: 0,
+    ownedFirmCount: 0,
+    firmProjectCount: 0,
+    firmAgendaCount: 0,
+    firmAgendaTaskCount: 0,
+    firmPostCount: 0,
+    acceptedDisclosures: 0,
+    requiredDisclosures: 0,
+  },
+};
+
+const EMPTY_FIRM_WORKSPACE: FirmWorkspace = {
+  firms: [],
+  firm: null,
+  membership: null,
+  members: [],
+  invites: [],
+  projects: [],
+  agendas: [],
+  posts: [],
+  operations: {
+    scrumStatuses: ["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"],
+    allTasks: [],
+    calendarTasks: [],
+    unifiedMessages: [],
+    ideaBoard: [],
+    projectDeadlines: [],
+    timedReminders: [],
+    openNotifications: [],
+    sprintMetrics: {
+      total: 0,
+      open: 0,
+      inProgress: 0,
+      review: 0,
+      blocked: 0,
+      complete: 0,
+      overdue: 0,
+      ideas: 0,
+      deadlines: 0,
+      timedReminders: 0,
+    },
+  },
+};
 
 const tabs: Array<{
   id: Tab;
   label: string;
+  compact: string;
   description: string;
-  marker: string;
+  icon: IconName;
   tone: Tone;
+  group: string;
 }> = [
-  { id: "overview", label: "Overview", description: "Main home", marker: "01", tone: "red" },
-  { id: "command", label: "Command Layer", description: "AI + backend", marker: "02", tone: "cyan" },
-  { id: "watchlists", label: "Watchlists", description: "Tracked assets", marker: "03", tone: "amber" },
-  { id: "firm-calendar", label: "Calendar", description: "Execution", marker: "04", tone: "purple" },
-  { id: "team-board", label: "Team Board", description: "Firm work", marker: "05", tone: "green" },
-  { id: "comparison", label: "Compare", description: "Risk/reward", marker: "06", tone: "slate" },
-  { id: "alternatives", label: "Alternatives", description: "Alts + venture", marker: "07", tone: "amber" },
-  { id: "clients", label: "Clients", description: "Wealth brain", marker: "08", tone: "purple" },
-  { id: "portfolio", label: "Portfolio Lab", description: "Holdings", marker: "09", tone: "green" },
-  { id: "intelligence", label: "Intelligence", description: "Signals", marker: "10", tone: "red" },
-  { id: "notifications", label: "Notifications", description: "Delivery", marker: "11", tone: "amber" },
-  { id: "briefings", label: "Briefings", description: "Reports", marker: "12", tone: "cyan" },
-  { id: "security", label: "Security", description: "Governance", marker: "13", tone: "red" },
-  { id: "system", label: "System", description: "Readiness", marker: "14", tone: "cyan" },
+  { id: "overview", label: "Daily Brain", compact: "Brain", description: "Advisor home", icon: "brain", tone: "red", group: "Command" },
+  { id: "command", label: "AI Command", compact: "AI", description: "Ask + build", icon: "spark", tone: "cyan", group: "Command" },
+  { id: "team-board", label: "Team Board", compact: "Team", description: "Delegate", icon: "team", tone: "green", group: "Firm" },
+  { id: "firm-calendar", label: "Calendar", compact: "Calendar", description: "Due dates", icon: "calendar", tone: "purple", group: "Firm" },
+  { id: "clients", label: "Clients", compact: "Clients", description: "CRM", icon: "client", tone: "purple", group: "Advisor" },
+  { id: "emails", label: "Email Center", compact: "Email", description: "Draft/send", icon: "mail", tone: "green", group: "Advisor" },
+  { id: "notifications", label: "Alerts", compact: "Alerts", description: "Delivery", icon: "bell", tone: "amber", group: "Advisor" },
+  { id: "watchlists", label: "Markets", compact: "Markets", description: "Visuals", icon: "market", tone: "amber", group: "Markets" },
+  { id: "intelligence", label: "Intelligence", compact: "Intel", description: "Signals", icon: "signal", tone: "red", group: "Markets" },
+  { id: "portfolio", label: "Portfolio", compact: "Portfolio", description: "Holdings", icon: "portfolio", tone: "green", group: "Markets" },
+  { id: "comparison", label: "Compare", compact: "Compare", description: "Risk", icon: "compare", tone: "slate", group: "Markets" },
+  { id: "alternatives", label: "Alternatives", compact: "Alts", description: "Private", icon: "diamond", tone: "amber", group: "Markets" },
+  { id: "briefings", label: "Reports", compact: "Reports", description: "PDFs", icon: "report", tone: "cyan", group: "Research" },
+  { id: "security", label: "Security", compact: "Security", description: "Audit", icon: "shield", tone: "red", group: "System" },
+  { id: "system", label: "System", compact: "System", description: "Kernel", icon: "system", tone: "cyan", group: "System" },
 ];
 
-type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+const toneClasses: Record<Tone, string> = {
+  red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
+  green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
+  amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
+  purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
+  cyan: "border-cyan-500/25 bg-cyan-500/10 text-cyan-100 shadow-cyan-950/20",
+  slate: "border-slate-500/20 bg-slate-500/10 text-slate-100 shadow-slate-950/20",
+};
 
-function parseWorkspaceTab(value: string | null): Tab | null {
-  if (!value) return null;
-  const normalized = value.trim();
-  return WORKSPACE_TAB_IDS.includes(normalized as Tab) ? (normalized as Tab) : null;
-}
+const glowClasses: Record<Tone, string> = {
+  red: "from-red-500/18",
+  green: "from-emerald-500/18",
+  amber: "from-amber-500/18",
+  purple: "from-purple-500/18",
+  cyan: "from-cyan-500/18",
+  slate: "from-slate-400/10",
+};
+
+const toneDot: Record<Tone, string> = {
+  red: "bg-red-400 shadow-red-400/50",
+  green: "bg-emerald-400 shadow-emerald-400/50",
+  amber: "bg-amber-400 shadow-amber-400/50",
+  purple: "bg-purple-400 shadow-purple-400/50",
+  cyan: "bg-cyan-400 shadow-cyan-400/50",
+  slate: "bg-slate-400 shadow-slate-400/50",
+};
+
+const toneText: Record<Tone, string> = {
+  red: "text-red-300",
+  green: "text-emerald-300",
+  amber: "text-amber-300",
+  purple: "text-purple-300",
+  cyan: "text-cyan-300",
+  slate: "text-slate-300",
+};
+
+const toneSoft: Record<Tone, string> = {
+  red: "bg-red-500/10 border-red-500/20",
+  green: "bg-emerald-500/10 border-emerald-500/20",
+  amber: "bg-amber-500/10 border-amber-500/20",
+  purple: "bg-purple-500/10 border-purple-500/20",
+  cyan: "bg-cyan-500/10 border-cyan-500/20",
+  slate: "bg-slate-500/10 border-slate-500/20",
+};
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function parseWorkspaceTab(value: string | null): Tab | null {
+  if (!value) return null;
+  return tabs.some((tab) => tab.id === value) ? (value as Tab) : null;
 }
 
 function money(value: number) {
@@ -239,16 +415,23 @@ function money(value: number) {
   }).format(value || 0);
 }
 
+function compactNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value || 0);
+}
+
 function percent(value: number) {
   return `${Math.max(0, Math.min(100, Math.round(value || 0)))}%`;
 }
 
-function toDate(dateString: string) {
-  return new Date(`${dateString}T00:00:00`);
-}
-
 function ymd(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function toDate(dateString: string) {
+  return new Date(`${dateString}T00:00:00`);
 }
 
 function addDays(dateString: string, days: number) {
@@ -271,10 +454,6 @@ function startOfWeek(dateString: string) {
   return ymd(date);
 }
 
-function weekStartToday() {
-  return startOfWeek(ymd(new Date()));
-}
-
 function monthStart(dateString: string) {
   const date = toDate(dateString);
   date.setDate(1);
@@ -287,12 +466,14 @@ function calendarMonthDays(anchorDate: string) {
   return Array.from({ length: 42 }).map((_, index) => addDays(firstGridDay, index));
 }
 
-function shortDate(dateString: string | null) {
-  if (!dateString) return "No date set";
-  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
+function shortDate(dateString: string | null | undefined) {
+  if (!dateString) return "No date";
+  const date = new Date(`${dateString}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
   });
 }
 
@@ -317,45 +498,22 @@ function monthDayLabel(dateString: string) {
   });
 }
 
-function toneFor(value: string): Tone {
-  const lower = value.toLowerCase();
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
 
-  if (
-    lower.includes("complete") ||
-    lower.includes("done") ||
-    lower.includes("active") ||
-    lower.includes("ready") ||
-    lower.includes("configured") ||
-    lower.includes("healthy") ||
-    lower.includes("approved")
-  ) {
-    return "green";
-  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
 
-  if (
-    lower.includes("missing") ||
-    lower.includes("failed") ||
-    lower.includes("critical") ||
-    lower.includes("blocked") ||
-    lower.includes("high")
-  ) {
-    return "red";
-  }
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
-  if (
-    lower.includes("open") ||
-    lower.includes("pending") ||
-    lower.includes("queued") ||
-    lower.includes("planned") ||
-    lower.includes("watch")
-  ) {
-    return "amber";
-  }
-
-  if (lower.includes("ai") || lower.includes("portfolio") || lower.includes("alternative")) return "purple";
-  if (lower.includes("backend") || lower.includes("system") || lower.includes("kernel")) return "cyan";
-
-  return "slate";
+function completeStatus(status: string) {
+  return status === "Complete" || status === "Done";
 }
 
 function priorityTone(priority: string): Tone {
@@ -365,46 +523,331 @@ function priorityTone(priority: string): Tone {
   return "slate";
 }
 
-const toneClasses: Record<Tone, string> = {
-  red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
-  green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
-  amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
-  purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
-  cyan: "border-cyan-500/25 bg-cyan-500/10 text-cyan-100 shadow-cyan-950/20",
-  slate: "border-slate-500/20 bg-slate-500/10 text-slate-100 shadow-slate-950/20",
-};
+function toneFor(value: string | null | undefined): Tone {
+  const lower = String(value ?? "").toLowerCase();
 
-const glowClasses: Record<Tone, string> = {
-  red: "from-red-500/18",
-  green: "from-emerald-500/18",
-  amber: "from-amber-500/18",
-  purple: "from-purple-500/18",
-  cyan: "from-cyan-500/18",
-  slate: "from-slate-400/10",
-};
+  if (
+    lower.includes("complete") ||
+    lower.includes("done") ||
+    lower.includes("active") ||
+    lower.includes("ready") ||
+    lower.includes("configured") ||
+    lower.includes("healthy") ||
+    lower.includes("approved") ||
+    lower.includes("delivered")
+  ) {
+    return "green";
+  }
 
-const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2";
+  if (
+    lower.includes("missing") ||
+    lower.includes("failed") ||
+    lower.includes("critical") ||
+    lower.includes("blocked") ||
+    lower.includes("high") ||
+    lower.includes("overdue")
+  ) {
+    return "red";
+  }
 
-const selectClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition focus:ring-2";
+  if (
+    lower.includes("open") ||
+    lower.includes("pending") ||
+    lower.includes("queued") ||
+    lower.includes("planned") ||
+    lower.includes("watch") ||
+    lower.includes("progress") ||
+    lower.includes("review") ||
+    lower.includes("medium") ||
+    lower.includes("today") ||
+    lower.includes("soon")
+  ) {
+    return "amber";
+  }
 
-function Pill({
-  children,
-  tone = "slate",
+  if (lower.includes("ai") || lower.includes("portfolio") || lower.includes("alternative") || lower.includes("idea")) return "purple";
+  if (lower.includes("backend") || lower.includes("system") || lower.includes("kernel") || lower.includes("chat")) return "cyan";
+
+  return "slate";
+}
+
+function advisorReadinessLabel(score: number) {
+  if (score >= 85) return "Institutional";
+  if (score >= 75) return "Ready";
+  if (score >= 55) return "Needs review";
+  return "Setup needed";
+}
+
+function IconSvg({ name }: { name: IconName }) {
+  const common = "stroke-current";
+  const strokeProps = {
+    fill: "none",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  if (name === "brain") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M9 4.5C7.3 4 5.5 5.2 5.4 7.1C3.9 7.5 3 8.8 3 10.3c0 1.2.6 2.2 1.5 2.8C4.2 15.2 5.8 17 8 17h1" />
+        <path d="M15 4.5c1.7-.5 3.5.7 3.6 2.6c1.5.4 2.4 1.7 2.4 3.2c0 1.2-.6 2.2-1.5 2.8c.3 2.1-1.3 3.9-3.5 3.9h-1" />
+        <path d="M9 4.5V19.5" />
+        <path d="M15 4.5V19.5" />
+        <path d="M9 9h3" />
+        <path d="M12 15h3" />
+      </svg>
+    );
+  }
+
+  if (name === "spark") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+        <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
+        <path d="M5 16l.7 1.6L7.3 18l-1.6.7L5 20.3l-.7-1.6L2.7 18l1.6-.7L5 16z" />
+      </svg>
+    );
+  }
+
+  if (name === "team") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M8 11a3 3 0 1 0 0-6a3 3 0 0 0 0 6z" />
+        <path d="M16 11a3 3 0 1 0 0-6a3 3 0 0 0 0 6z" />
+        <path d="M3.5 20c.6-3 2.4-5 4.5-5s3.9 2 4.5 5" />
+        <path d="M11.5 20c.6-3 2.4-5 4.5-5s3.9 2 4.5 5" />
+      </svg>
+    );
+  }
+
+  if (name === "calendar") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M6 4v3" />
+        <path d="M18 4v3" />
+        <path d="M4 8h16" />
+        <path d="M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z" />
+        <path d="M8 12h3" />
+        <path d="M13 12h3" />
+        <path d="M8 16h5" />
+      </svg>
+    );
+  }
+
+  if (name === "client") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8z" />
+        <path d="M4 21c.9-4 3.7-6 8-6s7.1 2 8 6" />
+        <path d="M17.5 5.5l2 2l-2 2" />
+      </svg>
+    );
+  }
+
+  if (name === "mail") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M4 6h16v12H4z" />
+        <path d="M4 7l8 6l8-6" />
+        <path d="M7 16h4" />
+      </svg>
+    );
+  }
+
+  if (name === "bell") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M18 16H6c1.2-1.2 1.5-3 1.5-5V9a4.5 4.5 0 0 1 9 0v2c0 2 .3 3.8 1.5 5z" />
+        <path d="M10 19a2 2 0 0 0 4 0" />
+        <path d="M12 3v2" />
+      </svg>
+    );
+  }
+
+  if (name === "market") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M4 18l5-6l4 3l7-9" />
+        <path d="M4 20h16" />
+        <path d="M17 6h3v3" />
+      </svg>
+    );
+  }
+
+  if (name === "signal") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+        <path d="M6.3 17.7a8 8 0 0 1 0-11.4" />
+        <path d="M17.7 6.3a8 8 0 0 1 0 11.4" />
+        <path d="M3.5 20.5a12 12 0 0 1 0-17" />
+        <path d="M20.5 3.5a12 12 0 0 1 0 17" />
+      </svg>
+    );
+  }
+
+  if (name === "portfolio") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7" />
+        <path d="M4 7h16v12H4z" />
+        <path d="M4 12h16" />
+        <path d="M10 11h4v3h-4z" />
+      </svg>
+    );
+  }
+
+  if (name === "compare") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M7 7h13" />
+        <path d="M17 4l3 3l-3 3" />
+        <path d="M17 17H4" />
+        <path d="M7 14l-3 3l3 3" />
+      </svg>
+    );
+  }
+
+  if (name === "diamond") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 3l8 7l-8 11L4 10z" />
+        <path d="M4 10h16" />
+        <path d="M9 10l3 11l3-11" />
+        <path d="M8 4l4 6l4-6" />
+      </svg>
+    );
+  }
+
+  if (name === "report") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M6 3h9l3 3v15H6z" />
+        <path d="M15 3v4h4" />
+        <path d="M9 11h6" />
+        <path d="M9 15h6" />
+        <path d="M9 18h3" />
+      </svg>
+    );
+  }
+
+  if (name === "shield") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 3l8 3v6c0 4.7-3.2 7.8-8 9c-4.8-1.2-8-4.3-8-9V6z" />
+        <path d="M9 12l2 2l4-5" />
+      </svg>
+    );
+  }
+
+  if (name === "system") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z" />
+        <path d="M4 12H2" />
+        <path d="M22 12h-2" />
+        <path d="M12 4V2" />
+        <path d="M12 22v-2" />
+        <path d="M5.6 5.6L4.2 4.2" />
+        <path d="M19.8 19.8l-1.4-1.4" />
+        <path d="M18.4 5.6l1.4-1.4" />
+        <path d="M4.2 19.8l1.4-1.4" />
+      </svg>
+    );
+  }
+
+  if (name === "radar") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 12l7-7" />
+        <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+        <path d="M4 12a8 8 0 1 0 8-8" />
+        <path d="M2 12a10 10 0 1 0 10-10" />
+      </svg>
+    );
+  }
+
+  if (name === "target") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18z" />
+        <path d="M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10z" />
+        <path d="M12 13a1 1 0 1 0 0-2a1 1 0 0 0 0 2z" />
+      </svg>
+    );
+  }
+
+  if (name === "flow") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M5 6h4v4H5z" />
+        <path d="M15 14h4v4h-4z" />
+        <path d="M9 8h3a3 3 0 0 1 3 3v3" />
+        <path d="M13 12l2 2l2-2" />
+      </svg>
+    );
+  }
+
+  if (name === "chart") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M4 19h16" />
+        <path d="M7 16V9" />
+        <path d="M12 16V5" />
+        <path d="M17 16v-4" />
+      </svg>
+    );
+  }
+
+  if (name === "lock") {
+    return (
+      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+        <path d="M7 11V8a5 5 0 0 1 10 0v3" />
+        <path d="M5 11h14v10H5z" />
+        <path d="M12 15v2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+      <path d="M12 3l8 6v6l-8 6l-8-6V9z" />
+      <path d="M12 8v8" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
+function IconBadge({
+  icon,
+  tone,
+  size = "md",
 }: {
-  children: ReactNode;
-  tone?: Tone;
+  icon: IconName;
+  tone: Tone;
+  size?: "sm" | "md" | "lg";
 }) {
   return (
-    <span
+    <div
       className={cx(
-        "inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] shadow-sm",
-        toneClasses[tone]
+        "grid shrink-0 place-items-center rounded-2xl border shadow-lg",
+        toneClasses[tone],
+        size === "sm" && "h-8 w-8",
+        size === "md" && "h-10 w-10",
+        size === "lg" && "h-12 w-12"
       )}
     >
-      <span className="truncate">{children}</span>
-    </span>
+      <div
+        className={cx(
+          size === "sm" && "h-4 w-4",
+          size === "md" && "h-5 w-5",
+          size === "lg" && "h-6 w-6"
+        )}
+      >
+        <IconSvg name={icon} />
+      </div>
+    </div>
   );
 }
 
@@ -418,7 +861,7 @@ function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/72 shadow-2xl shadow-black/20 backdrop-blur-2xl",
+        "relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-zinc-950/74 shadow-2xl shadow-black/20 backdrop-blur-2xl",
         className
       )}
     >
@@ -439,13 +882,32 @@ function Panel({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/[0.055] p-4 shadow-xl shadow-black/10",
+        "relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.052] p-4 shadow-xl shadow-black/10",
         className
       )}
     >
-      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b to-transparent", glowClasses[tone])} />
+      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glowClasses[tone])} />
       <div className="relative">{children}</div>
     </div>
+  );
+}
+
+function Pill({
+  children,
+  tone = "slate",
+}: {
+  children: ReactNode;
+  tone?: Tone;
+}) {
+  return (
+    <span
+      className={cx(
+        "inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] shadow-sm",
+        toneClasses[tone]
+      )}
+    >
+      <span className="truncate">{children}</span>
+    </span>
   );
 }
 
@@ -454,19 +916,30 @@ function MetricCard({
   value,
   helper,
   tone = "slate",
+  dense = false,
+  icon,
 }: {
   label: string;
   value: string | number;
   helper?: string;
   tone?: Tone;
+  dense?: boolean;
+  icon?: IconName;
 }) {
   return (
-    <Panel tone={tone} className="p-4">
-      <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-        {label}
+    <Panel tone={tone} className={cx("p-4", dense && "p-3")}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
+            {label}
+          </div>
+          <div className={cx("mt-1.5 truncate font-black text-white", dense ? "text-xl" : "text-2xl")}>
+            {value}
+          </div>
+          {helper ? <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">{helper}</div> : null}
+        </div>
+        {icon ? <IconBadge icon={icon} tone={tone} size="sm" /> : null}
       </div>
-      <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
-      {helper ? <div className="mt-1 truncate text-xs font-semibold text-slate-500">{helper}</div> : null}
     </Panel>
   );
 }
@@ -487,7 +960,7 @@ function ProgressBar({
   };
 
   return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
+    <div className="h-2 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
       <div
         className={cx("h-full rounded-full bg-gradient-to-r", fills[tone])}
         style={{ width: percent(value) }}
@@ -496,11 +969,21 @@ function ProgressBar({
   );
 }
 
-function LogoMark() {
+function LogoMark({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-xl shadow-red-950/50 ring-1 ring-red-500/40">
+    <div
+      className={cx(
+        "relative flex shrink-0 items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-xl shadow-red-950/50 ring-1 ring-red-500/40",
+        compact ? "h-10 w-10" : "h-12 w-12"
+      )}
+    >
       <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+      <div
+        className={cx(
+          "relative flex items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 font-black text-white shadow-inner",
+          compact ? "h-7 w-7 text-sm" : "h-8 w-8 text-lg"
+        )}
+      >
         S
       </div>
       <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
@@ -511,7 +994,7 @@ function LogoMark() {
 
 function OrbitGraphic() {
   return (
-    <div className="pointer-events-none absolute right-[-80px] top-[-80px] hidden h-[360px] w-[360px] lg:block">
+    <div className="pointer-events-none absolute right-[-90px] top-[-95px] hidden h-[330px] w-[330px] opacity-95 lg:block">
       <div className="absolute inset-0 rounded-full border border-red-500/20" />
       <div className="absolute inset-10 rounded-full border border-cyan-500/20" />
       <div className="absolute inset-20 rounded-full border border-purple-500/20" />
@@ -523,53 +1006,32 @@ function OrbitGraphic() {
   );
 }
 
-function MiniBars({ tone = "red" }: { tone?: Tone }) {
-  const colors: Record<Tone, string> = {
-    red: "bg-red-400",
-    green: "bg-emerald-400",
-    amber: "bg-amber-400",
-    purple: "bg-purple-400",
-    cyan: "bg-cyan-400",
-    slate: "bg-slate-400",
-  };
-
-  return (
-    <div className="flex h-10 items-end gap-1.5">
-      {[34, 58, 42, 76, 52, 88, 64].map((height, index) => (
-        <span
-          key={`${tone}-${height}-${index}`}
-          className={cx("w-2 rounded-full opacity-80", colors[tone])}
-          style={{ height: `${height}%` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function SectionTitle({
   eyebrow,
   title,
   description,
   action,
+  compact = false,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">
+        <h1 className={cx("mt-1.5 font-black tracking-tight text-white", compact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl")}>
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+          <p className={cx("mt-2 max-w-4xl leading-6 text-slate-400", compact ? "text-xs" : "text-sm")}>
             {description}
           </p>
         ) : null}
@@ -584,21 +1046,105 @@ function BeautifulButton({
   href,
   children,
   tone = "red",
+  compact = false,
 }: {
   href: string;
   children: ReactNode;
   tone?: Tone;
+  compact?: boolean;
 }) {
   return (
     <a
       href={href}
       className={cx(
-        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-black shadow-lg transition hover:-translate-y-0.5 hover:scale-[1.01]",
+        "inline-flex items-center justify-center rounded-2xl border text-sm font-black shadow-lg transition hover:-translate-y-0.5 hover:scale-[1.01]",
+        compact ? "px-3 py-2.5" : "px-4 py-3",
         tone === "slate" ? "border-white/10 bg-white text-slate-950" : toneClasses[tone]
       )}
     >
       {children}
     </a>
+  );
+}
+
+function Sidebar({
+  activeTab,
+  setTab,
+}: {
+  activeTab: Tab;
+  setTab: (tab: Tab) => void;
+}) {
+  const groupedTabs = tabs.reduce<Record<string, typeof tabs>>((acc, tab) => {
+    acc[tab.group] = acc[tab.group] ?? [];
+    acc[tab.group].push(tab);
+    return acc;
+  }, {});
+
+  return (
+    <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[292px] shrink-0 overflow-hidden rounded-[1.8rem] border border-white/10 bg-black/58 shadow-2xl shadow-black/35 backdrop-blur-2xl xl:block">
+      <div className="border-b border-white/10 p-4">
+        <div className="flex items-center gap-3">
+          <LogoMark compact />
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+              Slice
+            </div>
+            <div className="truncate text-lg font-black text-white">Command Brain</div>
+            <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+              Advisor operating system
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="max-h-[calc(100vh-7.7rem)] overflow-y-auto p-3">
+        {Object.entries(groupedTabs).map(([group, items]) => (
+          <div key={group} className="mb-3">
+            <div className="mb-1.5 px-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">
+              {group}
+            </div>
+            <div className="grid gap-1">
+              {items.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setTab(tab.id)}
+                  className={cx(
+                    "group grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[1.1rem] border px-2.5 py-2.5 text-left transition",
+                    activeTab === tab.id
+                      ? "border-white/25 bg-white text-slate-950 shadow-lg shadow-red-950/20"
+                      : "border-transparent bg-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.065] hover:text-white"
+                  )}
+                >
+                  <span
+                    className={cx(
+                      "grid h-8 w-8 place-items-center rounded-2xl",
+                      activeTab === tab.id ? "bg-slate-950 text-white" : "bg-white/[0.06] text-white"
+                    )}
+                  >
+                    <span className="h-4 w-4">
+                      <IconSvg name={tab.icon} />
+                    </span>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-black">{tab.label}</span>
+                    <span
+                      className={cx(
+                        "block truncate text-[10px] font-semibold",
+                        activeTab === tab.id ? "text-slate-600" : "text-slate-500"
+                      )}
+                    >
+                      {tab.description}
+                    </span>
+                  </span>
+                  <span className={cx("h-2.5 w-2.5 rounded-full shadow-lg", toneDot[tab.tone])} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
   );
 }
 
@@ -609,6 +1155,7 @@ function ModuleCard({
   primaryHref,
   primaryLabel,
   tone = "red",
+  icon = "brain",
 }: {
   title: string;
   description: string;
@@ -616,25 +1163,28 @@ function ModuleCard({
   primaryHref?: string;
   primaryLabel?: string;
   tone?: Tone;
+  icon?: IconName;
 }) {
   return (
-    <Card className="group p-5 transition hover:-translate-y-1 hover:border-white/20 hover:bg-zinc-950/90">
-      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b to-transparent", glowClasses[tone])} />
+    <Card className="group p-4 transition hover:-translate-y-1 hover:border-white/20 hover:bg-zinc-950/90">
+      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b to-transparent", glowClasses[tone])} />
       <div className="relative">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="truncate text-xl font-black text-white">{title}</h2>
-            <p className="mt-2 line-clamp-3 min-h-[72px] text-sm leading-6 text-slate-400">{description}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 gap-3">
+            <IconBadge icon={icon} tone={tone} size="md" />
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-black text-white">{title}</h2>
+              <p className="mt-1.5 line-clamp-2 min-h-[44px] text-xs leading-5 text-slate-400">{description}</p>
+            </div>
           </div>
-          <MiniBars tone={tone} />
         </div>
 
         {stats?.length ? (
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {stats.map(([label, value], index) => (
-              <div key={`${title}-${label}-${index}`} className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-                <div className="mt-1 truncate text-lg font-black text-white">{value}</div>
+              <div key={`${title}-${label}-${index}`} className="rounded-2xl border border-white/10 bg-black/25 p-2.5">
+                <div className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                <div className="mt-1 truncate text-base font-black text-white">{value}</div>
               </div>
             ))}
           </div>
@@ -643,7 +1193,7 @@ function ModuleCard({
         {primaryHref ? (
           <a
             href={primaryHref}
-            className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.01]"
+            className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-950 transition hover:scale-[1.01]"
           >
             {primaryLabel ?? "Open"}
           </a>
@@ -668,16 +1218,17 @@ function GenericModule({
     href?: string;
     button?: string;
     tone?: Tone;
+    icon?: IconName;
     stats?: Array<[string, string | number]>;
   }>;
 }) {
   return (
-    <section className="grid gap-5">
-      <Card className="p-6">
-        <SectionTitle eyebrow={eyebrow} title={title} description={description} />
+    <section className="grid gap-4">
+      <Card className="p-5">
+        <SectionTitle eyebrow={eyebrow} title={title} description={description} compact />
       </Card>
 
-      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {cards.map((card, index) => (
           <ModuleCard
             key={`${title}-${card.title}-${index}`}
@@ -687,6 +1238,7 @@ function GenericModule({
             primaryHref={card.href}
             primaryLabel={card.button}
             tone={card.tone}
+            icon={card.icon}
           />
         ))}
       </div>
@@ -697,180 +1249,616 @@ function GenericModule({
 function CalendarTaskPill({
   task,
   dense = false,
-  onComplete,
-  onSelect,
 }: {
   task: CalendarTask;
   dense?: boolean;
-  onComplete?: () => void;
-  onSelect?: () => void;
 }) {
-  const complete = task.status === "Complete" || task.status === "Done";
+  const complete = completeStatus(task.status);
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if ((event.key === "Enter" || event.key === " ") && onSelect) onSelect();
-      }}
       className={cx(
-        "group cursor-pointer rounded-xl border bg-black/30 shadow-sm transition hover:-translate-y-0.5 hover:bg-white/[0.08]",
+        "rounded-xl border bg-black/30 shadow-sm",
         dense ? "px-2 py-1.5" : "px-2.5 py-2",
-        complete ? "border-emerald-500/20 opacity-70" : "border-white/10 hover:border-red-400/30"
+        complete ? "border-emerald-500/20 opacity-70" : "border-white/10"
       )}
       style={{
         borderLeftWidth: 3,
         borderLeftColor: task.ownerColor ?? "#ef4444",
       }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div
-            className={cx(
-              "truncate font-black",
-              dense ? "text-[11px]" : "text-[12px]",
-              complete ? "text-slate-500 line-through" : "text-white"
-            )}
-          >
-            {task.title}
-          </div>
-
-          {!dense ? (
-            <div className="mt-1 truncate text-[10px] font-semibold text-slate-500">
-              {task.ownerName ?? "Team"} {task.project?.title ? `· ${task.project.title}` : ""}
-            </div>
-          ) : null}
-        </div>
-
-        {onComplete && !complete ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onComplete();
-            }}
-            className="hidden shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black text-white transition hover:bg-emerald-500/15 group-hover:inline-flex"
-          >
-            Done
-          </button>
-        ) : null}
+      <div
+        className={cx(
+          "truncate font-black",
+          dense ? "text-[11px]" : "text-[12px]",
+          complete ? "text-slate-500 line-through" : "text-white"
+        )}
+      >
+        {task.title}
       </div>
-
       {!dense ? (
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <Pill tone={priorityTone(task.priority)}>{task.priority}</Pill>
-          <span className="truncate text-[10px] font-bold text-slate-600">{task.status}</span>
+        <div className="mt-1 truncate text-[10px] font-semibold text-slate-500">
+          {task.ownerName ?? "Team"} {task.project?.title ? `· ${task.project.title}` : ""}
         </div>
       ) : null}
     </div>
   );
 }
 
+function VisualModuleMap({
+  moduleCards,
+}: {
+  moduleCards: ModuleCardConfig[];
+}) {
+  const featured = moduleCards.slice(0, 8);
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+            System Map
+          </div>
+          <h2 className="mt-1.5 text-2xl font-black text-white">Everything connects to the brain</h2>
+        </div>
+        <Pill tone="cyan">Client-ready view</Pill>
+      </div>
+
+      <div className="relative mt-4 overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
+        <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/20 blur-3xl" />
+        <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-400/20" />
+        <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/10" />
+
+        <div className="relative grid gap-3 lg:grid-cols-[1fr_220px_1fr]">
+          <div className="grid gap-3">
+            {featured.slice(0, 4).map((module) => (
+              <a
+                key={module.id}
+                href={module.href}
+                className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+              >
+                <div className="flex items-center gap-3">
+                  <IconBadge icon={module.icon} tone={module.tone} size="sm" />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-white">{module.title}</div>
+                    <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
+                  </div>
+                  <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
+                </div>
+              </a>
+            ))}
+          </div>
+
+          <div className="grid place-items-center">
+            <div className="relative grid h-52 w-52 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-red-950/50 via-black to-cyan-950/30 shadow-2xl shadow-red-950/40">
+              <div className="absolute inset-6 rounded-full border border-cyan-400/15" />
+              <div className="absolute inset-12 rounded-full border border-red-400/20" />
+              <div className="grid h-24 w-24 place-items-center rounded-[2rem] border border-white/15 bg-white text-slate-950 shadow-xl">
+                <div className="h-12 w-12">
+                  <IconSvg name="brain" />
+                </div>
+              </div>
+              <div className="absolute bottom-8 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                Command Brain
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {featured.slice(4, 8).map((module) => (
+              <a
+                key={module.id}
+                href={module.href}
+                className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+              >
+                <div className="flex items-center gap-3">
+                  <IconBadge icon={module.icon} tone={module.tone} size="sm" />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-white">{module.title}</div>
+                    <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
+                  </div>
+                  <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function IntelligenceRibbon({
+  cards,
+}: {
+  cards: Array<{
+    title: string;
+    value: string | number;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+  }>;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <div
+            key={card.title}
+            className={cx(
+              "relative overflow-hidden rounded-[1.35rem] border p-3",
+              toneSoft[card.tone]
+            )}
+          >
+            <div className={cx("absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent", glowClasses[card.tone])} />
+            <div className="relative flex items-start gap-3">
+              <IconBadge icon={card.icon} tone={card.tone} size="sm" />
+              <div className="min-w-0">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">{card.title}</div>
+                <div className="mt-1 text-xl font-black text-white">{card.value}</div>
+                <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{card.helper}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function AdvisorWorkflowBlueprint({
+  dueToday,
+  overdue,
+  unreadAlerts,
+  clientCount,
+}: {
+  dueToday: number;
+  overdue: number;
+  unreadAlerts: number;
+  clientCount: number;
+}) {
+  const steps = [
+    {
+      title: "Sense",
+      helper: "Scan alerts, sources, markets",
+      tone: unreadAlerts ? "red" : "green",
+      icon: "radar",
+      stat: unreadAlerts,
+      label: "Unread",
+    },
+    {
+      title: "Think",
+      helper: "Ask AI and generate briefings",
+      tone: "cyan",
+      icon: "spark",
+      stat: "AI",
+      label: "Studio",
+    },
+    {
+      title: "Act",
+      helper: "Delegate and follow up",
+      tone: overdue ? "red" : dueToday ? "amber" : "green",
+      icon: "team",
+      stat: overdue || dueToday,
+      label: overdue ? "Overdue" : "Due",
+    },
+    {
+      title: "Serve",
+      helper: "Prepare clients and emails",
+      tone: "purple",
+      icon: "client",
+      stat: clientCount,
+      label: "Clients",
+    },
+  ] as Array<{
+    title: string;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+    stat: string | number;
+    label: string;
+  }>;
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Advisor Flow"
+        title="A visual operating path"
+        description="A wealth team should always know where work starts, where decisions happen, and where follow-through lives."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {steps.map((step, index) => (
+          <div key={step.title} className="relative">
+            {index < steps.length - 1 ? (
+              <div className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-9 bg-gradient-to-r from-white/20 to-transparent md:block" />
+            ) : null}
+            <div className={cx("rounded-[1.35rem] border p-3", toneSoft[step.tone])}>
+              <div className="flex items-center justify-between gap-3">
+                <IconBadge icon={step.icon} tone={step.tone} size="md" />
+                <Pill tone={step.tone}>{step.label}</Pill>
+              </div>
+              <div className="mt-3 text-lg font-black text-white">{step.title}</div>
+              <div className="mt-1 text-xs leading-5 text-slate-400">{step.helper}</div>
+              <div className="mt-3 text-2xl font-black text-white">{step.stat}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function CompactActivityPanel({
+  posts,
+  notifications,
+}: {
+  posts: FirmPost[];
+  notifications: DashboardNotification[];
+}) {
+  const visiblePosts = posts.slice(0, 4);
+  const visibleNotifications = notifications.slice(0, 4);
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Activity"
+        title="Recent firm movement"
+        description="A compact stream of workspace updates and notifications."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <div className="grid gap-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Workspace Posts</div>
+          {visiblePosts.map((post) => (
+            <div key={post.id} className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-white">{post.title}</div>
+                  <div className="mt-1 truncate text-xs text-slate-500">{post.postType}</div>
+                </div>
+                <Pill tone={toneFor(post.postType)}>{post.postType}</Pill>
+              </div>
+            </div>
+          ))}
+          {!visiblePosts.length ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
+              No workspace posts yet.
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Notifications</div>
+          {visibleNotifications.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-white">{item.title}</div>
+                  <div className="mt-1 truncate text-xs text-slate-500">{item.body}</div>
+                </div>
+                <Pill tone={toneFor(item.urgency)}>{item.urgency}</Pill>
+              </div>
+            </div>
+          ))}
+          {!visibleNotifications.length ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
+              No dashboard notifications yet.
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function CohesionMatrix({
+  moduleCards,
+}: {
+  moduleCards: ModuleCardConfig[];
+}) {
+  const categories = ["Command", "Firm", "Advisor", "Markets", "Research", "System"];
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Platform Cohesion"
+        title="How the modules support the advisor team"
+        description="Every major section has a clear role, visual identity, and route back to the central command brain."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {categories.map((category) => {
+          const items = moduleCards.filter((module) => module.category === category);
+          const tone = items[0]?.tone ?? "slate";
+
+          return (
+            <div key={category} className={cx("rounded-[1.35rem] border p-3", toneSoft[tone])}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{category}</div>
+                  <div className="mt-1 text-lg font-black text-white">{items.length} module{items.length === 1 ? "" : "s"}</div>
+                </div>
+                <div className={cx("h-3 w-3 rounded-full shadow-lg", toneDot[tone])} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {items.map((item) => (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] font-black uppercase tracking-[0.13em] text-white transition hover:bg-white/10"
+                  >
+                    <span className="h-3.5 w-3.5">
+                      <IconSvg name={item.icon} />
+                    </span>
+                    {item.title}
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function CommandHealthPanel({
+  readiness,
+  kernelReadiness,
+  alerts,
+  failedRuns,
+  overdue,
+}: {
+  readiness: number;
+  kernelReadiness: number;
+  alerts: number;
+  failedRuns: number;
+  overdue: number;
+}) {
+  const items: Array<{
+    label: string;
+    value: string | number;
+    detail: string;
+    tone: Tone;
+    icon: IconName;
+  }> = [
+    {
+      label: "Advisor Brain",
+      value: percent(readiness),
+      detail: advisorReadinessLabel(readiness),
+      tone: readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red",
+      icon: "brain",
+    },
+    {
+      label: "Backend Kernel",
+      value: percent(kernelReadiness),
+      detail: kernelReadiness >= 75 ? "Healthy" : "Review services",
+      tone: kernelReadiness >= 75 ? "green" : kernelReadiness >= 45 ? "amber" : "red",
+      icon: "system",
+    },
+    {
+      label: "Alert Load",
+      value: alerts,
+      detail: alerts ? "Needs review" : "Clear",
+      tone: alerts ? "red" : "green",
+      icon: "bell",
+    },
+    {
+      label: "Execution Risk",
+      value: overdue + failedRuns,
+      detail: overdue || failedRuns ? "Follow up" : "Stable",
+      tone: overdue || failedRuns ? "amber" : "green",
+      icon: "target",
+    },
+  ];
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Command Health"
+        title="Operational status at a glance"
+        description="A production-grade advisor workspace should always show what is healthy, what needs review, and what needs action."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.label} className={cx("rounded-[1.35rem] border p-3", toneSoft[item.tone])}>
+            <div className="flex items-center justify-between gap-3">
+              <IconBadge icon={item.icon} tone={item.tone} size="md" />
+              <Pill tone={item.tone}>{item.detail}</Pill>
+            </div>
+            <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</div>
+            <div className="mt-1 text-2xl font-black text-white">{item.value}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ClientShowcasePanel({
+  assets,
+  clients,
+  alerts,
+  ideas,
+}: {
+  assets: number;
+  clients: number;
+  alerts: number;
+  ideas: number;
+}) {
+  return (
+    <Card className="p-4">
+      <div className="grid gap-4 xl:grid-cols-[1fr_340px] xl:items-center">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+            Client-Presentable Layer
+          </div>
+          <h2 className="mt-1.5 text-2xl font-black text-white md:text-3xl">
+            A workspace an advisor can confidently show a client.
+          </h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+            The dashboard frames the firm’s workflow professionally: intelligence enters the platform,
+            the advisor reviews it, the team delegates action, and client communication becomes polished,
+            trackable, and compliance-minded.
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Pill tone="cyan">AI-assisted</Pill>
+            <Pill tone="green">Action-oriented</Pill>
+            <Pill tone="purple">Client-ready</Pill>
+            <Pill tone="red">Source-aware</Pill>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard label="Assets Watched" value={assets} helper="Watchlists" tone="amber" dense icon="market" />
+          <MetricCard label="Clients" value={clients} helper="Profiles" tone="purple" dense icon="client" />
+          <MetricCard label="Alerts" value={alerts} helper="Total" tone={alerts ? "red" : "green"} dense icon="bell" />
+          <MetricCard label="Ideas" value={ideas} helper="Growth" tone="cyan" dense icon="spark" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ExecutiveCommandStrip({
+  moduleCards,
+}: {
+  moduleCards: ModuleCardConfig[];
+}) {
+  const actions = moduleCards.slice(0, 6);
+
+  return (
+    <Card className="p-3">
+      <div className="grid gap-2 lg:grid-cols-6">
+        {actions.map((item) => (
+          <a
+            key={item.id}
+            href={item.href}
+            className="group rounded-[1.15rem] border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+          >
+            <div className="flex items-center gap-2">
+              <IconBadge icon={item.icon} tone={item.tone} size="sm" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-black text-white">{item.title}</div>
+                <div className="truncate text-[10px] font-semibold text-slate-500">{item.subtitle}</div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function SignalQualityPanel({
+  retained,
+  research,
+  watchlists,
+  deliveries,
+}: {
+  retained: number;
+  research: number;
+  watchlists: number;
+  deliveries: number;
+}) {
+  const rows: Array<{
+    label: string;
+    value: string | number;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+  }> = [
+    {
+      label: "Signal Discipline",
+      value: retained,
+      helper: "Retained opportunities",
+      tone: retained ? "red" : "slate",
+      icon: "radar",
+    },
+    {
+      label: "Research Base",
+      value: research,
+      helper: "Stored research items",
+      tone: "cyan",
+      icon: "report",
+    },
+    {
+      label: "Coverage",
+      value: watchlists,
+      helper: "Tracked watchlists",
+      tone: "amber",
+      icon: "market",
+    },
+    {
+      label: "Delivery Trail",
+      value: deliveries,
+      helper: "Notification records",
+      tone: "green",
+      icon: "mail",
+    },
+  ];
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Signal Quality"
+        title="Source-aware intelligence flow"
+        description="Important information should become reviewable, explainable, and actionable before it reaches a client."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label} className={cx("rounded-[1.25rem] border p-3", toneSoft[row.tone])}>
+            <div className="flex items-start justify-between gap-3">
+              <IconBadge icon={row.icon} tone={row.tone} size="sm" />
+              <Pill tone={row.tone}>{row.value}</Pill>
+            </div>
+            <div className="mt-3 text-sm font-black text-white">{row.label}</div>
+            <div className="mt-1 text-xs leading-5 text-slate-400">{row.helper}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function WorkspacePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [message, setMessage] = useState("");
   const [backendMessage, setBackendMessage] = useState("");
   const [backendWorking, setBackendWorking] = useState("");
-  const [inviteOutput, setInviteOutput] = useState("");
-
   const [command, setCommand] = useState<CommandOverview | null>(null);
   const [firmWorkspace, setFirmWorkspace] = useState<FirmWorkspace | null>(null);
   const [kernel, setKernel] = useState<BackendKernelSummary | null>(null);
-
-  const [calendarMode, setCalendarMode] = useState<CalendarMode>("week");
+  const [calendarMode, setCalendarMode] = useState<"week" | "month">("week");
   const [calendarAnchor, setCalendarAnchor] = useState(ymd(new Date()));
   const [selectedDay, setSelectedDay] = useState(ymd(new Date()));
-  const [selectedTask, setSelectedTask] = useState<CalendarTask | null>(null);
 
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [firmSignupForm, setFirmSignupForm] = useState({
-    firmName: "",
-    firmEmail: "",
-    name: "",
-    email: "",
-    password: "",
-  });
-  const [inviteSignupForm, setInviteSignupForm] = useState({
-    inviteCode: "",
-    name: "",
-    password: "",
-  });
-  const [newFirmForm, setNewFirmForm] = useState({ name: "", firmEmail: "" });
-  const [inviteForm, setInviteForm] = useState({ email: "", role: "Member" });
-  const [projectForm, setProjectForm] = useState({
-    title: "",
-    description: "",
-    priority: "Medium",
-    dueDate: "",
-  });
-  const [agendaForm, setAgendaForm] = useState({
-    weekStart: weekStartToday(),
-    title: "Weekly Agenda",
-    focus: "",
-    blockers: "",
-  });
-  const [taskForm, setTaskForm] = useState({
-    agendaId: "",
-    projectId: "",
-    title: "",
-    detail: "",
-    priority: "Medium",
-    dueDate: ymd(new Date()),
-  });
+  const currentCommand = command ?? EMPTY_COMMAND;
+  const currentFirmWorkspace = firmWorkspace ?? EMPTY_FIRM_WORKSPACE;
+  const operations = currentFirmWorkspace.operations ?? EMPTY_FIRM_WORKSPACE.operations!;
+  const firmTasks = operations.allTasks ?? [];
+  const openFirmTasks = firmTasks.filter((task) => !completeStatus(task.status));
+  const completedFirmTasks = firmTasks.filter((task) => completeStatus(task.status));
+  const today = ymd(new Date());
 
-  const firm = firmWorkspace?.firm ?? null;
-  const membership = firmWorkspace?.membership ?? null;
-  const members = firmWorkspace?.members ?? [];
-  const invites = firmWorkspace?.invites ?? [];
-  const projects = firmWorkspace?.projects ?? [];
-  const agendas = firmWorkspace?.agendas ?? [];
-  const posts = firmWorkspace?.posts ?? [];
-
-  const canInvite =
-    membership?.role === "Owner" ||
-    Boolean(membership?.canInviteMembers) ||
-    Boolean(membership?.canManageFirm);
-
-  const canManageProjects =
-    membership?.role === "Owner" ||
-    Boolean(membership?.canManageProjects) ||
-    Boolean(membership?.canManageFirm);
-
-  const firmTasks = useMemo<CalendarTask[]>(() => {
-    return (
-      firmWorkspace?.agendas
-        .flatMap((agenda) =>
-          agenda.tasks.map((task) => ({
-            ...task,
-            agendaTitle: agenda.title,
-            weekStart: agenda.weekStart,
-            ownerName: agenda.membership.user?.name ?? "Team member",
-            ownerColor: agenda.membership.calendarColor || "#ef4444",
-            ownerId: agenda.membership.id,
-          }))
-        )
-        .sort((a, b) => {
-          if (!a.dueDate && !b.dueDate) return 0;
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return a.dueDate.localeCompare(b.dueDate);
-        }) ?? []
-    );
-  }, [firmWorkspace]);
-
-  const openFirmTasks = useMemo(
-    () => firmTasks.filter((task) => task.status !== "Complete" && task.status !== "Done"),
-    [firmTasks]
+  const tasksDueToday = useMemo(
+    () => firmTasks.filter((task) => task.dueDate === today && !completeStatus(task.status)),
+    [firmTasks, today]
   );
 
-  const completedFirmTasks = useMemo(
-    () => firmTasks.filter((task) => task.status === "Complete" || task.status === "Done"),
-    [firmTasks]
+  const overdueTasks = useMemo(
+    () => firmTasks.filter((task) => task.dueDate && task.dueDate < today && !completeStatus(task.status)),
+    [firmTasks, today]
   );
 
   const tasksByDay = useMemo(() => {
@@ -878,1918 +1866,1184 @@ export default function WorkspacePage() {
 
     for (const task of firmTasks) {
       if (!task.dueDate) continue;
-      map.set(task.dueDate, [...(map.get(task.dueDate) ?? []), task]);
+      const items = map.get(task.dueDate) ?? [];
+      items.push(task);
+      map.set(task.dueDate, items);
     }
 
     return map;
   }, [firmTasks]);
 
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }).map((_, index) => addDays(startOfWeek(calendarAnchor), index)),
+    [calendarAnchor]
+  );
+
+  const monthDays = useMemo(() => calendarMonthDays(calendarAnchor), [calendarAnchor]);
   const selectedDayTasks = useMemo(() => tasksByDay.get(selectedDay) ?? [], [selectedDay, tasksByDay]);
 
-  const unscheduledTasks = useMemo(() => firmTasks.filter((task) => !task.dueDate), [firmTasks]);
+  const readinessTone: Exclude<Tone, "slate"> =
+    currentCommand.readinessScore >= 75
+      ? "green"
+      : currentCommand.readinessScore >= 45
+        ? "amber"
+        : "red";
 
-  const calendarCompletionRate = firmTasks.length ? (completedFirmTasks.length / firmTasks.length) * 100 : 0;
-  const readinessScore = command?.readinessScore ?? 0;
-  const portfolioValue = command?.counts.portfolioTotalValue ?? 0;
-  const portfolioHoldingCount = command?.counts.holdingCount ?? 0;
-  const portfolioAccountCount = command?.counts.accountCount ?? 0;
-  const portfolioModelCount = command?.counts.modelCount ?? 0;
+  const moduleCards: ModuleCardConfig[] = [
+    {
+      id: "team",
+      title: "Team Board",
+      subtitle: "Delegation OS",
+      description: "Delegate work, rank importance, create reminders, track completion, and collect anonymous ideas.",
+      tone: "green",
+      icon: "team",
+      href: "/workspace?tab=team-board",
+      button: "Open Team Board",
+      category: "Firm",
+      meta: [
+        ["Tasks", operations.sprintMetrics.total],
+        ["Ideas", operations.sprintMetrics.ideas],
+        ["Blocked", operations.sprintMetrics.blocked],
+        ["Timed", operations.sprintMetrics.timedReminders],
+      ],
+    },
+    {
+      id: "calendar",
+      title: "Calendar",
+      subtitle: "Timeline control",
+      description: "Review deadlines, task due dates, project timing, and weekly execution flow.",
+      tone: "purple",
+      icon: "calendar",
+      href: "/workspace?tab=firm-calendar",
+      button: "Open Calendar",
+      category: "Firm",
+      meta: [
+        ["Deadlines", operations.sprintMetrics.deadlines],
+        ["Due today", tasksDueToday.length],
+      ],
+    },
+    {
+      id: "ai",
+      title: "AI Studio",
+      subtitle: "Command assistant",
+      description: "Ask anything, generate advisor-ready output, create reports, use voice, and prepare client material.",
+      tone: "cyan",
+      icon: "spark",
+      href: "/workspace/personal-bot",
+      button: "Ask AI",
+      category: "Command",
+      meta: [
+        ["Briefings", currentCommand.counts.briefingCount],
+        ["Research", currentCommand.counts.researchCount],
+      ],
+    },
+    {
+      id: "markets",
+      title: "Market Visuals",
+      subtitle: "Advisor charts",
+      description: "Technical charts, comparisons, moving averages, RSI, MACD, volume, and forecast ranges.",
+      tone: "red",
+      icon: "market",
+      href: "/market-visuals",
+      button: "Open Visuals",
+      category: "Markets",
+      meta: [
+        ["Watchlists", currentCommand.counts.watchlistCount],
+        ["Alerts", currentCommand.counts.totalAlertCount],
+      ],
+    },
+    {
+      id: "clients",
+      title: "Clients",
+      subtitle: "Client brain",
+      description: "Client records, briefings, emails, notes, suitability context, and relationship preparation.",
+      tone: "purple",
+      icon: "client",
+      href: "/workspace?tab=clients",
+      button: "Open Clients",
+      category: "Advisor",
+      meta: [
+        ["Clients", currentCommand.counts.clientCount],
+        ["Emails", currentCommand.counts.deliveryCount],
+      ],
+    },
+    {
+      id: "emails",
+      title: "Email Center",
+      subtitle: "Communication OS",
+      description: "Draft, refine, approve, and send advisor-grade client communication.",
+      tone: "green",
+      icon: "mail",
+      href: "/workspace?tab=emails",
+      button: "Open Email",
+      category: "Advisor",
+      meta: [
+        ["Clients", currentCommand.counts.clientCount],
+        ["Deliveries", currentCommand.counts.deliveryCount],
+      ],
+    },
+    {
+      id: "intel",
+      title: "Intelligence",
+      subtitle: "Continuous scan",
+      description: "Source-backed market and opportunity intelligence with triage scoring and alert delivery.",
+      tone: "red",
+      icon: "signal",
+      href: "/workspace?tab=intelligence",
+      button: "Open Intel",
+      category: "Markets",
+      meta: [
+        ["Retained", currentCommand.counts.retainedDecisionCount],
+        ["Runs", currentCommand.counts.triageRunCount],
+      ],
+    },
+    {
+      id: "portfolio",
+      title: "Portfolio Lab",
+      subtitle: "Holdings view",
+      description: "Holdings, accounts, value, models, scenarios, and portfolio context.",
+      tone: "green",
+      icon: "portfolio",
+      href: "/portfolio-lab",
+      button: "Open Portfolio",
+      category: "Markets",
+      meta: [
+        ["Holdings", currentCommand.counts.holdingCount],
+        ["Value", money(currentCommand.counts.portfolioTotalValue)],
+      ],
+    },
+    {
+      id: "reports",
+      title: "Briefings",
+      subtitle: "PDF output",
+      description: "AI-generated briefings, client reports, founder reports, and advisor-ready PDFs.",
+      tone: "cyan",
+      icon: "report",
+      href: "/workspace?tab=briefings",
+      button: "Open Reports",
+      category: "Research",
+      meta: [
+        ["Briefings", currentCommand.counts.briefingCount],
+        ["Ideas", operations.sprintMetrics.ideas],
+      ],
+    },
+    {
+      id: "system",
+      title: "System",
+      subtitle: "Backend readiness",
+      description: "Kernel health, vendors, queues, failed runs, deployments, and platform reliability.",
+      tone: "cyan",
+      icon: "system",
+      href: "/workspace?tab=system",
+      button: "Open System",
+      category: "System",
+      meta: [
+        ["Kernel", percent(kernel?.readinessScore ?? 0)],
+        ["Failed", kernel?.metrics.failedRuns ?? 0],
+      ],
+    },
+    {
+      id: "security",
+      title: "Security",
+      subtitle: "Governance",
+      description: "Audit posture, disclosures, sensitive-action review, and platform controls.",
+      tone: "red",
+      icon: "shield",
+      href: "/workspace?tab=security",
+      button: "Open Security",
+      category: "System",
+      meta: [
+        ["Audit", currentCommand.counts.auditLogCount],
+        ["Required", currentCommand.counts.requiredDisclosures ?? 0],
+      ],
+    },
+  ];
 
-  const visibleDays = useMemo(() => {
-    if (calendarMode === "month") return calendarMonthDays(calendarAnchor);
-    const start = agendaForm.weekStart || startOfWeek(calendarAnchor);
-    return Array.from({ length: 7 }).map((_, index) => addDays(start, index));
-  }, [agendaForm.weekStart, calendarAnchor, calendarMode]);
+  const ribbonCards = [
+    {
+      title: "Brain Readiness",
+      value: percent(currentCommand.readinessScore),
+      helper: "Command center score",
+      tone: readinessTone,
+      icon: "brain",
+    },
+    {
+      title: "Advisor Alerts",
+      value: currentCommand.counts.unreadAlertCount,
+      helper: `${currentCommand.counts.totalAlertCount} total alerts`,
+      tone: currentCommand.counts.unreadAlertCount ? "red" : "green",
+      icon: "bell",
+    },
+    {
+      title: "Team Execution",
+      value: openFirmTasks.length,
+      helper: `${completedFirmTasks.length} complete`,
+      tone: openFirmTasks.length ? "amber" : "green",
+      icon: "team",
+    },
+    {
+      title: "Client Base",
+      value: currentCommand.counts.clientCount,
+      helper: "Client profiles",
+      tone: "purple",
+      icon: "client",
+    },
+  ] satisfies Array<{
+    title: string;
+    value: string | number;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+  }>;
 
-  const activeTabMeta = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+  function setTab(tab: Tab) {
+    setActiveTab(tab);
 
-  async function loadCommand() {
-    const response = await fetch("/api/command/overview", { cache: "no-store" });
-    if (response.ok) setCommand(await response.json());
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState(null, "", url.toString());
+    }
+  }
+
+  async function loadCommandCenter() {
+    try {
+      const response = await fetch("/api/command-center", { cache: "no-store" });
+
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      setCommand(payload.overview ?? payload);
+    } catch {
+      setCommand(EMPTY_COMMAND);
+    }
+  }
+
+  async function loadFirmWorkspace() {
+    try {
+      const response = await fetch("/api/firm-workspace", { cache: "no-store" });
+
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      setFirmWorkspace(payload);
+    } catch {
+      setFirmWorkspace(EMPTY_FIRM_WORKSPACE);
+    }
   }
 
   async function loadBackendKernel() {
-    const response = await fetch("/api/backend-kernel", { cache: "no-store" });
-    if (response.ok) setKernel(await response.json());
-  }
-
-  async function loadFirmWorkspace(firmId?: string) {
-    const query = firmId ? `?firmId=${firmId}` : "";
-    const response = await fetch(`/api/firm-workspace${query}`, { cache: "no-store" });
-
-    if (response.ok) {
-      const data = await response.json();
-      setFirmWorkspace(data);
-
-      if (data.agendas?.length && !taskForm.agendaId) {
-        setTaskForm((current) => ({ ...current, agendaId: data.agendas[0].id }));
-      }
-    }
-  }
-
-  async function loadMe() {
     try {
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
-      const data = await response.json();
+      const response = await fetch("/api/backend-kernel", { cache: "no-store" });
 
-      if (data.user) {
-        setUser(data.user);
-        await Promise.all([loadCommand(), loadFirmWorkspace(), loadBackendKernel()]);
-      }
-    } finally {
-      setCheckingSession(false);
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      setKernel(payload.summary ?? payload);
+    } catch {
+      setKernel(null);
     }
   }
 
-  async function submitLogin(event: FormEvent) {
-    event.preventDefault();
-    setMessage("");
-
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(loginForm),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Login failed.");
-      return;
-    }
-
-    setUser(data.user);
-    setLoginForm({ email: "", password: "" });
-    await Promise.all([loadCommand(), loadFirmWorkspace(), loadBackendKernel()]);
-  }
-
-  async function submitFirmSignup(event: FormEvent) {
-    event.preventDefault();
-    setMessage("");
-
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(firmSignupForm),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Firm signup failed.");
-      return;
-    }
-
-    setUser(data.user);
-    setFirmSignupForm({
-      firmName: "",
-      firmEmail: "",
-      name: "",
-      email: "",
-      password: "",
-    });
-
-    await Promise.all([loadCommand(), loadFirmWorkspace(), loadBackendKernel()]);
-  }
-
-  async function submitInviteSignup(event: FormEvent) {
-    event.preventDefault();
-    setMessage("");
-
-    const response = await fetch("/api/auth/invite-register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(inviteSignupForm),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Invite acceptance failed.");
-      return;
-    }
-
-    setUser(data.user);
-    setInviteSignupForm({ inviteCode: "", name: "", password: "" });
-    await Promise.all([loadCommand(), loadFirmWorkspace(), loadBackendKernel()]);
-  }
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    setCommand(null);
-    setFirmWorkspace(null);
-    setKernel(null);
-    setActiveTab("overview");
-  }
-
-  async function postFirmAction(body: Record<string, unknown>) {
-    setMessage("");
-
-    const response = await fetch("/api/firm-workspace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Firm workspace action failed.");
-      return null;
-    }
-
-    setFirmWorkspace(data);
-
-    if (data.inviteCode || data.inviteLink) {
-      setInviteOutput(`Invite code: ${data.inviteCode}\nInvite link: ${data.inviteLink}`);
-    }
-
-    await loadCommand();
-    return data;
-  }
-
-  async function postBackendAction(action: string, extra: Record<string, unknown> = {}) {
+  async function runBackendAction(action: string, successMessage: string) {
     setBackendWorking(action);
     setBackendMessage("");
 
     try {
       const response = await fetch("/api/backend-kernel", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...extra }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": action,
+        },
+        body: JSON.stringify({ action }),
       });
 
-      const data = await response.json();
+      const payload = await response.json();
 
       if (!response.ok) {
-        setBackendMessage(data.error ?? "Backend action failed.");
-        return null;
+        setBackendMessage(payload.error ?? "Backend action failed.");
+        return;
       }
 
-      setKernel(data);
-      setBackendMessage(data.message ?? "Backend action completed.");
-      await loadCommand();
-      return data;
+      setBackendMessage(payload.message ?? successMessage);
+      await loadBackendKernel();
+    } catch (error) {
+      setBackendMessage(error instanceof Error ? error.message : "Backend action failed.");
     } finally {
       setBackendWorking("");
     }
   }
 
-  async function createFirm(event: FormEvent) {
-    event.preventDefault();
-
-    if (!newFirmForm.name.trim()) {
-      setMessage("Firm name is required.");
-      return;
-    }
-
-    const data = await postFirmAction({
-      action: "createFirm",
-      name: newFirmForm.name,
-      firmEmail: newFirmForm.firmEmail,
-    });
-
-    if (data) {
-      setNewFirmForm({ name: "", firmEmail: "" });
-      setMessage("Firm workspace created.");
-    }
-  }
-
-  async function createInvite(event: FormEvent) {
-    event.preventDefault();
-    if (!firm) return;
-
-    const data = await postFirmAction({
-      action: "createInvite",
-      firmId: firm.id,
-      ...inviteForm,
-    });
-
-    if (data) {
-      setInviteForm({ email: "", role: "Member" });
-      setMessage("Invite created. The recipient must use this invite to create their login.");
-    }
-  }
-
-  async function createProject(event: FormEvent) {
-    event.preventDefault();
-    if (!firm) return;
-
-    const data = await postFirmAction({
-      action: "createProject",
-      firmId: firm.id,
-      ...projectForm,
-    });
-
-    if (data) {
-      setProjectForm({ title: "", description: "", priority: "Medium", dueDate: "" });
-      setMessage("Project created.");
-    }
-  }
-
-  async function createAgenda(event: FormEvent) {
-    event.preventDefault();
-    if (!firm) return;
-
-    const data = await postFirmAction({
-      action: "createAgenda",
-      firmId: firm.id,
-      weekStart: agendaForm.weekStart,
-      title: agendaForm.title,
-      focus: agendaForm.focus,
-      blockers: agendaForm.blockers,
-      tasks: [],
-    });
-
-    if (data) {
-      setAgendaForm((current) => ({
-        ...current,
-        title: "Weekly Agenda",
-        focus: "",
-        blockers: "",
-      }));
-      setMessage("Weekly agenda created.");
-    }
-  }
-
-  async function createCalendarTask(event: FormEvent) {
-    event.preventDefault();
-    if (!firm) return;
-
-    const agendaId = taskForm.agendaId || agendas[0]?.id;
-
-    if (!agendaId || !taskForm.title.trim()) {
-      setMessage("Choose an agenda and enter a task title.");
-      return;
-    }
-
-    const data = await postFirmAction({
-      action: "addAgendaTask",
-      firmId: firm.id,
-      agendaId,
-      projectId: taskForm.projectId || null,
-      title: taskForm.title,
-      detail: taskForm.detail,
-      priority: taskForm.priority,
-      dueDate: taskForm.dueDate || selectedDay,
-    });
-
-    if (data) {
-      setTaskForm((current) => ({
-        ...current,
-        title: "",
-        detail: "",
-        dueDate: selectedDay,
-      }));
-      setMessage(`Task added for ${shortDate(selectedDay)}.`);
-    }
-  }
-
-  function selectCalendarDay(day: string) {
-    setSelectedDay(day);
-    setSelectedTask(null);
-    setTaskForm((current) => ({
-      ...current,
-      dueDate: day,
-      agendaId: current.agendaId || agendas[0]?.id || "",
-    }));
-  }
-
-  function shiftCalendar(direction: -1 | 1) {
-    if (calendarMode === "week") {
-      const next = addDays(agendaForm.weekStart, direction * 7);
-      setAgendaForm((current) => ({ ...current, weekStart: next }));
-      setCalendarAnchor(next);
-      selectCalendarDay(next);
-      return;
-    }
-
-    const next = addMonths(calendarAnchor, direction);
-    setCalendarAnchor(next);
-    selectCalendarDay(monthStart(next));
-  }
-
-  function goToTab(tab: Tab) {
-    setActiveTab(tab);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", tab);
-    window.history.replaceState({}, "", url.toString());
-  }
-
   useEffect(() => {
-    void loadMe();
+    if (typeof window !== "undefined") {
+      const tab = parseWorkspaceTab(new URLSearchParams(window.location.search).get("tab"));
+      if (tab) setActiveTab(tab);
+    }
+
+    void loadCommandCenter();
+    void loadFirmWorkspace();
+    void loadBackendKernel();
   }, []);
 
-  useEffect(() => {
-    function applyRequestedTab() {
-      const params = new URLSearchParams(window.location.search);
-      const invite = params.get("invite");
-      const urlTab = parseWorkspaceTab(params.get("tab"));
-      const savedTab = parseWorkspaceTab(window.localStorage.getItem("sliceWorkspaceTab"));
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.40),_transparent_33%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_30%),linear-gradient(135deg,_#030712,_#050505,_#111827,_#1f0707)] p-4 text-white md:p-5">
+      <div className="mx-auto flex max-w-[1900px] gap-5">
+        <Sidebar activeTab={activeTab} setTab={setTab} />
 
-      if (invite) {
-        setAuthMode("invite-signup");
-        setInviteSignupForm((current) => ({ ...current, inviteCode: invite }));
-      }
-
-      const nextTab = urlTab ?? savedTab;
-
-      if (nextTab) {
-        setActiveTab(nextTab);
-        window.localStorage.removeItem("sliceWorkspaceTab");
-      }
-    }
-
-    applyRequestedTab();
-    window.addEventListener("popstate", applyRequestedTab);
-
-    return () => window.removeEventListener("popstate", applyRequestedTab);
-  }, []);
-
-  if (checkingSession) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#050505] p-6 text-white">
-        <Card className="max-w-3xl p-8 text-center">
-          <Pill tone="red">Slice</Pill>
-          <h1 className="mt-4 text-3xl font-black">Loading the command center...</h1>
-          <p className="mt-3 text-sm text-slate-400">
-            Preparing the investment OS, AI layer, backend kernel, market visuals, and firm workspace.
-          </p>
-        </Card>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
-        <div className="mx-auto grid max-w-6xl gap-6">
-          <header className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-black/60 p-5 shadow-2xl shadow-red-950/30 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
+        <section className="grid min-w-0 flex-1 gap-4">
+          <Card className="p-4 xl:hidden">
             <div className="flex items-center gap-3">
-              <LogoMark />
+              <LogoMark compact />
               <div>
-                <div className="text-2xl font-black tracking-tight">Slice</div>
-                <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
-                  Ultimate Investment Guidance Platform
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+                  Slice
                 </div>
+                <div className="text-lg font-black text-white">Command Brain</div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {(["login", "firm-signup", "invite-signup"] as AuthMode[]).map((mode) => (
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {tabs.map((tab) => (
                 <button
-                  key={mode}
-                  onClick={() => setAuthMode(mode)}
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setTab(tab.id)}
                   className={cx(
-                    "rounded-2xl px-4 py-3 text-sm font-black",
-                    authMode === mode
-                      ? "bg-white text-slate-950"
-                      : "bg-white/10 text-white ring-1 ring-white/10"
+                    "shrink-0 rounded-2xl border px-3 py-2.5 text-xs font-black",
+                    activeTab === tab.id
+                      ? "border-white/25 bg-white text-slate-950"
+                      : "border-white/10 bg-white/[0.045] text-white"
                   )}
                 >
-                  {mode === "login" ? "Login" : mode === "firm-signup" ? "Create Firm" : "Accept Invite"}
+                  {tab.compact}
                 </button>
               ))}
             </div>
-          </header>
+          </Card>
+
+          <Card className="p-4">
+            <OrbitGraphic />
+
+            <div className="relative grid gap-4 2xl:grid-cols-[1fr_330px] 2xl:items-center">
+              <div className="flex min-w-0 gap-3">
+                <div className="hidden sm:block">
+                  <LogoMark />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+                    One Command Center
+                  </div>
+                  <h1 className="mt-1.5 text-3xl font-black tracking-tight md:text-5xl">
+                    The premium advisor workspace.
+                  </h1>
+                  <p className="mt-2 max-w-5xl text-sm leading-6 text-slate-400">
+                    A client-presentable operating system connecting AI, firm delegation, clients, emails,
+                    markets, intelligence, portfolio tools, reports, alerts, security, and backend health.
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Pill tone={currentCommand.counts.unreadAlertCount ? "red" : "green"}>
+                      {currentCommand.counts.unreadAlertCount} unread alerts
+                    </Pill>
+                    <Pill tone={overdueTasks.length ? "red" : "green"}>{overdueTasks.length} overdue tasks</Pill>
+                    <Pill tone="amber">{tasksDueToday.length} due today</Pill>
+                    <Pill tone="purple">{operations.sprintMetrics.ideas} ideas</Pill>
+                    <Pill tone="cyan">{percent(currentCommand.readinessScore)} ready</Pill>
+                  </div>
+                </div>
+              </div>
+
+              <Panel tone={readinessTone} className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                      Brain Score
+                    </div>
+                    <div className="mt-1 text-3xl font-black text-white">{percent(currentCommand.readinessScore)}</div>
+                  </div>
+                  <Pill tone={readinessTone}>
+                    {advisorReadinessLabel(currentCommand.readinessScore)}
+                  </Pill>
+                </div>
+
+                <div className="mt-3">
+                  <ProgressBar value={currentCommand.readinessScore} tone={readinessTone} />
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <BeautifulButton href="/workspace/personal-bot" tone="cyan" compact>
+                    Ask AI
+                  </BeautifulButton>
+                  <BeautifulButton href="/workspace?tab=team-board" tone="green" compact>
+                    Delegate
+                  </BeautifulButton>
+                </div>
+              </Panel>
+            </div>
+          </Card>
+
+          <ExecutiveCommandStrip moduleCards={moduleCards} />
 
           {message ? (
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
               {message}
             </div>
           ) : null}
 
-          <section className="grid gap-6 lg:grid-cols-[1.04fr_0.96fr]">
-            <Card className="p-6">
-              <OrbitGraphic />
-              <div className="relative">
-                <Pill tone="red">Advisor-grade AI operating system</Pill>
-                <h1 className="mt-5 text-4xl font-black tracking-tight md:text-6xl">
-                  The most beautiful home base for modern investment guidance.
-                </h1>
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400">
-                  Slice combines AI command, market visuals, client intelligence, backend automations,
-                  price alerts, research workflows, portfolio views, venture tracking, and approval-safe communication.
-                </p>
+          {activeTab === "overview" ? (
+            <section className="grid gap-4">
+              <IntelligenceRibbon cards={ribbonCards} />
 
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <MetricCard label="AI Command" value="Voice-ready" helper="OpenAI structured tools" tone="purple" />
-                  <MetricCard label="Backend" value="Kernel" helper="Jobs + providers" tone="cyan" />
-                  <MetricCard label="Markets" value="Visual" helper="Charts + forecasts" tone="green" />
-                  <MetricCard label="Compliance" value="Gated" helper="Approvals + proof" tone="red" />
-                </div>
-              </div>
-            </Card>
+              <ClientShowcasePanel
+                assets={currentCommand.counts.watchlistCount}
+                clients={currentCommand.counts.clientCount}
+                alerts={currentCommand.counts.totalAlertCount}
+                ideas={operations.sprintMetrics.ideas}
+              />
 
-            <Card className="p-6">
-              {authMode === "login" ? (
-                <form onSubmit={submitLogin} className="grid gap-4">
-                  <SectionTitle
-                    eyebrow="Login"
-                    title="Enter workspace"
-                    description="Use your firm credentials or temporary demo access."
-                  />
+              <CommandHealthPanel
+                readiness={currentCommand.readinessScore}
+                kernelReadiness={kernel?.readinessScore ?? 0}
+                alerts={currentCommand.counts.unreadAlertCount}
+                failedRuns={kernel?.metrics.failedRuns ?? 0}
+                overdue={overdueTasks.length}
+              />
 
-                  <input
-                    value={loginForm.email}
-                    onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Email"
-                  />
+              <SignalQualityPanel
+                retained={currentCommand.counts.retainedDecisionCount}
+                research={currentCommand.counts.researchCount}
+                watchlists={currentCommand.counts.watchlistCount}
+                deliveries={currentCommand.counts.deliveryCount}
+              />
 
-                  <input
-                    value={loginForm.password}
-                    onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                    type="password"
-                    className={inputClass}
-                    placeholder="Password"
-                  />
+              <div className="grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+                <VisualModuleMap moduleCards={moduleCards} />
 
-                  <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.01]">
-                    Log In
-                  </button>
-
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setLoginForm({
-                          email: "founder@slice.local",
-                          password: "SliceFounder!2026",
-                        })
-                      }
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white"
-                    >
-                      Use Founder Demo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setLoginForm({
-                          email: "advisor@slice.local",
-                          password: "SliceAdvisor!2026",
-                        })
-                      }
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white"
-                    >
-                      Use Advisor Demo
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-
-              {authMode === "firm-signup" ? (
-                <form onSubmit={submitFirmSignup} className="grid gap-4">
-                  <SectionTitle
-                    eyebrow="Create firm"
-                    title="Start a workspace"
-                    description="Create the owner account and first firm workspace."
-                  />
-
-                  <input
-                    value={firmSignupForm.firmName}
-                    onChange={(event) => setFirmSignupForm((current) => ({ ...current, firmName: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Firm name"
-                  />
-                  <input
-                    value={firmSignupForm.firmEmail}
-                    onChange={(event) => setFirmSignupForm((current) => ({ ...current, firmEmail: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Firm email"
-                  />
-                  <input
-                    value={firmSignupForm.name}
-                    onChange={(event) => setFirmSignupForm((current) => ({ ...current, name: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Your name"
-                  />
-                  <input
-                    value={firmSignupForm.email}
-                    onChange={(event) => setFirmSignupForm((current) => ({ ...current, email: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Your email"
-                  />
-                  <input
-                    value={firmSignupForm.password}
-                    onChange={(event) => setFirmSignupForm((current) => ({ ...current, password: event.target.value }))}
-                    type="password"
-                    className={inputClass}
-                    placeholder="Password"
-                  />
-
-                  <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.01]">
-                    Create Firm Workspace
-                  </button>
-                </form>
-              ) : null}
-
-              {authMode === "invite-signup" ? (
-                <form onSubmit={submitInviteSignup} className="grid gap-4">
-                  <SectionTitle eyebrow="Accept invite" title="Join a firm" description="Use an invite code from a firm owner or admin." />
-                  <input
-                    value={inviteSignupForm.inviteCode}
-                    onChange={(event) => setInviteSignupForm((current) => ({ ...current, inviteCode: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Invite code"
-                  />
-                  <input
-                    value={inviteSignupForm.name}
-                    onChange={(event) => setInviteSignupForm((current) => ({ ...current, name: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Your name"
-                  />
-                  <input
-                    value={inviteSignupForm.password}
-                    onChange={(event) => setInviteSignupForm((current) => ({ ...current, password: event.target.value }))}
-                    type="password"
-                    className={inputClass}
-                    placeholder="Create password"
-                  />
-                  <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.01]">
-                    Join Firm
-                  </button>
-                </form>
-              ) : null}
-            </Card>
-          </section>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.32),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(168,85,247,0.12),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] text-white">
-      <div className="grid min-h-screen lg:grid-cols-[320px_1fr]">
-        <aside className="border-b border-white/10 bg-black/76 p-4 backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:overflow-y-auto">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-4 shadow-2xl shadow-red-950/20">
-            <div className="flex items-center gap-3">
-              <LogoMark />
-              <div className="min-w-0">
-                <div className="truncate text-2xl font-black">Slice</div>
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
-                  Investment OS
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              <div className="truncate text-sm font-black">{user.name}</div>
-              <div className="truncate text-xs font-semibold text-slate-500">{user.email}</div>
-              <div className="flex flex-wrap gap-2 pt-2">
-                {firm ? <Pill tone="purple">{firm.name}</Pill> : <Pill tone="amber">No firm</Pill>}
-                <Pill tone={activeTabMeta.tone}>{activeTabMeta.label}</Pill>
-              </div>
-            </div>
-          </div>
-
-          <nav className="mt-4 grid gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => goToTab(tab.id)}
-                className={cx(
-                  "group flex items-center gap-3 rounded-[1.25rem] border px-3 py-3 text-left transition",
-                  activeTab === tab.id
-                    ? "border-white/20 bg-white text-slate-950 shadow-xl shadow-red-950/20"
-                    : "border-white/10 bg-white/[0.04] text-white hover:-translate-y-0.5 hover:bg-white/[0.08]"
-                )}
-              >
-                <span
-                  className={cx(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[10px] font-black",
-                    activeTab === tab.id
-                      ? "bg-slate-950 text-white"
-                      : toneClasses[tab.tone]
-                  )}
-                >
-                  {tab.marker}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-black">{tab.label}</span>
-                  <span className={cx("mt-0.5 block truncate text-[10px] font-semibold", activeTab === tab.id ? "text-slate-600" : "text-slate-500")}>
-                    {tab.description}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </nav>
-
-          <div className="mt-4 grid gap-2">
-            <BeautifulButton href="/workspace/personal-bot" tone="purple">Personal Bot</BeautifulButton>
-            <BeautifulButton href="/market-visuals" tone="green">Market Visuals</BeautifulButton>
-            <BeautifulButton href="/backend-kernel" tone="cyan">Backend Kernel</BeautifulButton>
-            <button
-              onClick={logout}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white shadow-lg transition hover:bg-white/10"
-            >
-              Logout
-            </button>
-          </div>
-        </aside>
-
-        <section className="min-w-0 p-4 md:p-6">
-          <div className="mx-auto grid max-w-[1540px] gap-5">
-            <Card className="p-6">
-              <OrbitGraphic />
-              <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                    {activeTabMeta.marker} · {activeTabMeta.label}
-                  </div>
-                  <h1 className="mt-2 max-w-5xl text-4xl font-black tracking-tight md:text-6xl">
-                    The home screen for serious investment guidance.
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400">
-                    AI commands, source-backed research, market visuals, client intelligence, portfolio analysis,
-                    calendar execution, alternatives, alerts, approvals, delivery, and backend operations — arranged
-                    into one clean advisor-grade workspace.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[430px]">
-                  <MetricCard label="Workspace" value={`${readinessScore}%`} helper="Platform readiness" tone={readinessScore > 80 ? "green" : "amber"} />
-                  <MetricCard
-                    label="Backend"
-                    value={kernel ? `${kernel.readinessScore}%` : "—"}
-                    helper={kernel ? `${kernel.metrics.configuredVendors}/${kernel.metrics.vendors} vendors` : "Not loaded"}
-                    tone={kernel && kernel.readinessScore >= 80 ? "green" : "cyan"}
-                  />
-                </div>
-              </div>
-
-              <div className="relative mt-5 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-                <ProgressBar value={readinessScore} tone={readinessScore > 80 ? "green" : "red"} />
-                <div className="flex flex-wrap gap-2">
-                  <Pill tone="red">{command?.counts.unreadAlertCount ?? 0} unread alerts</Pill>
-                  <Pill tone="purple">{openFirmTasks.length} open tasks</Pill>
-                  <Pill tone="green">{portfolioHoldingCount} holdings</Pill>
-                  <Pill tone="cyan">{kernel?.metrics.jobs ?? 0} jobs</Pill>
-                </div>
-              </div>
-            </Card>
-
-            {message ? (
-              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">
-                {message}
-              </div>
-            ) : null}
-
-            {backendMessage ? (
-              <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm font-bold text-cyan-100">
-                {backendMessage}
-              </div>
-            ) : null}
-
-            {!firm ? (
-              <Card className="p-6">
-                <form onSubmit={createFirm} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                  <div className="md:col-span-3">
+                <div className="grid gap-4">
+                  <Card className="p-4">
                     <SectionTitle
-                      eyebrow="Firm setup"
-                      title="Create your firm workspace"
-                      description="You are logged in, but you are not connected to an active firm workspace yet."
-                    />
-                  </div>
-
-                  <input
-                    value={newFirmForm.name}
-                    onChange={(event) => setNewFirmForm((current) => ({ ...current, name: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Firm name"
-                  />
-
-                  <input
-                    value={newFirmForm.firmEmail}
-                    onChange={(event) => setNewFirmForm((current) => ({ ...current, firmEmail: event.target.value }))}
-                    className={inputClass}
-                    placeholder="Firm email"
-                  />
-
-                  <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">
-                    Create Firm
-                  </button>
-                </form>
-              </Card>
-            ) : null}
-
-            {activeTab === "overview" ? (
-              <section className="grid gap-5">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <MetricCard label="Firm Tasks" value={firmTasks.length} helper={`${openFirmTasks.length} open`} tone="purple" />
-                  <MetricCard label="Client Alerts" value={command?.counts.unreadAlertCount ?? 0} helper="Unread intelligence" tone="red" />
-                  <MetricCard label="Portfolio Value" value={money(portfolioValue)} helper={`${portfolioHoldingCount} holdings`} tone="green" />
-                  <MetricCard label="Backend Jobs" value={kernel?.metrics.jobs ?? "—"} helper="Registered automations" tone="cyan" />
-                </div>
-
-                <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                  <Card className="p-6">
-                    <SectionTitle
-                      eyebrow="Advisor Mission Control"
-                      title="Everything important, one click away."
-                      description="This homescreen is built to feel calm, powerful, visual, and operational — the place an advisor starts and ends the day."
-                      action={<Pill tone="red">Premium OS</Pill>}
+                      eyebrow="Focus"
+                      title="What needs attention now"
+                      description="Overdue work, tasks due today, and immediate advisor follow-up."
+                      compact
                     />
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <Panel tone="purple">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-xl font-black">Personal AI Bot</div>
-                            <p className="mt-1 text-sm leading-6 text-slate-400">Voice commands, research, routing, reports, and actions.</p>
+                    <div className="mt-4 grid max-h-[300px] gap-3 overflow-y-auto pr-2">
+                      {[...overdueTasks, ...tasksDueToday].slice(0, 6).map((task) => (
+                        <div key={task.id} className="rounded-2xl border border-white/10 bg-black/35 p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate font-black text-white">{task.title}</div>
+                              <div className="mt-1 truncate text-xs text-slate-500">
+                                {task.ownerName ?? "Team"} · Due {shortDate(task.dueDate)}
+                              </div>
+                            </div>
+                            <Pill tone={priorityTone(task.priority)}>{task.priority}</Pill>
                           </div>
-                          <MiniBars tone="purple" />
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">
+                            {task.detail || "No task detail."}
+                          </p>
                         </div>
-                        <BeautifulButton href="/workspace/personal-bot" tone="purple">Command Bot</BeautifulButton>
-                      </Panel>
+                      ))}
 
-                      <Panel tone="green">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-xl font-black">Market Visuals</div>
-                            <p className="mt-1 text-sm leading-6 text-slate-400">Charts, forecasts, signals, and all important market data.</p>
-                          </div>
-                          <MiniBars tone="green" />
+                      {!overdueTasks.length && !tasksDueToday.length ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                          Nothing urgent due today.
                         </div>
-                        <BeautifulButton href="/market-visuals" tone="green">Open Visuals</BeautifulButton>
-                      </Panel>
-
-                      <Panel tone="cyan">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-xl font-black">Backend Kernel</div>
-                            <p className="mt-1 text-sm leading-6 text-slate-400">Providers, jobs, delivery, data quality, and live systems.</p>
-                          </div>
-                          <MiniBars tone="cyan" />
-                        </div>
-                        <BeautifulButton href="/backend-kernel" tone="cyan">Open Kernel</BeautifulButton>
-                      </Panel>
-
-                      <Panel tone="amber">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-xl font-black">Alternative Ventures</div>
-                            <p className="mt-1 text-sm leading-6 text-slate-400">Startup tracking, venture diligence, and high-risk opportunity review.</p>
-                          </div>
-                          <MiniBars tone="amber" />
-                        </div>
-                        <BeautifulButton href="/alternative-investments?view=venture" tone="amber">Review Ventures</BeautifulButton>
-                      </Panel>
+                      ) : null}
                     </div>
                   </Card>
 
-                  <Card className="p-6">
-                    <SectionTitle
-                      eyebrow="System Pulse"
-                      title="Today’s operating snapshot"
-                      description="Beautiful, quick, and useful at a glance."
-                    />
-
-                    <div className="mt-5 grid gap-3">
-                      <Panel tone="red">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Alert Flow</div>
-                            <div className="mt-1 text-2xl font-black">{command?.counts.totalAlertCount ?? 0}</div>
-                          </div>
-                          <Pill tone="red">{command?.counts.unreadAlertCount ?? 0} unread</Pill>
-                        </div>
-                      </Panel>
-
-                      <Panel tone="purple">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Advisor Work</div>
-                            <div className="mt-1 text-2xl font-black">{firmTasks.length}</div>
-                          </div>
-                          <Pill tone="purple">{Math.round(calendarCompletionRate)}% complete</Pill>
-                        </div>
-                      </Panel>
-
-                      <Panel tone="green">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Portfolio Lab</div>
-                            <div className="mt-1 text-2xl font-black">{money(portfolioValue)}</div>
-                          </div>
-                          <Pill tone="green">{portfolioHoldingCount} holdings</Pill>
-                        </div>
-                      </Panel>
-
-                      <Panel tone="cyan">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Backend</div>
-                            <div className="mt-1 text-2xl font-black">{kernel ? `${kernel.readinessScore}%` : "—"}</div>
-                          </div>
-                          <Pill tone="cyan">{kernel?.metrics.queuedDeliveries ?? 0} queued</Pill>
-                        </div>
-                      </Panel>
-                    </div>
-                  </Card>
+                  <AdvisorWorkflowBlueprint
+                    dueToday={tasksDueToday.length}
+                    overdue={overdueTasks.length}
+                    unreadAlerts={currentCommand.counts.unreadAlertCount}
+                    clientCount={currentCommand.counts.clientCount}
+                  />
                 </div>
+              </div>
 
-                <GenericModule
-                  eyebrow="Platform Launchpad"
-                  title="Beautifully connected workflows"
-                  description="Every important part of the platform is accessible from the homescreen without hunting."
-                  cards={[
-                    {
-                      title: "Advisor Command Center",
-                      description: "Client Brain, Next Best Action, firm search, proof trails, and Advisor Day.",
-                      href: "/advisor-command-center",
-                      button: "Open Command",
-                      tone: "red",
-                      stats: [
-                        ["Clients", command?.counts.clientCount ?? 0],
-                        ["Briefings", command?.counts.briefingCount ?? 0],
-                      ],
-                    },
-                    {
-                      title: "Execution Calendar",
-                      description: "Weekly/monthly calendar with selected-day actions and clean task display.",
-                      href: "/workspace?tab=firm-calendar",
-                      button: "Open Calendar",
-                      tone: "purple",
-                      stats: [
-                        ["Open", openFirmTasks.length],
-                        ["Complete", completedFirmTasks.length],
-                      ],
-                    },
-                    {
-                      title: "Watchlist Price Alerts",
-                      description: "High/low alerts tied to live provider quote checks and delivery queue.",
-                      href: "/watchlist-alerts",
-                      button: "Open Alerts",
-                      tone: "amber",
-                      stats: [
-                        ["Trigger", "High / Low"],
-                        ["Provider", "Live Quote"],
-                      ],
-                    },
-                  ]}
+              <CohesionMatrix moduleCards={moduleCards} />
+
+              <CompactActivityPanel
+                posts={operations.unifiedMessages ?? currentFirmWorkspace.posts ?? []}
+                notifications={operations.openNotifications ?? []}
+              />
+
+              <Card className="p-4">
+                <SectionTitle
+                  eyebrow="Module Gallery"
+                  title="All core tools, compact and connected"
+                  description="Every feature stays accessible without forcing the advisor team to hunt around the platform."
+                  compact
                 />
-              </section>
-            ) : null}
 
-            {activeTab === "command" ? (
-              <section className="grid gap-5">
-                <Card className="p-6">
-                  <SectionTitle
-                    eyebrow="Command Layer"
-                    title="Live backend + AI operations"
-                    description="Run the backend kernel, validate providers, queue deliveries, process notifications, check watchlist prices, and control the platform."
-                    action={<Pill tone="cyan">Integration-ready</Pill>}
-                  />
+                <div className="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                  {moduleCards.map((module) => (
+                    <ModuleCard
+                      key={module.id}
+                      title={module.title}
+                      description={module.description}
+                      stats={module.meta}
+                      primaryHref={module.href}
+                      primaryLabel={module.button}
+                      tone={module.tone}
+                      icon={module.icon}
+                    />
+                  ))}
+                </div>
+              </Card>
+            </section>
+          ) : null}
 
-                  <div className="mt-5 grid gap-3 md:grid-cols-5">
-                    <MetricCard label="Kernel" value={kernel ? `${kernel.readinessScore}%` : "—"} helper="Backend score" tone="cyan" />
-                    <MetricCard label="Vendors" value={kernel ? `${kernel.metrics.configuredVendors}/${kernel.metrics.vendors}` : "—"} helper="Configured" tone="purple" />
-                    <MetricCard label="Features" value={kernel ? `${kernel.metrics.enabledFeatures}/${kernel.metrics.features}` : "—"} helper="Enabled" tone="green" />
-                    <MetricCard label="Queued" value={kernel?.metrics.queuedDeliveries ?? "—"} helper="Deliveries" tone="amber" />
-                    <MetricCard label="Failed" value={kernel?.metrics.failedRuns ?? "—"} helper="Job runs" tone={kernel?.metrics.failedRuns ? "red" : "green"} />
+          {activeTab === "command" ? (
+            <GenericModule
+              eyebrow="AI Command"
+              title="Ask, draft, summarize, report, and operate"
+              description="Use this tab when the platform needs to think, draft, explain, summarize, or generate."
+              cards={[
+                {
+                  title: "AI Studio",
+                  description: "Ask anything, use voice, create reports, and turn rough thoughts into professional output.",
+                  href: "/workspace/personal-bot",
+                  button: "Open AI Studio",
+                  tone: "cyan",
+                  icon: "spark",
+                  stats: [
+                    ["Readiness", percent(currentCommand.readinessScore)],
+                    ["Briefings", currentCommand.counts.briefingCount],
+                  ],
+                },
+                {
+                  title: "Backend Kernel",
+                  description: "Inspect vendors, jobs, queues, failed runs, and platform readiness.",
+                  href: "/backend-kernel",
+                  button: "Open Kernel",
+                  tone: "red",
+                  icon: "system",
+                  stats: [
+                    ["Readiness", percent(kernel?.readinessScore ?? 0)],
+                    ["Failed Runs", kernel?.metrics.failedRuns ?? 0],
+                  ],
+                },
+                {
+                  title: "Advisor Command Center",
+                  description: "Open the broader command module for platform-wide operations.",
+                  href: "/advisor-command-center",
+                  button: "Open Command Center",
+                  tone: "purple",
+                  icon: "brain",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "team-board" ? <TeamBoardEmbedded /> : null}
+
+          {activeTab === "firm-calendar" ? (
+            <section className="grid gap-4">
+              <Card className="p-5">
+                <SectionTitle
+                  eyebrow="Calendar"
+                  title="Project deadlines, task due dates, and weekly execution"
+                  description="A clean calendar view. Use Team Board for advanced delegation and reminders."
+                  compact
+                  action={
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMode(calendarMode === "week" ? "month" : "week")}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white hover:bg-white/10"
+                      >
+                        {calendarMode === "week" ? "Month View" : "Week View"}
+                      </button>
+                      <BeautifulButton href="/workspace/firm-command-center" tone="green" compact>
+                        Full Center
+                      </BeautifulButton>
+                    </div>
+                  }
+                />
+
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <MetricCard label="Open" value={openFirmTasks.length} tone="amber" dense icon="target" />
+                  <MetricCard label="Complete" value={completedFirmTasks.length} tone="green" dense icon="team" />
+                  <MetricCard label="Projects" value={currentFirmWorkspace.projects.length} tone="purple" dense icon="flow" />
+                  <MetricCard label="Deadlines" value={operations.sprintMetrics.deadlines} tone="red" dense icon="calendar" />
+                </div>
+              </Card>
+
+              <div className="grid gap-4 xl:grid-cols-[1fr_390px]">
+                <Card className="p-4">
+                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400">
+                        {calendarMode === "week" ? "Week View" : monthTitle(calendarAnchor)}
+                      </div>
+                      <h2 className="mt-1 text-2xl font-black text-white">
+                        {calendarMode === "week"
+                          ? `${dayLabel(startOfWeek(calendarAnchor))} – ${dayLabel(addDays(startOfWeek(calendarAnchor), 6))}`
+                          : "Monthly Execution"}
+                      </h2>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarAnchor(calendarMode === "week" ? addDays(calendarAnchor, -7) : addMonths(calendarAnchor, -1))}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white hover:bg-white/10"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = ymd(new Date());
+                          setCalendarAnchor(current);
+                          setSelectedDay(current);
+                        }}
+                        className="rounded-2xl bg-white px-3 py-2 text-sm font-black text-slate-950"
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarAnchor(calendarMode === "week" ? addDays(calendarAnchor, 7) : addMonths(calendarAnchor, 1))}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-black text-white hover:bg-white/10"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
+
+                  {calendarMode === "week" ? (
+                    <div className="grid gap-3 lg:grid-cols-7">
+                      {weekDays.map((day) => {
+                        const tasks = tasksByDay.get(day) ?? [];
+                        const selected = selectedDay === day;
+
+                        return (
+                          <button
+                            type="button"
+                            key={day}
+                            onClick={() => setSelectedDay(day)}
+                            className={cx(
+                              "min-h-[220px] rounded-[1.25rem] border p-3 text-left transition hover:bg-white/[0.08]",
+                              selected ? "border-red-400/50 bg-red-500/10" : "border-white/10 bg-white/[0.035]"
+                            )}
+                          >
+                            <div className="text-sm font-black text-white">{dayLabel(day)}</div>
+                            <div className="mt-3 grid gap-2">
+                              {tasks.slice(0, 5).map((task) => (
+                                <CalendarTaskPill key={task.id} task={task} dense />
+                              ))}
+                              {tasks.length > 5 ? (
+                                <div className="text-xs font-bold text-slate-500">
+                                  +{tasks.length - 5} more
+                                </div>
+                              ) : null}
+                              {!tasks.length ? (
+                                <div className="rounded-xl border border-dashed border-white/10 p-3 text-center text-xs font-bold text-slate-600">
+                                  Empty
+                                </div>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-2">
+                      {monthDays.map((day) => {
+                        const tasks = tasksByDay.get(day) ?? [];
+                        const selected = selectedDay === day;
+                        const inMonth = monthStart(day) === monthStart(calendarAnchor);
+
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => setSelectedDay(day)}
+                            className={cx(
+                              "min-h-[108px] rounded-2xl border p-2 text-left transition hover:bg-white/[0.08]",
+                              selected ? "border-red-400/50 bg-red-500/10" : "border-white/10 bg-white/[0.035]",
+                              !inMonth && "opacity-45"
+                            )}
+                          >
+                            <div className="text-xs font-black text-white">{monthDayLabel(day)}</div>
+                            <div className="mt-2 grid gap-1">
+                              {tasks.slice(0, 2).map((task) => (
+                                <CalendarTaskPill key={task.id} task={task} dense />
+                              ))}
+                              {tasks.length > 2 ? (
+                                <div className="text-[10px] font-bold text-slate-500">
+                                  +{tasks.length - 2}
+                                </div>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Card>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Card className="p-4">
+                  <SectionTitle
+                    eyebrow="Selected Day"
+                    title={dayLabel(selectedDay)}
+                    description={`${selectedDayTasks.length} due task(s).`}
+                    compact
+                  />
+
+                  <div className="mt-4 grid max-h-[500px] gap-3 overflow-y-auto pr-2">
+                    {selectedDayTasks.map((task) => (
+                      <CalendarTaskPill key={task.id} task={task} />
+                    ))}
+
+                    {!selectedDayTasks.length ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                        No due tasks for this day.
+                      </div>
+                    ) : null}
+                  </div>
+                </Card>
+              </div>
+            </section>
+          ) : null}
+
+          {activeTab === "watchlists" ? (
+            <GenericModule
+              eyebrow="Markets"
+              title="Markets, watchlists, and visuals"
+              description="Track what matters, compare assets, and use market visuals for daily review."
+              cards={[
+                {
+                  title: "Market Visuals",
+                  description: "Advisor-grade charts, moving averages, comparisons, volume, RSI, MACD, and forecast ranges.",
+                  href: "/market-visuals",
+                  button: "Open Market Visuals",
+                  tone: "red",
+                  icon: "market",
+                },
+                {
+                  title: "Watchlist Alerts",
+                  description: "Watch tickers and event triggers that feed your triage engine.",
+                  href: "/watchlist-alerts",
+                  button: "Open Watchlists",
+                  tone: "amber",
+                  icon: "calendar",
+                  stats: [["Tracked", currentCommand.counts.watchlistCount]],
+                },
+                {
+                  title: "Opportunity Radar",
+                  description: "Review AI-scored, source-backed opportunities.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "purple",
+                  icon: "radar",
+                  stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "comparison" ? (
+            <GenericModule
+              eyebrow="Compare"
+              title="Advisor comparison layer"
+              description="Compare assets, strategies, risk/reward, and opportunity signals."
+              cards={[
+                {
+                  title: "Market Visuals Compare",
+                  description: "Use the compare view for normalized asset performance, technical spreads, and relative analysis.",
+                  href: "/market-visuals",
+                  button: "Open Market Visuals",
+                  tone: "red",
+                  icon: "compare",
+                },
+                {
+                  title: "Opportunity Radar",
+                  description: "Compare retained signals, scores, risks, and source-backed opportunity records.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "purple",
+                  icon: "radar",
+                },
+                {
+                  title: "Portfolio Lab",
+                  description: "Compare holdings, client portfolios, and scenario models.",
+                  href: "/portfolio-lab",
+                  button: "Open Portfolio Lab",
+                  tone: "green",
+                  icon: "portfolio",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "alternatives" ? (
+            <GenericModule
+              eyebrow="Alternatives"
+              title="Alternative investments and venture tracking"
+              description="Track private market opportunities, alternatives, venture notes, goals, and research."
+              cards={[
+                {
+                  title: "Alternative Investments",
+                  description: "Track and compare non-traditional investment ideas.",
+                  href: "/alternative-investments",
+                  button: "Open Alternatives",
+                  tone: "amber",
+                  icon: "diamond",
+                  stats: [["Ventures", currentCommand.counts.ventureCount]],
+                },
+                {
+                  title: "Research Notes",
+                  description: "Capture investment theses and research links.",
+                  href: "/briefings",
+                  button: "Open Briefings",
+                  tone: "cyan",
+                  icon: "report",
+                  stats: [["Research", currentCommand.counts.researchCount]],
+                },
+                {
+                  title: "Opportunity Radar",
+                  description: "Review scored opportunities from the triage engine.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "red",
+                  icon: "radar",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "clients" ? (
+            <GenericModule
+              eyebrow="Clients"
+              title="Client intelligence center"
+              description="Manage client profiles, briefings, communications, and advisor-ready notes."
+              cards={[
+                {
+                  title: "Client Profiles",
+                  description: "Client records, holdings, notes, reviews, and risk profile context.",
+                  href: "/workspace/clients",
+                  button: "Open Clients",
+                  tone: "purple",
+                  icon: "client",
+                  stats: [["Clients", currentCommand.counts.clientCount]],
+                },
+                {
+                  title: "Client Briefings",
+                  description: "Generate advisor-ready client briefings.",
+                  href: "/workspace/client-briefings",
+                  button: "Open Briefings",
+                  tone: "cyan",
+                  icon: "report",
+                },
+                {
+                  title: "Client Email Center",
+                  description: "Draft, polish, queue, approve, and send client emails.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "emails" ? (
+            <GenericModule
+              eyebrow="Email Center"
+              title="Advisor-grade email workflow"
+              description="Draft one email, draft many emails, polish, approve, and send communications safely."
+              cards={[
+                {
+                  title: "Client Email Center",
+                  description: "AI drafts, manual drafts, approval queueing, and live/simulated sending.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
+                  stats: [
+                    ["Clients", currentCommand.counts.clientCount],
+                    ["Deliveries", currentCommand.counts.deliveryCount],
+                  ],
+                },
+                {
+                  title: "AI Studio",
+                  description: "Ask the AI to draft, rewrite, summarize, or create client-ready language.",
+                  href: "/workspace/personal-bot",
+                  button: "Ask AI",
+                  tone: "cyan",
+                  icon: "spark",
+                },
+                {
+                  title: "Notifications",
+                  description: "Review whether email and dashboard alerts are being delivered.",
+                  href: "/notifications",
+                  button: "Open Delivery",
+                  tone: "amber",
+                  icon: "bell",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "portfolio" ? (
+            <GenericModule
+              eyebrow="Portfolio"
+              title="Portfolio lab"
+              description="Review holdings, models, accounts, scenarios, and dashboard analytics."
+              cards={[
+                {
+                  title: "Portfolio Lab",
+                  description: "Portfolio construction, holdings, exposures, and scenario tools.",
+                  href: "/portfolio-lab",
+                  button: "Open Portfolio Lab",
+                  tone: "green",
+                  icon: "portfolio",
+                  stats: [
+                    ["Accounts", currentCommand.counts.accountCount],
+                    ["Holdings", currentCommand.counts.holdingCount],
+                    ["Value", money(currentCommand.counts.portfolioTotalValue)],
+                  ],
+                },
+                {
+                  title: "Market Visuals",
+                  description: "Visualize prices, technicals, moving averages, and relative performance.",
+                  href: "/market-visuals",
+                  button: "Open Visuals",
+                  tone: "red",
+                  icon: "market",
+                },
+                {
+                  title: "Alternative Investments",
+                  description: "Track alternatives and private opportunities.",
+                  href: "/alternative-investments",
+                  button: "Open Alternatives",
+                  tone: "amber",
+                  icon: "diamond",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "intelligence" ? (
+            <GenericModule
+              eyebrow="Intelligence"
+              title="Signal and triage intelligence"
+              description="Continuous scans, source credibility, AI briefings, and advisor-specific opportunities."
+              cards={[
+                {
+                  title: "Opportunity Radar",
+                  description: "Source-backed signals, AI briefings, credibility, urgency, and scoring.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "red",
+                  icon: "radar",
+                  stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
+                },
+                {
+                  title: "Triage Runs",
+                  description: "Review autonomous scan history and retained decision volume.",
+                  href: "/intelligence-settings",
+                  button: "Open Settings",
+                  tone: "cyan",
+                  icon: "system",
+                  stats: [["Runs", currentCommand.counts.triageRunCount]],
+                },
+                {
+                  title: "Watchlists",
+                  description: "Tune what matters to each advisor.",
+                  href: "/watchlist-alerts",
+                  button: "Open Watchlists",
+                  tone: "amber",
+                  icon: "market",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "notifications" ? (
+            <GenericModule
+              eyebrow="Notifications"
+              title="Delivery and alert center"
+              description="Review email, dashboard, and alert delivery events."
+              cards={[
+                {
+                  title: "Notifications",
+                  description: "Inspect deliveries, queued alerts, dashboard notifications, and failures.",
+                  href: "/notifications",
+                  button: "Open Notifications",
+                  tone: "amber",
+                  icon: "bell",
+                  stats: [["Deliveries", currentCommand.counts.deliveryCount]],
+                },
+                {
+                  title: "Alert Settings",
+                  description: "Configure thresholds, urgency, and notification preferences.",
+                  href: "/intelligence-settings",
+                  button: "Open Settings",
+                  tone: "cyan",
+                  icon: "system",
+                },
+                {
+                  title: "Email Center",
+                  description: "Create client emails and advisor communications.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "briefings" ? (
+            <GenericModule
+              eyebrow="Briefings"
+              title="Reports and advisor briefings"
+              description="Generate and manage investment, client, and platform briefings."
+              cards={[
+                {
+                  title: "AI Studio Reports",
+                  description: "Generate presentation-ready reports through the AI Studio.",
+                  href: "/workspace/personal-bot",
+                  button: "Open AI Studio",
+                  tone: "cyan",
+                  icon: "spark",
+                  stats: [["Briefings", currentCommand.counts.briefingCount]],
+                },
+                {
+                  title: "Client Briefings",
+                  description: "Create client-specific advisory notes and briefings.",
+                  href: "/workspace/client-briefings",
+                  button: "Open Client Briefings",
+                  tone: "purple",
+                  icon: "client",
+                },
+                {
+                  title: "Founder / Advisor Reports",
+                  description: "Review report readiness and platform output.",
+                  href: "/briefings",
+                  button: "Open Briefings",
+                  tone: "red",
+                  icon: "report",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "security" ? (
+            <GenericModule
+              eyebrow="Security"
+              title="Governance, disclosures, and audit posture"
+              description="Maintain advisor review gates, security controls, audit trail awareness, and client-data safety."
+              cards={[
+                {
+                  title: "Security Center",
+                  description: "Review platform security, governance, and audit posture.",
+                  href: "/security",
+                  button: "Open Security",
+                  tone: "red",
+                  icon: "shield",
+                  stats: [["Audit Logs", currentCommand.counts.auditLogCount]],
+                },
+                {
+                  title: "Backend Readiness",
+                  description: "Review external services, jobs, queues, and operational readiness.",
+                  href: "/backend-readiness",
+                  button: "Open Readiness",
+                  tone: "cyan",
+                  icon: "system",
+                },
+                {
+                  title: "Required Disclosures",
+                  description: "Track accepted and required disclosures.",
+                  href: "/security",
+                  button: "Review Disclosures",
+                  tone: "amber",
+                  icon: "lock",
+                  stats: [
+                    ["Accepted", currentCommand.counts.acceptedDisclosures ?? 0],
+                    ["Required", currentCommand.counts.requiredDisclosures ?? 0],
+                  ],
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "system" ? (
+            <section className="grid gap-4">
+              <Card className="p-5">
+                <SectionTitle
+                  eyebrow="System"
+                  title="Backend and deployment readiness"
+                  description="Run safe backend setup actions, inspect system readiness, and continue production hardening."
+                  compact
+                />
+
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <MetricCard label="Kernel" value={percent(kernel?.readinessScore ?? 0)} tone="cyan" dense icon="system" />
+                  <MetricCard label="Vendors" value={`${kernel?.metrics.configuredVendors ?? 0}/${kernel?.metrics.vendors ?? 0}`} tone="purple" dense icon="flow" />
+                  <MetricCard label="Queued" value={kernel?.metrics.queuedDeliveries ?? 0} tone="amber" dense icon="bell" />
+                  <MetricCard label="Failed" value={kernel?.metrics.failedRuns ?? 0} tone={(kernel?.metrics.failedRuns ?? 0) ? "red" : "green"} dense icon="target" />
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
                   {[
-                    ["bootstrap", "Foundation", "Bootstrap Kernel", "Refresh vendors, feature flags, jobs, and events.", "cyan"],
-                    ["runCoreJobs", "Core", "Run Core Backend", "Run vendor health, price alerts, delivery, data quality, and Advisor Day.", "red"],
-                    ["price", "Market", "Check Prices", "Run live high/low watchlist price checks.", "amber"],
-                    ["queueTestDelivery", "Delivery", "Queue Test", "Queue a backend delivery and process it from the kernel.", "green"],
-                  ].map(([action, eyebrow, title, description, tone]) => (
+                    ["seedBackendKernel", "Seed Backend Kernel", "Create default vendors, features, jobs, and readiness records."],
+                    ["runHealthCheck", "Run Health Check", "Inspect the backend for missing service configuration."],
+                    ["processQueuedDeliveries", "Process Queue", "Process pending delivery records where safe."],
+                  ].map(([action, label, helper]) => (
                     <button
-                      key={String(action)}
-                      onClick={() =>
-                        action === "price"
-                          ? postBackendAction("runJob", { jobKey: "watchlist_price_check" })
-                          : postBackendAction(String(action))
-                      }
+                      key={action}
+                      type="button"
                       disabled={backendWorking === action}
-                      className={cx(
-                        "rounded-[1.75rem] border p-5 text-left shadow-xl transition hover:-translate-y-1 disabled:opacity-50",
-                        toneClasses[tone as Tone]
-                      )}
+                      onClick={() => runBackendAction(action, `${label} complete.`)}
+                      className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-left transition hover:bg-white/[0.09] disabled:opacity-50"
                     >
-                      <div className="text-xs font-black uppercase tracking-[0.16em] opacity-70">{eyebrow}</div>
-                      <div className="mt-2 text-2xl font-black">{title}</div>
-                      <div className="mt-2 text-sm font-semibold opacity-80">{description}</div>
+                      <div className="text-sm font-black text-white">{backendWorking === action ? "Working..." : label}</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-500">{helper}</div>
                     </button>
                   ))}
                 </div>
 
-                <GenericModule
-                  eyebrow="Backend Surfaces"
-                  title="Control and verify every live dependency"
-                  description="Presentation-ready backend management without exposing secrets."
-                  cards={[
-                    {
-                      title: "Backend Kernel",
-                      description: "Vendor status, feature flags, jobs, deliveries, event logs, and quality records.",
-                      href: "/backend-kernel",
-                      button: "Open Kernel",
-                      tone: "cyan",
-                      stats: [
-                        ["Readiness", kernel ? `${kernel.readinessScore}%` : "—"],
-                        ["Events", kernel?.metrics.events ?? "—"],
-                      ],
-                    },
-                    {
-                      title: "Integration Status",
-                      description: "See OpenAI, market data, email, SMS, Blob, and live/simulated states.",
-                      href: "/api/integrations/status",
-                      button: "Open Status",
-                      tone: "purple",
-                      stats: [
-                        ["OpenAI", "Checked"],
-                        ["Providers", "Verified"],
-                      ],
-                    },
-                    {
-                      title: "Personal Bot",
-                      description: "Voice command center for research, routing, reports, jobs, and firm actions.",
-                      href: "/workspace/personal-bot",
-                      button: "Command Bot",
-                      tone: "red",
-                      stats: [
-                        ["Voice", "Ready"],
-                        ["Tools", "Structured"],
-                      ],
-                    },
-                  ]}
-                />
-              </section>
-            ) : null}
-
-            {activeTab === "firm-calendar" ? (
-              <section className="grid gap-5">
-                <Card className="p-6">
-                  <SectionTitle
-                    eyebrow="Firm Calendar"
-                    title="Polished execution calendar"
-                    description="Tap any day to add work, switch weekly/monthly, complete tasks, and keep firm work beautiful and readable."
-                    action={
-                      <div className="flex flex-wrap gap-2">
-                        <Pill tone="green">{completedFirmTasks.length} complete</Pill>
-                        <Pill tone="amber">{openFirmTasks.length} open</Pill>
-                        <Pill tone="purple">{firmTasks.length} total</Pill>
-                      </div>
-                    }
-                  />
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-4">
-                    <MetricCard label="Completion" value={`${Math.round(calendarCompletionRate)}%`} helper="Calendar progress" tone={calendarCompletionRate > 70 ? "green" : "amber"} />
-                    <MetricCard label="Open Tasks" value={openFirmTasks.length} helper="Still active" tone="amber" />
-                    <MetricCard label="Unscheduled" value={unscheduledTasks.length} helper="Needs date" tone={unscheduledTasks.length ? "red" : "green"} />
-                    <MetricCard label="Selected Day" value={shortDate(selectedDay)} helper={`${selectedDayTasks.length} tasks`} tone="purple" />
+                {backendMessage ? (
+                  <div className="mt-5 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm font-bold text-cyan-100">
+                    {backendMessage}
                   </div>
-                </Card>
+                ) : null}
+              </Card>
+            </section>
+          ) : null}
 
-                <div className="grid gap-5 xl:grid-cols-[1fr_390px]">
-                  <Card className="p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                          {calendarMode === "week" ? "Weekly View" : "Monthly View"}
-                        </div>
-                        <h2 className="mt-1 text-2xl font-black text-white">
-                          {calendarMode === "week" ? `Week of ${shortDate(agendaForm.weekStart)}` : monthTitle(calendarAnchor)}
-                        </h2>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button type="button" onClick={() => shiftCalendar(-1)} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white hover:bg-white/10">
-                          Previous
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const today = ymd(new Date());
-                            setCalendarAnchor(today);
-                            setAgendaForm((current) => ({ ...current, weekStart: startOfWeek(today) }));
-                            selectCalendarDay(today);
-                          }}
-                          className="rounded-2xl bg-white px-3 py-2 text-xs font-black text-slate-950"
-                        >
-                          Today
-                        </button>
-                        <button type="button" onClick={() => shiftCalendar(1)} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white hover:bg-white/10">
-                          Next
-                        </button>
-
-                        <div className="flex rounded-2xl border border-white/10 bg-black/40 p-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCalendarMode("week");
-                              setAgendaForm((current) => ({ ...current, weekStart: startOfWeek(selectedDay) }));
-                            }}
-                            className={cx("rounded-xl px-3 py-1.5 text-xs font-black", calendarMode === "week" ? "bg-white text-slate-950" : "text-slate-400 hover:text-white")}
-                          >
-                            Week
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCalendarMode("month");
-                              setCalendarAnchor(selectedDay);
-                            }}
-                            className={cx("rounded-xl px-3 py-1.5 text-xs font-black", calendarMode === "month" ? "bg-white text-slate-950" : "text-slate-400 hover:text-white")}
-                          >
-                            Month
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {calendarMode === "month" ? (
-                      <div className="mt-5 grid grid-cols-7 gap-2 px-1">
-                        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
-                          <div key={label} className="text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
-                            {label}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <div className={cx("mt-3 grid gap-3", calendarMode === "week" ? "grid-cols-1 md:grid-cols-7" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-7")}>
-                      {visibleDays.map((day) => {
-                        const rawDayTasks = tasksByDay.get(day) ?? [];
-                        const isToday = day === ymd(new Date());
-                        const isSelected = day === selectedDay;
-                        const isCurrentMonth = toDate(day).getMonth() === toDate(calendarAnchor).getMonth();
-                        const visibleTaskLimit = calendarMode === "week" ? 10 : 5;
-                        const visibleTasks = rawDayTasks.slice(0, visibleTaskLimit);
-                        const overflowCount = Math.max(0, rawDayTasks.length - visibleTasks.length);
-
-                        return (
-                          <div
-                            key={day}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => selectCalendarDay(day)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") selectCalendarDay(day);
-                            }}
-                            className={cx(
-                              "group flex min-h-[184px] cursor-pointer flex-col rounded-[1.35rem] border p-2.5 text-left transition hover:-translate-y-0.5 hover:border-red-400/40 hover:bg-red-500/10 md:min-h-[220px]",
-                              calendarMode === "week" && "md:min-h-[420px]",
-                              isSelected
-                                ? "border-red-400/60 bg-red-500/12 shadow-lg shadow-red-950/20"
-                                : isToday
-                                  ? "border-red-400/35 bg-red-500/8"
-                                  : "border-white/10 bg-white/[0.045]",
-                              calendarMode === "month" && !isCurrentMonth && "opacity-45"
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className={cx("truncate font-black", calendarMode === "week" ? "text-sm" : "text-base", isToday || isSelected ? "text-red-100" : "text-white")}>
-                                  {calendarMode === "week" ? dayLabel(day) : monthDayLabel(day)}
-                                </div>
-                                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
-                                  {rawDayTasks.length} task{rawDayTasks.length === 1 ? "" : "s"}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col items-end gap-1">
-                                {isToday ? <Pill tone="red">Today</Pill> : null}
-                                {isSelected ? <Pill tone="purple">Selected</Pill> : null}
-                              </div>
-                            </div>
-
-                            <div className={cx("mt-2 grid gap-1.5 overflow-y-auto pr-1", calendarMode === "week" ? "max-h-[322px]" : "max-h-[118px]")}>
-                              {visibleTasks.length ? (
-                                visibleTasks.map((task, index) => (
-                                  <CalendarTaskPill
-                                    key={`${day}-${task.id}-${index}`}
-                                    task={task}
-                                    dense={calendarMode === "month"}
-                                    onSelect={() => {
-                                      setSelectedTask(task);
-                                      selectCalendarDay(day);
-                                    }}
-                                    onComplete={
-                                      firm
-                                        ? () =>
-                                            postFirmAction({
-                                              action: "updateTask",
-                                              firmId: firm.id,
-                                              taskId: task.id,
-                                              status: "Complete",
-                                            })
-                                        : undefined
-                                    }
-                                  />
-                                ))
-                              ) : (
-                                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.025] px-3 py-2 text-center text-[11px] font-bold text-slate-600">
-                                  Tap to add
-                                </div>
-                              )}
-
-                              {overflowCount > 0 ? (
-                                <div className="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2 text-center text-[11px] font-black text-slate-400">
-                                  +{overflowCount} more
-                                </div>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-auto pt-2">
-                              <div className="rounded-xl border border-white/10 bg-black/24 px-2 py-1.5 text-center text-[10px] font-black text-slate-500 transition group-hover:border-red-400/30 group-hover:text-red-200">
-                                Add work
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-
-                  <aside className="grid gap-5">
-                    <Card className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Selected Day</div>
-                          <h3 className="mt-2 text-xl font-black text-white">{shortDate(selectedDay)}</h3>
-                        </div>
-                        <Pill tone={selectedDayTasks.length ? "amber" : "green"}>{selectedDayTasks.length} tasks</Pill>
-                      </div>
-
-                      <div className="mt-4 grid max-h-[240px] gap-2 overflow-y-auto pr-1">
-                        {selectedDayTasks.length ? (
-                          selectedDayTasks.map((task, index) => (
-                            <CalendarTaskPill
-                              key={`selected-${task.id}-${index}`}
-                              task={task}
-                              onSelect={() => setSelectedTask(task)}
-                              onComplete={
-                                firm
-                                  ? () =>
-                                      postFirmAction({
-                                        action: "updateTask",
-                                        firmId: firm.id,
-                                        taskId: task.id,
-                                        status: "Complete",
-                                      })
-                                  : undefined
-                              }
-                            />
-                          ))
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.025] px-3 py-2 text-center text-[11px] font-bold text-slate-600">
-                            No tasks yet
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-
-                    <Card className="p-5">
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Add Task</div>
-                      <h3 className="mt-2 text-xl font-black text-white">Add to {shortDate(taskForm.dueDate || selectedDay)}</h3>
-
-                      {agendas.length ? (
-                        <form onSubmit={createCalendarTask} className="mt-4 grid gap-3">
-                          <select value={taskForm.agendaId} onChange={(event) => setTaskForm((current) => ({ ...current, agendaId: event.target.value }))} className={selectClass}>
-                            <option value="">Choose agenda</option>
-                            {agendas.map((agenda) => (
-                              <option key={agenda.id} value={agenda.id}>
-                                {agenda.title} · {shortDate(agenda.weekStart)}
-                              </option>
-                            ))}
-                          </select>
-
-                          <select value={taskForm.projectId} onChange={(event) => setTaskForm((current) => ({ ...current, projectId: event.target.value }))} className={selectClass}>
-                            <option value="">No project</option>
-                            {projects.map((project) => (
-                              <option key={project.id} value={project.id}>{project.title}</option>
-                            ))}
-                          </select>
-
-                          <input value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} className={inputClass} placeholder="Task title" />
-                          <textarea value={taskForm.detail} onChange={(event) => setTaskForm((current) => ({ ...current, detail: event.target.value }))} className={inputClass} placeholder="Optional detail" rows={3} />
-
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <select value={taskForm.priority} onChange={(event) => setTaskForm((current) => ({ ...current, priority: event.target.value }))} className={selectClass}>
-                              <option>Low</option>
-                              <option>Medium</option>
-                              <option>High</option>
-                              <option>Critical</option>
-                            </select>
-
-                            <input type="date" value={taskForm.dueDate || selectedDay} onChange={(event) => setTaskForm((current) => ({ ...current, dueDate: event.target.value }))} className={inputClass} />
-                          </div>
-
-                          <button type="submit" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 transition hover:scale-[1.01]">
-                            Add to Calendar
-                          </button>
-                        </form>
-                      ) : (
-                        <div className="mt-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-                          Create an agenda first before adding tasks.
-                        </div>
-                      )}
-                    </Card>
-
-                    <Card className="p-5">
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Create Agenda</div>
-                      <form onSubmit={createAgenda} className="mt-4 grid gap-3">
-                        <input type="date" value={agendaForm.weekStart} onChange={(event) => setAgendaForm((current) => ({ ...current, weekStart: event.target.value }))} className={inputClass} />
-                        <input value={agendaForm.title} onChange={(event) => setAgendaForm((current) => ({ ...current, title: event.target.value }))} className={inputClass} placeholder="Agenda title" />
-                        <input value={agendaForm.focus} onChange={(event) => setAgendaForm((current) => ({ ...current, focus: event.target.value }))} className={inputClass} placeholder="Weekly focus" />
-                        <textarea value={agendaForm.blockers} onChange={(event) => setAgendaForm((current) => ({ ...current, blockers: event.target.value }))} className={inputClass} rows={2} placeholder="Optional blockers" />
-                        <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white hover:bg-white/10">
-                          Create Agenda
-                        </button>
-                      </form>
-                    </Card>
-
-                    {selectedTask ? (
-                      <Card className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Selected Task</div>
-                            <h3 className="mt-2 text-lg font-black text-white">{selectedTask.title}</h3>
-                          </div>
-                          <button type="button" onClick={() => setSelectedTask(null)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
-                            Clear
-                          </button>
-                        </div>
-                        <p className="mt-3 text-sm leading-6 text-slate-400">{selectedTask.detail ?? "No detail added yet."}</p>
-                        {firm ? (
-                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                postFirmAction({
-                                  action: "updateTask",
-                                  firmId: firm.id,
-                                  taskId: selectedTask.id,
-                                  status: "Complete",
-                                })
-                              }
-                              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-                            >
-                              Mark Complete
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                postFirmAction({
-                                  action: "updateTask",
-                                  firmId: firm.id,
-                                  taskId: selectedTask.id,
-                                  status: "Open",
-                                })
-                              }
-                              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white"
-                            >
-                              Reopen
-                            </button>
-                          </div>
-                        ) : null}
-                      </Card>
-                    ) : null}
-                  </aside>
+          <Card className="p-4">
+            <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  Workspace Principle
                 </div>
-              </section>
-            ) : null}
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Built to be used every day by a wealth management team: clean left navigation, compact visual information, and all tools connected to one command brain.
+                </p>
+              </div>
 
-            {activeTab === "team-board" ? (
-              <section className="grid gap-5">
-                <Card className="p-6">
-                  <SectionTitle
-                    eyebrow="Team Board"
-                    title="Members, invites, projects, and execution"
-                    description="A cleaner operating layer for the firm’s people, permissions, initiatives, and project flow."
-                  />
-                </Card>
-
-                <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-                  <div className="grid gap-5">
-                    <Card className="p-5">
-                      <SectionTitle eyebrow="Members" title="Firm team" description="Active users and their permissions." />
-
-                      <div className="mt-5 grid gap-3">
-                        {members.map((member) => (
-                          <Panel key={member.id} tone={toneFor(member.role)}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="truncate text-lg font-black text-white">{member.user?.name ?? "Team member"}</div>
-                                <div className="mt-1 truncate text-sm text-slate-500">{member.user?.email ?? "No email"}</div>
-                              </div>
-                              <Pill tone={toneFor(member.status)}>{member.role}</Pill>
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Pill tone={member.canAccessPortfolios ? "green" : "slate"}>Portfolios</Pill>
-                              <Pill tone={member.canManageProjects ? "green" : "slate"}>Projects</Pill>
-                              <Pill tone={member.canInviteMembers ? "green" : "slate"}>Invites</Pill>
-                              <Pill tone={member.canManageFirm ? "green" : "slate"}>Firm Admin</Pill>
-                            </div>
-                          </Panel>
-                        ))}
-                      </div>
-                    </Card>
-
-                    <Card className="p-5">
-                      <SectionTitle eyebrow="Invites" title="Invite a teammate" description="Generate an invite code for a new firm user." />
-
-                      {canInvite ? (
-                        <form onSubmit={createInvite} className="mt-5 grid gap-3">
-                          <input value={inviteForm.email} onChange={(event) => setInviteForm((current) => ({ ...current, email: event.target.value }))} className={inputClass} placeholder="Teammate email" />
-                          <select value={inviteForm.role} onChange={(event) => setInviteForm((current) => ({ ...current, role: event.target.value }))} className={selectClass}>
-                            <option>Member</option>
-                            <option>Advisor</option>
-                            <option>Admin</option>
-                            <option>Viewer</option>
-                          </select>
-                          <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">
-                            Create Invite
-                          </button>
-                        </form>
-                      ) : (
-                        <p className="mt-4 text-sm text-slate-400">You do not have permission to invite members.</p>
-                      )}
-
-                      {inviteOutput ? (
-                        <pre className="mt-4 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/40 p-4 text-xs text-slate-300">{inviteOutput}</pre>
-                      ) : null}
-
-                      <div className="mt-5 grid gap-2">
-                        {invites.slice(0, 8).map((invite) => (
-                          <div key={invite.id} className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-                            <div className="truncate text-sm font-black text-white">{invite.email}</div>
-                            <div className="mt-1 text-xs text-slate-500">{invite.role} · {invite.status}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  </div>
-
-                  <div className="grid gap-5">
-                    <Card className="p-5">
-                      <SectionTitle eyebrow="Projects" title="Create project" description="Track work across advisors, client initiatives, investment review, and operations." />
-
-                      {canManageProjects ? (
-                        <form onSubmit={createProject} className="mt-5 grid gap-3">
-                          <input value={projectForm.title} onChange={(event) => setProjectForm((current) => ({ ...current, title: event.target.value }))} className={inputClass} placeholder="Project title" />
-                          <textarea value={projectForm.description} onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))} className={inputClass} placeholder="Description" rows={3} />
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <select value={projectForm.priority} onChange={(event) => setProjectForm((current) => ({ ...current, priority: event.target.value }))} className={selectClass}>
-                              <option>Low</option>
-                              <option>Medium</option>
-                              <option>High</option>
-                              <option>Critical</option>
-                            </select>
-                            <input type="date" value={projectForm.dueDate} onChange={(event) => setProjectForm((current) => ({ ...current, dueDate: event.target.value }))} className={inputClass} />
-                          </div>
-                          <button className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">
-                            Create Project
-                          </button>
-                        </form>
-                      ) : (
-                        <p className="mt-4 text-sm text-slate-400">You do not have project management permission.</p>
-                      )}
-                    </Card>
-
-                    <div className="grid gap-3">
-                      {projects.map((project) => (
-                        <Card key={project.id} className="p-5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="truncate text-lg font-black text-white">{project.title}</div>
-                              <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-400">{project.description ?? "No description yet."}</p>
-                            </div>
-                            <Pill tone={toneFor(project.priority)}>{project.priority}</Pill>
-                          </div>
-
-                          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                            <MetricCard label="Status" value={project.status} tone={toneFor(project.status)} />
-                            <MetricCard label="Due" value={shortDate(project.dueDate)} tone="slate" />
-                            <MetricCard label="Tasks" value={project.agendaTasks?.length ?? 0} tone="purple" />
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {activeTab === "watchlists" ? (
-              <GenericModule
-                eyebrow="Watchlists"
-                title="Watchlists, price alerts, and tracked names"
-                description="A clean space for stocks, opportunities, live quote triggers, and bot-driven monitoring."
-                cards={[
-                  {
-                    title: "Watchlist Alerts",
-                    description: "Create high/low price alerts for stocks in named watchlists.",
-                    href: "/watchlist-alerts",
-                    button: "Open Alerts",
-                    tone: "amber",
-                    stats: [
-                      ["Trigger", "High / Low"],
-                      ["Provider", "Live Quote"],
-                    ],
-                  },
-                  {
-                    title: "Market Visuals",
-                    description: "Technical charts, predictive bands, data quality, and comparison tools.",
-                    href: "/market-visuals",
-                    button: "Open Visuals",
-                    tone: "green",
-                    stats: [
-                      ["Charts", "Interactive"],
-                      ["Freshness", "Tracked"],
-                    ],
-                  },
-                  {
-                    title: "Personal Bot",
-                    description: "Ask your bot to add tickers, create alerts, or research names.",
-                    href: "/workspace/personal-bot",
-                    button: "Command Bot",
-                    tone: "purple",
-                    stats: [
-                      ["Voice", "Ready"],
-                      ["Research", "Enabled"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "comparison" ? (
-              <GenericModule
-                eyebrow="Compare"
-                title="Compare investments visually and strategically"
-                description="Bring together charts, portfolio exposures, alternatives, and advisor reasoning."
-                cards={[
-                  {
-                    title: "Portfolio Lab",
-                    description: "Compare holdings, allocation drift, and scenario outcomes.",
-                    href: "/portfolio-lab",
-                    button: "Open Lab",
-                    tone: "green",
-                    stats: [
-                      ["Accounts", portfolioAccountCount],
-                      ["Holdings", portfolioHoldingCount],
-                    ],
-                  },
-                  {
-                    title: "Market Visuals",
-                    description: "Compare tickers, indicators, trend bands, and forecast visuals.",
-                    href: "/market-visuals",
-                    button: "Open Visuals",
-                    tone: "cyan",
-                    stats: [
-                      ["Charts", "Comparison"],
-                      ["Prediction", "Bands"],
-                    ],
-                  },
-                  {
-                    title: "Advisor OS",
-                    description: "Turn investment events into advisor actions and talking points.",
-                    href: "/advisor-os",
-                    button: "Open Advisor OS",
-                    tone: "red",
-                    stats: [
-                      ["Readiness", `${readinessScore}%`],
-                      ["Briefings", command?.counts.briefingCount ?? 0],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "alternatives" ? (
-              <GenericModule
-                eyebrow="Alternatives"
-                title="Alternative investment command center"
-                description="Beautifully separate venture, penny stocks, crypto, and high-risk opportunity review from core portfolios."
-                cards={[
-                  {
-                    title: "Alternative Ventures",
-                    description: "Track startup opportunities, founders, valuations, equity offered, traction, thesis, and diligence status.",
-                    href: "/alternative-investments?view=venture",
-                    button: "Review Ventures",
-                    tone: "purple",
-                    stats: [
-                      ["Ventures", command?.counts.ventureCount ?? 0],
-                      ["Risk", "High"],
-                    ],
-                  },
-                  {
-                    title: "Penny Stocks",
-                    description: "Track speculative tickers, catalysts, thesis, entry ideas, and risk caps.",
-                    href: "/alternative-investments?view=penny-stocks",
-                    button: "Review Penny Stocks",
-                    tone: "red",
-                    stats: [
-                      ["Risk", "Extreme"],
-                      ["Status", "Watchlist"],
-                    ],
-                  },
-                  {
-                    title: "Crypto Markets",
-                    description: "Review crypto market data, sentiment, volatility, liquidity, and opportunity scoring.",
-                    href: "/alternative-investments?view=crypto",
-                    button: "Open Crypto",
-                    tone: "amber",
-                    stats: [
-                      ["Source", "Live"],
-                      ["Risk", "Very High"],
-                    ],
-                  },
-                  {
-                    title: "Alternative Risk Framework",
-                    description: "Suitability guardrails for crypto, penny stocks, private deals, and venture opportunities.",
-                    href: "/alternative-investments?view=risk",
-                    button: "Review Risk",
-                    tone: "red",
-                    stats: [
-                      ["Compliance", "Separated"],
-                      ["Delivery", "Gated"],
-                    ],
-                  },
-                  {
-                    title: "Opportunity Radar",
-                    description: "Review high-risk signals before advisor or client-facing action.",
-                    href: "/opportunity-radar",
-                    button: "Open Radar",
-                    tone: "amber",
-                    stats: [
-                      ["Signals", command?.counts.retainedDecisionCount ?? 0],
-                      ["Action", "Review"],
-                    ],
-                  },
-                  {
-                    title: "Briefings",
-                    description: "Generate advisor-safe summaries before discussing alternatives with clients.",
-                    href: "/briefings",
-                    button: "Open Briefings",
-                    tone: "cyan",
-                    stats: [
-                      ["Reports", command?.counts.briefingCount ?? 0],
-                      ["Compliance", "Gated"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "clients" ? (
-              <GenericModule
-                eyebrow="Clients / Wealth"
-                title="Client intelligence, communication, and wealth guidance"
-                description="Client Brain, advisor tasks, briefings, notes, AI summaries, and client-safe communication workflows."
-                cards={[
-                  {
-                    title: "AI Command Center",
-                    description: "Use Client Brain and Next Best Action to prioritize advisor work.",
-                    href: "/advisor-command-center",
-                    button: "Open AI Command",
-                    tone: "red",
-                    stats: [
-                      ["Clients", command?.counts.clientCount ?? 0],
-                      ["Actions", "Ranked"],
-                    ],
-                  },
-                  {
-                    title: "Personal Bot",
-                    description: "Create clients, tasks, notes, reports, and follow-ups by voice or text.",
-                    href: "/workspace/personal-bot",
-                    button: "Command Bot",
-                    tone: "purple",
-                    stats: [
-                      ["Voice", "Enabled"],
-                      ["Memory", "On"],
-                    ],
-                  },
-                  {
-                    title: "Briefings",
-                    description: "Create client-facing and advisor-facing reports.",
-                    href: "/briefings",
-                    button: "Open Reports",
-                    tone: "cyan",
-                    stats: [
-                      ["Reports", command?.counts.briefingCount ?? 0],
-                      ["Delivery", "Gated"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "portfolio" ? (
-              <GenericModule
-                eyebrow="Portfolio Lab"
-                title="Portfolio, allocation, and scenario analysis"
-                description="The visual and analytical layer for holdings, drift, impact, models, and client exposure."
-                cards={[
-                  {
-                    title: "Portfolio Lab",
-                    description: "Open the full portfolio lab for analysis and scenario testing.",
-                    href: "/portfolio-lab",
-                    button: "Open Lab",
-                    tone: "green",
-                    stats: [
-                      ["Value", money(portfolioValue)],
-                      ["Holdings", portfolioHoldingCount],
-                    ],
-                  },
-                  {
-                    title: "Market Visuals",
-                    description: "Connect market behavior, technical charts, and data-quality checks to portfolio questions.",
-                    href: "/market-visuals",
-                    button: "Open Visuals",
-                    tone: "cyan",
-                    stats: [
-                      ["Charts", "Technical"],
-                      ["Quality", "Freshness"],
-                    ],
-                  },
-                  {
-                    title: "Advisor OS",
-                    description: "Run portfolio-aware event workflows and impact analysis.",
-                    href: "/advisor-os",
-                    button: "Open OS",
-                    tone: "red",
-                    stats: [
-                      ["Models", portfolioModelCount],
-                      ["AI", "Active"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "intelligence" ? (
-              <GenericModule
-                eyebrow="Intelligence"
-                title="Continuous scanning and opportunity intelligence"
-                description="Triage, retained headlines, source credibility, opportunity scoring, alerts, and AI research."
-                cards={[
-                  {
-                    title: "Triage",
-                    description: "Run and review retained news intelligence.",
-                    href: "/triage",
-                    button: "Open Triage",
-                    tone: "red",
-                    stats: [
-                      ["Runs", command?.counts.triageRunCount ?? 0],
-                      ["Retained", command?.counts.retainedDecisionCount ?? 0],
-                    ],
-                  },
-                  {
-                    title: "Opportunity Radar",
-                    description: "Rank events by portfolio relevance and opportunity score.",
-                    href: "/opportunity-radar",
-                    button: "Open Radar",
-                    tone: "amber",
-                    stats: [
-                      ["Alerts", command?.counts.totalAlertCount ?? 0],
-                      ["Unread", command?.counts.unreadAlertCount ?? 0],
-                    ],
-                  },
-                  {
-                    title: "Research Bot",
-                    description: "Use the personal AI bot to research tickers, sources, client exposure, and firm data.",
-                    href: "/workspace/personal-bot",
-                    button: "Ask Bot",
-                    tone: "purple",
-                    stats: [
-                      ["Research", "Enabled"],
-                      ["Sources", "Tracked"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "notifications" ? (
-              <GenericModule
-                eyebrow="Notifications"
-                title="Alerts, delivery, and communication"
-                description="Price triggers, queued delivery, email/SMS readiness, digest logic, and bot-generated approvals."
-                cards={[
-                  {
-                    title: "Watchlist Price Alerts",
-                    description: "Trigger notifications when watchlist stocks hit high or low prices.",
-                    href: "/watchlist-alerts",
-                    button: "Open Price Alerts",
-                    tone: "amber",
-                    stats: [
-                      ["Trigger", "High / Low"],
-                      ["Provider", "Live Quote"],
-                    ],
-                  },
-                  {
-                    title: "Backend Delivery Queue",
-                    description: "Process queued dashboard, email, and SMS delivery records.",
-                    href: "/backend-kernel",
-                    button: "Open Delivery",
-                    tone: "cyan",
-                    stats: [
-                      ["Queued", kernel?.metrics.queuedDeliveries ?? "—"],
-                      ["Deliveries", kernel?.metrics.deliveries ?? "—"],
-                    ],
-                  },
-                  {
-                    title: "Bot Automation",
-                    description: "Let the bot queue approval-gated investor email drafts.",
-                    href: "/workspace/personal-bot",
-                    button: "Command Bot",
-                    tone: "purple",
-                    stats: [
-                      ["Mode", "Approval"],
-                      ["Delivery", "Gated"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "briefings" ? (
-              <GenericModule
-                eyebrow="Briefings"
-                title="Advisor and client reports"
-                description="Beautiful daily, weekly, market, portfolio, and client-specific briefings."
-                cards={[
-                  {
-                    title: "Briefing Reports",
-                    description: "Open the dedicated briefing center.",
-                    href: "/briefings",
-                    button: "Open Reports",
-                    tone: "cyan",
-                    stats: [
-                      ["Reports", command?.counts.briefingCount ?? 0],
-                      ["Digest", command?.counts.digestCount ?? 0],
-                    ],
-                  },
-                  {
-                    title: "Personal Bot PDFs",
-                    description: "Create premium PDF reports by command.",
-                    href: "/workspace/personal-bot",
-                    button: "Create PDF",
-                    tone: "purple",
-                    stats: [
-                      ["Command", "pdf"],
-                      ["Design", "Premium"],
-                    ],
-                  },
-                  {
-                    title: "Storage + Evidence",
-                    description: "Store reports, evidence files, exports, and source snapshots when configured.",
-                    href: "/backend-kernel",
-                    button: "Open Backend",
-                    tone: "cyan",
-                    stats: [
-                      ["Storage", "Provider-aware"],
-                      ["Reports", "Export-ready"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "security" ? (
-              <GenericModule
-                eyebrow="Security"
-                title="Governance, approvals, audit, and compliance"
-                description="A beautiful but serious control layer for sensitive advisor workflows."
-                cards={[
-                  {
-                    title: "Backend Readiness",
-                    description: "Review tenant isolation, role policies, approval center, data quality, and health checks.",
-                    href: "/backend-readiness",
-                    button: "Open Readiness",
-                    tone: "cyan",
-                    stats: [
-                      ["Tenant", "Scoped"],
-                      ["Approvals", "Gated"],
-                    ],
-                  },
-                  {
-                    title: "Security Center",
-                    description: "Open the security and compliance page.",
-                    href: "/security",
-                    button: "Open Security",
-                    tone: "red",
-                    stats: [
-                      ["Audit Logs", command?.counts.auditLogCount ?? 0],
-                      ["Status", "Active"],
-                    ],
-                  },
-                  {
-                    title: "Proof Trail",
-                    description: "Advisor OS and bot workflows preserve evidence and rationale.",
-                    href: "/advisor-os",
-                    button: "Open OS",
-                    tone: "purple",
-                    stats: [
-                      ["Delivery", "Gated"],
-                      ["Evidence", "Stored"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            {activeTab === "system" ? (
-              <GenericModule
-                eyebrow="System"
-                title="System readiness and setup"
-                description="A clean command layer for environment status, backend jobs, feature flags, providers, and launch readiness."
-                cards={[
-                  {
-                    title: "Backend Kernel",
-                    description: "Operational backend for vendor status, feature flags, jobs, delivery, and quality.",
-                    href: "/backend-kernel",
-                    button: "Open Kernel",
-                    tone: "cyan",
-                    stats: [
-                      ["Readiness", kernel ? `${kernel.readinessScore}%` : "—"],
-                      ["Jobs", kernel?.metrics.jobs ?? "—"],
-                      ["Vendors", kernel ? `${kernel.metrics.configuredVendors}/${kernel.metrics.vendors}` : "—"],
-                      ["Queued", kernel?.metrics.queuedDeliveries ?? "—"],
-                    ],
-                  },
-                  {
-                    title: "Backend Readiness",
-                    description: "Policies, approvals, data quality, AI tools, jobs, tenant checks, and seed data.",
-                    href: "/backend-readiness",
-                    button: "Open Readiness",
-                    tone: "cyan",
-                    stats: [
-                      ["Readiness", `${readinessScore}%`],
-                      ["Firms", command?.counts.firmCount ?? 0],
-                    ],
-                  },
-                  {
-                    title: "Integration Status",
-                    description: "Validate all configured provider variables and live/simulated status.",
-                    href: "/api/integrations/status",
-                    button: "Open Status",
-                    tone: "purple",
-                    stats: [
-                      ["OpenAI", "Checked"],
-                      ["Market", "Checked"],
-                      ["Email/SMS", "Checked"],
-                      ["Blob", "Checked"],
-                    ],
-                  },
-                ]}
-              />
-            ) : null}
-
-            <footer className="pb-8 text-center text-xs font-semibold text-slate-600">
-              Slice · beautiful advisor-grade investment operating system · AI, visuals, backend, and guidance in one home
-            </footer>
-          </div>
+              <div className="flex flex-wrap gap-2">
+                <BeautifulButton href="/workspace?tab=team-board" tone="green" compact>
+                  Team Board
+                </BeautifulButton>
+                <BeautifulButton href="/workspace/personal-bot" tone="cyan" compact>
+                  AI Studio
+                </BeautifulButton>
+                <BeautifulButton href="/market-visuals" tone="red" compact>
+                  Market Visuals
+                </BeautifulButton>
+              </div>
+            </div>
+          </Card>
         </section>
       </div>
     </main>

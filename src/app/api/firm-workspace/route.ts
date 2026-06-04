@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 const TEAM_COLORS = [
   "#ef4444",
   "#f97316",
@@ -15,6 +18,27 @@ const TEAM_COLORS = [
   "#f43f5e",
   "#06b6d4",
 ];
+
+type FirmWorkspaceBody = Record<string, unknown>;
+
+async function getUserMembershipsWithFirm(userId: string) {
+  return prisma.firmMembership.findMany({
+    where: {
+      userId,
+      status: "Active",
+    },
+    include: {
+      firm: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+type MembershipWithFirm = Awaited<
+  ReturnType<typeof getUserMembershipsWithFirm>
+>[number];
 
 function teamColor(index: number) {
   return TEAM_COLORS[index % TEAM_COLORS.length];
@@ -40,6 +64,111 @@ function nextMondayString() {
   const date = new Date(now);
   date.setDate(now.getDate() + distance);
   return date.toISOString().slice(0, 10);
+}
+
+function cleanText(value: unknown, fallback = "") {
+  return typeof value === "string" ? value.trim() : fallback;
+}
+
+function cleanNullableText(value: unknown) {
+  const text = cleanText(value);
+  return text.length ? text : null;
+}
+
+function cleanDateText(value: unknown) {
+  const text = cleanText(value);
+  return text.length ? text : null;
+}
+
+function cleanBoolean(value: unknown, fallback = false) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function cleanId(value: unknown) {
+  return cleanText(value);
+}
+
+function cleanIdArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return Array.from(
+    new Set(
+      value
+        .map((item: unknown) => cleanId(item))
+        .filter((item): item is string => item.length > 0)
+    )
+  );
+}
+
+function cleanTaskInputArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((item): item is Record<string, unknown> => {
+    return Boolean(item && typeof item === "object" && !Array.isArray(item));
+  });
+}
+
+function dueStatus(dueDate?: string | null) {
+  if (!dueDate) return "No date";
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (dueDate < today) return "Overdue";
+  if (dueDate === today) return "Due today";
+  return "Upcoming";
+}
+
+function completeStatus(status: string) {
+  return status === "Complete" || status === "Done";
+}
+
+function permissionsForRole(roleValue: string) {
+  const role = roleValue.trim().toLowerCase();
+
+  if (role === "owner") {
+    return {
+      canAccessPortfolios: true,
+      canManageProjects: true,
+      canInviteMembers: true,
+      canManageFirm: true,
+    };
+  }
+
+  if (
+    role === "admin" ||
+    role === "firm admin" ||
+    role === "manager" ||
+    role === "lead advisor" ||
+    role === "principal"
+  ) {
+    return {
+      canAccessPortfolios: true,
+      canManageProjects: true,
+      canInviteMembers: true,
+      canManageFirm: false,
+    };
+  }
+
+  if (
+    role === "advisor" ||
+    role === "portfolio manager" ||
+    role === "analyst" ||
+    role === "operations"
+  ) {
+    return {
+      canAccessPortfolios: true,
+      canManageProjects: true,
+      canInviteMembers: false,
+      canManageFirm: false,
+    };
+  }
+
+  return {
+    canAccessPortfolios: false,
+    canManageProjects: false,
+    canInviteMembers: false,
+    canManageFirm: false,
+  };
 }
 
 async function getActiveMembership(userId: string, firmId: string) {
@@ -87,82 +216,80 @@ function canManageProjects(membership: {
   );
 }
 
-async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null) {
-  const memberships = await prisma.firmMembership.findMany({
-    where: {
-      userId,
-      status: "Active",
+function emptyWorkspacePayload(memberships: MembershipWithFirm[]) {
+  return {
+    firms: memberships.map((membership) => ({
+      ...membership.firm,
+      membership,
+    })),
+    firm: null,
+    membership: null,
+    members: [],
+    invites: [],
+    projects: [],
+    agendas: [],
+    posts: [],
+    operations: {
+      scrumStatuses: ["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"],
+      allTasks: [],
+      calendarTasks: [],
+      unifiedMessages: [],
+      ideaBoard: [],
+      projectDeadlines: [],
+      timedReminders: [],
+      openNotifications: [],
+      sprintMetrics: {
+        total: 0,
+        open: 0,
+        inProgress: 0,
+        review: 0,
+        blocked: 0,
+        complete: 0,
+        overdue: 0,
+        ideas: 0,
+        deadlines: 0,
+        timedReminders: 0,
+      },
     },
-    include: {
-      firm: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  };
+}
 
+async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null) {
+  const memberships = await getUserMembershipsWithFirm(userId);
   const firmId = requestedFirmId ?? memberships[0]?.firmId ?? null;
 
   if (!firmId) {
-    return {
-      firms: memberships.map((membership) => ({
-        ...membership.firm,
-        membership,
-      })),
-      firm: null,
-      membership: null,
-      members: [],
-      invites: [],
-      projects: [],
-      agendas: [],
-      posts: [],
-    };
+    return emptyWorkspacePayload(memberships);
   }
 
   const membership = await getActiveMembership(userId, firmId);
 
   if (!membership) {
-    return {
-      firms: memberships.map((item) => ({
-        ...item.firm,
-        membership: item,
-      })),
-      firm: null,
-      membership: null,
-      members: [],
-      invites: [],
-      projects: [],
-      agendas: [],
-      posts: [],
-    };
+    return emptyWorkspacePayload(memberships);
   }
 
   const [members, invites, projects, agendas, posts] = await Promise.all([
     prisma.firmMembership.findMany({
       where: {
         firmId,
-        status: {
-          not: "Removed",
-        },
+        status: "Active",
       },
       include: {
         user: true,
       },
-      orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      orderBy: {
+        createdAt: "asc",
+      },
     }),
-
     prisma.firmInvite.findMany({
       where: {
         firmId,
-      },
-      include: {
-        sentBy: true,
+        status: "Pending",
       },
       orderBy: {
         createdAt: "desc",
       },
     }),
-
     prisma.firmProject.findMany({
       where: {
         firmId,
@@ -179,9 +306,15 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
         },
         agendaTasks: true,
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      orderBy: [
+        {
+          dueDate: "asc",
+        },
+        {
+          createdAt: "desc",
+        },
+      ],
     }),
-
     prisma.weeklyAgenda.findMany({
       where: {
         firmId,
@@ -200,25 +333,24 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
                 user: true,
               },
               orderBy: {
-                createdAt: "asc",
+                createdAt: "desc",
               },
             },
           },
-          orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-        },
-        comments: {
-          include: {
-            user: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+          orderBy: [
+            {
+              dueDate: "asc",
+            },
+            {
+              createdAt: "desc",
+            },
+          ],
         },
       },
-      orderBy: [{ weekStart: "desc" }, { createdAt: "desc" }],
-      take: 50,
+      orderBy: {
+        weekStart: "desc",
+      },
     }),
-
     prisma.firmPost.findMany({
       where: {
         firmId,
@@ -234,9 +366,74 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
       orderBy: {
         createdAt: "desc",
       },
-      take: 60,
+      take: 100,
     }),
   ]);
+
+  const allTasks = agendas.flatMap((agenda) =>
+    agenda.tasks.map((task) => ({
+      ...task,
+      agendaTitle: agenda.title,
+      weekStart: agenda.weekStart,
+      ownerName: agenda.membership.user.name,
+      ownerColor: agenda.membership.calendarColor,
+      ownerId: agenda.membership.id,
+      ownerUserId: agenda.membership.userId,
+    }))
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const openTasks = allTasks.filter((task) => !completeStatus(task.status));
+  const completeTasks = allTasks.filter((task) => completeStatus(task.status));
+  const inProgressTasks = allTasks.filter((task) => task.status === "In Progress");
+  const reviewTasks = allTasks.filter((task) => task.status === "Review");
+  const blockedTasks = allTasks.filter((task) => task.status === "Blocked");
+  const overdueTasks = allTasks.filter(
+    (task) => task.dueDate && task.dueDate < today && !completeStatus(task.status)
+  );
+
+  const calendarTasks = allTasks
+    .filter((task) => Boolean(task.dueDate))
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+
+  const projectDeadlines = projects
+    .filter((project) => Boolean(project.dueDate))
+    .map((project) => ({
+      ...project,
+      dueStatus: dueStatus(project.dueDate),
+      assignedNames: project.assignments.map(
+        (assignment) => assignment.membership.user.name
+      ),
+    }))
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)));
+
+  const timedReminders = allTasks.flatMap((task) =>
+    (task.comments ?? [])
+      .filter((comment) => {
+        const type = comment.commentType.toLowerCase();
+        return (
+          type.includes("reminder") ||
+          type.includes("timed") ||
+          type.includes("follow")
+        );
+      })
+      .map((comment) => ({
+        id: comment.id,
+        body: comment.body,
+        commentType: comment.commentType,
+        createdAt: comment.createdAt,
+        taskId: task.id,
+        taskTitle: task.title,
+        ownerName: task.ownerName,
+        dueDate: task.dueDate,
+      }))
+  );
+
+  const ideaBoard = posts.filter((post) => {
+    const type = post.postType.toLowerCase();
+    return type.includes("idea") || type.includes("brainstorm");
+  });
 
   return {
     firms: memberships.map((item) => ({
@@ -250,6 +447,28 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
     projects,
     agendas,
     posts,
+    operations: {
+      scrumStatuses: ["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"],
+      allTasks,
+      calendarTasks,
+      unifiedMessages: posts,
+      ideaBoard,
+      projectDeadlines,
+      timedReminders,
+      openNotifications: [],
+      sprintMetrics: {
+        total: allTasks.length,
+        open: openTasks.length,
+        inProgress: inProgressTasks.length,
+        review: reviewTasks.length,
+        blocked: blockedTasks.length,
+        complete: completeTasks.length,
+        overdue: overdueTasks.length,
+        ideas: ideaBoard.length,
+        deadlines: projectDeadlines.length,
+        timedReminders: timedReminders.length,
+      },
+    },
   };
 }
 
@@ -263,9 +482,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const firmId = url.searchParams.get("firmId");
 
-  const workspace = await loadFirmWorkspace(user.id, firmId);
-
-  return NextResponse.json(workspace);
+  const response = NextResponse.json(await loadFirmWorkspace(user.id, firmId));
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 export async function POST(request: Request) {
@@ -275,11 +494,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const body = await request.json();
-  const action = body.action as string | undefined;
+  const body = (await request.json()) as FirmWorkspaceBody;
+  const action = cleanText(body.action);
+  const requestedFirmId = cleanNullableText(body.firmId);
 
   if (action === "createFirm") {
-    if (!body.name?.trim()) {
+    const name = cleanText(body.name);
+
+    if (!name) {
       return NextResponse.json(
         { error: "Firm name is required." },
         { status: 400 }
@@ -288,10 +510,14 @@ export async function POST(request: Request) {
 
     const firm = await prisma.firm.create({
       data: {
-        name: body.name.trim(),
-        firmEmail: body.firmEmail?.trim() || null,
-        firmCode: firmCode(body.name),
-        createdByUserId: user.id,
+        name,
+        firmEmail: cleanNullableText(body.firmEmail),
+        firmCode: firmCode(name),
+        createdBy: {
+          connect: {
+            id: user.id,
+          },
+        },
       },
     });
 
@@ -300,6 +526,7 @@ export async function POST(request: Request) {
         firmId: firm.id,
         userId: user.id,
         role: "Owner",
+        status: "Active",
         calendarColor: teamColor(0),
         canAccessPortfolios: true,
         canManageProjects: true,
@@ -312,80 +539,34 @@ export async function POST(request: Request) {
   }
 
   if (action === "acceptInvite") {
-    if (!body.inviteCode?.trim()) {
+    const code = cleanText(body.inviteCode);
+
+    if (!code) {
       return NextResponse.json(
         { error: "Invite code is required." },
         { status: 400 }
       );
     }
 
-    const invite = await prisma.firmInvite.findUnique({
+    const invite = await prisma.firmInvite.findFirst({
       where: {
-        inviteCode: body.inviteCode.trim().toUpperCase(),
-      },
-      include: {
-        firm: true,
+        inviteCode: code,
+        status: "Pending",
       },
     });
 
-    if (!invite || invite.status !== "Pending") {
-      return NextResponse.json(
-        { error: "Invite not found or no longer pending." },
-        { status: 404 }
-      );
-    }
-
-    if (invite.expiresAt && invite.expiresAt < new Date()) {
-      return NextResponse.json(
-        { error: "Invite has expired." },
-        { status: 410 }
-      );
-    }
-
-    if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
-      return NextResponse.json(
-        {
-          error:
-            "This invite was sent to a different email. Log in with that email or ask for a new invite.",
-        },
-        { status: 403 }
-      );
+    if (!invite) {
+      return NextResponse.json({ error: "Invite not found." }, { status: 404 });
     }
 
     const memberCount = await prisma.firmMembership.count({
       where: {
         firmId: invite.firmId,
+        status: "Active",
       },
     });
 
-    const permissionPreset =
-      invite.role === "Admin"
-        ? {
-            canAccessPortfolios: true,
-            canManageProjects: true,
-            canInviteMembers: true,
-            canManageFirm: false,
-          }
-        : invite.role === "Advisor"
-          ? {
-              canAccessPortfolios: true,
-              canManageProjects: true,
-              canInviteMembers: false,
-              canManageFirm: false,
-            }
-          : invite.role === "Viewer"
-            ? {
-                canAccessPortfolios: false,
-                canManageProjects: false,
-                canInviteMembers: false,
-                canManageFirm: false,
-              }
-            : {
-                canAccessPortfolios: true,
-                canManageProjects: false,
-                canInviteMembers: false,
-                canManageFirm: false,
-              };
+    const invitePermissions = permissionsForRole(invite.role);
 
     await prisma.firmMembership.upsert({
       where: {
@@ -398,14 +579,21 @@ export async function POST(request: Request) {
         status: "Active",
         role: invite.role,
         calendarColor: teamColor(memberCount),
-        ...permissionPreset,
+        canAccessPortfolios: invitePermissions.canAccessPortfolios,
+        canManageProjects: invitePermissions.canManageProjects,
+        canInviteMembers: invitePermissions.canInviteMembers,
+        canManageFirm: invitePermissions.canManageFirm,
       },
       create: {
         firmId: invite.firmId,
         userId: user.id,
         role: invite.role,
+        status: "Active",
         calendarColor: teamColor(memberCount),
-        ...permissionPreset,
+        canAccessPortfolios: invitePermissions.canAccessPortfolios,
+        canManageProjects: invitePermissions.canManageProjects,
+        canInviteMembers: invitePermissions.canInviteMembers,
+        canManageFirm: invitePermissions.canManageFirm,
       },
     });
 
@@ -422,73 +610,70 @@ export async function POST(request: Request) {
     return NextResponse.json(await loadFirmWorkspace(user.id, invite.firmId));
   }
 
-  const firmId = body.firmId as string | undefined;
-
-  if (!firmId) {
+  if (!requestedFirmId) {
     return NextResponse.json(
       { error: "Firm ID is required for this action." },
       { status: 400 }
     );
   }
 
+  const firmId = requestedFirmId;
   const membership = await getActiveMembership(user.id, firmId);
 
   if (!membership) {
     return NextResponse.json(
-      { error: "You do not have access to this firm." },
+      { error: "You are not an active member of this firm." },
       { status: 403 }
     );
   }
 
-  if (action === "createInvite") {
+  if (action === "inviteMember") {
     if (!canInvite(membership)) {
       return NextResponse.json(
-        { error: "You do not have permission to invite members." },
+        { error: "You do not have permission to invite firm members." },
         { status: 403 }
       );
     }
 
-    if (!body.email?.trim()) {
+    const email = cleanText(body.email).toLowerCase();
+
+    if (!email) {
       return NextResponse.json(
         { error: "Invite email is required." },
         { status: 400 }
       );
     }
 
-    const code = inviteCode();
-    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-
     const invite = await prisma.firmInvite.create({
       data: {
         firmId,
-        email: body.email.trim().toLowerCase(),
-        role: body.role?.trim() || "Member",
-        inviteCode: code,
-        expiresAt,
+        email,
+        inviteCode: inviteCode(),
+        role: cleanText(body.role, "Member") || "Member",
+        status: "Pending",
         sentByUserId: user.id,
       },
     });
 
-    const origin = new URL(request.url).origin;
-
     return NextResponse.json({
       ...(await loadFirmWorkspace(user.id, firmId)),
-      inviteCode: invite.inviteCode,
-      inviteLink: `${origin}/workspace?invite=${invite.inviteCode}`,
+      createdInvite: invite,
     });
   }
 
   if (action === "updateMember") {
     if (!canManageFirm(membership)) {
       return NextResponse.json(
-        { error: "You do not have permission to manage firm members." },
+        { error: "You do not have permission to update firm members." },
         { status: 403 }
       );
     }
 
+    const membershipId = cleanText(body.membershipId);
+
     const target = await prisma.firmMembership.findFirst({
       where: {
-        id: body.membershipId,
+        id: membershipId,
         firmId,
       },
     });
@@ -497,22 +682,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Member not found." }, { status: 404 });
     }
 
-    if (target.role === "Owner" && target.userId !== user.id) {
-      return NextResponse.json(
-        { error: "The owner role cannot be changed by another user." },
-        { status: 403 }
-      );
-    }
-
     await prisma.firmMembership.update({
       where: {
         id: target.id,
       },
       data: {
-        role: typeof body.role === "string" ? body.role : undefined,
-        status: typeof body.status === "string" ? body.status : undefined,
-        calendarColor:
-          typeof body.calendarColor === "string" ? body.calendarColor : undefined,
+        role: cleanText(body.role) || undefined,
+        calendarColor: cleanText(body.calendarColor) || undefined,
         canAccessPortfolios:
           typeof body.canAccessPortfolios === "boolean"
             ? body.canAccessPortfolios
@@ -543,9 +719,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const membershipId = cleanText(body.membershipId);
+
     const target = await prisma.firmMembership.findFirst({
       where: {
-        id: body.membershipId,
+        id: membershipId,
         firmId,
       },
     });
@@ -585,7 +763,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.title?.trim()) {
+    const title = cleanText(body.title);
+
+    if (!title) {
       return NextResponse.json(
         { error: "Project title is required." },
         { status: 400 }
@@ -595,42 +775,51 @@ export async function POST(request: Request) {
     const project = await prisma.firmProject.create({
       data: {
         firmId,
-        title: body.title.trim(),
-        description: body.description?.trim() || null,
-        priority: body.priority?.trim() || "Medium",
-        dueDate: body.dueDate?.trim() || null,
+        title,
+        description: cleanNullableText(body.description),
+        priority: cleanText(body.priority, "Medium") || "Medium",
+        dueDate: cleanDateText(body.dueDate),
       },
     });
 
-    const assignedMembershipIds = Array.isArray(body.assignedMembershipIds)
-      ? body.assignedMembershipIds
-      : [];
+    const assignedMembershipIds = cleanIdArray(body.assignedMembershipIds);
 
-    for (const membershipId of assignedMembershipIds) {
-      const target = await prisma.firmMembership.findFirst({
+    if (assignedMembershipIds.length > 0) {
+      const validAssignees = await prisma.firmMembership.findMany({
         where: {
-          id: membershipId,
           firmId,
           status: "Active",
+          id: {
+            in: assignedMembershipIds,
+          },
+        },
+        select: {
+          id: true,
         },
       });
 
-      if (target) {
-        await prisma.firmProjectAssignment.upsert({
-          where: {
-            projectId_membershipId: {
+      const projectRole = cleanText(body.projectRole, "Contributor") || "Contributor";
+
+      await Promise.all(
+        validAssignees.map((target) =>
+          prisma.firmProjectAssignment.upsert({
+            where: {
+              projectId_membershipId: {
+                projectId: project.id,
+                membershipId: target.id,
+              },
+            },
+            update: {
+              projectRole,
+            },
+            create: {
               projectId: project.id,
               membershipId: target.id,
+              projectRole,
             },
-          },
-          update: {},
-          create: {
-            projectId: project.id,
-            membershipId: target.id,
-            projectRole: "Contributor",
-          },
-        });
-      }
+          })
+        )
+      );
     }
 
     return NextResponse.json(await loadFirmWorkspace(user.id, firmId));
@@ -644,16 +833,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const projectId = cleanText(body.projectId);
+    const membershipId = cleanText(body.membershipId);
+
     const project = await prisma.firmProject.findFirst({
       where: {
-        id: body.projectId,
+        id: projectId,
         firmId,
       },
     });
 
     const target = await prisma.firmMembership.findFirst({
       where: {
-        id: body.membershipId,
+        id: membershipId,
         firmId,
         status: "Active",
       },
@@ -666,6 +858,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const projectRole = cleanText(body.projectRole, "Contributor") || "Contributor";
+
     await prisma.firmProjectAssignment.upsert({
       where: {
         projectId_membershipId: {
@@ -674,12 +868,12 @@ export async function POST(request: Request) {
         },
       },
       update: {
-        projectRole: body.projectRole?.trim() || "Contributor",
+        projectRole,
       },
       create: {
         projectId: project.id,
         membershipId: target.id,
-        projectRole: body.projectRole?.trim() || "Contributor",
+        projectRole,
       },
     });
 
@@ -691,26 +885,28 @@ export async function POST(request: Request) {
       data: {
         firmId,
         membershipId: membership.id,
-        weekStart: body.weekStart?.trim() || nextMondayString(),
-        title: body.title?.trim() || `${user.name}'s Weekly Agenda`,
-        focus: body.focus?.trim() || null,
-        blockers: body.blockers?.trim() || null,
+        weekStart: cleanText(body.weekStart) || nextMondayString(),
+        title: cleanText(body.title) || `${user.name}'s Weekly Agenda`,
+        focus: cleanNullableText(body.focus),
+        blockers: cleanNullableText(body.blockers),
       },
     });
 
-    const tasks = Array.isArray(body.tasks) ? body.tasks : [];
+    const tasks = cleanTaskInputArray(body.tasks);
 
     for (const task of tasks) {
-      if (task.title?.trim()) {
+      const title = cleanText(task.title);
+
+      if (title) {
         await prisma.firmAgendaTask.create({
           data: {
             firmId,
             agendaId: agenda.id,
-            projectId: task.projectId || null,
-            title: task.title.trim(),
-            detail: task.detail?.trim() || null,
-            priority: task.priority?.trim() || "Medium",
-            dueDate: task.dueDate?.trim() || null,
+            projectId: cleanNullableText(task.projectId),
+            title,
+            detail: cleanNullableText(task.detail),
+            priority: cleanText(task.priority, "Medium") || "Medium",
+            dueDate: cleanDateText(task.dueDate),
           },
         });
       }
@@ -720,9 +916,11 @@ export async function POST(request: Request) {
   }
 
   if (action === "addAgendaTask") {
+    const agendaId = cleanText(body.agendaId);
+
     const agenda = await prisma.weeklyAgenda.findFirst({
       where: {
-        id: body.agendaId,
+        id: agendaId,
         firmId,
       },
     });
@@ -731,7 +929,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Agenda not found." }, { status: 404 });
     }
 
-    if (!body.title?.trim()) {
+    const title = cleanText(body.title);
+
+    if (!title) {
       return NextResponse.json(
         { error: "Task title is required." },
         { status: 400 }
@@ -742,11 +942,11 @@ export async function POST(request: Request) {
       data: {
         firmId,
         agendaId: agenda.id,
-        projectId: body.projectId || null,
-        title: body.title.trim(),
-        detail: body.detail?.trim() || null,
-        priority: body.priority?.trim() || "Medium",
-        dueDate: body.dueDate?.trim() || null,
+        projectId: cleanNullableText(body.projectId),
+        title,
+        detail: cleanNullableText(body.detail),
+        priority: cleanText(body.priority, "Medium") || "Medium",
+        dueDate: cleanDateText(body.dueDate),
       },
     });
 
@@ -754,9 +954,11 @@ export async function POST(request: Request) {
   }
 
   if (action === "updateTask") {
+    const taskId = cleanText(body.taskId);
+
     const task = await prisma.firmAgendaTask.findFirst({
       where: {
-        id: body.taskId,
+        id: taskId,
         firmId,
       },
     });
@@ -766,22 +968,34 @@ export async function POST(request: Request) {
     }
 
     const newStatus =
-      typeof body.status === "string" ? body.status : task.status;
+      typeof body.status === "string" && body.status.trim()
+        ? body.status.trim()
+        : task.status;
 
     await prisma.firmAgendaTask.update({
       where: {
         id: task.id,
       },
       data: {
-        title: typeof body.title === "string" ? body.title : undefined,
-        detail: typeof body.detail === "string" ? body.detail : undefined,
+        title:
+          typeof body.title === "string" && body.title.trim()
+            ? body.title.trim()
+            : undefined,
+        detail:
+          typeof body.detail === "string" ? body.detail.trim() || null : undefined,
         status: newStatus,
         priority:
-          typeof body.priority === "string" ? body.priority : undefined,
-        dueDate: typeof body.dueDate === "string" ? body.dueDate : undefined,
+          typeof body.priority === "string" && body.priority.trim()
+            ? body.priority.trim()
+            : undefined,
+        dueDate:
+          typeof body.dueDate === "string" ? body.dueDate.trim() || null : undefined,
         delayReason:
-          typeof body.delayReason === "string" ? body.delayReason : undefined,
-        inquiry: typeof body.inquiry === "string" ? body.inquiry : undefined,
+          typeof body.delayReason === "string"
+            ? body.delayReason.trim() || null
+            : undefined,
+        inquiry:
+          typeof body.inquiry === "string" ? body.inquiry.trim() || null : undefined,
         completedAt:
           newStatus === "Complete" || newStatus === "Done"
             ? new Date()
@@ -795,7 +1009,9 @@ export async function POST(request: Request) {
   }
 
   if (action === "addComment") {
-    if (!body.body?.trim()) {
+    const commentBody = cleanText(body.body);
+
+    if (!commentBody) {
       return NextResponse.json(
         { error: "Comment body is required." },
         { status: 400 }
@@ -804,11 +1020,11 @@ export async function POST(request: Request) {
 
     await prisma.agendaComment.create({
       data: {
-        agendaId: body.agendaId || null,
-        taskId: body.taskId || null,
+        agendaId: cleanNullableText(body.agendaId),
+        taskId: cleanNullableText(body.taskId),
         userId: user.id,
-        body: body.body.trim(),
-        commentType: body.commentType?.trim() || "Comment",
+        body: commentBody,
+        commentType: cleanText(body.commentType, "Comment") || "Comment",
       },
     });
 
@@ -816,7 +1032,10 @@ export async function POST(request: Request) {
   }
 
   if (action === "createPost") {
-    if (!body.title?.trim() || !body.body?.trim()) {
+    const title = cleanText(body.title);
+    const postBody = cleanText(body.body);
+
+    if (!title || !postBody) {
       return NextResponse.json(
         { error: "Post title and body are required." },
         { status: 400 }
@@ -826,11 +1045,11 @@ export async function POST(request: Request) {
     await prisma.firmPost.create({
       data: {
         firmId,
-        projectId: body.projectId || null,
+        projectId: cleanNullableText(body.projectId),
         authorMembershipId: membership.id,
-        title: body.title.trim(),
-        body: body.body.trim(),
-        postType: body.postType?.trim() || "Update",
+        title,
+        body: postBody,
+        postType: cleanText(body.postType, "Update") || "Update",
       },
     });
 
