@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Area,
   AreaChart,
@@ -9,7 +17,6 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
-  Legend,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -19,15 +26,85 @@ import {
 } from "recharts";
 
 type ViewMode =
-  | "dashboard"
-  | "forecast"
+  | "prediction"
+  | "trader"
+  | "patterns"
   | "technicals"
+  | "scenarios"
+  | "options"
   | "compare"
+  | "tradingview"
+  | "pine"
   | "platform"
   | "data";
 
 type ConfidenceLevel = 68 | 80 | 90 | 95 | 99;
 type HorizonSteps = 5 | 10 | 20 | 30;
+
+type TraderStyle =
+  | "Momentum Continuation"
+  | "Breakout"
+  | "Pullback"
+  | "Mean Reversion"
+  | "Gap / Fade"
+  | "Risk-Off Defense";
+
+type TraderHorizon = "Scalp" | "Intraday" | "Swing";
+type RiskProfile = "Conservative" | "Balanced" | "Aggressive";
+
+type DrawTool =
+  | "trendline"
+  | "channel"
+  | "support"
+  | "resistance"
+  | "zone"
+  | "arrow";
+
+type OptionStrategy =
+  | "Long Call"
+  | "Long Put"
+  | "Bull Call Spread"
+  | "Bear Put Spread"
+  | "Protective Put"
+  | "Covered Call";
+
+type PointPct = {
+  x: number;
+  y: number;
+};
+
+type PatternOverlay = {
+  id: string;
+  type: DrawTool;
+  label: string;
+  color: string;
+  start: PointPct;
+  end: PointPct;
+  createdAt: string;
+};
+
+type PatternAnalysis = {
+  id: string;
+  label: string;
+  type: DrawTool;
+  levelText: string;
+  matchScore: number;
+  status: string;
+  explanation: string;
+  tone: Tone;
+};
+
+type PineProject = {
+  id: string;
+  name: string;
+  symbol: string;
+  notes: string;
+  code: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
 
 type Candle = {
   date: string;
@@ -57,13 +134,6 @@ type Candle = {
   rangePct: number | null;
 };
 
-type CompareOverlayPoint = Candle & {
-  compareClose: number | null;
-  primaryReturnPct: number | null;
-  compareReturnPct: number | null;
-  spreadPct: number | null;
-};
-
 type ForecastChartPoint = {
   label: string;
   close: number | null;
@@ -72,6 +142,16 @@ type ForecastChartPoint = {
   upper: number | null;
   bearish: number | null;
   bullish: number | null;
+};
+
+type PredictivePoint = {
+  step: number;
+  label: string;
+  projected: number;
+  lower: number;
+  upper: number;
+  bearish: number;
+  bullish: number;
 };
 
 type MarketVisualPayload = {
@@ -195,26 +275,24 @@ type MarketVisualPayload = {
   };
 };
 
-type PredictivePoint = {
-  step: number;
-  label: string;
-  projected: number;
-  lower: number;
-  upper: number;
-  bearish: number;
-  bullish: number;
-};
-
-type PredictiveAnalysis = {
+type TraderPrediction = {
   currentPrice: number;
+  directionalBias: "Bullish" | "Bearish" | "Neutral" | "Mixed";
+  tradeSignal:
+    | "Long Watch"
+    | "Short Watch"
+    | "Breakout Watch"
+    | "Pullback Watch"
+    | "Mean Reversion Watch"
+    | "Wait / No Trade";
+  setupGrade: "A+" | "A" | "B+" | "B" | "C" | "Avoid";
+  setupQuality: number;
   confidenceLevel: ConfidenceLevel;
-  zScore: number;
-  horizonSteps: HorizonSteps;
-  projectedFinal: number;
-  lowerFinal: number;
-  upperFinal: number;
+  modelQualityScore: number;
+  dataScore: number;
   probabilityUp: number;
   probabilityDown: number;
+  probabilityContinuation: number;
   expectedMovePct: number;
   downsideMovePct: number;
   upsideMovePct: number;
@@ -222,21 +300,108 @@ type PredictiveAnalysis = {
   ewmaVolatility: number;
   realisedVolatility: number;
   atrPct: number;
-  trendSlopePct: number;
+  atrDollars: number;
+  rangePct: number;
+  volumeRatio: number;
+  volumeScore: number;
+  liquidityScore: number;
+  trendScore: number;
   momentumScore: number;
+  meanReversionScore: number;
+  breakoutScore: number;
+  pullbackScore: number;
+  volatilityScore: number;
+  tapeScore: number;
+  riskScore: number;
+  squeezeScore: number;
+  maStackScore: number;
+  vwapDistancePct: number;
+  bollingerPosition: number | null;
+  rsi: number | null;
+  macdHistogram: number | null;
+  support: number;
+  resistance: number;
+  pivot: number;
+  entryLow: number;
+  entryHigh: number;
+  stopLoss: number;
+  target1: number;
+  target2: number;
+  invalidation: string;
+  riskReward1: number;
+  riskReward2: number;
   volatilityRegime: "Low" | "Normal" | "Elevated" | "Extreme";
-  modelQualityScore: number;
+  scenarioMatrix: Array<{
+    name: string;
+    probability: number;
+    target: number;
+    movePct: number;
+    trigger: string;
+    action: string;
+  }>;
   forecast: PredictivePoint[];
   explanation: string[];
+  report: string[];
+  executionPlan: string[];
+  dataChecklist: Array<{
+    name: string;
+    value: string;
+    score: number;
+    tone: Tone;
+  }>;
+};
+
+type OptionScenario = {
+  strategy: OptionStrategy;
+  contractMultiplier: number;
+  contracts: number;
+  netPremium: number;
+  breakeven: number | null;
+  maxLossText: string;
+  maxProfitText: string;
+  payoffData: Array<{
+    price: number;
+    profit: number;
+    intrinsic: number;
+  }>;
+  summary: string[];
+};
+
+type PinePreview = {
+  features: Array<{
+    name: string;
+    enabled: boolean;
+    note: string;
+    tone: Tone;
+  }>;
+  previewData: Array<{
+    label: string;
+    close: number;
+    emaFast: number | null;
+    emaSlow: number | null;
+    vwap: number | null;
+    rsi: number | null;
+    bullSignal: number | null;
+    bearSignal: number | null;
+  }>;
+  signalCount: number;
+  latestSignal: string;
+  previewScore: number;
+  warnings: string[];
 };
 
 const VIEW_TABS: Array<{ id: ViewMode; label: string; description: string }> = [
-  { id: "dashboard", label: "Dashboard", description: "Realistic price view" },
-  { id: "forecast", label: "Forecast", description: "Confidence engine" },
-  { id: "technicals", label: "Technicals", description: "RSI, MACD, MA stack" },
-  { id: "compare", label: "Compare", description: "Relative performance" },
+  { id: "prediction", label: "Prediction", description: "Trader-grade forecast" },
+  { id: "trader", label: "Trader Setup", description: "Entry, stop, target" },
+  { id: "patterns", label: "Pattern Lab", description: "Draw overlays" },
+  { id: "technicals", label: "Technicals", description: "RSI, MACD, VWAP, MA" },
+  { id: "scenarios", label: "Scenarios", description: "Bull, bear, base cases" },
+  { id: "options", label: "Options Lab", description: "Calls, puts, payoff" },
+  { id: "compare", label: "Compare", description: "Relative strength" },
+  { id: "tradingview", label: "TradingView", description: "Chart + Pine side panel" },
+  { id: "pine", label: "Pine Lab", description: "Save Pine scripts" },
   { id: "platform", label: "Platform Intel", description: "Alerts and signals" },
-  { id: "data", label: "Data", description: "Full candle table" },
+  { id: "data", label: "Data", description: "Candle table" },
 ];
 
 const BAR_COLORS = [
@@ -248,6 +413,15 @@ const BAR_COLORS = [
   "#3b82f6",
   "#ec4899",
 ];
+
+const PATTERN_COLORS = {
+  trendline: "#06b6d4",
+  channel: "#a855f7",
+  support: "#22c55e",
+  resistance: "#ef4444",
+  zone: "#f59e0b",
+  arrow: "#ffffff",
+};
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -399,211 +573,45 @@ function zScoreForConfidence(confidence: ConfidenceLevel) {
   return scores[confidence];
 }
 
-function buildPredictiveAnalysis(
-  candles: Candle[],
-  confidenceLevel: ConfidenceLevel,
-  horizonSteps: HorizonSteps,
-  providerQualityScore: number,
-  backendModelConfidence: number
-): PredictiveAnalysis | null {
-  const clean = candles.filter(
-    (candle) => Number.isFinite(candle.close) && candle.close > 0
-  );
-
-  if (clean.length < 20) return null;
-
-  const closes = clean.map((candle) => candle.close);
-  const latest = clean[clean.length - 1];
-  const currentPrice = latest.close;
-  const returns = closes
-    .slice(1)
-    .map((close, index) => Math.log(close / closes[index]));
-  const recentReturns = returns.slice(-100);
-  const shortReturns = returns.slice(-20);
-  const longReturns = returns.slice(-200);
-
-  const realisedVolatility = standardDeviation(recentReturns);
-  const shortVolatility = standardDeviation(shortReturns);
-  const longVolatility = standardDeviation(
-    longReturns.length ? longReturns : recentReturns
-  );
-  const ewmaVol = ewmaVolatility(recentReturns);
-  const atrPct = averageTrueRangePct(clean);
-  const zScore = zScoreForConfidence(confidenceLevel);
-
-  const logCloses = closes.slice(-100).map((close) => Math.log(close));
-  const trendSlope = regressionSlope(logCloses);
-  const trendSlopePct = Math.exp(trendSlope) - 1;
-
-  const latestRsi = latest.rsi14 ?? 50;
-  const rsiAdjustment = clamp((latestRsi - 50) / 50, -1, 1) * 0.0015;
-  const macdAdjustment = latest.macdHistogram
-    ? clamp(latest.macdHistogram / currentPrice, -0.006, 0.006)
-    : 0;
-  const vwapAdjustment =
-    latest.vwap && latest.vwap > 0
-      ? clamp((currentPrice - latest.vwap) / latest.vwap, -0.035, 0.035) *
-        0.08
-      : 0;
-  const longMaAdjustment =
-    latest.sma200 && latest.sma200 > 0
-      ? clamp((currentPrice - latest.sma200) / latest.sma200, -0.08, 0.08) *
-        0.035
-      : 0;
-  const meanReversionAdjustment =
-    latest.sma20 && latest.sma20 > 0
-      ? clamp((latest.sma20 - currentPrice) / currentPrice, -0.05, 0.05) *
-        0.05
-      : 0;
-
-  const weightedDrift =
-    exponentialWeightedMean(recentReturns) * 0.32 +
-    mean(shortReturns) * 0.18 +
-    trendSlopePct * 0.22 +
-    rsiAdjustment +
-    macdAdjustment +
-    vwapAdjustment +
-    longMaAdjustment +
-    meanReversionAdjustment;
-
-  const driftPerStep = clamp(weightedDrift, -0.035, 0.035);
-  const baseSigma = Math.max(
-    ewmaVol,
-    realisedVolatility * 0.85,
-    atrPct * 0.45,
-    0.001
-  );
-
-  const regimeRatio = longVolatility > 0 ? shortVolatility / longVolatility : 1;
-  const volatilityRegime: PredictiveAnalysis["volatilityRegime"] =
-    regimeRatio >= 1.8
-      ? "Extreme"
-      : regimeRatio >= 1.25
-        ? "Elevated"
-        : regimeRatio <= 0.7
-          ? "Low"
-          : "Normal";
-
-  const regimeMultiplier =
-    volatilityRegime === "Extreme"
-      ? 1.35
-      : volatilityRegime === "Elevated"
-        ? 1.15
-        : volatilityRegime === "Low"
-          ? 0.9
-          : 1;
-
-  const sigma = baseSigma * regimeMultiplier;
-
-  const modelQualityScore = Math.round(
-    clamp(
-      providerQualityScore * 0.34 +
-        backendModelConfidence * 0.24 +
-        clamp(clean.length / 220, 0, 1) * 22 +
-        clamp(1 - Math.min(regimeRatio, 2.5) / 2.5, 0, 1) * 10 +
-        (latest.rsi14 !== null ? 4 : 0) +
-        (latest.vwap !== null ? 3 : 0) +
-        (latest.sma200 !== null ? 5 : 0),
-      15,
-      98
-    )
-  );
-
-  const forecast: PredictivePoint[] = Array.from({ length: horizonSteps }).map(
-    (_, index) => {
-      const step = index + 1;
-      const expectedLogPrice = Math.log(currentPrice) + driftPerStep * step;
-      const sigmaStep = sigma * Math.sqrt(step);
-      const projected = Math.exp(expectedLogPrice);
-      const lower = Math.exp(expectedLogPrice - zScore * sigmaStep);
-      const upper = Math.exp(expectedLogPrice + zScore * sigmaStep);
-
-      return {
-        step,
-        label: `+${step}`,
-        projected,
-        lower,
-        upper,
-        bearish: Math.exp(expectedLogPrice - 0.65 * zScore * sigmaStep),
-        bullish: Math.exp(expectedLogPrice + 0.65 * zScore * sigmaStep),
-      };
-    }
-  );
-
-  const finalPoint = forecast[forecast.length - 1];
-  const finalSigma = sigma * Math.sqrt(horizonSteps);
-  const probabilityUp = normalCdf(
-    (Math.log(currentPrice) +
-      driftPerStep * horizonSteps -
-      Math.log(currentPrice)) /
-      Math.max(finalSigma, 0.0001)
-  );
-
-  const momentumScore = Math.round(
-    clamp(
-      50 +
-        (latestRsi - 50) * 0.42 +
-        (latest.macdHistogram
-          ? clamp(latest.macdHistogram / currentPrice, -0.03, 0.03) * 500
-          : 0) +
-        (latest.vwap && currentPrice > latest.vwap
-          ? 7
-          : latest.vwap && currentPrice < latest.vwap
-            ? -7
-            : 0) +
-        (latest.sma50 && latest.sma200 && latest.sma50 > latest.sma200
-          ? 10
-          : latest.sma50 && latest.sma200 && latest.sma50 < latest.sma200
-            ? -10
-            : 0),
-      0,
-      100
-    )
-  );
-
-  return {
-    currentPrice,
-    confidenceLevel,
-    zScore,
-    horizonSteps,
-    projectedFinal: finalPoint.projected,
-    lowerFinal: finalPoint.lower,
-    upperFinal: finalPoint.upper,
-    probabilityUp: probabilityUp * 100,
-    probabilityDown: (1 - probabilityUp) * 100,
-    expectedMovePct: (finalPoint.projected / currentPrice - 1) * 100,
-    downsideMovePct: (finalPoint.lower / currentPrice - 1) * 100,
-    upsideMovePct: (finalPoint.upper / currentPrice - 1) * 100,
-    driftPerStep,
-    ewmaVolatility: sigma,
-    realisedVolatility,
-    atrPct,
-    trendSlopePct,
-    momentumScore,
-    volatilityRegime,
-    modelQualityScore,
-    forecast,
-    explanation: [
-      "EWMA volatility weights recent candles more heavily so the range adapts faster to current volatility.",
-      "Expected path blends weighted return drift, regression trend slope, RSI, MACD, VWAP distance, 200-period trend pressure, and mean reversion.",
-      "The 200-period moving average is used as a long-term trend anchor when enough history exists.",
-      "The confidence range is log-normal, so lower and upper bands scale with volatility and selected confidence interval.",
-      "Model quality falls when data volume is thin, provider quality is weak, or volatility regime is unstable.",
-    ],
-  };
+function recentHigh(candles: Candle[], lookback = 20) {
+  const recent = candles.slice(-lookback);
+  if (!recent.length) return 0;
+  return Math.max(...recent.map((candle) => candle.high));
 }
 
-function toneFor(
-  value: string | number
-): "red" | "green" | "amber" | "purple" | "cyan" | "slate" {
+function recentLow(candles: Candle[], lookback = 20) {
+  const recent = candles.slice(-lookback);
+  if (!recent.length) return 0;
+  return Math.min(...recent.map((candle) => candle.low));
+}
+
+function setupGrade(score: number): TraderPrediction["setupGrade"] {
+  if (score >= 92) return "A+";
+  if (score >= 84) return "A";
+  if (score >= 76) return "B+";
+  if (score >= 66) return "B";
+  if (score >= 54) return "C";
+  return "Avoid";
+}
+
+function volatilityRegimeFromRatio(ratio: number): TraderPrediction["volatilityRegime"] {
+  if (ratio >= 1.8) return "Extreme";
+  if (ratio >= 1.25) return "Elevated";
+  if (ratio <= 0.7) return "Low";
+  return "Normal";
+}
+
+function toneFor(value: string | number): Tone {
   const text = String(value).toLowerCase();
+  const numeric = typeof value === "number" ? value : Number.NaN;
 
   if (
     text.includes("fresh") ||
     text.includes("live") ||
     text.includes("bullish") ||
     text.includes("ready") ||
-    text.includes("positive")
+    text.includes("positive") ||
+    (!Number.isNaN(numeric) && numeric >= 75)
   ) {
     return "green";
   }
@@ -614,7 +622,8 @@ function toneFor(
     text.includes("closed") ||
     text.includes("bearish") ||
     text.includes("missing") ||
-    text.includes("negative")
+    text.includes("negative") ||
+    (!Number.isNaN(numeric) && numeric < 45)
   ) {
     return "red";
   }
@@ -624,7 +633,8 @@ function toneFor(
     text.includes("warning") ||
     text.includes("market closed") ||
     text.includes("elevated") ||
-    text.includes("overbought")
+    text.includes("overbought") ||
+    (!Number.isNaN(numeric) && numeric >= 45 && numeric < 75)
   ) {
     return "amber";
   }
@@ -648,21 +658,1147 @@ function toneFor(
   return "slate";
 }
 
-function changeTone(value: number | null | undefined): "red" | "green" | "slate" {
+function changeTone(value: number | null | undefined): Tone {
   if (value === null || value === undefined) return "slate";
   if (value > 0) return "green";
   if (value < 0) return "red";
   return "slate";
 }
 
+function buildTraderPrediction(input: {
+  candles: Candle[];
+  confidenceLevel: ConfidenceLevel;
+  horizonSteps: HorizonSteps;
+  providerQualityScore: number;
+  backendModelConfidence: number;
+  traderStyle: TraderStyle;
+  traderHorizon: TraderHorizon;
+  riskProfile: RiskProfile;
+  catalystText: string;
+}): TraderPrediction | null {
+  const clean = input.candles.filter(
+    (candle) => Number.isFinite(candle.close) && candle.close > 0
+  );
+
+  if (clean.length < 25) return null;
+
+  const closes = clean.map((candle) => candle.close);
+  const latest = clean[clean.length - 1];
+  const currentPrice = latest.close;
+  const previous = clean[clean.length - 2] ?? latest;
+  const returns = closes
+    .slice(1)
+    .map((close, index) => Math.log(close / closes[index]));
+
+  const recentReturns = returns.slice(-100);
+  const shortReturns = returns.slice(-20);
+  const lastFiveReturns = returns.slice(-5);
+  const longReturns = returns.slice(-200);
+
+  const realisedVolatility = standardDeviation(recentReturns);
+  const shortVolatility = standardDeviation(shortReturns);
+  const longVolatility = standardDeviation(
+    longReturns.length ? longReturns : recentReturns
+  );
+  const ewmaVol = ewmaVolatility(recentReturns);
+  const atrPctFromRange = averageTrueRangePct(clean);
+  const atrDollars = latest.atr14 ?? atrPctFromRange * currentPrice;
+  const atrPct = currentPrice > 0 ? (atrDollars / currentPrice) * 100 : 0;
+  const zScore = zScoreForConfidence(input.confidenceLevel);
+
+  const logCloses = closes.slice(-100).map((close) => Math.log(close));
+  const trendSlope = regressionSlope(logCloses);
+  const trendSlopePct = Math.exp(trendSlope) - 1;
+
+  const latestRsi = latest.rsi14 ?? 50;
+  const macdHistogram = latest.macdHistogram ?? 0;
+  const volumeRatio =
+    latest.volumeSma20 && latest.volumeSma20 > 0
+      ? latest.volume / latest.volumeSma20
+      : 1;
+  const vwapDistancePct =
+    latest.vwap && latest.vwap > 0
+      ? ((currentPrice - latest.vwap) / latest.vwap) * 100
+      : 0;
+
+  const resistance = Math.max(recentHigh(clean, 20), currentPrice);
+  const support = Math.min(recentLow(clean, 20), currentPrice);
+  const pivot = (latest.high + latest.low + latest.close) / 3;
+  const dailyRangePct =
+    currentPrice > 0 ? ((latest.high - latest.low) / currentPrice) * 100 : 0;
+  const gapPct =
+    previous.close > 0 ? ((latest.open - previous.close) / previous.close) * 100 : 0;
+
+  const bollingerPosition =
+    latest.bollingerUpper !== null &&
+    latest.bollingerLower !== null &&
+    latest.bollingerUpper > latest.bollingerLower
+      ? ((currentPrice - latest.bollingerLower) /
+          (latest.bollingerUpper - latest.bollingerLower)) *
+        100
+      : null;
+
+  const maChecks = [
+    latest.ema9 && currentPrice > latest.ema9,
+    latest.ema21 && currentPrice > latest.ema21,
+    latest.sma20 && currentPrice > latest.sma20,
+    latest.sma50 && currentPrice > latest.sma50,
+    latest.sma100 && currentPrice > latest.sma100,
+    latest.sma200 && currentPrice > latest.sma200,
+    latest.sma50 && latest.sma200 && latest.sma50 > latest.sma200,
+  ].filter((item) => item !== null && item !== undefined);
+
+  const maStackScore = clamp(
+    (maChecks.filter(Boolean).length / Math.max(1, maChecks.length)) * 100,
+    0,
+    100
+  );
+
+  const trendScore = Math.round(
+    clamp(
+      50 +
+        trendSlopePct * 3200 +
+        (maStackScore - 50) * 0.55 +
+        (latest.sma20 && currentPrice > latest.sma20 ? 8 : -4) +
+        (latest.sma50 && currentPrice > latest.sma50 ? 7 : -5),
+      0,
+      100
+    )
+  );
+
+  const momentumScore = Math.round(
+    clamp(
+      50 +
+        (latestRsi - 50) * 0.65 +
+        clamp(macdHistogram / currentPrice, -0.04, 0.04) * 700 +
+        mean(lastFiveReturns) * 2200 +
+        (vwapDistancePct > 0 ? 8 : -5),
+      0,
+      100
+    )
+  );
+
+  const volumeScore = Math.round(
+    clamp(
+      50 + (volumeRatio - 1) * 35 + (latest.volume > previous.volume ? 8 : -3),
+      0,
+      100
+    )
+  );
+
+  const liquidityScore = Math.round(
+    clamp(42 + Math.log10(Math.max(latest.volume, 1)) * 8, 0, 100)
+  );
+
+  const rangeExpansion = dailyRangePct / Math.max(atrPct, 0.01);
+  const volatilityScore = Math.round(
+    clamp(
+      50 + (rangeExpansion - 1) * 18 + (shortVolatility - longVolatility) * 650,
+      0,
+      100
+    )
+  );
+
+  const resistanceDistancePct =
+    currentPrice > 0 ? ((resistance - currentPrice) / currentPrice) * 100 : 0;
+  const supportDistancePct =
+    currentPrice > 0 ? ((currentPrice - support) / currentPrice) * 100 : 0;
+
+  const breakoutScore = Math.round(
+    clamp(
+      45 +
+        (1.8 - Math.min(Math.abs(resistanceDistancePct), 1.8)) * 16 +
+        (volumeScore - 50) * 0.38 +
+        (momentumScore - 50) * 0.32 +
+        (trendScore - 50) * 0.24,
+      0,
+      100
+    )
+  );
+
+  const pullbackScore = Math.round(
+    clamp(
+      45 +
+        (trendScore - 50) * 0.35 +
+        (latest.ema21
+          ? (1.8 - Math.min(Math.abs(vwapDistancePct), 1.8)) * 8
+          : 0) +
+        (latestRsi >= 38 && latestRsi <= 58 ? 16 : -7) +
+        (supportDistancePct <= atrPct * 1.2 ? 10 : 0),
+      0,
+      100
+    )
+  );
+
+  const meanReversionScore = Math.round(
+    clamp(
+      50 +
+        (latestRsi < 35 ? 24 : latestRsi > 68 ? 18 : -4) +
+        (bollingerPosition !== null && bollingerPosition <= 12 ? 20 : 0) +
+        (bollingerPosition !== null && bollingerPosition >= 88 ? 16 : 0) +
+        (Math.abs(vwapDistancePct) > 2 ? 10 : 0) -
+        (volumeRatio > 1.8 ? 8 : 0),
+      0,
+      100
+    )
+  );
+
+  const squeezeScore = Math.round(
+    clamp(
+      50 +
+        (latest.bollingerUpper && latest.bollingerLower
+          ? (1 -
+              clamp(
+                (latest.bollingerUpper - latest.bollingerLower) / currentPrice,
+                0,
+                0.18
+              ) /
+                0.18) *
+            38
+          : 0) +
+        (volumeRatio > 1.1 ? 8 : -4),
+      0,
+      100
+    )
+  );
+
+  const tapeScore = Math.round(
+    clamp(
+      50 +
+        (latest.close > latest.open ? 12 : -10) +
+        (latest.close > pivot ? 8 : -6) +
+        (latest.close > previous.close ? 8 : -7) +
+        (vwapDistancePct > 0 ? 10 : -8) +
+        (volumeRatio > 1.25 ? 7 : 0),
+      0,
+      100
+    )
+  );
+
+  const riskScore = Math.round(
+    clamp(
+      100 -
+        atrPct * 7 -
+        Math.abs(gapPct) * 3 -
+        (input.providerQualityScore < 65 ? 12 : 0) -
+        (input.traderHorizon === "Scalp" && input.providerQualityScore < 85 ? 12 : 0) -
+        (volumeRatio < 0.7 ? 7 : 0),
+      0,
+      100
+    )
+  );
+
+  const catalystText = input.catalystText.toLowerCase();
+  const catalystBoost =
+    catalystText.includes("earnings") ||
+    catalystText.includes("upgrade") ||
+    catalystText.includes("guidance") ||
+    catalystText.includes("contract") ||
+    catalystText.includes("ai") ||
+    catalystText.includes("fed")
+      ? 6
+      : 0;
+
+  const styleScore =
+    input.traderStyle === "Momentum Continuation"
+      ? momentumScore * 0.32 +
+        trendScore * 0.28 +
+        tapeScore * 0.2 +
+        volumeScore * 0.2
+      : input.traderStyle === "Breakout"
+        ? breakoutScore * 0.36 +
+          volumeScore * 0.24 +
+          momentumScore * 0.22 +
+          squeezeScore * 0.18
+        : input.traderStyle === "Pullback"
+          ? pullbackScore * 0.42 +
+            trendScore * 0.28 +
+            riskScore * 0.18 +
+            tapeScore * 0.12
+          : input.traderStyle === "Mean Reversion"
+            ? meanReversionScore * 0.45 +
+              riskScore * 0.22 +
+              volumeScore * 0.16 +
+              tapeScore * 0.17
+            : input.traderStyle === "Gap / Fade"
+              ? meanReversionScore * 0.34 +
+                Math.min(Math.abs(gapPct) * 12, 30) +
+                riskScore * 0.22 +
+                tapeScore * 0.12
+              : riskScore * 0.36 +
+                trendScore * 0.18 +
+                volumeScore * 0.16 +
+                tapeScore * 0.16 +
+                meanReversionScore * 0.14;
+
+  const riskAdjustment =
+    input.riskProfile === "Conservative"
+      ? -4
+      : input.riskProfile === "Aggressive"
+        ? 4
+        : 0;
+
+  const setupQuality = Math.round(
+    clamp(
+      styleScore * 0.55 +
+        trendScore * 0.12 +
+        momentumScore * 0.1 +
+        volumeScore * 0.08 +
+        tapeScore * 0.08 +
+        riskScore * 0.07 +
+        catalystBoost +
+        riskAdjustment,
+      0,
+      100
+    )
+  );
+
+  const directionalBias: TraderPrediction["directionalBias"] =
+    trendScore >= 62 && momentumScore >= 55 && tapeScore >= 53
+      ? "Bullish"
+      : trendScore <= 42 && momentumScore <= 45 && tapeScore <= 47
+        ? "Bearish"
+        : Math.abs(momentumScore - 50) < 8 && Math.abs(trendScore - 50) < 12
+          ? "Neutral"
+          : "Mixed";
+
+  const tradeSignal: TraderPrediction["tradeSignal"] =
+    setupQuality < 54 || riskScore < 34
+      ? "Wait / No Trade"
+      : input.traderStyle === "Breakout"
+        ? "Breakout Watch"
+        : input.traderStyle === "Pullback"
+          ? "Pullback Watch"
+          : input.traderStyle === "Mean Reversion" || input.traderStyle === "Gap / Fade"
+            ? "Mean Reversion Watch"
+            : directionalBias === "Bearish"
+              ? "Short Watch"
+              : directionalBias === "Bullish"
+                ? "Long Watch"
+                : "Wait / No Trade";
+
+  const rsiAdjustment = clamp((latestRsi - 50) / 50, -1, 1) * 0.0018;
+  const macdAdjustment = clamp(macdHistogram / currentPrice, -0.006, 0.006);
+  const vwapAdjustment = clamp(vwapDistancePct / 100, -0.035, 0.035) * 0.12;
+  const maAdjustment = (maStackScore - 50) / 10000;
+  const styleDrift =
+    tradeSignal.includes("Long") ||
+    tradeSignal.includes("Breakout") ||
+    tradeSignal.includes("Pullback")
+      ? setupQuality / 100000
+      : tradeSignal.includes("Short")
+        ? -setupQuality / 100000
+        : 0;
+
+  const driftPerStep = clamp(
+    exponentialWeightedMean(recentReturns) * 0.3 +
+      mean(shortReturns) * 0.2 +
+      trendSlopePct * 0.24 +
+      rsiAdjustment +
+      macdAdjustment +
+      vwapAdjustment +
+      maAdjustment +
+      styleDrift,
+    -0.04,
+    0.04
+  );
+
+  const longVolatilityRatio =
+    longVolatility > 0 ? shortVolatility / longVolatility : 1;
+  const volatilityRegime = volatilityRegimeFromRatio(longVolatilityRatio);
+  const regimeMultiplier =
+    volatilityRegime === "Extreme"
+      ? 1.35
+      : volatilityRegime === "Elevated"
+        ? 1.15
+        : volatilityRegime === "Low"
+          ? 0.88
+          : 1;
+
+  const sigma = Math.max(
+    ewmaVol,
+    realisedVolatility * 0.85,
+    atrPctFromRange * 0.45,
+    0.001
+  ) * regimeMultiplier;
+
+  const forecast: PredictivePoint[] = Array.from({ length: input.horizonSteps }).map(
+    (_, index) => {
+      const step = index + 1;
+      const expectedLogPrice = Math.log(currentPrice) + driftPerStep * step;
+      const sigmaStep = sigma * Math.sqrt(step);
+      const projected = Math.exp(expectedLogPrice);
+      const lower = Math.exp(expectedLogPrice - zScore * sigmaStep);
+      const upper = Math.exp(expectedLogPrice + zScore * sigmaStep);
+
+      return {
+        step,
+        label: `+${step}`,
+        projected,
+        lower,
+        upper,
+        bearish: Math.exp(expectedLogPrice - 0.65 * zScore * sigmaStep),
+        bullish: Math.exp(expectedLogPrice + 0.65 * zScore * sigmaStep),
+      };
+    }
+  );
+
+  const finalPoint = forecast[forecast.length - 1];
+  const finalSigma = sigma * Math.sqrt(input.horizonSteps);
+  const probabilityUp = normalCdf(
+    (Math.log(currentPrice) +
+      driftPerStep * input.horizonSteps -
+      Math.log(currentPrice)) /
+      Math.max(finalSigma, 0.0001)
+  );
+
+  const longSetup =
+    tradeSignal === "Long Watch" ||
+    tradeSignal === "Breakout Watch" ||
+    tradeSignal === "Pullback Watch";
+
+  const shortSetup = tradeSignal === "Short Watch";
+
+  const entryLow = longSetup
+    ? currentPrice - atrDollars * 0.25
+    : shortSetup
+      ? currentPrice - atrDollars * 0.15
+      : currentPrice - atrDollars * 0.35;
+
+  const entryHigh = longSetup
+    ? currentPrice + atrDollars * 0.35
+    : shortSetup
+      ? currentPrice + atrDollars * 0.25
+      : currentPrice + atrDollars * 0.35;
+
+  const stopLoss = longSetup
+    ? Math.min(support - atrDollars * 0.35, currentPrice - atrDollars * 1.1)
+    : shortSetup
+      ? Math.max(resistance + atrDollars * 0.35, currentPrice + atrDollars * 1.1)
+      : currentPrice - atrDollars;
+
+  const target1 = longSetup
+    ? currentPrice + atrDollars * 1.45
+    : shortSetup
+      ? currentPrice - atrDollars * 1.45
+      : currentPrice + atrDollars;
+
+  const target2 = longSetup
+    ? currentPrice + atrDollars * 2.5
+    : shortSetup
+      ? currentPrice - atrDollars * 2.5
+      : currentPrice + atrDollars * 1.8;
+
+  const riskPerShare = Math.max(Math.abs(currentPrice - stopLoss), 0.0001);
+  const riskReward1 = Math.abs(target1 - currentPrice) / riskPerShare;
+  const riskReward2 = Math.abs(target2 - currentPrice) / riskPerShare;
+
+  const modelQualityScore = Math.round(
+    clamp(
+      input.providerQualityScore * 0.28 +
+        input.backendModelConfidence * 0.2 +
+        clamp(clean.length / 240, 0, 1) * 18 +
+        riskScore * 0.14 +
+        liquidityScore * 0.1 +
+        (latest.rsi14 !== null ? 4 : 0) +
+        (latest.vwap !== null ? 4 : 0) +
+        (latest.sma200 !== null ? 5 : 0) +
+        (input.traderHorizon === "Scalp" && input.providerQualityScore < 85 ? -8 : 4),
+      15,
+      98
+    )
+  );
+
+  const probabilityContinuation = clamp(
+    ((trendScore * 0.28 +
+      momentumScore * 0.28 +
+      tapeScore * 0.22 +
+      volumeScore * 0.12 +
+      breakoutScore * 0.1) /
+      100) *
+      100,
+    0,
+    100
+  );
+
+  const scenarioMatrix = [
+    {
+      name: "Base Case",
+      probability: Math.round(probabilityUp * 100),
+      target: finalPoint.projected,
+      movePct: (finalPoint.projected / currentPrice - 1) * 100,
+      trigger: "Price respects VWAP / pivot and volume remains constructive.",
+      action:
+        setupQuality >= 66
+          ? "Plan entry only after confirmation."
+          : "Wait for cleaner confirmation.",
+    },
+    {
+      name: "Bull Breakout",
+      probability: Math.round(clamp(probabilityContinuation, 5, 95)),
+      target: Math.max(target2, finalPoint.bullish),
+      movePct: (Math.max(target2, finalPoint.bullish) / currentPrice - 1) * 100,
+      trigger: `Break and hold above ${money(resistance)} with volume > 1.25x average.`,
+      action: "Watch breakout confirmation and avoid chasing extended candles.",
+    },
+    {
+      name: "Bear Rejection",
+      probability: Math.round((1 - probabilityUp) * 100),
+      target: Math.min(stopLoss, finalPoint.bearish),
+      movePct: (Math.min(stopLoss, finalPoint.bearish) / currentPrice - 1) * 100,
+      trigger: `Failure at VWAP/pivot or loss of ${money(support)} support.`,
+      action: "Reduce risk, wait, or monitor short-side setup depending on mandate.",
+    },
+    {
+      name: "Range / Chop",
+      probability: Math.round(
+        clamp(100 - Math.abs(momentumScore - 50) * 1.4, 8, 88)
+      ),
+      target: pivot,
+      movePct: (pivot / currentPrice - 1) * 100,
+      trigger: "Low directional follow-through with mixed RSI/MACD and average volume.",
+      action: "Prefer smaller size, faster exits, or no trade.",
+    },
+  ];
+
+  const report = [
+    `${input.traderStyle} setup for ${input.traderHorizon.toLowerCase()} trading is graded ${setupGrade(setupQuality)} with a ${setupQuality}/100 setup score.`,
+    `Directional bias is ${directionalBias.toLowerCase()} because trend score is ${trendScore}/100, momentum score is ${momentumScore}/100, tape score is ${tapeScore}/100, and volume confirmation is ${volumeScore}/100.`,
+    `The model projects ${percent((finalPoint.projected / currentPrice - 1) * 100)} over ${input.horizonSteps} step(s), with a ${input.confidenceLevel}% confidence range from ${money(finalPoint.lower)} to ${money(finalPoint.upper)}.`,
+    `Support is estimated near ${money(support)} and resistance near ${money(resistance)}. The tactical entry zone is ${money(entryLow)} to ${money(entryHigh)} with invalidation near ${money(stopLoss)}.`,
+    `Risk/reward is approximately ${riskReward1.toFixed(2)}R to target one and ${riskReward2.toFixed(2)}R to target two. A seasoned trader should avoid the setup if confirmation fails or the price violates the invalidation level.`,
+    `This is a probabilistic planning tool, not a guarantee or trade instruction. Fresh live data, spread, liquidity, news, and risk controls must be verified before any real trade.`,
+  ];
+
+  const executionPlan = [
+    "Pre-check: verify the latest tape, news, spread, and volume because stale data ruins short-horizon predictions.",
+    "Confirmation: wait for price acceptance near VWAP/pivot and avoid acting while candles are still expanding erratically.",
+    "Entry: consider the model entry zone only if the setup still scores above 66 and volume confirms the direction.",
+    `Risk: invalidate the setup at ${money(stopLoss)} or if the drawn pattern fails against support/resistance.`,
+    `Management: target one is ${money(target1)}. If price reaches target one with strong tape, trail toward ${money(target2)}; if tape weakens, reduce exposure.`,
+    "Post-trade: record whether the setup matched trend, pattern, and scenario expectations so future scoring can be improved.",
+  ];
+
+  const explanation = [
+    "Prediction uses log-return drift, EWMA volatility, ATR, VWAP distance, RSI, MACD histogram, moving-average stack, volume confirmation, tape quality, and support/resistance proximity.",
+    "The day-trader score changes depending on selected setup style, so breakout, pullback, mean-reversion, and momentum continuation setups are scored differently.",
+    "Volume ratio and VWAP location are weighted more heavily for intraday and scalping decisions because day traders rely on participation and price acceptance.",
+    "ATR and recent range expansion drive the stop, target, and scenario bands so tactical levels adjust when volatility expands.",
+    "Drawn patterns are compared against recent slope, support/resistance proximity, and price position to show whether the chart sketch aligns with live technical structure.",
+  ];
+
+  const dataChecklist: Array<{
+  name: string;
+  value: string;
+  score: number;
+  tone: Tone;
+}> = [
+    {
+      name: "Provider Quality",
+      value: `${input.providerQualityScore}/100`,
+      score: input.providerQualityScore,
+      tone: toneFor(input.providerQualityScore),
+    },
+    {
+      name: "Model Confidence",
+      value: `${input.backendModelConfidence}/100`,
+      score: input.backendModelConfidence,
+      tone: toneFor(input.backendModelConfidence),
+    },
+    {
+      name: "Volume Ratio",
+      value: `${volumeRatio.toFixed(2)}x`,
+      score: volumeScore,
+      tone: volumeRatio >= 1.15 ? "green" : volumeRatio < 0.75 ? "red" : "amber",
+    },
+    {
+      name: "VWAP Distance",
+      value: rawPercent(vwapDistancePct),
+      score: clamp(50 + vwapDistancePct * 8, 0, 100),
+      tone: vwapDistancePct >= 0 ? "green" : "red",
+    },
+    {
+      name: "Risk Score",
+      value: `${riskScore}/100`,
+      score: riskScore,
+      tone: riskScore >= 70 ? "green" : riskScore >= 45 ? "amber" : "red",
+    },
+    {
+      name: "Liquidity",
+      value: `${liquidityScore}/100`,
+      score: liquidityScore,
+      tone: liquidityScore >= 70 ? "green" : liquidityScore >= 45 ? "amber" : "red",
+    },
+  ];
+
+  return {
+    currentPrice,
+    directionalBias,
+    tradeSignal,
+    setupGrade: setupGrade(setupQuality),
+    setupQuality,
+    confidenceLevel: input.confidenceLevel,
+    modelQualityScore,
+    dataScore: Math.round((input.providerQualityScore + modelQualityScore + liquidityScore) / 3),
+    probabilityUp: probabilityUp * 100,
+    probabilityDown: (1 - probabilityUp) * 100,
+    probabilityContinuation,
+    expectedMovePct: (finalPoint.projected / currentPrice - 1) * 100,
+    downsideMovePct: (finalPoint.lower / currentPrice - 1) * 100,
+    upsideMovePct: (finalPoint.upper / currentPrice - 1) * 100,
+    driftPerStep,
+    ewmaVolatility: sigma,
+    realisedVolatility,
+    atrPct,
+    atrDollars,
+    rangePct: dailyRangePct,
+    volumeRatio,
+    volumeScore,
+    liquidityScore,
+    trendScore,
+    momentumScore,
+    meanReversionScore,
+    breakoutScore,
+    pullbackScore,
+    volatilityScore,
+    tapeScore,
+    riskScore,
+    squeezeScore,
+    maStackScore,
+    vwapDistancePct,
+    bollingerPosition,
+    rsi: latest.rsi14,
+    macdHistogram,
+    support,
+    resistance,
+    pivot,
+    entryLow,
+    entryHigh,
+    stopLoss,
+    target1,
+    target2,
+    invalidation:
+      tradeSignal === "Wait / No Trade"
+        ? "No clean tactical setup. Wait for confirmation."
+        : longSetup
+          ? `Invalidated below ${money(stopLoss)} or if price loses VWAP with weak volume.`
+          : shortSetup
+            ? `Invalidated above ${money(stopLoss)} or if price reclaims VWAP/resistance.`
+            : "Invalidated if price expands against the expected mean-reversion path.",
+    riskReward1,
+    riskReward2,
+    volatilityRegime,
+    scenarioMatrix,
+    forecast,
+    explanation,
+    report,
+    executionPlan,
+    dataChecklist,
+  };
+}
+
+function defaultPineCode(symbol: string) {
+  return `//@version=5
+indicator("Slice Trader Overlay - ${symbol.toUpperCase()}", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// Slice-generated Pine project.
+// Copy into TradingView Pine Editor.
+// Slice Preview can simulate common EMA/VWAP/RSI/MACD/ATR behavior inside this platform.
+
+emaFastLen = input.int(9, "Fast EMA")
+emaSlowLen = input.int(21, "Slow EMA")
+smaTrendLen = input.int(50, "Trend SMA")
+rsiLen = input.int(14, "RSI Length")
+atrLen = input.int(14, "ATR Length")
+riskAtr = input.float(1.2, "Stop ATR Multiplier")
+targetAtr = input.float(2.0, "Target ATR Multiplier")
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+smaTrend = ta.sma(close, smaTrendLen)
+rsi = ta.rsi(close, rsiLen)
+atr = ta.atr(atrLen)
+vwapValue = ta.vwap(hlc3)
+
+trendBull = close > emaFast and emaFast > emaSlow and close > smaTrend
+trendBear = close < emaFast and emaFast < emaSlow and close < smaTrend
+momentumBull = rsi > 52 and close > vwapValue
+momentumBear = rsi < 48 and close < vwapValue
+
+longSetup = trendBull and momentumBull
+shortSetup = trendBear and momentumBear
+
+plot(emaFast, "EMA Fast", color=color.new(color.lime, 0), linewidth=2)
+plot(emaSlow, "EMA Slow", color=color.new(color.aqua, 0), linewidth=2)
+plot(smaTrend, "Trend SMA", color=color.new(color.orange, 0), linewidth=2)
+plot(vwapValue, "VWAP", color=color.new(color.purple, 0), linewidth=2)
+
+longStop = close - atr * riskAtr
+longTarget = close + atr * targetAtr
+shortStop = close + atr * riskAtr
+shortTarget = close - atr * targetAtr
+
+plot(longSetup ? longStop : na, "Long Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(longSetup ? longTarget : na, "Long Target", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(shortSetup ? shortStop : na, "Short Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(shortSetup ? shortTarget : na, "Short Target", color=color.new(color.green, 0), style=plot.style_linebr)
+
+plotshape(longSetup, title="Slice Long Watch", style=shape.triangleup, color=color.new(color.green, 0), size=size.small, location=location.belowbar, text="Long")
+plotshape(shortSetup, title="Slice Short Watch", style=shape.triangledown, color=color.new(color.red, 0), size=size.small, location=location.abovebar, text="Short")
+
+alertcondition(longSetup, title="Slice Long Watch", message="Slice long watch setup on {{ticker}}")
+alertcondition(shortSetup, title="Slice Short Watch", message="Slice short watch setup on {{ticker}}")
+`;
+}
+
+function generateAiPine(input: {
+  symbol: string;
+  prompt: string;
+  traderStyle: TraderStyle;
+  traderHorizon: TraderHorizon;
+  prediction: TraderPrediction | null;
+}) {
+  const prompt = input.prompt.toLowerCase();
+  const wantsBreakout =
+    prompt.includes("breakout") || input.traderStyle === "Breakout";
+  const wantsMeanReversion =
+    prompt.includes("mean") ||
+    prompt.includes("reversion") ||
+    input.traderStyle === "Mean Reversion";
+  const wantsPullback =
+    prompt.includes("pullback") || input.traderStyle === "Pullback";
+  const wantsVWAP =
+    prompt.includes("vwap") ||
+    input.traderHorizon === "Scalp" ||
+    input.traderHorizon === "Intraday";
+  const wantsRisk =
+    prompt.includes("risk") ||
+    prompt.includes("stop") ||
+    prompt.includes("target") ||
+    Boolean(input.prediction);
+
+  const setupName = wantsBreakout
+    ? "Breakout"
+    : wantsMeanReversion
+      ? "Mean Reversion"
+      : wantsPullback
+        ? "Pullback"
+        : "Momentum";
+
+  const rsiLong = wantsMeanReversion ? 38 : wantsBreakout ? 55 : 52;
+  const rsiShort = wantsMeanReversion ? 62 : wantsBreakout ? 45 : 48;
+
+  return `//@version=5
+indicator("Slice AI ${setupName} Engine - ${input.symbol.toUpperCase()}", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// Generated inside Slice Market Visuals.
+// Purpose: ${input.prompt || `${input.traderStyle} ${input.traderHorizon} setup`}
+// Note: Copy into TradingView Pine Editor for native TradingView execution.
+
+emaFastLen = input.int(9, "Fast EMA")
+emaSlowLen = input.int(21, "Slow EMA")
+trendLen = input.int(50, "Trend SMA")
+rsiLen = input.int(14, "RSI Length")
+atrLen = input.int(14, "ATR Length")
+volLen = input.int(20, "Volume Avg Length")
+riskAtr = input.float(${wantsRisk ? "1.2" : "1.0"}, "Stop ATR Multiplier")
+targetAtr = input.float(${wantsRisk ? "2.2" : "1.8"}, "Target ATR Multiplier")
+
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+trendSma = ta.sma(close, trendLen)
+rsi = ta.rsi(close, rsiLen)
+atr = ta.atr(atrLen)
+volAvg = ta.sma(volume, volLen)
+volumeConfirm = volume > volAvg * 1.15
+${wantsVWAP ? "vwapValue = ta.vwap(hlc3)" : "vwapValue = ta.vwap(hlc3)"}
+
+highestBreak = ta.highest(high, 20)[1]
+lowestBreak = ta.lowest(low, 20)[1]
+
+trendBull = close > emaFast and emaFast > emaSlow and close > trendSma
+trendBear = close < emaFast and emaFast < emaSlow and close < trendSma
+aboveVwap = close > vwapValue
+belowVwap = close < vwapValue
+
+breakoutLong = close > highestBreak and volumeConfirm and rsi > ${rsiLong}
+breakoutShort = close < lowestBreak and volumeConfirm and rsi < ${rsiShort}
+
+pullbackLong = trendBull and close <= emaFast and close >= emaSlow and rsi > 45 and aboveVwap
+pullbackShort = trendBear and close >= emaFast and close <= emaSlow and rsi < 55 and belowVwap
+
+meanRevLong = rsi < 35 and close < emaSlow and close < vwapValue
+meanRevShort = rsi > 68 and close > emaSlow and close > vwapValue
+
+longSetup = ${
+    wantsBreakout
+      ? "breakoutLong"
+      : wantsMeanReversion
+        ? "meanRevLong"
+        : wantsPullback
+          ? "pullbackLong"
+          : "trendBull and aboveVwap and rsi > 52 and volumeConfirm"
+  }
+shortSetup = ${
+    wantsBreakout
+      ? "breakoutShort"
+      : wantsMeanReversion
+        ? "meanRevShort"
+        : wantsPullback
+          ? "pullbackShort"
+          : "trendBear and belowVwap and rsi < 48 and volumeConfirm"
+  }
+
+longStop = close - atr * riskAtr
+longTarget = close + atr * targetAtr
+shortStop = close + atr * riskAtr
+shortTarget = close - atr * targetAtr
+
+plot(emaFast, "EMA Fast", color=color.new(color.lime, 0), linewidth=2)
+plot(emaSlow, "EMA Slow", color=color.new(color.aqua, 0), linewidth=2)
+plot(trendSma, "Trend SMA", color=color.new(color.orange, 0), linewidth=2)
+plot(vwapValue, "VWAP", color=color.new(color.purple, 0), linewidth=2)
+
+plot(longSetup ? longStop : na, "Long Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(longSetup ? longTarget : na, "Long Target", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(shortSetup ? shortStop : na, "Short Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(shortSetup ? shortTarget : na, "Short Target", color=color.new(color.green, 0), style=plot.style_linebr)
+
+plotshape(longSetup, title="Slice AI Long", style=shape.triangleup, color=color.new(color.green, 0), size=size.small, location=location.belowbar, text="AI Long")
+plotshape(shortSetup, title="Slice AI Short", style=shape.triangledown, color=color.new(color.red, 0), size=size.small, location=location.abovebar, text="AI Short")
+
+alertcondition(longSetup, title="Slice AI Long", message="Slice AI long setup on {{ticker}}")
+alertcondition(shortSetup, title="Slice AI Short", message="Slice AI short setup on {{ticker}}")
+`;
+}
+
+function evaluatePinePreview(code: string, candles: Candle[]): PinePreview {
+  const lower = code.toLowerCase();
+  const usesEma = lower.includes("ta.ema") || lower.includes("ema");
+  const usesSma = lower.includes("ta.sma") || lower.includes("sma");
+  const usesVwap = lower.includes("vwap");
+  const usesRsi = lower.includes("ta.rsi") || lower.includes("rsi");
+  const usesMacd = lower.includes("ta.macd") || lower.includes("macd");
+  const usesAtr = lower.includes("ta.atr") || lower.includes("atr");
+  const usesAlerts = lower.includes("alertcondition");
+  const usesStrategy = lower.includes("strategy(") || lower.includes("strategy.");
+
+  const previewData = candles.slice(-180).map((candle) => {
+    const bull =
+      candle.ema9 !== null &&
+      candle.ema21 !== null &&
+      candle.rsi14 !== null &&
+      candle.vwap !== null &&
+      candle.close > candle.ema9 &&
+      candle.ema9 > candle.ema21 &&
+      candle.rsi14 > 52 &&
+      candle.close > candle.vwap;
+
+    const bear =
+      candle.ema9 !== null &&
+      candle.ema21 !== null &&
+      candle.rsi14 !== null &&
+      candle.vwap !== null &&
+      candle.close < candle.ema9 &&
+      candle.ema9 < candle.ema21 &&
+      candle.rsi14 < 48 &&
+      candle.close < candle.vwap;
+
+    return {
+      label: candle.label,
+      close: candle.close,
+      emaFast: usesEma ? candle.ema9 : null,
+      emaSlow: usesEma ? candle.ema21 : null,
+      vwap: usesVwap ? candle.vwap : null,
+      rsi: usesRsi ? candle.rsi14 : null,
+      bullSignal: bull ? candle.low : null,
+      bearSignal: bear ? candle.high : null,
+    };
+  });
+
+  const signalCount = previewData.filter(
+    (item) => item.bullSignal !== null || item.bearSignal !== null
+  ).length;
+
+  const latestPreviewSignal = [...previewData]
+    .reverse()
+    .find((item) => item.bullSignal || item.bearSignal);
+
+  const latestSignal = latestPreviewSignal
+    ? "Recent signal detected"
+    : "No recent signal detected";
+
+  const featureScore =
+    [usesEma, usesSma, usesVwap, usesRsi, usesMacd, usesAtr, usesAlerts].filter(Boolean)
+      .length * 12;
+
+  const previewScore = clamp(
+    featureScore +
+      (signalCount > 0 ? 12 : 0) +
+      (usesStrategy ? -8 : 0),
+    0,
+    100
+  );
+
+  return {
+    previewData,
+    signalCount,
+    latestSignal,
+    previewScore,
+    warnings: [
+      "Slice Preview recognizes common Pine concepts and simulates them using local candle data.",
+      "It does not compile arbitrary Pine exactly like TradingView. Copy the script into TradingView for native Pine execution.",
+      usesStrategy
+        ? "This script appears to use strategy functions. Slice Preview can visualize signals but not a full TradingView broker emulator."
+        : "Indicator-style scripts are best for Slice Preview.",
+    ],
+    features: [
+      {
+        name: "EMA",
+        enabled: usesEma,
+        note: usesEma ? "EMA overlay detected." : "No EMA logic detected.",
+        tone: usesEma ? "green" : "slate",
+      },
+      {
+        name: "SMA",
+        enabled: usesSma,
+        note: usesSma ? "SMA logic detected." : "No SMA logic detected.",
+        tone: usesSma ? "green" : "slate",
+      },
+      {
+        name: "VWAP",
+        enabled: usesVwap,
+        note: usesVwap ? "VWAP logic detected." : "No VWAP logic detected.",
+        tone: usesVwap ? "green" : "slate",
+      },
+      {
+        name: "RSI",
+        enabled: usesRsi,
+        note: usesRsi ? "RSI filter detected." : "No RSI filter detected.",
+        tone: usesRsi ? "green" : "slate",
+      },
+      {
+        name: "MACD",
+        enabled: usesMacd,
+        note: usesMacd ? "MACD logic detected." : "No MACD logic detected.",
+        tone: usesMacd ? "green" : "slate",
+      },
+      {
+        name: "ATR",
+        enabled: usesAtr,
+        note: usesAtr ? "ATR risk logic detected." : "No ATR logic detected.",
+        tone: usesAtr ? "green" : "slate",
+      },
+      {
+        name: "Alerts",
+        enabled: usesAlerts,
+        note: usesAlerts ? "Alert conditions detected." : "No alert conditions detected.",
+        tone: usesAlerts ? "green" : "amber",
+      },
+    ],
+  };
+}
+
+function buildOptionScenario(input: {
+  strategy: OptionStrategy;
+  currentPrice: number;
+  strike: number;
+  premium: number;
+  strike2: number;
+  premium2: number;
+  contracts: number;
+}): OptionScenario {
+  const multiplier = 100;
+  const contracts = Math.max(1, input.contracts || 1);
+  const start = input.currentPrice * 0.75;
+  const end = input.currentPrice * 1.25;
+  const step = (end - start) / 40;
+
+  const payoffPerShare = (price: number) => {
+    const call = Math.max(price - input.strike, 0);
+    const put = Math.max(input.strike - price, 0);
+    const call2 = Math.max(price - input.strike2, 0);
+    const put2 = Math.max(input.strike2 - price, 0);
+
+    if (input.strategy === "Long Call") return call - input.premium;
+    if (input.strategy === "Long Put") return put - input.premium;
+    if (input.strategy === "Bull Call Spread") {
+      return call - call2 - (input.premium - input.premium2);
+    }
+    if (input.strategy === "Bear Put Spread") {
+      return put - put2 - (input.premium - input.premium2);
+    }
+    if (input.strategy === "Protective Put") {
+      return price - input.currentPrice + put - input.premium;
+    }
+    if (input.strategy === "Covered Call") {
+      return price - input.currentPrice - call + input.premium;
+    }
+
+    return 0;
+  };
+
+  const payoffData = Array.from({ length: 41 }).map((_, index) => {
+    const price = start + step * index;
+    const perShare = payoffPerShare(price);
+    const profit = perShare * multiplier * contracts;
+
+    return {
+      price,
+      profit,
+      intrinsic: perShare,
+    };
+  });
+
+  const profits = payoffData.map((point) => point.profit);
+  const finiteMax = Math.max(...profits);
+  const finiteMin = Math.min(...profits);
+  const debit = input.premium - input.premium2;
+
+  const breakeven =
+    input.strategy === "Long Call"
+      ? input.strike + input.premium
+      : input.strategy === "Long Put"
+        ? input.strike - input.premium
+        : input.strategy === "Bull Call Spread"
+          ? input.strike + debit
+          : input.strategy === "Bear Put Spread"
+            ? input.strike - debit
+            : input.strategy === "Protective Put"
+              ? input.currentPrice + input.premium
+              : input.currentPrice - input.premium;
+
+  const maxLossText =
+    input.strategy === "Long Call" || input.strategy === "Long Put"
+      ? money(input.premium * multiplier * contracts)
+      : input.strategy === "Bull Call Spread" || input.strategy === "Bear Put Spread"
+        ? money(Math.max(debit, 0) * multiplier * contracts)
+        : input.strategy === "Covered Call"
+          ? "Large downside if stock falls materially"
+          : "Limited by stock downside offset by put floor";
+
+  const maxProfitText =
+    input.strategy === "Long Call"
+      ? "Theoretical unlimited"
+      : input.strategy === "Long Put"
+        ? money(Math.max(input.strike - input.premium, 0) * multiplier * contracts)
+        : input.strategy === "Bull Call Spread"
+          ? money(Math.max(input.strike2 - input.strike - debit, 0) * multiplier * contracts)
+          : input.strategy === "Bear Put Spread"
+            ? money(Math.max(input.strike - input.strike2 - debit, 0) * multiplier * contracts)
+            : input.strategy === "Covered Call"
+              ? money(Math.max(input.strike - input.currentPrice + input.premium, 0) * multiplier * contracts)
+              : "Stock upside remains, put protects downside";
+
+  return {
+    strategy: input.strategy,
+    contractMultiplier: multiplier,
+    contracts,
+    netPremium: debit,
+    breakeven,
+    maxLossText,
+    maxProfitText,
+    payoffData,
+    summary: [
+      `${input.strategy} scenario uses ${contracts} contract(s), ${multiplier} multiplier, primary strike ${money(input.strike)}, and premium ${money(input.premium)}.`,
+      `Estimated breakeven is ${money(breakeven)}. The finite payoff range in this simulator spans approximately ${money(finiteMin)} to ${money(finiteMax)} across the displayed price range.`,
+      "This is an educational payoff model. It does not include bid/ask spreads, assignment risk, early exercise, implied volatility changes, slippage, commissions, or tax effects.",
+    ],
+  };
+}
+
+function buildFallbackOpportunityMatrix(
+  prediction: TraderPrediction | null,
+  patternScore: number,
+  symbol: string,
+  pinePreviewScore: number
+) {
+  if (!prediction) return [];
+
+  return [
+    {
+      name: "Breakout",
+      title: `${symbol} breakout setup`,
+      opportunity: prediction.breakoutScore,
+      risk: 100 - prediction.riskScore,
+      composite: Math.round(
+        prediction.breakoutScore * 0.4 +
+          prediction.volumeScore * 0.22 +
+          patternScore * 0.16 +
+          prediction.modelQualityScore * 0.12 +
+          pinePreviewScore * 0.1
+      ),
+      confidence: prediction.modelQualityScore,
+      source: "Slice Predictive Engine",
+    },
+    {
+      name: "Pullback",
+      title: `${symbol} pullback entry`,
+      opportunity: prediction.pullbackScore,
+      risk: 100 - prediction.riskScore,
+      composite: Math.round(
+        prediction.pullbackScore * 0.42 +
+          prediction.trendScore * 0.18 +
+          prediction.riskScore * 0.18 +
+          patternScore * 0.12 +
+          pinePreviewScore * 0.1
+      ),
+      confidence: prediction.modelQualityScore,
+      source: "Slice Predictive Engine",
+    },
+    {
+      name: "MeanRev",
+      title: `${symbol} mean reversion`,
+      opportunity: prediction.meanReversionScore,
+      risk: prediction.volatilityScore,
+      composite: Math.round(
+        prediction.meanReversionScore * 0.46 +
+          prediction.riskScore * 0.22 +
+          prediction.tapeScore * 0.14 +
+          patternScore * 0.1 +
+          pinePreviewScore * 0.08
+      ),
+      confidence: prediction.dataScore,
+      source: "Slice Predictive Engine",
+    },
+    {
+      name: "Pine",
+      title: `${symbol} Pine preview quality`,
+      opportunity: pinePreviewScore,
+      risk: 100 - prediction.riskScore,
+      composite: Math.round(
+        pinePreviewScore * 0.45 +
+          prediction.setupQuality * 0.25 +
+          patternScore * 0.15 +
+          prediction.modelQualityScore * 0.15
+      ),
+      confidence: prediction.modelQualityScore,
+      source: "Slice Pine Preview",
+    },
+    {
+      name: "Options",
+      title: `${symbol} options scenario`,
+      opportunity: prediction.probabilityUp,
+      risk: prediction.atrPct * 8,
+      composite: Math.round(
+        prediction.probabilityContinuation * 0.35 +
+          prediction.setupQuality * 0.35 +
+          prediction.modelQualityScore * 0.3
+      ),
+      confidence: prediction.modelQualityScore,
+      source: "Slice Options Lab",
+    },
+  ];
+}
+
 function Pill({
   children,
   tone = "slate",
 }: {
-  children: React.ReactNode;
-  tone?: "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+  children: ReactNode;
+  tone?: Tone;
 }) {
-  const tones = {
+  const tones: Record<Tone, string> = {
     red: "bg-red-500/10 text-red-300 ring-red-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
@@ -674,11 +1810,11 @@ function Pill({
   return (
     <span
       className={cx(
-        "inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
+        "inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
         tones[tone]
       )}
     >
-      {children}
+      <span className="truncate">{children}</span>
     </span>
   );
 }
@@ -687,13 +1823,32 @@ function Card({
   children,
   className = "",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
     <div
       className={cx(
-        "overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SoftCard({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4",
         className
       )}
     >
@@ -711,9 +1866,9 @@ function Metric({
   label: string;
   value: string | number;
   helper?: string;
-  tone?: "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+  tone?: Tone;
 }) {
-  const glows = {
+  const glows: Record<Tone, string> = {
     red: "from-red-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
@@ -723,7 +1878,7 @@ function Metric({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
+    <div className="relative min-h-[112px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
       <div
         className={cx(
           "absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
@@ -731,7 +1886,7 @@ function Metric({
         )}
       />
       <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
           {label}
         </div>
         <div className="mt-2 truncate text-2xl font-black text-white">
@@ -741,6 +1896,35 @@ function Metric({
           <div className="mt-1 truncate text-xs text-slate-500">{helper}</div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+          {eyebrow}
+        </div>
+        <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+          {description}
+        </p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -793,22 +1977,346 @@ function EmptyChart({
   );
 }
 
+function TradingViewEmbed({
+  symbol,
+  interval,
+}: {
+  symbol: string;
+  interval: string;
+}) {
+  const mappedInterval =
+    interval === "daily"
+      ? "D"
+      : interval === "60min"
+        ? "60"
+        : interval === "30min"
+          ? "30"
+          : interval === "15min"
+            ? "15"
+            : interval === "5min"
+              ? "5"
+              : "1";
+
+  const tvSymbol = symbol.includes(":") ? symbol : `NASDAQ:${symbol}`;
+
+  const src = `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(
+    tvSymbol
+  )}&interval=${mappedInterval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=0F0F0F&studies=%5B%5D&theme=dark&style=1&timezone=America%2FNew_York&withdateranges=1&hideideas=1&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&utm_source=slice&utm_medium=widget&utm_campaign=chart`;
+
+  return (
+    <iframe
+      title="TradingView Chart"
+      src={src}
+      className="h-[720px] w-full rounded-[1.5rem] border border-white/10 bg-black"
+      allowFullScreen
+    />
+  );
+}
+
+function drawPattern(pattern: PatternOverlay, isDraft = false) {
+  const opacity = isDraft ? 0.68 : 1;
+  const strokeDasharray = isDraft ? "8 6" : undefined;
+  const color = pattern.color;
+
+  if (pattern.type === "support" || pattern.type === "resistance") {
+    return (
+      <g key={pattern.id} opacity={opacity}>
+        <line
+          x1="0%"
+          x2="100%"
+          y1={`${pattern.start.y}%`}
+          y2={`${pattern.start.y}%`}
+          stroke={color}
+          strokeWidth={2}
+          strokeDasharray={strokeDasharray}
+        />
+        <text
+          x="1.5%"
+          y={`${Math.max(4, pattern.start.y - 1)}%`}
+          fill={color}
+          fontSize="11"
+          fontWeight="900"
+        >
+          {pattern.label}
+        </text>
+      </g>
+    );
+  }
+
+  if (pattern.type === "zone") {
+    const x = Math.min(pattern.start.x, pattern.end.x);
+    const y = Math.min(pattern.start.y, pattern.end.y);
+    const width = Math.abs(pattern.start.x - pattern.end.x);
+    const height = Math.abs(pattern.start.y - pattern.end.y);
+
+    return (
+      <g key={pattern.id} opacity={opacity}>
+        <rect
+          x={`${x}%`}
+          y={`${y}%`}
+          width={`${Math.max(width, 1)}%`}
+          height={`${Math.max(height, 1)}%`}
+          fill={color}
+          fillOpacity={0.12}
+          stroke={color}
+          strokeWidth={2}
+          strokeDasharray={strokeDasharray}
+          rx="10"
+        />
+        <text
+          x={`${x + 1}%`}
+          y={`${Math.max(4, y + 4)}%`}
+          fill={color}
+          fontSize="11"
+          fontWeight="900"
+        >
+          {pattern.label}
+        </text>
+      </g>
+    );
+  }
+
+  if (pattern.type === "channel") {
+    const offset = 10;
+    return (
+      <g key={pattern.id} opacity={opacity}>
+        <line
+          x1={`${pattern.start.x}%`}
+          y1={`${pattern.start.y}%`}
+          x2={`${pattern.end.x}%`}
+          y2={`${pattern.end.y}%`}
+          stroke={color}
+          strokeWidth={2}
+          strokeDasharray={strokeDasharray}
+        />
+        <line
+          x1={`${pattern.start.x}%`}
+          y1={`${clamp(pattern.start.y + offset, 0, 100)}%`}
+          x2={`${pattern.end.x}%`}
+          y2={`${clamp(pattern.end.y + offset, 0, 100)}%`}
+          stroke={color}
+          strokeWidth={1.6}
+          strokeDasharray="8 6"
+        />
+        <text
+          x={`${Math.min(pattern.start.x, pattern.end.x)}%`}
+          y={`${Math.max(4, Math.min(pattern.start.y, pattern.end.y) - 1)}%`}
+          fill={color}
+          fontSize="11"
+          fontWeight="900"
+        >
+          {pattern.label}
+        </text>
+      </g>
+    );
+  }
+
+  return (
+    <g key={pattern.id} opacity={opacity}>
+      <line
+        x1={`${pattern.start.x}%`}
+        y1={`${pattern.start.y}%`}
+        x2={`${pattern.end.x}%`}
+        y2={`${pattern.end.y}%`}
+        stroke={color}
+        strokeWidth={pattern.type === "arrow" ? 2.5 : 2}
+        strokeDasharray={strokeDasharray}
+      />
+      <circle cx={`${pattern.start.x}%`} cy={`${pattern.start.y}%`} r="4" fill={color} />
+      <circle
+        cx={`${pattern.end.x}%`}
+        cy={`${pattern.end.y}%`}
+        r={pattern.type === "arrow" ? "6" : "4"}
+        fill={color}
+      />
+      <text
+        x={`${Math.min(pattern.start.x, pattern.end.x)}%`}
+        y={`${Math.max(4, Math.min(pattern.start.y, pattern.end.y) - 1)}%`}
+        fill={color}
+        fontSize="11"
+        fontWeight="900"
+      >
+        {pattern.label}
+      </text>
+    </g>
+  );
+}
+
+function analyzePatterns(
+  patterns: PatternOverlay[],
+  candles: Candle[],
+  currentPrice: number | null | undefined,
+  atrDollars: number | null | undefined
+): PatternAnalysis[] {
+  if (!candles.length || !currentPrice) return [];
+
+  const prices = candles.flatMap((item) => [
+    item.close,
+    item.high,
+    item.low,
+    item.vwap ?? item.close,
+    item.sma20 ?? item.close,
+    item.sma50 ?? item.close,
+  ]);
+
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = Math.max(maxPrice - minPrice, 0.0001);
+
+  const yToPrice = (y: number) => maxPrice - (y / 100) * priceRange;
+  const xToIndex = (x: number) => (x / 100) * Math.max(candles.length - 1, 1);
+
+  const closes = candles.map((item) => item.close);
+  const recentLogCloses = closes.slice(-24).map((item) => Math.log(item));
+  const recentSlopePct = Math.exp(regressionSlope(recentLogCloses)) - 1;
+  const atr = atrDollars ?? currentPrice * 0.015;
+
+  return patterns.map((pattern) => {
+    if (pattern.type === "support" || pattern.type === "resistance") {
+      const level = yToPrice(pattern.start.y);
+      const distancePct = ((currentPrice - level) / currentPrice) * 100;
+      const touches = candles
+        .slice(-80)
+        .filter((item) => Math.abs(item.close - level) <= atr * 0.65).length;
+      const near = Math.abs(currentPrice - level) <= atr * 1.2;
+
+      const matchScore = Math.round(
+        clamp(
+          42 + touches * 9 + (near ? 24 : 0) - Math.min(Math.abs(distancePct) * 2, 25),
+          0,
+          100
+        )
+      );
+
+      const status =
+        pattern.type === "support"
+          ? currentPrice >= level
+            ? "Support below price"
+            : "Support broken"
+          : currentPrice <= level
+            ? "Resistance above price"
+            : "Resistance reclaimed";
+
+      return {
+        id: pattern.id,
+        label: pattern.label,
+        type: pattern.type,
+        levelText: `${money(level)} · ${rawPercent(distancePct)} from price`,
+        matchScore,
+        status,
+        explanation: `${touches} recent touch(es) within ATR proximity. ${
+          near ? "Price is near this drawn level." : "Price is not currently near the level."
+        }`,
+        tone: matchScore >= 75 ? "green" : matchScore >= 55 ? "amber" : "red",
+      };
+    }
+
+    if (pattern.type === "zone") {
+      const top = yToPrice(Math.min(pattern.start.y, pattern.end.y));
+      const bottom = yToPrice(Math.max(pattern.start.y, pattern.end.y));
+      const inZone = currentPrice <= top && currentPrice >= bottom;
+      const distanceToZone = inZone
+        ? 0
+        : Math.min(Math.abs(currentPrice - top), Math.abs(currentPrice - bottom));
+      const distancePct = (distanceToZone / currentPrice) * 100;
+      const overlapTouches = candles
+        .slice(-80)
+        .filter((item) => item.close <= top && item.close >= bottom).length;
+
+      const matchScore = Math.round(
+        clamp(44 + overlapTouches * 5 + (inZone ? 28 : 0) - Math.min(distancePct * 3, 25), 0, 100)
+      );
+
+      return {
+        id: pattern.id,
+        label: pattern.label,
+        type: pattern.type,
+        levelText: `${money(bottom)} - ${money(top)}`,
+        matchScore,
+        status: inZone ? "Price inside zone" : "Price outside zone",
+        explanation: `${overlapTouches} recent candle close(s) inside this drawn supply/demand zone.`,
+        tone: matchScore >= 75 ? "green" : matchScore >= 55 ? "amber" : "purple",
+      };
+    }
+
+    const startPrice = yToPrice(pattern.start.y);
+    const endPrice = yToPrice(pattern.end.y);
+    const startIndex = xToIndex(pattern.start.x);
+    const endIndex = xToIndex(pattern.end.x);
+    const stepDistance = Math.max(Math.abs(endIndex - startIndex), 1);
+    const drawnSlopePct = (endPrice / Math.max(startPrice, 0.0001) - 1) / stepDistance;
+    const slopeGap = Math.abs(drawnSlopePct - recentSlopePct);
+
+    const directionMatches =
+      Math.sign(drawnSlopePct) === Math.sign(recentSlopePct) ||
+      Math.abs(recentSlopePct) < 0.0004;
+
+    const matchScore = Math.round(
+      clamp(
+        82 -
+          slopeGap * 9000 +
+          (directionMatches ? 12 : -18) +
+          (pattern.type === "channel" ? 6 : 0),
+        0,
+        100
+      )
+    );
+
+    return {
+      id: pattern.id,
+      label: pattern.label,
+      type: pattern.type,
+      levelText: `${rawPercent(drawnSlopePct * 100, 4)} per step`,
+      matchScore,
+      status: directionMatches ? "Slope aligns" : "Slope diverges",
+      explanation:
+        "Drawn slope is compared against recent regression slope. Lower gap means the sketched angle better matches the current price path.",
+      tone: matchScore >= 75 ? "green" : matchScore >= 55 ? "amber" : "red",
+    };
+  });
+}
+
 export default function MarketVisualsPage() {
   const [symbol, setSymbol] = useState("NVDA");
   const [compareSymbol, setCompareSymbol] = useState("AAPL");
   const [showCompare, setShowCompare] = useState(false);
   const [interval, setInterval] = useState("daily");
-  const [view, setView] = useState<ViewMode>("dashboard");
+  const [view, setView] = useState<ViewMode>("prediction");
   const [confidenceLevel, setConfidenceLevel] = useState<ConfidenceLevel>(95);
   const [horizonSteps, setHorizonSteps] = useState<HorizonSteps>(20);
+  const [traderStyle, setTraderStyle] = useState<TraderStyle>("Momentum Continuation");
+  const [traderHorizon, setTraderHorizon] = useState<TraderHorizon>("Intraday");
+  const [riskProfile, setRiskProfile] = useState<RiskProfile>("Balanced");
+  const [catalystText, setCatalystText] = useState("");
   const [data, setData] = useState<MarketVisualPayload | null>(null);
-  const [compareData, setCompareData] = useState<MarketVisualPayload | null>(
-    null
-  );
+  const [compareData, setCompareData] = useState<MarketVisualPayload | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null);
+
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawTool, setDrawTool] = useState<DrawTool>("trendline");
+  const [patternLabel, setPatternLabel] = useState("");
+  const [patterns, setPatterns] = useState<PatternOverlay[]>([]);
+  const [draftPattern, setDraftPattern] = useState<PatternOverlay | null>(null);
+  const [patternOpacity, setPatternOpacity] = useState(88);
+  const drawBoxRef = useRef<HTMLDivElement | null>(null);
+
+  const [pineProjects, setPineProjects] = useState<PineProject[]>([]);
+  const [pineProjectName, setPineProjectName] = useState("Slice Trader Overlay");
+  const [pineProjectNotes, setPineProjectNotes] = useState("");
+  const [pineCode, setPineCode] = useState(defaultPineCode(symbol));
+  const [pinePrompt, setPinePrompt] = useState("");
+  const [pineSidePanelOpen, setPineSidePanelOpen] = useState(true);
+  const [pinePreviewOpen, setPinePreviewOpen] = useState(true);
+
+  const [optionStrategy, setOptionStrategy] = useState<OptionStrategy>("Long Call");
+  const [optionStrike, setOptionStrike] = useState(0);
+  const [optionPremium, setOptionPremium] = useState(2.5);
+  const [optionStrike2, setOptionStrike2] = useState(0);
+  const [optionPremium2, setOptionPremium2] = useState(1);
+  const [optionContracts, setOptionContracts] = useState(1);
 
   async function fetchVisuals(nextSymbol: string, nextInterval: string) {
     const params = new URLSearchParams({
@@ -838,10 +2346,7 @@ export default function MarketVisualsPage() {
       setData(primary);
 
       if (showCompare && compareSymbol.trim()) {
-        const comparison = await fetchVisuals(
-          compareSymbol.toUpperCase(),
-          nextInterval
-        );
+        const comparison = await fetchVisuals(compareSymbol.toUpperCase(), nextInterval);
         setCompareData(comparison);
       } else {
         setCompareData(null);
@@ -881,26 +2386,84 @@ export default function MarketVisualsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, interval, symbol, showCompare, compareSymbol]);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(`slice-market-patterns:${symbol.toUpperCase()}`);
+      setPatterns(raw ? JSON.parse(raw) : []);
+    } catch {
+      setPatterns([]);
+    }
+  }, [symbol]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        `slice-market-patterns:${symbol.toUpperCase()}`,
+        JSON.stringify(patterns)
+      );
+    } catch {
+      // Ignore local storage failures.
+    }
+  }, [patterns, symbol]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("slice-market-pine-projects");
+      setPineProjects(raw ? JSON.parse(raw) : []);
+    } catch {
+      setPineProjects([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("slice-market-pine-projects", JSON.stringify(pineProjects));
+    } catch {
+      // Ignore local storage failures.
+    }
+  }, [pineProjects]);
+
   const latest = data?.latest ?? null;
+  const currentPrice = latest?.chartClose ?? data?.quote?.price ?? 100;
+
+  useEffect(() => {
+    if (!optionStrike && currentPrice) {
+      setOptionStrike(Math.round(currentPrice));
+      setOptionStrike2(Math.round(currentPrice * 1.05));
+    }
+  }, [currentPrice, optionStrike]);
+
   const chartData = useMemo(() => data?.candles.slice(-260) ?? [], [data]);
   const visibleChartData = useMemo(() => chartData.slice(-220), [chartData]);
 
-  const predictiveAnalysis = useMemo(
+  const traderPrediction = useMemo(
     () =>
       data
-        ? buildPredictiveAnalysis(
-            data.candles,
+        ? buildTraderPrediction({
+            candles: data.candles,
             confidenceLevel,
             horizonSteps,
-            data.quality.score,
-            data.modelConfidence
-          )
+            providerQualityScore: data.quality.score,
+            backendModelConfidence: data.modelConfidence,
+            traderStyle,
+            traderHorizon,
+            riskProfile,
+            catalystText,
+          })
         : null,
-    [data, confidenceLevel, horizonSteps]
+    [
+      data,
+      confidenceLevel,
+      horizonSteps,
+      traderStyle,
+      traderHorizon,
+      riskProfile,
+      catalystText,
+    ]
   );
 
   const predictionChartData = useMemo<ForecastChartPoint[]>(() => {
-    const history: ForecastChartPoint[] = visibleChartData.slice(-65).map((item) => ({
+    const history: ForecastChartPoint[] = visibleChartData.slice(-70).map((item) => ({
       label: item.label,
       close: item.close,
       projected: null,
@@ -911,7 +2474,7 @@ export default function MarketVisualsPage() {
     }));
 
     const forecast: ForecastChartPoint[] =
-      predictiveAnalysis?.forecast.map((item) => ({
+      traderPrediction?.forecast.map((item) => ({
         label: item.label,
         close: null,
         projected: item.projected,
@@ -922,141 +2485,358 @@ export default function MarketVisualsPage() {
       })) ?? [];
 
     return [...history, ...forecast];
-  }, [visibleChartData, predictiveAnalysis]);
+  }, [visibleChartData, traderPrediction]);
 
-  const compareOverlayData = useMemo<CompareOverlayPoint[]>(() => {
-    if (!showCompare || !compareData?.candles.length || !visibleChartData.length) {
-      return visibleChartData.map((point) => ({
-        ...point,
-        compareClose: null,
-        primaryReturnPct: point.cumulativeReturnPct,
-        compareReturnPct: null,
-        spreadPct: null,
-      }));
-    }
+  const technicalScoreData = useMemo(() => {
+    if (!traderPrediction) return [];
 
-    const compareCandles = compareData.candles.slice(-visibleChartData.length);
-    const primaryStart = visibleChartData[0]?.close || 1;
-    const compareStart = compareCandles[0]?.close || 1;
+    return [
+      { name: "Trend", score: traderPrediction.trendScore },
+      { name: "Momentum", score: traderPrediction.momentumScore },
+      { name: "Volume", score: traderPrediction.volumeScore },
+      { name: "Tape", score: traderPrediction.tapeScore },
+      { name: "Breakout", score: traderPrediction.breakoutScore },
+      { name: "Pullback", score: traderPrediction.pullbackScore },
+      { name: "Mean Rev", score: traderPrediction.meanReversionScore },
+      { name: "Risk", score: traderPrediction.riskScore },
+    ];
+  }, [traderPrediction]);
 
-    return visibleChartData.map((point, index) => {
-      const comparisonPoint = compareCandles[index];
-      const primaryReturnPct = primaryStart
-        ? ((point.close - primaryStart) / primaryStart) * 100
-        : 0;
-      const compareReturnPct =
-        comparisonPoint && compareStart
-          ? ((comparisonPoint.close - compareStart) / compareStart) * 100
-          : null;
+  const compareOverlayData = useMemo(() => {
+    if (!data || !compareData) return [];
 
-      return {
-        ...point,
-        compareClose:
-          comparisonPoint && compareStart
-            ? (comparisonPoint.close / compareStart) * primaryStart
-            : null,
-        primaryReturnPct,
-        compareReturnPct,
-        spreadPct:
-          compareReturnPct !== null ? primaryReturnPct - compareReturnPct : null,
-      };
-    });
-  }, [visibleChartData, compareData, showCompare]);
+    const primary = data.candles.slice(-160);
+    const compare = compareData.candles.slice(-160);
+    const length = Math.min(primary.length, compare.length);
+    const p = primary.slice(primary.length - length);
+    const c = compare.slice(compare.length - length);
 
-  const compareStats = useMemo(() => {
-    if (!showCompare || !compareData || !compareOverlayData.length) return null;
+    const pBase = p[0]?.close || 1;
+    const cBase = c[0]?.close || 1;
 
-    const latestPoint = compareOverlayData[compareOverlayData.length - 1];
-    const primaryReturn = latestPoint?.primaryReturnPct ?? 0;
-    const compareReturn = latestPoint?.compareReturnPct ?? 0;
-    const spread = primaryReturn - compareReturn;
-    const primaryLatest = data?.latest?.close ?? null;
-    const compareLatest = compareData.latest?.close ?? null;
+    return p.map((point, index) => ({
+      label: point.label,
+      primaryReturnPct: (point.close / pBase - 1) * 100,
+      compareReturnPct: ((c[index]?.close ?? cBase) / cBase - 1) * 100,
+      spreadPct:
+        (point.close / pBase - 1) * 100 -
+        (((c[index]?.close ?? cBase) / cBase - 1) * 100),
+    }));
+  }, [data, compareData]);
+
+  const latestCandleRows = useMemo(() => {
+    return [...visibleChartData].reverse().slice(0, 80);
+  }, [visibleChartData]);
+
+  const patternAnalysis = useMemo(() => {
+    return analyzePatterns(
+      patterns,
+      visibleChartData,
+      latest?.chartClose ?? data?.quote?.price,
+      traderPrediction?.atrDollars
+    );
+  }, [
+    patterns,
+    visibleChartData,
+    latest?.chartClose,
+    data?.quote?.price,
+    traderPrediction?.atrDollars,
+  ]);
+
+  const patternScore = useMemo(() => {
+    return patternAnalysis.length
+      ? Math.round(mean(patternAnalysis.map((item) => item.matchScore)))
+      : 0;
+  }, [patternAnalysis]);
+
+  const pinePreview = useMemo(() => {
+    return evaluatePinePreview(pineCode, visibleChartData);
+  }, [pineCode, visibleChartData]);
+
+  const optionScenario = useMemo(
+    () =>
+      buildOptionScenario({
+        strategy: optionStrategy,
+        currentPrice,
+        strike: optionStrike || Math.round(currentPrice),
+        premium: optionPremium,
+        strike2: optionStrike2 || Math.round(currentPrice * 1.05),
+        premium2: optionPremium2,
+        contracts: optionContracts,
+      }),
+    [
+      optionStrategy,
+      currentPrice,
+      optionStrike,
+      optionPremium,
+      optionStrike2,
+      optionPremium2,
+      optionContracts,
+    ]
+  );
+
+  const opportunityMatrixData = useMemo(() => {
+    if (data?.platform.opportunityMatrix?.length) return data.platform.opportunityMatrix;
+    return buildFallbackOpportunityMatrix(
+      traderPrediction,
+      patternScore,
+      data?.symbol ?? symbol,
+      pinePreview.previewScore
+    );
+  }, [data, traderPrediction, patternScore, pinePreview.previewScore, symbol]);
+
+  function pointFromEvent(event: ReactPointerEvent<HTMLDivElement>): PointPct | null {
+    const rect = drawBoxRef.current?.getBoundingClientRect();
+    if (!rect) return null;
 
     return {
-      primaryReturn,
-      compareReturn,
-      spread,
-      primaryLatest,
-      compareLatest,
-      leader:
-        spread > 0
-          ? data?.symbol ?? "Primary"
-          : spread < 0
-            ? compareData.symbol
-            : "Tie",
+      x: clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100),
+      y: clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100),
     };
-  }, [showCompare, compareData, compareOverlayData, data]);
+  }
 
-  const technicalScore = useMemo(() => {
-    if (!latest) return 50;
+  function startDrawing(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!drawMode) return;
 
-    let score = 50;
+    const point = pointFromEvent(event);
+    if (!point) return;
 
-    if (latest.close && latest.vwap && latest.close > latest.vwap) score += 8;
-    if (latest.close && latest.vwap && latest.close < latest.vwap) score -= 8;
-    if (latest.sma20 && latest.sma50 && latest.sma20 > latest.sma50) score += 8;
-    if (latest.sma20 && latest.sma50 && latest.sma20 < latest.sma50) score -= 8;
-    if (latest.sma50 && latest.sma200 && latest.sma50 > latest.sma200) score += 12;
-    if (latest.sma50 && latest.sma200 && latest.sma50 < latest.sma200) score -= 12;
-    if (latest.close && latest.sma200 && latest.close > latest.sma200) score += 10;
-    if (latest.close && latest.sma200 && latest.close < latest.sma200) score -= 10;
-    if (latest.rsi14 !== null && latest.rsi14 >= 70) score -= 8;
-    if (latest.rsi14 !== null && latest.rsi14 <= 30) score += 7;
-    if (latest.macd !== null && latest.macd > 0) score += 5;
-    if (latest.macd !== null && latest.macd < 0) score -= 5;
+    const label =
+      patternLabel.trim() ||
+      (drawTool === "support"
+        ? "Support"
+        : drawTool === "resistance"
+          ? "Resistance"
+          : drawTool === "zone"
+            ? "Supply / Demand Zone"
+            : drawTool === "channel"
+              ? "Channel"
+              : drawTool === "arrow"
+                ? "Expected Move"
+                : "Trendline");
 
-    return clamp(Math.round(score), 0, 100);
-  }, [latest]);
+    const pattern: PatternOverlay = {
+      id: `pattern-${Date.now()}`,
+      type: drawTool,
+      label,
+      color: PATTERN_COLORS[drawTool],
+      start: point,
+      end: point,
+      createdAt: new Date().toISOString(),
+    };
 
-  const alertScores = data?.platform.alertScores ?? [];
-  const opportunityMatrix = data?.platform.opportunityMatrix ?? [];
-  const sourceCredibility = data?.platform.sourceCredibility ?? [];
-  const watchlistHeatmap = data?.platform.watchlistHeatmap ?? [];
-  const taskStatusCounts = data?.platform.taskStatusCounts ?? [];
-  const platformOverview = data?.platform.platformOverview ?? [];
+    setDraftPattern(pattern);
+  }
+
+  function moveDrawing(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!drawMode || !draftPattern) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+
+    setDraftPattern((current) => (current ? { ...current, end: point } : current));
+  }
+
+  function endDrawing(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!drawMode || !draftPattern) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+
+    const finalPattern = { ...draftPattern, end: point };
+    setPatterns((current) => [finalPattern, ...current].slice(0, 40));
+    setDraftPattern(null);
+    setMessage(`${finalPattern.label} overlay saved.`);
+  }
+
+  function clearPatterns() {
+    setPatterns([]);
+    setDraftPattern(null);
+    setMessage("Pattern overlays cleared.");
+  }
+
+  function removePattern(id: string) {
+    setPatterns((current) => current.filter((pattern) => pattern.id !== id));
+  }
+
+  async function copyText(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage(`${label} copied.`);
+    } catch {
+      setMessage("Copy failed. Select and copy manually.");
+    }
+  }
+
+  function savePineProject() {
+    const now = new Date().toISOString();
+    const project: PineProject = {
+      id: `pine-${Date.now()}`,
+      name: pineProjectName.trim() || `${symbol.toUpperCase()} Pine Project`,
+      symbol: symbol.toUpperCase(),
+      notes: pineProjectNotes,
+      code: pineCode,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setPineProjects((current) => [project, ...current].slice(0, 50));
+    setMessage("Pine project saved locally.");
+  }
+
+  function loadPineProject(project: PineProject) {
+    setPineProjectName(project.name);
+    setPineProjectNotes(project.notes);
+    setPineCode(project.code);
+    setMessage(`${project.name} loaded.`);
+  }
+
+  function deletePineProject(id: string) {
+    setPineProjects((current) => current.filter((project) => project.id !== id));
+    setMessage("Pine project deleted.");
+  }
+
+  function resetPineTemplate() {
+    setPineCode(defaultPineCode(symbol));
+    setPineProjectName("Slice Trader Overlay");
+    setPineProjectNotes("");
+  }
+
+  function generatePineCode() {
+    const generated = generateAiPine({
+      symbol,
+      prompt: pinePrompt,
+      traderStyle,
+      traderHorizon,
+      prediction: traderPrediction,
+    });
+
+    setPineCode(generated);
+    setPineProjectName(`Slice AI ${traderStyle} - ${symbol.toUpperCase()}`);
+    setMessage("AI Pine script generated inside Slice.");
+  }
+
+  function renderTradingSafety() {
+    return (
+      <Card>
+        <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+              Trading Safety Layer
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              This cockpit is for research, visualization, and trader/advisor planning only. Options scenarios are simplified educational payoff models. Pine Preview simulates common Pine concepts locally and does not replace TradingView’s native Pine runtime. Nothing here is a trade instruction, guarantee, or client recommendation.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/workspace"
+              className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white hover:bg-white/10"
+            >
+              Workspace
+            </a>
+            <a
+              href="/opportunity-radar"
+              className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20"
+            >
+              Opportunity Radar
+            </a>
+            <a
+              href="/workspace/client-emails"
+              className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20"
+            >
+              Client Emails
+            </a>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.20),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
-      <div className="mx-auto grid max-w-[1800px] gap-6">
-        <header className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-red-600/20 to-transparent" />
-
-          <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.46),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.20),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+      <div className="mx-auto grid max-w-[1800px] gap-5">
+        <header className="sticky top-4 z-40 rounded-[1.75rem] border border-white/10 bg-black/72 p-4 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
                 Slice Market Visuals
               </div>
-              <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                Advisor-grade market intelligence with realistic technical depth.
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-white md:text-4xl">
+                TradingView cockpit with Pine Studio side panel
               </h1>
-              <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-                Enhanced live-aware visuals with SMA20, SMA50, SMA100, SMA200, EMA9,
-                EMA21, VWAP, Bollinger Bands, ATR, RSI, MACD, volume analytics,
-                relative comparison, and predictive ranges.
+              <p className="mt-2 max-w-5xl text-sm leading-6 text-slate-400">
+                View TradingView, generate Pine scripts, save projects, simulate common Pine logic inside Slice, model options payoff, and keep trader-grade predictive analysis in one professional workspace.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-3 xl:items-end">
               <a
                 href="/workspace"
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-black/20 transition hover:scale-[1.01]"
               >
-                Workspace
+                ← Main Workspace
               </a>
-              <a
-                href="/watchlist-alerts"
-                className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100"
-              >
-                Price Alerts
-              </a>
-              <a
-                href="/advisor-command-center"
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
-              >
-                AI Command
-              </a>
+
+              <form onSubmit={submit} className="grid gap-2 md:grid-cols-[120px_120px_145px_auto]">
+                <input
+                  value={symbol}
+                  onChange={(event) => setSymbol(event.target.value.toUpperCase())}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                  placeholder="Symbol"
+                />
+
+                <select
+                  value={interval}
+                  onChange={(event) => setInterval(event.target.value)}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="60min">60 Min</option>
+                  <option value="30min">30 Min</option>
+                  <option value="15min">15 Min</option>
+                  <option value="5min">5 Min</option>
+                  <option value="1min">1 Min</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => setAutoRefresh((current) => !current)}
+                  className={cx(
+                    "rounded-2xl px-4 py-3 text-sm font-black",
+                    autoRefresh
+                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+                      : "border border-white/10 bg-white/[0.055] text-white"
+                  )}
+                >
+                  {autoRefresh ? "Auto Refresh On" : "Auto Refresh Off"}
+                </button>
+
+                <button
+                  disabled={loading}
+                  className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+                >
+                  {loading ? "Loading..." : "Run Analysis"}
+                </button>
+              </form>
             </div>
+          </div>
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {VIEW_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setView(tab.id)}
+                className={cx(
+                  "shrink-0 rounded-full px-4 py-2 text-sm font-black transition",
+                  view === tab.id
+                    ? "bg-gradient-to-r from-red-600 to-red-950 text-white shadow-lg shadow-red-950/40"
+                    : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </header>
 
@@ -1066,53 +2846,162 @@ export default function MarketVisualsPage() {
           </div>
         ) : null}
 
-        <Card>
-          <form
-            onSubmit={submit}
-            className="grid gap-3 xl:grid-cols-[1fr_1fr_170px_170px_170px_auto]"
-          >
-            <input
-              value={symbol}
-              onChange={(event) => setSymbol(event.target.value.toUpperCase())}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-              placeholder="Primary ticker, e.g. NVDA"
-            />
+        <Card className="p-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-red-600/14 via-cyan-500/5 to-transparent" />
 
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-              <input
-                value={compareSymbol}
-                onChange={(event) =>
-                  setCompareSymbol(event.target.value.toUpperCase())
-                }
-                disabled={!showCompare}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-40"
-                placeholder="Compare ticker"
-              />
-              <button
-                type="button"
-                onClick={() => setShowCompare((current) => !current)}
-                className={cx(
-                  "rounded-2xl border px-4 py-3 text-xs font-black",
-                  showCompare
-                    ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/10 bg-white/[0.04] text-slate-400"
-                )}
-              >
-                Compare {showCompare ? "On" : "Off"}
-              </button>
+          <div className="relative grid gap-5 xl:grid-cols-[1.1fr_0.9fr] xl:items-end">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Pill tone={toneFor(data?.freshness.status ?? "loading")}>
+                  {data?.freshness.status ?? "Loading"}
+                </Pill>
+                <Pill tone={toneFor(data?.marketSession.session ?? "session")}>
+                  {data?.marketSession.session ?? "Market Session"}
+                </Pill>
+                <Pill tone={data?.isLive ? "green" : "amber"}>
+                  {data?.provider ?? "Provider"}
+                </Pill>
+                <Pill tone={toneFor(traderPrediction?.tradeSignal ?? "forecast")}>
+                  {traderPrediction?.tradeSignal ?? "Prediction Engine"}
+                </Pill>
+                <Pill tone="cyan">{patterns.length} overlay(s)</Pill>
+                <Pill tone="purple">{pineProjects.length} Pine project(s)</Pill>
+              </div>
+
+              <h2 className="mt-4 text-5xl font-black tracking-tight md:text-7xl">
+                {data?.symbol ?? symbol}
+              </h2>
+
+              <p className="mt-4 max-w-5xl text-sm leading-7 text-slate-400 md:text-base">
+                {traderPrediction
+                  ? traderPrediction.report[0]
+                  : "Load a symbol to generate a predictive day-trader analysis using price, volume, VWAP, RSI, MACD, ATR, moving averages, support/resistance, volatility regime, pattern overlays, Pine Preview, and source quality."}
+              </p>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <Metric
+                  label="Current Price"
+                  value={money(latest?.chartClose ?? data?.quote?.price ?? null)}
+                  helper={percent(data?.quote?.changePct ?? latest?.changePct)}
+                  tone={changeTone(data?.quote?.changePct ?? latest?.changePct)}
+                />
+                <Metric
+                  label="Prediction"
+                  value={traderPrediction ? percent(traderPrediction.expectedMovePct) : "—"}
+                  helper={`${horizonSteps} step expected move`}
+                  tone={changeTone(traderPrediction?.expectedMovePct)}
+                />
+                <Metric
+                  label="Pine Preview"
+                  value={`${pinePreview.previewScore}/100`}
+                  helper={pinePreview.latestSignal}
+                  tone={toneFor(pinePreview.previewScore)}
+                />
+                <Metric
+                  label="Setup Grade"
+                  value={traderPrediction?.setupGrade ?? "—"}
+                  helper={traderPrediction ? `${traderPrediction.setupQuality}/100 setup` : "No setup yet"}
+                  tone={toneFor(traderPrediction?.setupQuality ?? 0)}
+                />
+              </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SoftCard>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Entry Zone
+                </div>
+                <div className="mt-2 text-2xl font-black text-white">
+                  {traderPrediction
+                    ? `${money(traderPrediction.entryLow)} - ${money(traderPrediction.entryHigh)}`
+                    : "—"}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Tactical planning zone. Wait for confirmation before action.
+                </p>
+              </SoftCard>
+
+              <SoftCard>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Stop / Target
+                </div>
+                <div className="mt-2 text-2xl font-black text-white">
+                  {traderPrediction
+                    ? `${money(traderPrediction.stopLoss)} / ${money(traderPrediction.target1)}`
+                    : "—"}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  ATR-adjusted levels. Not a trade instruction.
+                </p>
+              </SoftCard>
+
+              <SoftCard>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Pattern Match
+                </div>
+                <div className="mt-2 text-2xl font-black text-white">
+                  {patternAnalysis.length ? `${patternScore}/100` : "—"}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Average fit between drawings and current structure.
+                </p>
+              </SoftCard>
+
+              <SoftCard>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Options Breakeven
+                </div>
+                <div className="mt-2 text-2xl font-black text-white">
+                  {money(optionScenario.breakeven)}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {optionStrategy} · {optionContracts} contract(s)
+                </p>
+              </SoftCard>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <SectionHeader
+            eyebrow="Prediction Controls"
+            title="Tune the trading model."
+            description="Adjust confidence band, forecast horizon, trading style, risk profile, catalyst context, drawing behavior, Pine Preview, and comparison mode."
+            action={<Pill tone="purple">{traderStyle}</Pill>}
+          />
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <select
-              value={interval}
-              onChange={(event) => setInterval(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+              value={traderStyle}
+              onChange={(event) => setTraderStyle(event.target.value as TraderStyle)}
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
             >
-              <option value="1min">1 minute</option>
-              <option value="5min">5 minutes</option>
-              <option value="15min">15 minutes</option>
-              <option value="30min">30 minutes</option>
-              <option value="60min">60 minutes</option>
-              <option value="daily">Daily</option>
+              <option>Momentum Continuation</option>
+              <option>Breakout</option>
+              <option>Pullback</option>
+              <option>Mean Reversion</option>
+              <option>Gap / Fade</option>
+              <option>Risk-Off Defense</option>
+            </select>
+
+            <select
+              value={traderHorizon}
+              onChange={(event) => setTraderHorizon(event.target.value as TraderHorizon)}
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+            >
+              <option>Scalp</option>
+              <option>Intraday</option>
+              <option>Swing</option>
+            </select>
+
+            <select
+              value={riskProfile}
+              onChange={(event) => setRiskProfile(event.target.value as RiskProfile)}
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+            >
+              <option>Conservative</option>
+              <option>Balanced</option>
+              <option>Aggressive</option>
             </select>
 
             <select
@@ -1120,13 +3009,13 @@ export default function MarketVisualsPage() {
               onChange={(event) =>
                 setConfidenceLevel(Number(event.target.value) as ConfidenceLevel)
               }
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-purple-500 focus:ring-2"
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
             >
-              <option value={68}>68% confidence</option>
-              <option value={80}>80% confidence</option>
-              <option value={90}>90% confidence</option>
-              <option value={95}>95% confidence</option>
-              <option value={99}>99% confidence</option>
+              <option value={68}>68% Band</option>
+              <option value={80}>80% Band</option>
+              <option value={90}>90% Band</option>
+              <option value={95}>95% Band</option>
+              <option value={99}>99% Band</option>
             </select>
 
             <select
@@ -1134,1239 +3023,1298 @@ export default function MarketVisualsPage() {
               onChange={(event) =>
                 setHorizonSteps(Number(event.target.value) as HorizonSteps)
               }
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 focus:ring-2"
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
             >
-              <option value={5}>5-candle horizon</option>
-              <option value={10}>10-candle horizon</option>
-              <option value={20}>20-candle horizon</option>
-              <option value={30}>30-candle horizon</option>
+              <option value={5}>5 steps</option>
+              <option value={10}>10 steps</option>
+              <option value={20}>20 steps</option>
+              <option value={30}>30 steps</option>
             </select>
 
-            <button
-              disabled={loading}
-              className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-            >
-              {loading ? "Loading..." : "Load Visuals"}
-            </button>
-          </form>
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white">
+              Pine Panel
+              <input
+                type="checkbox"
+                checked={pineSidePanelOpen}
+                onChange={(event) => setPineSidePanelOpen(event.target.checked)}
+              />
+            </label>
+          </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAutoRefresh((current) => !current)}
-              className={cx(
-                "rounded-2xl border px-4 py-2 text-xs font-black",
-                autoRefresh
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
-                  : "border-white/10 bg-white/5 text-white"
-              )}
-            >
-              Auto-refresh {autoRefresh ? "On" : "Off"}
-            </button>
+          <div className="mt-3 grid gap-3 md:grid-cols-[170px_170px_1fr]">
+            <input
+              value={compareSymbol}
+              onChange={(event) => setCompareSymbol(event.target.value.toUpperCase())}
+              className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+              placeholder="Compare"
+            />
 
-            {data ? (
-              <>
-                <Pill tone={data.isLive ? "green" : "amber"}>{data.provider}</Pill>
-                <Pill tone="purple">{data.symbol}</Pill>
-                {showCompare && compareData ? (
-                  <Pill tone="cyan">vs {compareData.symbol}</Pill>
-                ) : null}
-                <Pill tone={toneFor(data.freshness.status)}>
-                  {data.freshness.status}
-                </Pill>
-                <Pill tone={toneFor(data.marketSession.session)}>
-                  {data.marketSession.session}
-                </Pill>
-                <Pill tone={data.latest?.sma200 ? "green" : "amber"}>
-                  SMA200 {data.latest?.sma200 ? "Ready" : "Pending"}
-                </Pill>
-                <span className="text-xs font-semibold leading-6 text-slate-500">
-                  Loaded{" "}
-                  {lastLoadedAt ? new Date(lastLoadedAt).toLocaleTimeString() : "—"}
-                </span>
-              </>
-            ) : null}
+            <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white">
+              Compare
+              <input
+                type="checkbox"
+                checked={showCompare}
+                onChange={(event) => setShowCompare(event.target.checked)}
+              />
+            </label>
+
+            <textarea
+              value={catalystText}
+              onChange={(event) => setCatalystText(event.target.value)}
+              className="min-h-12 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600"
+              placeholder="Optional catalyst context: earnings, guidance, Fed event, AI demand, upgrade, product launch, litigation, sector news..."
+            />
           </div>
         </Card>
 
-        {data ? (
-          <>
-            <nav className="grid gap-2 rounded-[2rem] border border-white/10 bg-black/40 p-2 backdrop-blur-xl sm:grid-cols-2 xl:grid-cols-6">
-              {VIEW_TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setView(tab.id)}
-                  className={cx(
-                    "rounded-2xl px-4 py-3 text-left transition",
-                    view === tab.id
-                      ? "bg-white text-slate-950 shadow-lg shadow-red-950/20"
-                      : "bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                  )}
-                >
-                  <div className="text-sm font-black">{tab.label}</div>
+        {view === "prediction" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)]">
+            <Card>
+              <SectionHeader
+                eyebrow="Probabilistic Prediction"
+                title="Expected path with confidence bands."
+                description="History, projected path, bearish/bullish internal scenarios, and confidence envelope."
+                action={
+                  <Pill tone={toneFor(traderPrediction?.volatilityRegime ?? "forecast")}>
+                    {traderPrediction?.volatilityRegime ?? "Volatility"}
+                  </Pill>
+                }
+              />
+
+              <div className="mt-5 h-[520px]">
+                {predictionChartData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={predictionChartData}>
+                      <defs>
+                        <linearGradient id="closeFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.16} />
+                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="label" stroke="#64748b" fontSize={11} minTickGap={18} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={["dataMin - 2", "dataMax + 2"]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="close"
+                        name="Historical Close"
+                        stroke="#ef4444"
+                        fill="url(#closeFill)"
+                        strokeWidth={3}
+                        connectNulls
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="upper"
+                        name="Upper Band"
+                        stroke="#06b6d4"
+                        fill="url(#bandFill)"
+                        strokeWidth={1.5}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="projected"
+                        name="Projected"
+                        stroke="#22c55e"
+                        strokeWidth={3}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bearish"
+                        name="Bearish Path"
+                        stroke="#f59e0b"
+                        strokeDasharray="6 5"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bullish"
+                        name="Bullish Path"
+                        stroke="#a855f7"
+                        strokeDasharray="6 5"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="lower"
+                        name="Lower Band"
+                        stroke="#06b6d4"
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader
+                eyebrow="Prediction Report"
+                title="Why the model says what it says."
+                description="Short trader-grade explanation combining technicals, volume, levels, volatility, Pine Preview, pattern overlays, data quality, and risk."
+              />
+
+              <div className="mt-5 grid gap-3">
+                {traderPrediction?.report.map((item, index) => (
                   <div
-                    className={cx(
-                      "mt-1 text-[11px] font-semibold",
-                      view === tab.id ? "text-slate-600" : "text-slate-500"
-                    )}
+                    key={`${item}-${index}`}
+                    className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-7 text-slate-300"
                   >
-                    {tab.description}
+                    {item}
                   </div>
-                </button>
-              ))}
-            </nav>
+                )) ?? (
+                  <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                    Run analysis to generate the prediction report.
+                  </div>
+                )}
+              </div>
 
-            <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-              <Metric
-                label="Last Price"
-                value={money(latest?.close)}
-                helper={data.symbol}
-                tone={changeTone(latest?.change)}
-              />
-              <Metric
-                label="Move"
-                value={percent(latest?.changePct)}
-                helper={money(latest?.change)}
-                tone={changeTone(latest?.change)}
-              />
-              <Metric
-                label="Technical Score"
-                value={`${technicalScore}/100`}
-                helper={data.signals.directionalBias}
-                tone={
-                  technicalScore >= 65
-                    ? "green"
-                    : technicalScore >= 45
-                      ? "amber"
-                      : "red"
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <Metric
+                  label="Target 1"
+                  value={money(traderPrediction?.target1)}
+                  helper={traderPrediction ? `${traderPrediction.riskReward1.toFixed(2)}R` : "—"}
+                  tone="green"
+                />
+                <Metric
+                  label="Target 2"
+                  value={money(traderPrediction?.target2)}
+                  helper={traderPrediction ? `${traderPrediction.riskReward2.toFixed(2)}R` : "—"}
+                  tone="purple"
+                />
+                <Metric
+                  label="Stop Loss"
+                  value={money(traderPrediction?.stopLoss)}
+                  helper="ATR-adjusted"
+                  tone="red"
+                />
+                <Metric
+                  label="Pine Preview"
+                  value={`${pinePreview.previewScore}/100`}
+                  helper={`${pinePreview.signalCount} simulated signals`}
+                  tone={toneFor(pinePreview.previewScore)}
+                />
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {view === "trader" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <Card>
+              <SectionHeader
+                eyebrow="Execution Plan"
+                title="Entry, stop, target, and management path."
+                description="Built like a trading desk card: pre-checks, confirmation, entry, risk, target management, and post-trade feedback."
+                action={
+                  <Pill tone={toneFor(traderPrediction?.setupQuality ?? 0)}>
+                    {traderPrediction?.setupGrade ?? "—"}
+                  </Pill>
                 }
               />
-              <Metric
-                label="SMA 200"
-                value={money(latest?.sma200)}
-                helper={
-                  latest?.sma200
-                    ? latest.close > latest.sma200
-                      ? "Price above 200 MA"
-                      : "Price below 200 MA"
-                    : "Need 200 candles"
-                }
-                tone={
-                  latest?.sma200
-                    ? latest.close > latest.sma200
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <Metric
+                  label="Signal"
+                  value={traderPrediction?.tradeSignal ?? "—"}
+                  helper={traderPrediction?.directionalBias ?? "—"}
+                  tone={toneFor(traderPrediction?.tradeSignal ?? "")}
+                />
+                <Metric
+                  label="Setup Quality"
+                  value={traderPrediction ? `${traderPrediction.setupQuality}/100` : "—"}
+                  helper={`${traderStyle} · ${traderHorizon}`}
+                  tone={toneFor(traderPrediction?.setupQuality ?? 0)}
+                />
+                <Metric
+                  label="Probability Up"
+                  value={traderPrediction ? rawPercent(traderPrediction.probabilityUp) : "—"}
+                  helper="Model-implied"
+                  tone={
+                    traderPrediction && traderPrediction.probabilityUp >= 55
                       ? "green"
-                      : "red"
-                    : "amber"
-                }
+                      : "amber"
+                  }
+                />
+                <Metric
+                  label="Continuation"
+                  value={traderPrediction ? rawPercent(traderPrediction.probabilityContinuation) : "—"}
+                  helper="Trend follow-through"
+                  tone={toneFor(traderPrediction?.probabilityContinuation ?? 0)}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {traderPrediction?.executionPlan.map((item, index) => (
+                  <SoftCard key={`${item}-${index}`}>
+                    <div className="flex gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-black text-white">
+                        {index + 1}
+                      </div>
+                      <p className="text-sm leading-6 text-slate-300">{item}</p>
+                    </div>
+                  </SoftCard>
+                ))}
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader
+                eyebrow="Setup Score Stack"
+                title="What a trader would check first."
+                description="Trend, momentum, volume, tape, breakout, pullback, mean reversion, risk, Pine Preview, and pattern fit."
               />
-              <Metric
-                label="ATR 14"
-                value={money(latest?.atr14)}
-                helper={
-                  latest?.atr14 && latest.close
-                    ? rawPercent((latest.atr14 / latest.close) * 100)
-                    : "Volatility range"
-                }
-                tone="cyan"
+
+              <div className="mt-5 h-[430px]">
+                {technicalScoreData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        ...technicalScoreData,
+                        { name: "Pine", score: pinePreview.previewScore },
+                        { name: "Pattern", score: patternScore },
+                      ]}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="5 5" />
+                      <Bar dataKey="score" name="Score" radius={[10, 10, 0, 0]}>
+                        {[
+                          ...technicalScoreData,
+                          { name: "Pine", score: pinePreview.previewScore },
+                          { name: "Pattern", score: patternScore },
+                        ].map((item, index) => (
+                          <Cell
+                            key={item.name}
+                            fill={
+                              item.score >= 75
+                                ? "#22c55e"
+                                : item.score >= 55
+                                  ? BAR_COLORS[index % BAR_COLORS.length]
+                                  : "#ef4444"
+                            }
+                            fillOpacity={0.78}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {traderPrediction?.dataChecklist.map((item) => (
+                  <SoftCard key={item.name}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-white">{item.name}</div>
+                        <div className="mt-1 text-xs text-slate-500">{item.value}</div>
+                      </div>
+                      <Pill tone={item.tone}>{item.score}/100</Pill>
+                    </div>
+                  </SoftCard>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {view === "patterns" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+            <Card>
+              <SectionHeader
+                eyebrow="Compact Pattern Overlay Lab"
+                title="Draw expectations without clutter."
+                description="Sketch only the pattern you need, score it, and hide it when done."
+                action={<Pill tone={drawMode ? "green" : "amber"}>{drawMode ? "Drawing On" : "Drawing Off"}</Pill>}
               />
-              <Metric
-                label={`${confidenceLevel}% Range`}
-                value={
-                  predictiveAnalysis
-                    ? `${money(predictiveAnalysis.lowerFinal)} – ${money(
-                        predictiveAnalysis.upperFinal
-                      )}`
-                    : "—"
-                }
-                helper={`${horizonSteps} candles`}
-                tone="purple"
-              />
-            </section>
 
-            {view === "dashboard" || view === "technicals" ? (
-              <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                      Live-Aware Technical Chart
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      {data.symbol} close, VWAP, Bollinger Bands, and moving averages
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Includes SMA20, SMA50, SMA100, and SMA200. The 200-period
-                      moving average requires at least 200 candles.
-                    </p>
-                  </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[150px_150px_1fr_120px_100px]">
+                <select
+                  value={drawTool}
+                  onChange={(event) => setDrawTool(event.target.value as DrawTool)}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                >
+                  <option value="trendline">Trendline</option>
+                  <option value="channel">Channel</option>
+                  <option value="support">Support</option>
+                  <option value="resistance">Resistance</option>
+                  <option value="zone">Zone</option>
+                  <option value="arrow">Arrow</option>
+                </select>
 
-                  <div className="h-[520px]">
-                    {visibleChartData.length ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={compareOverlayData}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                          <YAxis
-                            stroke="#64748b"
-                            domain={["auto", "auto"]}
-                            tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Area
-                            type="monotone"
-                            dataKey="bollingerUpper"
-                            name="Bollinger Upper"
-                            stroke="#475569"
-                            fill="rgba(148,163,184,0.08)"
-                            dot={false}
-                            connectNulls
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="bollingerLower"
-                            name="Bollinger Lower"
-                            stroke="#475569"
-                            fill="rgba(148,163,184,0.03)"
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="close"
-                            name={`${data.symbol} Close`}
-                            stroke="#ef4444"
-                            strokeWidth={2.7}
-                            dot={false}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="vwap"
-                            name="VWAP"
-                            stroke="#06b6d4"
-                            strokeWidth={1.5}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="sma20"
-                            name="SMA 20"
-                            stroke="#a855f7"
-                            strokeWidth={1.35}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="sma50"
-                            name="SMA 50"
-                            stroke="#f59e0b"
-                            strokeWidth={1.55}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="sma100"
-                            name="SMA 100"
-                            stroke="#3b82f6"
-                            strokeWidth={1.35}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="sma200"
-                            name="SMA 200"
-                            stroke="#22c55e"
-                            strokeWidth={2.15}
-                            dot={false}
-                            connectNulls
-                          />
-                          {showCompare && compareData ? (
-                            <Line
-                              type="monotone"
-                              dataKey="compareClose"
-                              name={`${compareData.symbol} Normalised`}
-                              stroke="#f8fafc"
-                              strokeWidth={1.7}
-                              strokeDasharray="5 5"
-                              dot={false}
-                              connectNulls
-                            />
-                          ) : null}
-                          <ReferenceLine
-                            y={data.levels.support}
-                            stroke="#22c55e"
-                            strokeDasharray="4 4"
-                          />
-                          <ReferenceLine
-                            y={data.levels.resistance}
-                            stroke="#ef4444"
-                            strokeDasharray="4 4"
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart />
-                    )}
-                  </div>
-                </Card>
+                <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white">
+                  Draw
+                  <input
+                    type="checkbox"
+                    checked={drawMode}
+                    onChange={(event) => setDrawMode(event.target.checked)}
+                  />
+                </label>
 
-                <div className="grid gap-6">
-                  <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                      Signal Summary
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      {data.signals.directionalBias}
-                    </h2>
-                    <p className="mt-3 text-sm leading-6 text-slate-400">
-                      {data.signals.summary}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Pill tone={toneFor(data.signals.momentum)}>
-                        {data.signals.momentum}
-                      </Pill>
-                      <Pill tone={toneFor(data.signals.riskState)}>
-                        {data.signals.riskState}
-                      </Pill>
-                      <Pill tone="cyan">
-                        RSI {latest?.rsi14?.toFixed(1) ?? "—"}
-                      </Pill>
-                      <Pill tone="purple">
-                        MACD {latest?.macd?.toFixed(3) ?? "—"}
-                      </Pill>
-                      <Pill tone="green">SMA200 {money(latest?.sma200)}</Pill>
-                    </div>
-                  </Card>
+                <input
+                  value={patternLabel}
+                  onChange={(event) => setPatternLabel(event.target.value)}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none"
+                  placeholder="Optional label"
+                />
 
-                  <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                      Volume Confirmation
-                    </div>
-                    <p className="mt-2 text-sm text-slate-400">
-                      Volume bars are shown against the 20-period volume average.
-                    </p>
-                    <div className="mt-4 h-[260px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={visibleChartData.slice(-60)}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                          <YAxis stroke="#64748b" tickFormatter={compactNumber} />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar
-                            dataKey="volume"
-                            name="Volume"
-                            fill="#f59e0b"
-                            radius={[8, 8, 0, 0]}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="volumeSma20"
-                            name="Volume SMA20"
-                            stroke="#06b6d4"
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
+                <input
+                  type="range"
+                  min={25}
+                  max={100}
+                  value={patternOpacity}
+                  onChange={(event) => setPatternOpacity(Number(event.target.value))}
+                  className="h-12"
+                />
+
+                <button
+                  type="button"
+                  onClick={clearPatterns}
+                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div
+                ref={drawBoxRef}
+                className={cx(
+                  "relative mt-5 h-[540px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/30",
+                  drawMode ? "cursor-crosshair ring-2 ring-cyan-400/30" : ""
+                )}
+                onPointerDown={startDrawing}
+                onPointerMove={moveDrawing}
+                onPointerUp={endDrawing}
+                onPointerLeave={() => {
+                  if (draftPattern) setDraftPattern(null);
+                }}
+              >
+                {visibleChartData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={visibleChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="label" stroke="#64748b" fontSize={11} minTickGap={18} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={["dataMin - 2", "dataMax + 2"]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="close"
+                        name="Close"
+                        stroke="#ef4444"
+                        fill="#ef4444"
+                        fillOpacity={0.12}
+                        strokeWidth={3}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="vwap"
+                        name="VWAP"
+                        stroke="#06b6d4"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="ema9"
+                        name="EMA 9"
+                        stroke="#22c55e"
+                        strokeWidth={1.7}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="ema21"
+                        name="EMA 21"
+                        stroke="#a855f7"
+                        strokeWidth={1.7}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="sma50"
+                        name="SMA 50"
+                        stroke="#f59e0b"
+                        strokeWidth={1.7}
+                        dot={false}
+                        connectNulls
+                      />
+                      <ReferenceLine y={traderPrediction?.support} stroke="#22c55e" strokeDasharray="5 5" />
+                      <ReferenceLine y={traderPrediction?.resistance} stroke="#ef4444" strokeDasharray="5 5" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+
+                <svg
+                  className="pointer-events-none absolute inset-0 h-full w-full"
+                  style={{ opacity: patternOpacity / 100 }}
+                >
+                  {patterns.map((pattern) => drawPattern(pattern))}
+                  {draftPattern ? drawPattern(draftPattern, true) : null}
+                </svg>
+
+                <div className="pointer-events-none absolute left-4 top-4 rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-xs font-bold text-slate-300 backdrop-blur">
+                  {drawMode
+                    ? `Drawing ${drawTool}. Drag over chart.`
+                    : "Draw mode is off. Toggle Draw to sketch."}
                 </div>
-              </section>
-            ) : null}
+              </div>
+            </Card>
 
-            {view === "dashboard" || view === "forecast" ? (
-              <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                      Predictive Analysis Engine
+            <div className="grid gap-5">
+              <Card>
+                <SectionHeader
+                  eyebrow="Pattern Fit"
+                  title="Match score"
+                  description="Compares drawings against trend, ATR proximity, support/resistance, and price position."
+                />
+
+                <div className="mt-5 grid gap-3">
+                  {patternAnalysis.length ? (
+                    patternAnalysis.map((item) => (
+                      <SoftCard key={item.id}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <Pill tone={item.tone}>{item.status}</Pill>
+                            <div className="mt-3 text-lg font-black text-white">{item.label}</div>
+                            <div className="mt-1 text-xs text-slate-500">{item.levelText}</div>
+                          </div>
+                          <div className="text-2xl font-black text-white">{item.matchScore}</div>
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-slate-400">{item.explanation}</p>
+                      </SoftCard>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                      Draw an overlay to score pattern fit.
                     </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      {confidenceLevel}% confidence range over {horizonSteps} candles
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      Deterministic range model using EWMA volatility, realised
-                      returns, ATR, trend regression, RSI, MACD, VWAP distance,
-                      200-period trend pressure, and mean reversion.
-                    </p>
-                  </div>
+                  )}
+                </div>
+              </Card>
 
-                  <div className="h-[430px]">
-                    {predictiveAnalysis ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={predictionChartData}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="label" stroke="#64748b" minTickGap={18} />
-                          <YAxis
-                            stroke="#64748b"
-                            domain={["auto", "auto"]}
-                            tickFormatter={(value) => `$${Number(value).toFixed(0)}`}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Area
-                            type="monotone"
-                            dataKey="upper"
-                            name="Upper Confidence Band"
-                            stroke="#a855f7"
-                            fill="rgba(168,85,247,0.14)"
-                            dot={false}
-                            connectNulls
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="lower"
-                            name="Lower Confidence Band"
-                            stroke="#ef4444"
-                            fill="rgba(239,68,68,0.08)"
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="close"
-                            name="Historical Close"
-                            stroke="#f8fafc"
-                            strokeWidth={2.25}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="projected"
-                            name="Projected Path"
-                            stroke="#06b6d4"
-                            strokeWidth={2.5}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="bearish"
-                            name="Bearish Scenario"
-                            stroke="#f59e0b"
-                            strokeDasharray="4 4"
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="bullish"
-                            name="Bullish Scenario"
-                            stroke="#22c55e"
-                            strokeDasharray="4 4"
-                            dot={false}
-                            connectNulls
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart label="At least 20 candles are needed to generate a forecast range." />
-                    )}
-                  </div>
-                </Card>
+              <Card>
+                <SectionHeader
+                  eyebrow="Saved Overlays"
+                  title="Local patterns"
+                  description="Saved locally by symbol."
+                />
 
-                <div className="grid gap-6">
-                  <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                      Calculated Range
+                <div className="mt-5 grid max-h-[360px] gap-3 overflow-y-auto pr-2">
+                  {patterns.map((pattern) => (
+                    <SoftCard key={pattern.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Pill tone={pattern.type === "support" ? "green" : pattern.type === "resistance" ? "red" : pattern.type === "zone" ? "amber" : "cyan"}>
+                            {pattern.type}
+                          </Pill>
+                          <div className="mt-3 text-sm font-black text-white">{pattern.label}</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {new Date(pattern.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removePattern(pattern.id)}
+                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase text-red-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </SoftCard>
+                  ))}
+
+                  {!patterns.length ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                      No overlays saved yet.
                     </div>
-                    {predictiveAnalysis ? (
-                      <div className="mt-4 grid gap-3">
-                        <Metric
-                          label="Projected Final"
-                          value={money(predictiveAnalysis.projectedFinal)}
-                          helper={percent(predictiveAnalysis.expectedMovePct)}
-                          tone={
-                            predictiveAnalysis.expectedMovePct >= 0
-                              ? "green"
-                              : "red"
-                          }
-                        />
-                        <Metric
-                          label="Lower Bound"
-                          value={money(predictiveAnalysis.lowerFinal)}
-                          helper={percent(predictiveAnalysis.downsideMovePct)}
-                          tone="red"
-                        />
-                        <Metric
-                          label="Upper Bound"
-                          value={money(predictiveAnalysis.upperFinal)}
-                          helper={percent(predictiveAnalysis.upsideMovePct)}
-                          tone="green"
-                        />
-                        <Metric
-                          label="Probability Up"
-                          value={rawPercent(predictiveAnalysis.probabilityUp)}
-                          helper={`Down: ${rawPercent(
-                            predictiveAnalysis.probabilityDown
-                          )}`}
-                          tone={
-                            predictiveAnalysis.probabilityUp >= 55
-                              ? "green"
-                              : predictiveAnalysis.probabilityUp <= 45
-                                ? "red"
-                                : "amber"
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-slate-400">
-                        Not enough data yet.
-                      </p>
-                    )}
-                  </Card>
-
-                  {predictiveAnalysis ? (
-                    <Card>
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                        Algorithm Inputs
-                      </div>
-                      <div className="mt-4 grid gap-3 text-sm text-slate-300">
-                        <div className="flex justify-between gap-4">
-                          <span>EWMA volatility</span>
-                          <strong>
-                            {rawPercent(predictiveAnalysis.ewmaVolatility * 100, 3)}
-                          </strong>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span>Realised volatility</span>
-                          <strong>
-                            {rawPercent(
-                              predictiveAnalysis.realisedVolatility * 100,
-                              3
-                            )}
-                          </strong>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span>ATR range</span>
-                          <strong>
-                            {rawPercent(predictiveAnalysis.atrPct * 100, 3)}
-                          </strong>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span>Regression drift</span>
-                          <strong>
-                            {rawPercent(predictiveAnalysis.trendSlopePct * 100, 3)}
-                          </strong>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span>Momentum score</span>
-                          <strong>{predictiveAnalysis.momentumScore}/100</strong>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span>Volatility regime</span>
-                          <strong>{predictiveAnalysis.volatilityRegime}</strong>
-                        </div>
-                      </div>
-                    </Card>
                   ) : null}
                 </div>
-              </section>
-            ) : null}
+              </Card>
+            </div>
+          </section>
+        ) : null}
 
-            {view === "forecast" && predictiveAnalysis ? (
+        {view === "technicals" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card>
+              <SectionHeader
+                eyebrow="Technical Chart"
+                title="Price, VWAP, moving averages, and volatility bands."
+                description="Use this to confirm whether the predicted setup has technical structure behind it."
+              />
+
+              <div className="mt-5 h-[520px]">
+                {visibleChartData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={visibleChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="label" stroke="#64748b" fontSize={11} minTickGap={18} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={["dataMin - 2", "dataMax + 2"]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area
+                        yAxisId="price"
+                        type="monotone"
+                        dataKey="close"
+                        name="Close"
+                        stroke="#ef4444"
+                        fill="#ef4444"
+                        fillOpacity={0.12}
+                        strokeWidth={3}
+                      />
+                      <Line yAxisId="price" dataKey="vwap" name="VWAP" stroke="#06b6d4" strokeWidth={2} dot={false} connectNulls />
+                      <Line yAxisId="price" dataKey="ema9" name="EMA 9" stroke="#22c55e" strokeWidth={1.7} dot={false} connectNulls />
+                      <Line yAxisId="price" dataKey="ema21" name="EMA 21" stroke="#a855f7" strokeWidth={1.7} dot={false} connectNulls />
+                      <Line yAxisId="price" dataKey="sma50" name="SMA 50" stroke="#f59e0b" strokeWidth={1.7} dot={false} connectNulls />
+                      <Line yAxisId="price" dataKey="bollingerUpper" name="Boll Upper" stroke="#64748b" strokeDasharray="5 5" dot={false} connectNulls />
+                      <Line yAxisId="price" dataKey="bollingerLower" name="Boll Lower" stroke="#64748b" strokeDasharray="5 5" dot={false} connectNulls />
+                      <YAxis yAxisId="price" hide />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </div>
+            </Card>
+
+            <div className="grid gap-5">
               <Card>
-                <div className="mb-5">
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                    Confidence Interval Detail
-                  </div>
-                  <h2 className="mt-2 text-2xl font-black text-white">
-                    Forecast path table
-                  </h2>
-                </div>
+                <SectionHeader
+                  eyebrow="Indicator Snapshot"
+                  title="Current read"
+                  description="The latest technical state used in the predictive model."
+                />
 
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-sm">
-                    <thead className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                      <tr>
-                        <th className="px-3 py-3">Step</th>
-                        <th className="px-3 py-3">Projected</th>
-                        <th className="px-3 py-3">Lower</th>
-                        <th className="px-3 py-3">Upper</th>
-                        <th className="px-3 py-3">Bearish Scenario</th>
-                        <th className="px-3 py-3">Bullish Scenario</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {predictiveAnalysis.forecast.map((point) => (
-                        <tr key={point.step} className="border-t border-white/10">
-                          <td className="px-3 py-3 font-black text-white">
-                            +{point.step}
-                          </td>
-                          <td className="px-3 py-3 text-cyan-200">
-                            {money(point.projected)}
-                          </td>
-                          <td className="px-3 py-3 text-red-200">
-                            {money(point.lower)}
-                          </td>
-                          <td className="px-3 py-3 text-emerald-200">
-                            {money(point.upper)}
-                          </td>
-                          <td className="px-3 py-3 text-amber-200">
-                            {money(point.bearish)}
-                          </td>
-                          <td className="px-3 py-3 text-emerald-200">
-                            {money(point.bullish)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="mt-5 grid gap-3">
+                  <Metric label="RSI 14" value={traderPrediction?.rsi?.toFixed(2) ?? "—"} helper="Momentum oscillator" tone={toneFor(traderPrediction?.rsi ?? 0)} />
+                  <Metric label="MACD Hist" value={traderPrediction?.macdHistogram?.toFixed(4) ?? "—"} helper="Momentum acceleration" tone={changeTone(traderPrediction?.macdHistogram)} />
+                  <Metric label="VWAP Dist." value={traderPrediction ? rawPercent(traderPrediction.vwapDistancePct) : "—"} helper="Price acceptance" tone={changeTone(traderPrediction?.vwapDistancePct)} />
+                  <Metric label="MA Stack" value={traderPrediction ? `${traderPrediction.maStackScore.toFixed(0)}/100` : "—"} helper="Trend alignment" tone={toneFor(traderPrediction?.maStackScore ?? 0)} />
+                  <Metric label="Squeeze" value={traderPrediction ? `${traderPrediction.squeezeScore}/100` : "—"} helper="Compression potential" tone={toneFor(traderPrediction?.squeezeScore ?? 0)} />
+                  <Metric label="Volume Ratio" value={traderPrediction ? `${traderPrediction.volumeRatio.toFixed(2)}x` : "—"} helper="Participation" tone={toneFor(traderPrediction?.volumeScore ?? 0)} />
                 </div>
+              </Card>
+            </div>
+          </section>
+        ) : null}
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-                  {predictiveAnalysis.explanation.map((item) => (
-                    <div
-                      key={item}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300"
-                    >
-                      {item}
+        {view === "scenarios" ? (
+          <Card>
+            <SectionHeader
+              eyebrow="Scenario Matrix"
+              title="Bull, bear, base, and chop paths."
+              description="A trader needs to know what confirms the thesis, what invalidates it, and what to do if the tape goes sideways."
+            />
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {traderPrediction?.scenarioMatrix.map((scenario) => (
+                <SoftCard key={scenario.name}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Pill tone={changeTone(scenario.movePct)}>{scenario.name}</Pill>
+                      <h3 className="mt-3 text-2xl font-black text-white">
+                        {money(scenario.target)}
+                      </h3>
                     </div>
-                  ))}
+                    <div className="text-right">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Probability
+                      </div>
+                      <div className="mt-1 text-xl font-black text-white">
+                        {rawPercent(scenario.probability, 0)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={cx("mt-3 text-2xl font-black", scenario.movePct >= 0 ? "text-emerald-300" : "text-red-300")}>
+                    {percent(scenario.movePct)}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      Trigger
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{scenario.trigger}</p>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/30 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      Action
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{scenario.action}</p>
+                  </div>
+                </SoftCard>
+              )) ?? (
+                <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
+                  Run a symbol to generate scenario paths.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              {traderPrediction?.explanation.map((item) => (
+                <SoftCard key={item}>
+                  <p className="text-sm leading-6 text-slate-300">{item}</p>
+                </SoftCard>
+              ))}
+            </div>
+          </Card>
+        ) : null}
+
+        {view === "options" ? (
+          <section className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+            <Card>
+              <SectionHeader
+                eyebrow="Options Scenario Lab"
+                title="Calls, puts, spreads, and payoff planning."
+                description="Model how a strategy may pan out across price paths. This is for education and risk visualization only."
+                action={<Pill tone="purple">{optionStrategy}</Pill>}
+              />
+
+              <div className="mt-5 grid gap-3">
+                <select
+                  value={optionStrategy}
+                  onChange={(event) => setOptionStrategy(event.target.value as OptionStrategy)}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                >
+                  <option>Long Call</option>
+                  <option>Long Put</option>
+                  <option>Bull Call Spread</option>
+                  <option>Bear Put Spread</option>
+                  <option>Protective Put</option>
+                  <option>Covered Call</option>
+                </select>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    type="number"
+                    value={optionStrike}
+                    onChange={(event) => setOptionStrike(Number(event.target.value))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                    placeholder="Strike 1"
+                  />
+                  <input
+                    type="number"
+                    value={optionPremium}
+                    onChange={(event) => setOptionPremium(Number(event.target.value))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                    placeholder="Premium 1"
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    type="number"
+                    value={optionStrike2}
+                    onChange={(event) => setOptionStrike2(Number(event.target.value))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                    placeholder="Strike 2"
+                  />
+                  <input
+                    type="number"
+                    value={optionPremium2}
+                    onChange={(event) => setOptionPremium2(Number(event.target.value))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                    placeholder="Premium 2"
+                  />
+                </div>
+
+                <input
+                  type="number"
+                  value={optionContracts}
+                  onChange={(event) => setOptionContracts(Number(event.target.value))}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                  placeholder="Contracts"
+                />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Metric label="Breakeven" value={money(optionScenario.breakeven)} helper="Estimated expiration breakeven" tone="cyan" />
+                  <Metric label="Max Loss" value={optionScenario.maxLossText} helper="Simplified estimate" tone="red" />
+                  <Metric label="Max Profit" value={optionScenario.maxProfitText} helper="Simplified estimate" tone="green" />
+                  <Metric label="Current" value={money(currentPrice)} helper={data?.symbol ?? symbol} tone="purple" />
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHeader
+                eyebrow="Options Payoff"
+                title="Expiration payoff curve."
+                description="Visualizes simplified profit/loss across possible underlying prices."
+              />
+
+              <div className="mt-5 h-[500px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={optionScenario.payoffData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="price" stroke="#64748b" fontSize={12} tickFormatter={(value) => money(Number(value))} />
+                    <YAxis stroke="#64748b" fontSize={12} tickFormatter={(value) => money(Number(value))} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <ReferenceLine y={0} stroke="#ffffff" strokeDasharray="5 5" />
+                    <ReferenceLine x={currentPrice} stroke="#06b6d4" strokeDasharray="5 5" />
+                    <Area
+                      type="monotone"
+                      dataKey="profit"
+                      name="Profit / Loss"
+                      stroke="#22c55e"
+                      fill="#22c55e"
+                      fillOpacity={0.14}
+                      strokeWidth={3}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {optionScenario.summary.map((item) => (
+                  <SoftCard key={item}>
+                    <p className="text-sm leading-6 text-slate-300">{item}</p>
+                  </SoftCard>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {view === "compare" ? (
+          <Card>
+            <SectionHeader
+              eyebrow="Relative Strength"
+              title={`${data?.symbol ?? symbol} vs ${compareData?.symbol ?? compareSymbol}`}
+              description="Compare normalized performance and spread to identify leadership, weakness, or pair divergence."
+              action={
+                <button
+                  type="button"
+                  onClick={() => void loadVisuals(symbol.toUpperCase(), interval)}
+                  className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
+                >
+                  Refresh Compare
+                </button>
+              }
+            />
+
+            <div className="mt-5 h-[520px]">
+              {compareOverlayData.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={compareOverlayData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="label" stroke="#64748b" fontSize={11} minTickGap={18} />
+                    <YAxis stroke="#64748b" fontSize={12} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line type="monotone" dataKey="primaryReturnPct" name={`${data?.symbol ?? symbol} Return %`} stroke="#ef4444" strokeWidth={3} dot={false} />
+                    <Line type="monotone" dataKey="compareReturnPct" name={`${compareData?.symbol ?? compareSymbol} Return %`} stroke="#06b6d4" strokeWidth={3} dot={false} />
+                    <Bar dataKey="spreadPct" name="Spread %" fill="#a855f7" fillOpacity={0.24} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChart label="Turn on Compare and refresh to see relative strength." />
+              )}
+            </div>
+          </Card>
+        ) : null}
+
+        {view === "tradingview" ? (
+          <section className={cx("grid gap-5", pineSidePanelOpen ? "xl:grid-cols-[minmax(0,1fr)_460px]" : "")}>
+            <Card>
+              <SectionHeader
+                eyebrow="TradingView + Slice Pine Studio"
+                title="Live chart with Pine side panel workflow."
+                description="The TradingView iframe remains the live chart. Slice Pine Studio sits beside it, generates code, saves projects, and previews common Pine logic on Slice’s own data."
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPineSidePanelOpen((current) => !current)}
+                      className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
+                    >
+                      {pineSidePanelOpen ? "Hide Pine Panel" : "Open Pine Panel"}
+                    </button>
+                    <Pill tone="cyan">{symbol}</Pill>
+                  </div>
+                }
+              />
+
+              <div className="mt-5">
+                <TradingViewEmbed symbol={symbol} interval={interval} />
+              </div>
+            </Card>
+
+            {pineSidePanelOpen ? (
+              <Card>
+                <SectionHeader
+                  eyebrow="Pine Studio"
+                  title="Generate, test, save."
+                  description="AI-style generator, Pine editor, local preview, and one-click copy."
+                  action={<Pill tone={toneFor(pinePreview.previewScore)}>{pinePreview.previewScore}/100</Pill>}
+                />
+
+                <div className="mt-5 grid gap-3">
+                  <textarea
+                    value={pinePrompt}
+                    onChange={(event) => setPinePrompt(event.target.value)}
+                    className="min-h-24 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600"
+                    placeholder="Tell Slice what Pine script to generate. Example: Make me a VWAP breakout script with EMA confirmation, RSI filter, ATR stop, target, and alerts."
+                  />
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={generatePineCode}
+                      className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white"
+                    >
+                      AI Generate Pine
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyText(pineCode, "Pine code")}
+                      className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
+                    >
+                      Copy Code
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={pineCode}
+                    onChange={(event) => setPineCode(event.target.value)}
+                    spellCheck={false}
+                    className="min-h-[300px] rounded-[1.5rem] border border-white/10 bg-black/70 px-4 py-3 font-mono text-xs leading-6 text-slate-100 outline-none"
+                  />
+
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={savePineProject}
+                      className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+                    >
+                      Save Project
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setView("pine")}
+                      className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white"
+                    >
+                      Full Pine Lab
+                    </button>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100/90">
+                    TradingView’s free iframe cannot receive or compile injected Pine from Slice. Slice Preview simulates common Pine logic locally; copy the final code into TradingView Pine Editor for native execution.
+                  </div>
                 </div>
               </Card>
             ) : null}
 
-            {view === "technicals" ? (
-              <section className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                      RSI
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Relative strength with thresholds
-                    </h2>
-                  </div>
-                  <div className="h-[340px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={visibleChartData}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                        <YAxis stroke="#64748b" domain={[0, 100]} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Line
-                          type="monotone"
-                          dataKey="rsi14"
-                          name="RSI 14"
-                          stroke="#06b6d4"
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
-                        />
-                        <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="4 4" />
-                        <ReferenceLine y={50} stroke="#64748b" strokeDasharray="4 4" />
-                        <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="4 4" />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
+            <Card className={pineSidePanelOpen ? "xl:col-span-2" : ""}>
+              <SectionHeader
+                eyebrow="Slice Pine Preview"
+                title="Local signal preview from the Pine project."
+                description="Recognizes common EMA, VWAP, RSI, MACD, ATR, and alert patterns and previews signals against Slice candle data."
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setPinePreviewOpen((current) => !current)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-black text-white"
+                  >
+                    {pinePreviewOpen ? "Hide Preview" : "Show Preview"}
+                  </button>
+                }
+              />
 
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                      MACD
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Momentum convergence
-                    </h2>
-                  </div>
-                  <div className="h-[340px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={visibleChartData}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                        <YAxis stroke="#64748b" />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar
-                          dataKey="macdHistogram"
-                          name="MACD Histogram"
-                          fill="#a855f7"
-                          radius={[8, 8, 0, 0]}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="macd"
-                          name="MACD"
-                          stroke="#06b6d4"
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="macdSignal"
-                          name="Signal"
-                          stroke="#f59e0b"
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
-                        />
-                        <ReferenceLine y={0} stroke="#64748b" />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-
-                <Card className="xl:col-span-2">
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-green-400">
-                      Moving Average Stack
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      SMA20 / SMA50 / SMA100 / SMA200
-                    </h2>
-                  </div>
-                  <div className="h-[380px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={visibleChartData}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                        <YAxis stroke="#64748b" domain={["auto", "auto"]} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="close"
-                          name="Close"
-                          stroke="#f8fafc"
-                          strokeWidth={2.5}
-                          dot={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="sma20"
-                          name="SMA 20"
-                          stroke="#a855f7"
-                          strokeWidth={1.5}
-                          dot={false}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="sma50"
-                          name="SMA 50"
-                          stroke="#f59e0b"
-                          strokeWidth={1.5}
-                          dot={false}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="sma100"
-                          name="SMA 100"
-                          stroke="#3b82f6"
-                          strokeWidth={1.5}
-                          dot={false}
-                          connectNulls
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="sma200"
-                          name="SMA 200"
-                          stroke="#22c55e"
-                          strokeWidth={2.4}
-                          dot={false}
-                          connectNulls
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-              </section>
-            ) : null}
-
-            {view === "compare" ? (
-              <section className="grid gap-6">
-                <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                  <Metric
-                    label="Primary Return"
-                    value={compareStats ? percent(compareStats.primaryReturn) : "—"}
-                    helper={data.symbol}
-                    tone={
-                      (compareStats?.primaryReturn ?? 0) >= 0 ? "green" : "red"
-                    }
-                  />
-                  <Metric
-                    label="Compare Return"
-                    value={compareStats ? percent(compareStats.compareReturn) : "—"}
-                    helper={compareData?.symbol ?? "Comparison"}
-                    tone={
-                      (compareStats?.compareReturn ?? 0) >= 0 ? "green" : "red"
-                    }
-                  />
-                  <Metric
-                    label="Spread"
-                    value={compareStats ? percent(compareStats.spread) : "—"}
-                    helper="Primary minus comparison"
-                    tone={(compareStats?.spread ?? 0) >= 0 ? "green" : "red"}
-                  />
-                  <Metric
-                    label="Leader"
-                    value={compareStats?.leader ?? "—"}
-                    helper="Normalised period"
-                    tone="cyan"
-                  />
-                  <Metric
-                    label="Primary / Compare"
-                    value={`${money(compareStats?.primaryLatest)} / ${money(
-                      compareStats?.compareLatest
-                    )}`}
-                    helper="Latest price"
-                    tone="purple"
-                  />
-                </section>
-
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                      Relative Performance
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      {data.symbol} vs {compareData?.symbol ?? compareSymbol}
-                    </h2>
-                    <p className="mt-2 text-sm text-slate-400">
-                      This chart compares percentage return from the first visible
-                      candle, not absolute price.
-                    </p>
-                  </div>
-
-                  <div className="h-[460px]">
-                    {showCompare && compareData ? (
+              {pinePreviewOpen ? (
+                <>
+                  <div className="mt-5 h-[420px]">
+                    {pinePreview.previewData.length ? (
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={compareOverlayData}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="label" stroke="#64748b" minTickGap={24} />
-                          <YAxis
-                            stroke="#64748b"
-                            tickFormatter={(value) =>
-                              `${Number(value).toFixed(0)}%`
-                            }
-                          />
+                        <ComposedChart data={pinePreview.previewData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                          <XAxis dataKey="label" stroke="#64748b" fontSize={11} minTickGap={18} />
+                          <YAxis stroke="#64748b" fontSize={12} domain={["dataMin - 2", "dataMax + 2"]} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Line
-                            type="monotone"
-                            dataKey="primaryReturnPct"
-                            name={`${data.symbol} Return %`}
-                            stroke="#ef4444"
-                            strokeWidth={2.5}
-                            dot={false}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="compareReturnPct"
-                            name={`${compareData.symbol} Return %`}
-                            stroke="#06b6d4"
-                            strokeWidth={2.5}
-                            dot={false}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="spreadPct"
-                            name="Spread %"
-                            stroke="#22c55e"
-                            strokeWidth={1.8}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            connectNulls
-                          />
-                          <ReferenceLine y={0} stroke="#64748b" />
+                          <Area dataKey="close" name="Close" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={3} />
+                          <Line dataKey="emaFast" name="EMA Fast" stroke="#22c55e" strokeWidth={2} dot={false} connectNulls />
+                          <Line dataKey="emaSlow" name="EMA Slow" stroke="#06b6d4" strokeWidth={2} dot={false} connectNulls />
+                          <Line dataKey="vwap" name="VWAP" stroke="#a855f7" strokeWidth={2} dot={false} connectNulls />
+                          <Line dataKey="bullSignal" name="Bull Signal" stroke="#22c55e" strokeWidth={0} dot={{ r: 5 }} connectNulls={false} />
+                          <Line dataKey="bearSignal" name="Bear Signal" stroke="#ef4444" strokeWidth={0} dot={{ r: 5 }} connectNulls={false} />
                         </ComposedChart>
                       </ResponsiveContainer>
                     ) : (
-                      <EmptyChart label="Turn Compare On and load visuals to compare assets." />
+                      <EmptyChart label="No preview data available." />
                     )}
                   </div>
-                </Card>
-              </section>
-            ) : null}
 
-            {view === "platform" ? (
-              <section className="grid gap-6 xl:grid-cols-2">
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                      Platform Overview
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Advisor workspace data
-                    </h2>
-                  </div>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={platformOverview}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="name" stroke="#64748b" />
-                        <YAxis stroke="#64748b" />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
-                          {platformOverview.map((_, index) => (
-                            <Cell
-                              key={index}
-                              fill={BAR_COLORS[index % BAR_COLORS.length]}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                      Task Status
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Task status mix
-                    </h2>
-                  </div>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={taskStatusCounts}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="name" stroke="#64748b" />
-                        <YAxis stroke="#64748b" />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar
-                          dataKey="value"
-                          name="Tasks"
-                          fill="#f59e0b"
-                          radius={[8, 8, 0, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
-                      Alert Scores
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Highest-priority alerts
-                    </h2>
-                  </div>
-                  <div className="h-[330px]">
-                    {alertScores.length ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={alertScores.slice(0, 8)}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="name" stroke="#64748b" />
-                          <YAxis stroke="#64748b" />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar
-                            dataKey="score"
-                            name="Alert Score"
-                            radius={[8, 8, 0, 0]}
-                          >
-                            {alertScores.slice(0, 8).map((_, index) => (
-                              <Cell
-                                key={index}
-                                fill={BAR_COLORS[index % BAR_COLORS.length]}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart label="No stored alert scores yet." />
-                    )}
-                  </div>
-                </Card>
-
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
-                      Opportunities
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Opportunity vs risk
-                    </h2>
-                  </div>
-                  <div className="h-[330px]">
-                    {opportunityMatrix.length ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={opportunityMatrix.slice(0, 10)}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                          <XAxis dataKey="name" stroke="#64748b" />
-                          <YAxis stroke="#64748b" />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Bar
-                            dataKey="opportunity"
-                            name="Opportunity"
-                            fill="#22c55e"
-                            radius={[8, 8, 0, 0]}
-                          />
-                          <Bar
-                            dataKey="risk"
-                            name="Risk"
-                            fill="#ef4444"
-                            radius={[8, 8, 0, 0]}
-                          />
-                          <Line
-                            dataKey="composite"
-                            name="Composite"
-                            stroke="#06b6d4"
-                            strokeWidth={2}
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <EmptyChart label="No opportunity signals yet." />
-                    )}
-                  </div>
-                </Card>
-
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                      Source Credibility
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Credibility and transparency
-                    </h2>
-                  </div>
-                  <div className="grid gap-3">
-                    {sourceCredibility.slice(0, 8).map((source) => (
-                      <div
-                        key={`${source.sourceName}-${source.domain}`}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {pinePreview.features.map((feature) => (
+                      <SoftCard key={feature.name}>
+                        <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="font-black text-white">
-                              {source.sourceName}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {source.domain}
-                            </div>
+                            <Pill tone={feature.tone}>{feature.enabled ? "Detected" : "Missing"}</Pill>
+                            <div className="mt-3 text-lg font-black text-white">{feature.name}</div>
+                            <p className="mt-2 text-xs leading-5 text-slate-500">{feature.note}</p>
                           </div>
-                          <Pill tone={toneFor(source.status)}>
-                            {source.status}
-                          </Pill>
                         </div>
-                        <div className="mt-3 grid gap-2 text-xs text-slate-300">
-                          <div>Credibility: {source.credibility}</div>
-                          <div>Transparency: {source.transparency}</div>
-                          <div>Bias Risk: {source.biasRisk}</div>
-                        </div>
-                      </div>
+                      </SoftCard>
                     ))}
-                    {!sourceCredibility.length ? (
-                      <div className="text-sm text-slate-500">
-                        No source credibility records yet.
-                      </div>
-                    ) : null}
                   </div>
-                </Card>
 
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                      Watchlist Heat
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Tracked asset heatmap
-                    </h2>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {watchlistHeatmap.slice(0, 10).map((item) => (
-                      <div
-                        key={`${item.symbol}-${item.sourceType}`}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-xl font-black text-white">
-                            {item.symbol}
-                          </div>
-                          <Pill
-                            tone={
-                              item.score >= 75
-                                ? "green"
-                                : item.score >= 50
-                                  ? "amber"
-                                  : "red"
-                            }
-                          >
-                            {item.score}
-                          </Pill>
-                        </div>
-                        <div className="mt-2 text-xs text-slate-400">
-                          {item.priority} · {item.status} · {item.sourceType}
-                        </div>
-                      </div>
+                  <div className="mt-5 grid gap-3">
+                    {pinePreview.warnings.map((warning) => (
+                      <SoftCard key={warning}>
+                        <p className="text-sm leading-6 text-slate-300">{warning}</p>
+                      </SoftCard>
                     ))}
-                    {!watchlistHeatmap.length ? (
-                      <div className="text-sm text-slate-500">
-                        No watchlist heatmap records yet.
+                  </div>
+                </>
+              ) : null}
+            </Card>
+          </section>
+        ) : null}
+
+        {view === "pine" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card>
+              <SectionHeader
+                eyebrow="Pine Script Project Lab"
+                title="Save reusable TradingView Pine projects."
+                description="Create, edit, AI-generate, preview, copy, and reuse Pine scripts. Native execution still happens in TradingView Pine Editor, while Slice Preview simulates common logic here."
+                action={<Pill tone="purple">{pineProjects.length} saved</Pill>}
+              />
+
+              <div className="mt-5 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+                <input
+                  value={pineProjectName}
+                  onChange={(event) => setPineProjectName(event.target.value)}
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none"
+                  placeholder="Pine project name"
+                />
+                <button
+                  type="button"
+                  onClick={generatePineCode}
+                  className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white"
+                >
+                  AI Generate
+                </button>
+                <button
+                  type="button"
+                  onClick={resetPineTemplate}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <textarea
+                value={pinePrompt}
+                onChange={(event) => setPinePrompt(event.target.value)}
+                className="mt-3 min-h-20 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600"
+                placeholder="Prompt: Generate a breakout strategy with VWAP, EMA stack, RSI, ATR stop, target, labels, and alerts..."
+              />
+
+              <textarea
+                value={pineProjectNotes}
+                onChange={(event) => setPineProjectNotes(event.target.value)}
+                className="mt-3 min-h-20 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600"
+                placeholder="Notes: what this script is for, when to use it, alerts to set..."
+              />
+
+              <textarea
+                value={pineCode}
+                onChange={(event) => setPineCode(event.target.value)}
+                spellCheck={false}
+                className="mt-3 min-h-[560px] w-full rounded-[1.5rem] border border-white/10 bg-black/70 px-5 py-4 font-mono text-xs leading-6 text-slate-100 outline-none"
+              />
+
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={savePineProject}
+                  className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyText(pineCode, "Pine code")}
+                  className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
+                >
+                  Copy Code
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("tradingview")}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white"
+                >
+                  Chart View
+                </button>
+                <a
+                  href="https://www.tradingview.com/chart/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-black text-red-100"
+                >
+                  Open TV
+                </a>
+              </div>
+            </Card>
+
+            <div className="grid gap-5">
+              <Card>
+                <SectionHeader
+                  eyebrow="Pine Preview"
+                  title="Feature detection"
+                  description="Slice recognizes common Pine concepts and previews signals locally."
+                  action={<Pill tone={toneFor(pinePreview.previewScore)}>{pinePreview.previewScore}/100</Pill>}
+                />
+
+                <div className="mt-5 grid gap-3">
+                  {pinePreview.features.map((feature) => (
+                    <SoftCard key={feature.name}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Pill tone={feature.tone}>{feature.enabled ? "Detected" : "Missing"}</Pill>
+                          <div className="mt-3 text-sm font-black text-white">{feature.name}</div>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">{feature.note}</p>
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                </Card>
-              </section>
-            ) : null}
+                    </SoftCard>
+                  ))}
+                </div>
+              </Card>
 
-            {view === "data" ? (
-              <section className="grid gap-6">
-                <Card>
-                  <div className="mb-5">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                      Data Table
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">
-                      Recent candles with technical columns
-                    </h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1320px] text-left text-sm">
-                      <thead className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                        <tr>
-                          <th className="px-3 py-3">Time</th>
-                          <th className="px-3 py-3">Open</th>
-                          <th className="px-3 py-3">High</th>
-                          <th className="px-3 py-3">Low</th>
-                          <th className="px-3 py-3">Close</th>
-                          <th className="px-3 py-3">Return</th>
-                          <th className="px-3 py-3">Cum. Return</th>
-                          <th className="px-3 py-3">Volume</th>
-                          <th className="px-3 py-3">VWAP</th>
-                          <th className="px-3 py-3">SMA 50</th>
-                          <th className="px-3 py-3">SMA 100</th>
-                          <th className="px-3 py-3">SMA 200</th>
-                          <th className="px-3 py-3">ATR 14</th>
-                          <th className="px-3 py-3">RSI</th>
-                          <th className="px-3 py-3">MACD</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleChartData
-                          .slice()
-                          .reverse()
-                          .map((candle) => (
-                            <tr
-                              key={`${candle.date}-${candle.close}`}
-                              className="border-t border-white/10"
-                            >
-                              <td className="px-3 py-3 font-bold text-white">
-                                {candle.label}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {money(candle.open)}
-                              </td>
-                              <td className="px-3 py-3 text-emerald-200">
-                                {money(candle.high)}
-                              </td>
-                              <td className="px-3 py-3 text-red-200">
-                                {money(candle.low)}
-                              </td>
-                              <td className="px-3 py-3 text-cyan-200">
-                                {money(candle.close)}
-                              </td>
-                              <td
-                                className={cx(
-                                  "px-3 py-3",
-                                  (candle.returnPct ?? 0) >= 0
-                                    ? "text-emerald-200"
-                                    : "text-red-200"
-                                )}
-                              >
-                                {percent(candle.returnPct, 3)}
-                              </td>
-                              <td
-                                className={cx(
-                                  "px-3 py-3",
-                                  (candle.cumulativeReturnPct ?? 0) >= 0
-                                    ? "text-emerald-200"
-                                    : "text-red-200"
-                                )}
-                              >
-                                {percent(candle.cumulativeReturnPct, 2)}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {compactNumber(candle.volume)}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {money(candle.vwap)}
-                              </td>
-                              <td className="px-3 py-3 text-amber-200">
-                                {money(candle.sma50)}
-                              </td>
-                              <td className="px-3 py-3 text-blue-200">
-                                {money(candle.sma100)}
-                              </td>
-                              <td className="px-3 py-3 text-emerald-200">
-                                {money(candle.sma200)}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {money(candle.atr14)}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {candle.rsi14?.toFixed(1) ?? "—"}
-                              </td>
-                              <td className="px-3 py-3 text-slate-300">
-                                {candle.macd?.toFixed(4) ?? "—"}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              </section>
-            ) : null}
+              <Card>
+                <SectionHeader
+                  eyebrow="Saved Pine Projects"
+                  title="Reusable scripts"
+                  description="Keep scripts for different setups, symbols, and clients."
+                />
 
-            <Card className="border-amber-500/20 bg-amber-500/5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
-                    Model Disclaimer
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-amber-100/80">
-                    Predictive ranges are statistical estimates only. They are not
-                    investment advice, guarantees, or trade instructions. Verify live
-                    data, liquidity, news, client suitability, and risk tolerance
-                    before making decisions.
-                  </p>
-                  {data.quality.warnings.length ? (
-                    <div className="mt-3 text-xs leading-5 text-amber-200">
-                      {data.quality.warnings.join(" ")}
+                <div className="mt-5 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
+                  {pineProjects.map((project) => (
+                    <SoftCard key={project.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Pill tone="purple">{project.symbol}</Pill>
+                          <h3 className="mt-3 text-lg font-black text-white">{project.name}</h3>
+                          <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-500">
+                            {project.notes || "No notes yet."}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deletePineProject(project.id)}
+                          className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase text-red-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => loadPineProject(project)}
+                          className="rounded-2xl bg-white px-3 py-2 text-xs font-black text-slate-950"
+                        >
+                          Load
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyText(project.code, "Pine project")}
+                          className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-black text-cyan-100"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </SoftCard>
+                  ))}
+
+                  {!pineProjects.length ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+                      No Pine projects saved yet.
                     </div>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Pill
-                    tone={
-                      data.quality.score >= 80
-                        ? "green"
-                        : data.quality.score >= 60
-                          ? "amber"
-                          : "red"
-                    }
-                  >
-                    Quality {data.quality.score}
-                  </Pill>
-                  <Pill tone="cyan">Provider {data.provider}</Pill>
-                  <Pill tone="purple">Forecast {confidenceLevel}%</Pill>
-                  <Pill tone="green">{data.candles.length} candles</Pill>
-                </div>
+              </Card>
+            </div>
+          </section>
+        ) : null}
+
+        {view === "platform" ? (
+          <section className="grid gap-5 xl:grid-cols-2">
+            <Card>
+              <SectionHeader
+                eyebrow="Platform Intelligence"
+                title="Alerts and opportunity signals."
+                description="Slice platform data sits beside market analysis. If platform opportunity data is thin, Slice generates a trader-oriented fallback matrix from prediction, risk, patterns, Pine Preview, and options context."
+              />
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                {(data?.platform.platformOverview?.length
+                  ? data.platform.platformOverview
+                  : [
+                      { name: "Setup Quality", value: traderPrediction?.setupQuality ?? 0 },
+                      { name: "Pattern Fit", value: patternScore },
+                      { name: "Pine Preview", value: pinePreview.previewScore },
+                      { name: "Model Quality", value: traderPrediction?.modelQualityScore ?? 0 },
+                    ]
+                ).map((item) => (
+                  <Metric key={item.name} label={item.name} value={item.value} tone="purple" />
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {data?.platform.alertScores?.length ? (
+                  data.platform.alertScores.map((alert) => (
+                    <SoftCard key={alert.name}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <Pill tone={toneFor(alert.urgency)}>{alert.urgency}</Pill>
+                          <div className="mt-3 text-lg font-black text-white">{alert.title}</div>
+                          <div className="mt-1 text-xs text-slate-500">{alert.source}</div>
+                        </div>
+                        <div className="text-2xl font-black text-red-300">{alert.score}</div>
+                      </div>
+                    </SoftCard>
+                  ))
+                ) : (
+                  <SoftCard>
+                    <Pill tone="cyan">Generated</Pill>
+                    <div className="mt-3 text-lg font-black text-white">Trader-generated opportunity alerts</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Live platform alerts were not available, so Slice generated opportunity context from the predictive model, Pine Preview, pattern analysis, and options lab.
+                    </p>
+                  </SoftCard>
+                )}
               </div>
             </Card>
-          </>
-        ) : (
+
+            <Card>
+              <SectionHeader
+                eyebrow="Opportunity Matrix"
+                title="Opportunity, risk, confidence, and composite score."
+                description="This matrix uses platform data when available and falls back to predictive trader intelligence when needed."
+              />
+
+              <div className="mt-5 h-[420px]">
+                {opportunityMatrixData.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={opportunityMatrixData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
+                      <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="opportunity" name="Opportunity" fill="#22c55e" fillOpacity={0.72} radius={[10, 10, 0, 0]} />
+                      <Bar dataKey="risk" name="Risk" fill="#ef4444" fillOpacity={0.72} radius={[10, 10, 0, 0]} />
+                      <Line type="monotone" dataKey="confidence" name="Confidence" stroke="#06b6d4" strokeWidth={3} />
+                      <Line type="monotone" dataKey="composite" name="Composite" stroke="#a855f7" strokeWidth={3} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {opportunityMatrixData.map((item) => (
+                  <SoftCard key={`${item.name}-${item.title}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <Pill tone={toneFor(item.composite)}>{item.name}</Pill>
+                        <div className="mt-3 text-sm font-black text-white">{item.title}</div>
+                        <div className="mt-1 text-xs text-slate-500">{item.source}</div>
+                      </div>
+                      <div className="text-2xl font-black text-white">{item.composite}</div>
+                    </div>
+                  </SoftCard>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {view === "data" ? (
           <Card>
-            <EmptyChart label="Load a ticker to begin market visualization." />
+            <SectionHeader
+              eyebrow="Raw Candle Data"
+              title="Full technical table."
+              description="Recent candles, indicators, volume, ranges, returns, and moving averages."
+            />
+
+            <div className="mt-5 overflow-x-auto rounded-[1.5rem] border border-white/10">
+              <table className="min-w-[1180px] w-full text-left text-sm">
+                <thead className="bg-white/[0.045] text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  <tr>
+                    {[
+                      "Date",
+                      "Open",
+                      "High",
+                      "Low",
+                      "Close",
+                      "Volume",
+                      "Return",
+                      "RSI",
+                      "VWAP",
+                      "EMA9",
+                      "EMA21",
+                      "SMA50",
+                      "SMA200",
+                      "ATR",
+                    ].map((header) => (
+                      <th key={header} className="px-4 py-3">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {latestCandleRows.map((candle) => (
+                    <tr key={`${candle.date}-${candle.close}`} className="hover:bg-white/[0.035]">
+                      <td className="px-4 py-3 font-bold text-white">{candle.label}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.open)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.high)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.low)}</td>
+                      <td className="px-4 py-3 font-black text-white">{money(candle.close)}</td>
+                      <td className="px-4 py-3 text-slate-300">{compactNumber(candle.volume)}</td>
+                      <td className={cx("px-4 py-3 font-black", (candle.returnPct ?? 0) >= 0 ? "text-emerald-300" : "text-red-300")}>
+                        {percent(candle.returnPct)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">{candle.rsi14?.toFixed(2) ?? "—"}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.vwap)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.ema9)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.ema21)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.sma50)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.sma200)}</td>
+                      <td className="px-4 py-3 text-slate-300">{money(candle.atr14)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
-        )}
+        ) : null}
+
+        {renderTradingSafety()}
       </div>
     </main>
   );

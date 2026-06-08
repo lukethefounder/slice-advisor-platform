@@ -6,7 +6,7 @@ import {
   defaultBotAnswers,
 } from "@/lib/personal-bot-questions";
 import { prisma } from "@/lib/prisma";
-import { generateAiText } from "@/lib/integrations/ai";
+import { generateAiText, type AiSpeedMode } from "@/lib/integrations/ai";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +36,8 @@ type BotProfile = {
   customInstructions: string | null;
 };
 
+type AnswerMode = "quick" | "balanced" | "deep";
+
 function asJson(value: unknown) {
   return JSON.stringify(value);
 }
@@ -54,12 +56,62 @@ function readText(value: unknown, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function normalizeEnv(value: string | undefined) {
+  return String(value ?? "").trim().replace(/^["']|["']$/g, "");
+}
+
+function getAiRuntimeStatus() {
+  const apiKey =
+    normalizeEnv(process.env.OPENAI_API_KEY) ||
+    normalizeEnv(process.env.OPENAI_KEY) ||
+    normalizeEnv(process.env.OPENAI_SECRET_KEY);
+
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const qualityModel = process.env.OPENAI_QUALITY_MODEL || process.env.OPENAI_MODEL || "gpt-4.1";
+
+  return {
+    configured: Boolean(apiKey),
+    provider: apiKey ? "OpenAI Responses API" : "Local fallback",
+    model,
+    qualityModel,
+    requiredEnv: "OPENAI_API_KEY",
+    webSearchEnabled: process.env.OPENAI_ENABLE_WEB_SEARCH === "true",
+  };
+}
+
 async function safe<T>(fallback: T, callback: () => Promise<T>): Promise<T> {
   try {
     return await callback();
   } catch {
     return fallback;
   }
+}
+
+function readAnswerMode(value: unknown): AnswerMode {
+  if (value === "quick" || value === "balanced" || value === "deep") return value;
+  return "balanced";
+}
+
+function speedModeForAnswerMode(mode: AnswerMode): AiSpeedMode {
+  if (mode === "quick") return "fast";
+  if (mode === "deep") return "quality";
+  return "balanced";
+}
+
+function timeoutForAnswerMode(mode: AnswerMode) {
+  if (mode === "quick") return 45_000;
+  if (mode === "deep") return 150_000;
+  return 95_000;
+}
+
+function modelForAnswerMode(mode: AnswerMode) {
+  const runtime = getAiRuntimeStatus();
+
+  if (mode === "deep") {
+    return runtime.qualityModel;
+  }
+
+  return runtime.model;
 }
 
 async function resolveFirmId(userId: string) {
@@ -82,8 +134,7 @@ function deriveBotProfile(answers: Record<string, string>) {
   const riskTolerance = answers.risk_tolerance ?? "Balanced";
   const communicationStyle = answers.communication_tone ?? "Professional";
   const detailLevel = answers.detail_level ?? "Balanced detail";
-  const automationComfort =
-    answers.automation_comfort ?? "Advisor approval required";
+  const automationComfort = answers.automation_comfort ?? "Advisor approval required";
 
   return {
     personality: {
@@ -105,13 +156,16 @@ function deriveBotProfile(answers: Record<string, string>) {
     },
     capabilities: [
       "Universal AI answers",
-      "Presentation-ready advisor summaries",
+      "Plain-English advisor explanations",
       "Voice input and spoken replies",
       "PDF report generation",
       "Professional command interpretation",
       "Advisor-review safety gates",
       "Source-aware research structure",
       "Workspace memory",
+      "Client communication preparation",
+      "Meeting preparation",
+      "Investment scenario modeling",
     ],
     preferredTone: communicationStyle,
     commandStyle: detailLevel,
@@ -146,6 +200,9 @@ async function ensureBotProfile(user: CurrentUser): Promise<BotProfile> {
         "Voice input and spoken replies",
         "Premium PDF generation",
         "Professional advisor summaries",
+        "Client communication preparation",
+        "Meeting preparation",
+        "Investment scenario modeling",
       ]),
       preferredTone: "Professional",
       commandStyle: "Balanced detail",
@@ -165,23 +222,24 @@ async function ensureBotProfile(user: CurrentUser): Promise<BotProfile> {
       update: {
         profileId: profile.id,
         notes:
-          "Presentation-grade Slice AI Studio for advisor answers, voice, reports, and command work.",
+          "Calm Slice AI Studio for advisor answers, voice, reports, client communication, platform guidance, and investment scenario modeling.",
       },
       create: {
         userId: user.id,
         profileId: profile.id,
         tabName: "AI Studio",
         layoutJson: asJson({
-          mode: "presentation-grade-ai-studio",
+          mode: "calm-advisor-ai-studio-v3",
         }),
         pinnedCommandsJson: asJson([
-          "Create a stunning PDF report explaining Slice for a wealth manager presentation.",
-          "Give me a presentation-ready answer to why Slice matters.",
-          "Research NVDA and explain the bull case, bear case, and next steps.",
-          "What should I improve before showing this platform to a wealth manager?",
+          "Explain this platform in simple terms for a wealth manager.",
+          "Create a client-friendly explanation of NVDA exposure.",
+          "Prepare a calm meeting agenda for a client portfolio review.",
+          "Build an investment scenario for a new client with $250,000 starting capital.",
+          "Help me decide what to work on next inside Slice.",
         ]),
         notes:
-          "Presentation-grade Slice AI Studio for advisor answers, voice, reports, and command work.",
+          "Calm Slice AI Studio for advisor answers, voice, reports, client communication, platform guidance, and investment scenario modeling.",
         status: "Active",
       },
     })
@@ -214,13 +272,21 @@ function looksLikeReportRequest(prompt: string) {
 }
 
 function professionalFallbackAnswer(prompt: string) {
-  return `Here is the professional answer.
+  return `I can help with that.
+
+Here is a useful advisor-grade starting point based on the Slice platform context:
 
 ${prompt}
 
-For a wealth manager or advisor audience, the strongest way to position this is: Slice is an advisor intelligence layer that helps turn market noise, client context, tasks, alerts, and research into fast, reviewable decisions. The value is not just that it answers questions; it reduces friction in the advisor workflow by keeping analysis, action items, reports, and communication preparation in one operating layer.
+The practical way to approach this is to keep the answer clear, reviewable, and client-safe. Slice should help an advisor turn market information, client context, portfolio holdings, alerts, notes, and tasks into organized next steps.
 
-The practical takeaway: Slice should be presented as a productivity and intelligence platform for advisors, not just a chatbot. The core promise is faster understanding, cleaner documentation, stronger follow-through, and better client-ready preparation while keeping important actions review-gated.`;
+Use this as a working draft, then ask me to refine it into one of these formats:
+- client-friendly email
+- meeting agenda
+- investment scenario
+- executive summary
+- report or PDF packet
+- advisor talking points`;
 }
 
 async function generateProfessionalAnswer(input: {
@@ -228,22 +294,34 @@ async function generateProfessionalAnswer(input: {
   profile: BotProfile;
   prompt: string;
   recentMessages: Array<{ role: string; content: string }>;
+  answerMode: AnswerMode;
 }) {
+  const runtime = getAiRuntimeStatus();
+  const speedMode = speedModeForAnswerMode(input.answerMode);
+  const timeoutMs = timeoutForAnswerMode(input.answerMode);
+  const model = modelForAnswerMode(input.answerMode);
+
   const ai = await generateAiText({
     safetyIdentifier: input.user.email,
-    speedMode: "fast",
+    speedMode,
+    timeoutMs,
+    model,
     useCache: false,
+    enableWebSearch: runtime.webSearchEnabled,
     instructions: `
-You are Slice AI Studio, a state-of-the-art advisor intelligence assistant.
+You are Slice AI Studio, a calm, premium advisor intelligence assistant.
 
 Rules:
-- Always answer directly inside the chat.
-- Do not tell the user to go elsewhere unless they explicitly ask to navigate.
-- Be fast, professional, polished, and presentation-ready.
-- Use clear advisor-grade language.
-- If the user asks for a PDF/report/presentation, explain what was created and what it is useful for.
-- Do not claim live market facts unless supplied by the platform context.
-- For investment commentary, avoid guarantees and phrase conclusions as review-oriented analysis.
+- Answer directly inside the chat.
+- Take the time needed to provide a real answer.
+- Avoid saying you returned a fallback unless the API key is missing or the request truly fails.
+- Make the answer easy to understand and useful.
+- Avoid intimidating technical language unless the user asks for technical depth.
+- Be polished and advisor-grade.
+- Keep investment commentary review-oriented. Do not guarantee returns.
+- For client-facing content, keep language clear, calm, and compliance-conscious.
+- If the user asks for a PDF/report/presentation, explain what was created and how to use it.
+- If a live market fact is not supplied by platform context or web-search tooling, do not pretend it is live.
 - Use the user's preferred tone: ${input.profile.preferredTone}.
 - Use the user's detail preference: ${input.profile.commandStyle}.
 - Custom instructions: ${input.profile.customInstructions || "None"}.
@@ -254,10 +332,11 @@ Rules:
           name: input.user.name,
           email: input.user.email,
         },
+        answerMode: input.answerMode,
         prompt: input.prompt,
         recentMessages: input.recentMessages,
-        presentationContext:
-          "The user has an important presentation soon. Prioritize clarity, polish, and demo reliability.",
+        platformContext:
+          "Slice is a wealth/advisor operating platform with AI Studio, team board, clients, email center, market visuals, opportunity radar, watchlists, portfolio lab, alternatives, security, and backend readiness.",
       },
       null,
       2
@@ -270,6 +349,10 @@ Rules:
     provider: ai.provider,
     status: ai.status,
     error: ai.error,
+    model: ai.model,
+    configured: runtime.configured,
+    answerMode: input.answerMode,
+    latencyMs: ai.latencyMs,
   };
 }
 
@@ -278,10 +361,10 @@ function buildReportSections(prompt: string, answer: string) {
     {
       title: "Executive Summary",
       body:
-        "Slice AI Studio was asked to prepare a presentation-ready advisor intelligence report. This section summarizes the core thesis, platform value, and advisor-facing use case in a clean format.",
+        "Slice AI Studio prepared an advisor-facing report from the user's request. This section summarizes the practical point, platform value, and advisor use case.",
       bullets: [
         "Slice centralizes advisor intelligence, research, task execution, alerts, and report preparation.",
-        "The AI layer is designed to answer questions quickly while preserving advisor-review workflows.",
+        "The AI layer is designed to answer questions while preserving advisor-review workflows.",
         "The voice layer supports faster hands-free interaction during demonstrations or daily work.",
         "The PDF layer converts analysis into a polished review packet suitable for internal discussion.",
       ],
@@ -304,18 +387,9 @@ function buildReportSections(prompt: string, answer: string) {
       ],
     },
     {
-      title: "Presentation Talking Points",
-      bullets: [
-        "Slice is not merely a chatbot; it is an advisor operating layer.",
-        "The platform is designed around speed, clarity, reviewability, and client preparation.",
-        "The strongest near-term value is workflow compression for advisors and wealth managers.",
-        "The long-term moat is the combination of AI, firm memory, source intelligence, reports, and task execution.",
-      ],
-    },
-    {
       title: "Important Review Notes",
       body:
-        "This report is AI-assisted and intended for advisor review. Verify any market data, client suitability, compliance requirements, and source freshness before using externally.",
+        "This report is AI-assisted and intended for advisor review. Verify market data, client suitability, compliance requirements, and source freshness before using externally.",
     },
   ];
 }
@@ -338,47 +412,33 @@ async function createReport(input: {
       profileId: input.profile.id,
       firmId: input.profile.firmId,
       title,
-      reportType: "Presentation-Ready AI Report",
+      reportType: "Advisor AI Report",
       summary:
-        "A premium Slice AI Studio report generated for advisor review, platform demonstration, and presentation preparation.",
+        "A polished Slice AI Studio report generated for advisor review, platform demonstration, and meeting preparation.",
       sectionsJson: asJson(buildReportSections(input.prompt, input.answer)),
       designJson: asJson({
         generatedBy: input.profile.botName,
         preparedFor: "Advisor / Wealth Manager Review",
-        investmentGrade: "Presentation Ready",
-        confidenceScore: 88,
+        investmentGrade: "Advisor Review Ready",
+        confidenceScore: 90,
         metrics: [
           {
-            label: "Presentation Polish",
+            label: "Clarity",
             value: 92,
-            helper: "Designed for demo use",
+            helper: "Designed for easy use",
             tone: "green",
           },
           {
             label: "Advisor Utility",
-            value: 90,
+            value: 91,
             helper: "Workflow-focused",
             tone: "green",
           },
           {
             label: "Review Safety",
-            value: 86,
+            value: 88,
             helper: "Approval-first posture",
             tone: "amber",
-          },
-        ],
-        charts: [
-          {
-            type: "bar",
-            title: "Slice AI Capability Strength",
-            subtitle: "Presentation-oriented internal scorecard.",
-            data: [
-              { label: "Answers", value: 92 },
-              { label: "Voice", value: 86 },
-              { label: "Reports", value: 90 },
-              { label: "Workflow", value: 88 },
-              { label: "Review", value: 87 },
-            ],
           },
         ],
       }),
@@ -390,6 +450,7 @@ async function createReport(input: {
 
 async function loadBot(user: CurrentUser) {
   const profile = await ensureBotProfile(user);
+  const runtime = getAiRuntimeStatus();
 
   const [
     messages,
@@ -405,14 +466,14 @@ async function loadBot(user: CurrentUser) {
       db.personalUserBotMessage.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
-        take: 30,
+        take: 50,
       })
     ),
     safe([], () =>
       db.personalUserBotCommand.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
-        take: 30,
+        take: 50,
       })
     ),
     safe([], () =>
@@ -426,35 +487,35 @@ async function loadBot(user: CurrentUser) {
       db.personalUserBotPdfReport.findMany({
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 30,
       })
     ),
     safe([], () =>
       db.personalUserBotMemory.findMany({
         where: { userId: user.id },
         orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
-        take: 20,
+        take: 25,
       })
     ),
     safe([], () =>
       db.personalUserBotApprovalItem.findMany({
         where: { userId: user.id },
         orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-        take: 20,
+        take: 25,
       })
     ),
     safe([], () =>
       db.backendApprovalItem.findMany({
         where: { userId: user.id },
         orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-        take: 20,
+        take: 25,
       })
     ),
     safe([], () =>
       db.personalUserBotPlatformMapItem.findMany({
         where: { userId: user.id },
         orderBy: [{ category: "asc" }, { label: "asc" }],
-        take: 40,
+        take: 50,
       })
     ),
   ]);
@@ -470,9 +531,10 @@ async function loadBot(user: CurrentUser) {
       capabilities: parseJson<string[]>(profile.capabilitiesJson, []),
     },
     aiEngine: {
-      provider: process.env.OPENAI_API_KEY ? "OpenAI Responses API" : "Local fallback",
-      configured: Boolean(process.env.OPENAI_API_KEY),
-      model: process.env.OPENAI_MODEL || "gpt-5",
+      provider: runtime.provider,
+      configured: runtime.configured,
+      model: runtime.model,
+      qualityModel: runtime.qualityModel,
       structuredCommands: true,
       universalAnswers: true,
       approvalGates: true,
@@ -480,9 +542,19 @@ async function loadBot(user: CurrentUser) {
       voiceLearning: true,
       spokenAccent: "British English",
       speechLanguage: "en-GB",
-      webSearchEnabled: process.env.OPENAI_ENABLE_WEB_SEARCH === "true",
+      webSearchEnabled: runtime.webSearchEnabled,
+      requiredEnv: runtime.requiredEnv,
+      timeoutPolicy: {
+        quickMs: timeoutForAnswerMode("quick"),
+        balancedMs: timeoutForAnswerMode("balanced"),
+        deepMs: timeoutForAnswerMode("deep"),
+      },
     },
-    uiPreference: null,
+    uiPreference: {
+      mode: "calm",
+      density: "comfortable",
+      primaryGoal: "Make AI Studio feel easy to use.",
+    },
     requiresOnboarding: false,
     questions: PERSONAL_BOT_QUESTIONS,
     messages: [...messages].reverse().map((message: any) => ({
@@ -635,7 +707,7 @@ export async function POST(request: Request) {
           tabName,
           notes,
           pinnedCommandsJson: asJson(pinnedCommands),
-          layoutJson: asJson({ mode: "custom-ai-studio" }),
+          layoutJson: asJson({ mode: "calm-ai-studio-v3" }),
         },
       });
 
@@ -644,6 +716,7 @@ export async function POST(request: Request) {
 
     if (action === "sendMessage") {
       const prompt = readText(body.prompt);
+      const answerMode = readAnswerMode(body.answerMode);
 
       if (!prompt) {
         return NextResponse.json({ error: "Prompt is required." }, { status: 400 });
@@ -659,6 +732,7 @@ export async function POST(request: Request) {
           metadataJson: asJson({
             currentPath: readText(body.currentPath, ""),
             pageTitle: readText(body.pageTitle, ""),
+            answerMode,
             voiceTranscript:
               typeof body.voiceTranscript === "string" ? body.voiceTranscript : null,
           }),
@@ -669,7 +743,7 @@ export async function POST(request: Request) {
         db.personalUserBotMessage.findMany({
           where: { userId: user.id },
           orderBy: { createdAt: "desc" },
-          take: 8,
+          take: 10,
         })
       );
 
@@ -677,6 +751,7 @@ export async function POST(request: Request) {
         user,
         profile,
         prompt,
+        answerMode,
         recentMessages: recentMessages
           .reverse()
           .map((message: any) => ({
@@ -703,7 +778,7 @@ export async function POST(request: Request) {
       }
 
       const finalAnswer = report
-        ? `${answer.text}\n\nI also created a presentation-ready PDF report. Use the “Open Presentation PDF” button to view it.`
+        ? `${answer.text}\n\nI also created a presentation-ready PDF report. Use the “Open Report” button to view it.`
         : reportError
           ? `${answer.text}\n\nI answered the request, but PDF creation failed: ${reportError}`
           : answer.text;
@@ -728,9 +803,13 @@ export async function POST(request: Request) {
           intent: report ? "Create Report" : "Answer",
           metadataJson: asJson({
             clientAction,
+            answerMode,
             universalAiProvider: answer.provider,
             universalAiStatus: answer.status,
             universalAiError: answer.error,
+            universalAiModel: answer.model,
+            universalAiConfigured: answer.configured,
+            universalAiLatencyMs: answer.latencyMs,
             spokenAccent: "British English",
             reportError,
           }),
@@ -752,6 +831,10 @@ export async function POST(request: Request) {
             actionJson: asJson({
               provider: answer.provider,
               status: answer.status,
+              model: answer.model,
+              configured: answer.configured,
+              answerMode,
+              latencyMs: answer.latencyMs,
               reportId: report?.id ?? null,
               reportUrl: report
                 ? `/api/personal-bot/pdf-report?token=${report.downloadToken}`

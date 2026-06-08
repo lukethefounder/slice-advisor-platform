@@ -348,7 +348,7 @@ const tabs: Array<{
   { id: "portfolio", label: "Portfolio", compact: "Portfolio", description: "Holdings", icon: "portfolio", tone: "green", group: "Markets" },
   { id: "comparison", label: "Compare", compact: "Compare", description: "Risk", icon: "compare", tone: "slate", group: "Markets" },
   { id: "alternatives", label: "Alternatives", compact: "Alts", description: "Private", icon: "diamond", tone: "amber", group: "Markets" },
-  { id: "briefings", label: "Reports", compact: "Reports", description: "PDFs", icon: "report", tone: "cyan", group: "Research" },
+  { id: "briefings", label: "Reports", compact: "Reports", description: "Client output", icon: "report", tone: "cyan", group: "Research" },
   { id: "security", label: "Security", compact: "Security", description: "Audit", icon: "shield", tone: "red", group: "System" },
   { id: "system", label: "System", compact: "System", description: "Kernel", icon: "system", tone: "cyan", group: "System" },
 ];
@@ -690,10 +690,9 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "portfolio") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7" />
         <path d="M4 7h16v12H4z" />
-        <path d="M4 12h16" />
-        <path d="M10 11h4v3h-4z" />
+        <path d="M8 7V5h8v2" />
+        <path d="M8 15l3-3l2 2l3-4" />
       </svg>
     );
   }
@@ -701,10 +700,12 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "compare") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M7 7h13" />
-        <path d="M17 4l3 3l-3 3" />
-        <path d="M17 17H4" />
-        <path d="M7 14l-3 3l3 3" />
+        <path d="M5 6h14" />
+        <path d="M5 18h14" />
+        <path d="M8 6v12" />
+        <path d="M16 6v12" />
+        <path d="M8 10h8" />
+        <path d="M8 14h8" />
       </svg>
     );
   }
@@ -712,10 +713,9 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "diamond") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M12 3l8 7l-8 11L4 10z" />
-        <path d="M4 10h16" />
-        <path d="M9 10l3 11l3-11" />
-        <path d="M8 4l4 6l4-6" />
+        <path d="M6 4h12l4 6l-10 10L2 10z" />
+        <path d="M2 10h20" />
+        <path d="M8 4l4 16l4-16" />
       </svg>
     );
   }
@@ -727,7 +727,7 @@ function IconSvg({ name }: { name: IconName }) {
         <path d="M15 3v4h4" />
         <path d="M9 11h6" />
         <path d="M9 15h6" />
-        <path d="M9 18h3" />
+        <path d="M9 19h3" />
       </svg>
     );
   }
@@ -735,7 +735,7 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "shield") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M12 3l8 3v6c0 4.7-3.2 7.8-8 9c-4.8-1.2-8-4.3-8-9V6z" />
+        <path d="M12 3l7 3v5c0 4.4-2.6 8.3-7 10c-4.4-1.7-7-5.6-7-10V6z" />
         <path d="M9 12l2 2l4-5" />
       </svg>
     );
@@ -744,15 +744,13 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "system") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8z" />
-        <path d="M4 12H2" />
-        <path d="M22 12h-2" />
-        <path d="M12 4V2" />
-        <path d="M12 22v-2" />
-        <path d="M5.6 5.6L4.2 4.2" />
-        <path d="M19.8 19.8l-1.4-1.4" />
-        <path d="M18.4 5.6l1.4-1.4" />
-        <path d="M4.2 19.8l1.4-1.4" />
+        <path d="M4 5h16v11H4z" />
+        <path d="M8 20h8" />
+        <path d="M10 16v4" />
+        <path d="M14 16v4" />
+        <path d="M8 9h3" />
+        <path d="M13 9h3" />
+        <path d="M8 12h8" />
       </svg>
     );
   }
@@ -760,10 +758,11 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "radar") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M12 12l7-7" />
+        <path d="M12 21a9 9 0 1 0-9-9" />
+        <path d="M12 12l6-6" />
         <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
-        <path d="M4 12a8 8 0 1 0 8-8" />
-        <path d="M2 12a10 10 0 1 0 10-10" />
+        <path d="M3 12h4" />
+        <path d="M12 3v4" />
       </svg>
     );
   }
@@ -771,9 +770,9 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "target") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18z" />
-        <path d="M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10z" />
-        <path d="M12 13a1 1 0 1 0 0-2a1 1 0 0 0 0 2z" />
+        <path d="M12 21a9 9 0 1 0-9-9a9 9 0 0 0 9 9z" />
+        <path d="M12 17a5 5 0 1 0-5-5a5 5 0 0 0 5 5z" />
+        <path d="M12 13a1 1 0 1 0-1-1a1 1 0 0 0 1 1z" />
       </svg>
     );
   }
@@ -781,10 +780,12 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "flow") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M5 6h4v4H5z" />
-        <path d="M15 14h4v4h-4z" />
-        <path d="M9 8h3a3 3 0 0 1 3 3v3" />
-        <path d="M13 12l2 2l2-2" />
+        <path d="M6 7h12" />
+        <path d="M6 17h12" />
+        <path d="M8 7v10" />
+        <path d="M16 7v10" />
+        <path d="M4 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
+        <path d="M16 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
       </svg>
     );
   }
@@ -793,9 +794,9 @@ function IconSvg({ name }: { name: IconName }) {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
         <path d="M4 19h16" />
-        <path d="M7 16V9" />
+        <path d="M6 16V9" />
         <path d="M12 16V5" />
-        <path d="M17 16v-4" />
+        <path d="M18 16v-7" />
       </svg>
     );
   }
@@ -803,65 +804,21 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "lock") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M7 11V8a5 5 0 0 1 10 0v3" />
-        <path d="M5 11h14v10H5z" />
+        <path d="M6 11h12v9H6z" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
         <path d="M12 15v2" />
       </svg>
     );
   }
 
-  return (
-    <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-      <path d="M12 3l8 6v6l-8 6l-8-6V9z" />
-      <path d="M12 8v8" />
-      <path d="M8 12h8" />
-    </svg>
-  );
+  return null;
 }
 
-function IconBadge({
-  icon,
-  tone,
-  size = "md",
-}: {
-  icon: IconName;
-  tone: Tone;
-  size?: "sm" | "md" | "lg";
-}) {
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cx(
-        "grid shrink-0 place-items-center rounded-2xl border shadow-lg",
-        toneClasses[tone],
-        size === "sm" && "h-8 w-8",
-        size === "md" && "h-10 w-10",
-        size === "lg" && "h-12 w-12"
-      )}
-    >
-      <div
-        className={cx(
-          size === "sm" && "h-4 w-4",
-          size === "md" && "h-5 w-5",
-          size === "lg" && "h-6 w-6"
-        )}
-      >
-        <IconSvg name={icon} />
-      </div>
-    </div>
-  );
-}
-
-function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cx(
-        "relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-zinc-950/74 shadow-2xl shadow-black/20 backdrop-blur-2xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/74 shadow-xl shadow-red-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -880,29 +837,18 @@ function Panel({
   tone?: Tone;
 }) {
   return (
-    <div
-      className={cx(
-        "relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.052] p-4 shadow-xl shadow-black/10",
-        className
-      )}
-    >
+    <div className={cx("relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.052] p-4 shadow-lg shadow-black/10", className)}>
       <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glowClasses[tone])} />
       <div className="relative">{children}</div>
     </div>
   );
 }
 
-function Pill({
-  children,
-  tone = "slate",
-}: {
-  children: ReactNode;
-  tone?: Tone;
-}) {
+function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) {
   return (
     <span
       className={cx(
-        "inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] shadow-sm",
+        "inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
         toneClasses[tone]
       )}
     >
@@ -911,77 +857,19 @@ function Pill({
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  helper,
-  tone = "slate",
-  dense = false,
-  icon,
-}: {
-  label: string;
-  value: string | number;
-  helper?: string;
-  tone?: Tone;
-  dense?: boolean;
-  icon?: IconName;
-}) {
-  return (
-    <Panel tone={tone} className={cx("p-4", dense && "p-3")}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-[9px] font-black uppercase tracking-[0.17em] text-slate-500">
-            {label}
-          </div>
-          <div className={cx("mt-1.5 truncate font-black text-white", dense ? "text-xl" : "text-2xl")}>
-            {value}
-          </div>
-          {helper ? <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">{helper}</div> : null}
-        </div>
-        {icon ? <IconBadge icon={icon} tone={tone} size="sm" /> : null}
-      </div>
-    </Panel>
-  );
-}
-
-function ProgressBar({
-  value,
-  tone = "red",
-}: {
-  value: number;
-  tone?: Exclude<Tone, "slate">;
-}) {
-  const fills: Record<Exclude<Tone, "slate">, string> = {
-    red: "from-red-700 to-red-300",
-    green: "from-emerald-700 to-emerald-300",
-    amber: "from-amber-700 to-amber-300",
-    purple: "from-purple-700 to-purple-300",
-    cyan: "from-cyan-700 to-cyan-300",
-  };
-
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/10">
-      <div
-        className={cx("h-full rounded-full bg-gradient-to-r", fills[tone])}
-        style={{ width: percent(value) }}
-      />
-    </div>
-  );
-}
-
 function LogoMark({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cx(
-        "relative flex shrink-0 items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-xl shadow-red-950/50 ring-1 ring-red-500/40",
-        compact ? "h-10 w-10" : "h-12 w-12"
+        "relative flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40",
+        compact ? "h-10 w-10" : "h-14 w-14"
       )}
     >
       <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
       <div
         className={cx(
           "relative flex items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 font-black text-white shadow-inner",
-          compact ? "h-7 w-7 text-sm" : "h-8 w-8 text-lg"
+          compact ? "h-7 w-7 text-base" : "h-9 w-9 text-xl"
         )}
       >
         S
@@ -992,16 +880,92 @@ function LogoMark({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function IconBadge({
+  icon,
+  tone,
+  size = "md",
+}: {
+  icon: IconName;
+  tone: Tone;
+  size?: "sm" | "md" | "lg";
+}) {
+  return (
+    <div
+      className={cx(
+        "grid shrink-0 place-items-center rounded-2xl border shadow-lg",
+        size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11",
+        toneClasses[tone]
+      )}
+    >
+      <span className={cx(size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5")}>
+        <IconSvg name={icon} />
+      </span>
+    </div>
+  );
+}
+
+function ProgressBar({ value, tone = "red" }: { value: number; tone?: Tone }) {
+  const fills: Record<Tone, string> = {
+    red: "from-red-700 via-red-500 to-red-300",
+    green: "from-emerald-700 via-emerald-500 to-emerald-300",
+    amber: "from-amber-700 via-amber-500 to-amber-300",
+    purple: "from-purple-700 via-purple-500 to-purple-300",
+    cyan: "from-cyan-700 via-cyan-500 to-cyan-300",
+    slate: "from-slate-700 via-slate-500 to-slate-300",
+  };
+
+  return (
+    <div className="h-2.5 overflow-hidden rounded-full bg-black/50">
+      <div
+        className={cx("h-full rounded-full bg-gradient-to-r shadow-lg", fills[tone])}
+        style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }}
+      />
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  helper,
+  tone = "red",
+  icon,
+  dense = false,
+}: {
+  label: string;
+  value: string | number;
+  helper?: string;
+  tone?: Tone;
+  icon?: IconName;
+  dense?: boolean;
+}) {
+  return (
+    <div className={cx("relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.05]", dense ? "p-3" : "p-4")}>
+      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glowClasses[tone])} />
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+            <div className={cx("mt-1 truncate font-black text-white", dense ? "text-xl" : "text-2xl")}>{value}</div>
+            {helper ? <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">{helper}</div> : null}
+          </div>
+          {icon ? <IconBadge icon={icon} tone={tone} size="sm" /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrbitGraphic() {
   return (
-    <div className="pointer-events-none absolute right-[-90px] top-[-95px] hidden h-[330px] w-[330px] opacity-95 lg:block">
-      <div className="absolute inset-0 rounded-full border border-red-500/20" />
-      <div className="absolute inset-10 rounded-full border border-cyan-500/20" />
-      <div className="absolute inset-20 rounded-full border border-purple-500/20" />
-      <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-red-500 to-cyan-400 opacity-70 blur-xl" />
-      <div className="absolute left-[66%] top-[17%] h-3 w-3 rounded-full bg-red-300 shadow-lg shadow-red-500/50" />
-      <div className="absolute bottom-[25%] left-[12%] h-3 w-3 rounded-full bg-cyan-300 shadow-lg shadow-cyan-500/50" />
-      <div className="absolute bottom-[10%] right-[28%] h-2.5 w-2.5 rounded-full bg-purple-300 shadow-lg shadow-purple-500/50" />
+    <div className="pointer-events-none absolute right-0 top-0 hidden h-full w-[520px] opacity-70 2xl:block">
+      <div className="absolute right-[-120px] top-[-120px] h-[420px] w-[420px] rounded-full border border-red-500/20" />
+      <div className="absolute right-[40px] top-[80px] h-[260px] w-[260px] rounded-full border border-cyan-500/20" />
+      <div className="absolute right-[120px] top-[160px] h-[120px] w-[120px] rounded-full border border-purple-500/20" />
+      <div className="absolute right-[180px] top-[210px] h-14 w-14 rounded-full bg-gradient-to-br from-red-500 to-cyan-400 opacity-60 blur-2xl" />
+      <div className="absolute right-[95px] top-[95px] h-3 w-3 rounded-full bg-red-300 shadow-lg shadow-red-500/50" />
+      <div className="absolute right-[340px] top-[275px] h-3 w-3 rounded-full bg-cyan-300 shadow-lg shadow-cyan-500/50" />
+      <div className="absolute right-[230px] top-[360px] h-2.5 w-2.5 rounded-full bg-purple-300 shadow-lg shadow-purple-500/50" />
     </div>
   );
 }
@@ -1246,13 +1210,7 @@ function GenericModule({
   );
 }
 
-function CalendarTaskPill({
-  task,
-  dense = false,
-}: {
-  task: CalendarTask;
-  dense?: boolean;
-}) {
+function CalendarTaskPill({ task, dense = false }: { task: CalendarTask; dense?: boolean }) {
   const complete = completeStatus(task.status);
 
   return (
@@ -1267,13 +1225,7 @@ function CalendarTaskPill({
         borderLeftColor: task.ownerColor ?? "#ef4444",
       }}
     >
-      <div
-        className={cx(
-          "truncate font-black",
-          dense ? "text-[11px]" : "text-[12px]",
-          complete ? "text-slate-500 line-through" : "text-white"
-        )}
-      >
+      <div className={cx("truncate font-black", dense ? "text-[11px]" : "text-[12px]", complete ? "text-slate-500 line-through" : "text-white")}>
         {task.title}
       </div>
       {!dense ? (
@@ -1285,11 +1237,228 @@ function CalendarTaskPill({
   );
 }
 
-function VisualModuleMap({
-  moduleCards,
+function ExecutiveCommandStrip({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
+  const actions = moduleCards.slice(0, 6);
+
+  return (
+    <Card className="p-3">
+      <div className="grid gap-2 lg:grid-cols-6">
+        {actions.map((item) => (
+          <a
+            key={item.id}
+            href={item.href}
+            className="group rounded-[1.15rem] border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+          >
+            <div className="flex items-center gap-2">
+              <IconBadge icon={item.icon} tone={item.tone} size="sm" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-black text-white">{item.title}</div>
+                <div className="truncate text-[10px] font-semibold text-slate-500">{item.subtitle}</div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function IntelligenceRibbon({
+  cards,
 }: {
-  moduleCards: ModuleCardConfig[];
+  cards: Array<{
+    title: string;
+    value: string | number;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+  }>;
 }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+      {cards.map((card) => (
+        <MetricCard
+          key={card.title}
+          label={card.title}
+          value={card.value}
+          helper={card.helper}
+          tone={card.tone}
+          icon={card.icon}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ClientShowcasePanel({
+  assets,
+  clients,
+  alerts,
+  ideas,
+}: {
+  assets: number;
+  clients: number;
+  alerts: number;
+  ideas: number;
+}) {
+  return (
+    <Card className="p-5">
+      <div className="grid gap-5 xl:grid-cols-[1fr_420px] xl:items-center">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+            Client-Presentable Layer
+          </div>
+          <h2 className="mt-1.5 text-2xl font-black text-white md:text-3xl">
+            A workspace an advisor can confidently use every day.
+          </h2>
+          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+            The workspace frames the firm’s workflow professionally: intelligence enters the platform,
+            the advisor reviews it, the team delegates action, and client communication becomes polished,
+            trackable, and compliance-minded.
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Pill tone="cyan">AI-assisted</Pill>
+            <Pill tone="green">Action-oriented</Pill>
+            <Pill tone="purple">Client-ready</Pill>
+            <Pill tone="red">Source-aware</Pill>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard label="Assets Watched" value={assets} helper="Watchlists" tone="amber" dense icon="market" />
+          <MetricCard label="Clients" value={clients} helper="Profiles" tone="purple" dense icon="client" />
+          <MetricCard label="Alerts" value={alerts} helper="Total" tone={alerts ? "red" : "green"} dense icon="bell" />
+          <MetricCard label="Ideas" value={ideas} helper="Team growth" tone="cyan" dense icon="spark" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function CommandHealthPanel({
+  readiness,
+  kernelReadiness,
+  alerts,
+  failedRuns,
+  overdue,
+}: {
+  readiness: number;
+  kernelReadiness: number;
+  alerts: number;
+  failedRuns: number;
+  overdue: number;
+}) {
+  const rows = [
+    { label: "Advisor OS", value: readiness, tone: readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red" },
+    { label: "Backend Kernel", value: kernelReadiness, tone: kernelReadiness >= 75 ? "green" : kernelReadiness >= 45 ? "amber" : "red" },
+    { label: "Alert Pressure", value: alerts ? Math.min(100, alerts * 14) : 0, tone: alerts ? "red" : "green" },
+    { label: "Execution Risk", value: failedRuns || overdue ? Math.min(100, (failedRuns + overdue) * 14) : 0, tone: failedRuns || overdue ? "amber" : "green" },
+  ] as Array<{ label: string; value: number; tone: Tone }>;
+
+  return (
+    <Card className="p-5">
+      <SectionTitle
+        eyebrow="Operating Health"
+        title="Know what is healthy and what needs action"
+        description="The command score blends platform setup, intelligence readiness, team execution, alerts, and backend health into one daily operating view."
+        compact
+      />
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <Panel key={row.label} tone={row.tone} className="bg-black/35">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{row.label}</div>
+                <div className="mt-1 text-2xl font-black text-white">{percent(row.value)}</div>
+              </div>
+              <Pill tone={row.tone}>{row.tone === "green" ? "Good" : row.tone === "amber" ? "Review" : "Action"}</Pill>
+            </div>
+            <div className="mt-3">
+              <ProgressBar value={row.value} tone={row.tone} />
+            </div>
+          </Panel>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function SignalQualityPanel({
+  retained,
+  watchlists,
+  deliveries,
+  alerts,
+}: {
+  retained: number;
+  watchlists: number;
+  deliveries: number;
+  alerts: number;
+}) {
+  const rows: Array<{
+    label: string;
+    value: string | number;
+    helper: string;
+    tone: Tone;
+    icon: IconName;
+  }> = [
+    {
+      label: "Signal Discipline",
+      value: retained,
+      helper: "Retained opportunities",
+      tone: retained ? "red" : "slate",
+      icon: "radar",
+    },
+    {
+      label: "Coverage",
+      value: watchlists,
+      helper: "Tracked watchlists",
+      tone: "amber",
+      icon: "market",
+    },
+    {
+      label: "Delivery Trail",
+      value: deliveries,
+      helper: "Notification records",
+      tone: "green",
+      icon: "mail",
+    },
+    {
+      label: "Alert Surface",
+      value: alerts,
+      helper: "Total advisor alerts",
+      tone: alerts ? "red" : "green",
+      icon: "bell",
+    },
+  ];
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Signal Quality"
+        title="Source-aware intelligence flow"
+        description="Important information should become reviewable, explainable, and actionable before it reaches a client."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label} className={cx("rounded-[1.25rem] border p-3", toneSoft[row.tone])}>
+            <div className="flex items-start justify-between gap-3">
+              <IconBadge icon={row.icon} tone={row.tone} size="sm" />
+              <Pill tone={row.tone}>{row.value}</Pill>
+            </div>
+            <div className="mt-3 text-sm font-black text-white">{row.label}</div>
+            <div className="mt-1 text-xs leading-5 text-slate-400">{row.helper}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function VisualModuleMap({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
   const featured = moduleCards.slice(0, 8);
 
   return (
@@ -1301,7 +1470,7 @@ function VisualModuleMap({
           </div>
           <h2 className="mt-1.5 text-2xl font-black text-white">Everything connects to the brain</h2>
         </div>
-        <Pill tone="cyan">Client-ready view</Pill>
+        <Pill tone="cyan">Simplified</Pill>
       </div>
 
       <div className="relative mt-4 overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
@@ -1329,18 +1498,11 @@ function VisualModuleMap({
             ))}
           </div>
 
-          <div className="grid place-items-center">
-            <div className="relative grid h-52 w-52 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-red-950/50 via-black to-cyan-950/30 shadow-2xl shadow-red-950/40">
-              <div className="absolute inset-6 rounded-full border border-cyan-400/15" />
-              <div className="absolute inset-12 rounded-full border border-red-400/20" />
-              <div className="grid h-24 w-24 place-items-center rounded-[2rem] border border-white/15 bg-white text-slate-950 shadow-xl">
-                <div className="h-12 w-12">
-                  <IconSvg name="brain" />
-                </div>
-              </div>
-              <div className="absolute bottom-8 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                Command Brain
-              </div>
+          <div className="grid place-items-center rounded-[1.5rem] border border-red-500/20 bg-red-500/10 p-4">
+            <div className="text-center">
+              <LogoMark />
+              <div className="mt-3 text-lg font-black text-white">Command Brain</div>
+              <div className="mt-1 text-xs leading-5 text-slate-400">AI, data, clients, markets, team, alerts</div>
             </div>
           </div>
 
@@ -1368,44 +1530,6 @@ function VisualModuleMap({
   );
 }
 
-function IntelligenceRibbon({
-  cards,
-}: {
-  cards: Array<{
-    title: string;
-    value: string | number;
-    helper: string;
-    tone: Tone;
-    icon: IconName;
-  }>;
-}) {
-  return (
-    <Card className="p-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div
-            key={card.title}
-            className={cx(
-              "relative overflow-hidden rounded-[1.35rem] border p-3",
-              toneSoft[card.tone]
-            )}
-          >
-            <div className={cx("absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent", glowClasses[card.tone])} />
-            <div className="relative flex items-start gap-3">
-              <IconBadge icon={card.icon} tone={card.tone} size="sm" />
-              <div className="min-w-0">
-                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">{card.title}</div>
-                <div className="mt-1 text-xl font-black text-white">{card.value}</div>
-                <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{card.helper}</div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 function AdvisorWorkflowBlueprint({
   dueToday,
   overdue,
@@ -1419,69 +1543,51 @@ function AdvisorWorkflowBlueprint({
 }) {
   const steps = [
     {
-      title: "Sense",
-      helper: "Scan alerts, sources, markets",
+      title: "Scan",
+      body: `${unreadAlerts} unread alert(s) and source-backed market intelligence.`,
       tone: unreadAlerts ? "red" : "green",
       icon: "radar",
-      stat: unreadAlerts,
-      label: "Unread",
     },
     {
-      title: "Think",
-      helper: "Ask AI and generate briefings",
-      tone: "cyan",
-      icon: "spark",
-      stat: "AI",
-      label: "Studio",
+      title: "Prioritize",
+      body: `${overdue} overdue item(s), ${dueToday} due today.`,
+      tone: overdue ? "red" : dueToday ? "amber" : "green",
+      icon: "target",
     },
     {
       title: "Act",
-      helper: "Delegate and follow up",
-      tone: overdue ? "red" : dueToday ? "amber" : "green",
+      body: "Delegate through Team Board and track completion visibly.",
+      tone: "green",
       icon: "team",
-      stat: overdue || dueToday,
-      label: overdue ? "Overdue" : "Due",
     },
     {
-      title: "Serve",
-      helper: "Prepare clients and emails",
+      title: "Communicate",
+      body: `${clientCount} client profile(s) available for polished communication.`,
       tone: "purple",
-      icon: "client",
-      stat: clientCount,
-      label: "Clients",
+      icon: "mail",
     },
-  ] as Array<{
-    title: string;
-    helper: string;
-    tone: Tone;
-    icon: IconName;
-    stat: string | number;
-    label: string;
-  }>;
+  ] satisfies Array<{ title: string; body: string; tone: Tone; icon: IconName }>;
 
   return (
     <Card className="p-4">
       <SectionTitle
-        eyebrow="Advisor Flow"
-        title="A visual operating path"
-        description="A wealth team should always know where work starts, where decisions happen, and where follow-through lives."
+        eyebrow="Daily Flow"
+        title="Four-step advisor workflow"
+        description="A simple rhythm makes adoption easier: scan, prioritize, act, communicate."
         compact
       />
 
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3">
         {steps.map((step, index) => (
-          <div key={step.title} className="relative">
-            {index < steps.length - 1 ? (
-              <div className="pointer-events-none absolute right-[-18px] top-1/2 hidden h-px w-9 bg-gradient-to-r from-white/20 to-transparent md:block" />
-            ) : null}
-            <div className={cx("rounded-[1.35rem] border p-3", toneSoft[step.tone])}>
-              <div className="flex items-center justify-between gap-3">
-                <IconBadge icon={step.icon} tone={step.tone} size="md" />
-                <Pill tone={step.tone}>{step.label}</Pill>
+          <div key={step.title} className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+            <div className="flex items-start gap-3">
+              <IconBadge icon={step.icon} tone={step.tone} size="sm" />
+              <div>
+                <div className="text-sm font-black text-white">
+                  {index + 1}. {step.title}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-400">{step.body}</div>
               </div>
-              <div className="mt-3 text-lg font-black text-white">{step.title}</div>
-              <div className="mt-1 text-xs leading-5 text-slate-400">{step.helper}</div>
-              <div className="mt-3 text-2xl font-black text-white">{step.stat}</div>
             </div>
           </div>
         ))}
@@ -1497,335 +1603,191 @@ function CompactActivityPanel({
   posts: FirmPost[];
   notifications: DashboardNotification[];
 }) {
-  const visiblePosts = posts.slice(0, 4);
-  const visibleNotifications = notifications.slice(0, 4);
-
   return (
-    <Card className="p-4">
-      <SectionTitle
-        eyebrow="Activity"
-        title="Recent firm movement"
-        description="A compact stream of workspace updates and notifications."
-        compact
-      />
+    <div className="grid gap-4 2xl:grid-cols-2">
+      <Card className="p-4">
+        <SectionTitle
+          eyebrow="Activity"
+          title="Recent workspace activity"
+          description="Firm messages, ideas, notes, and shared updates."
+          compact
+        />
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-2">
-        <div className="grid gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Workspace Posts</div>
-          {visiblePosts.map((post) => (
+        <div className="mt-4 grid max-h-[320px] gap-3 overflow-y-auto pr-2">
+          {posts.slice(0, 7).map((post) => (
             <div key={post.id} className="rounded-2xl border border-white/10 bg-black/30 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate text-sm font-black text-white">{post.title}</div>
-                  <div className="mt-1 truncate text-xs text-slate-500">{post.postType}</div>
+                  <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">
+                    {post.postType} · {formatDateTime(post.createdAt)}
+                  </div>
                 </div>
                 <Pill tone={toneFor(post.postType)}>{post.postType}</Pill>
               </div>
+              <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">{post.body}</p>
             </div>
           ))}
-          {!visiblePosts.length ? (
-            <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
-              No workspace posts yet.
+
+          {!posts.length ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+              No recent workspace activity.
             </div>
           ) : null}
         </div>
+      </Card>
 
-        <div className="grid gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Notifications</div>
-          {visibleNotifications.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-white/10 bg-black/30 p-3">
+      <Card className="p-4">
+        <SectionTitle
+          eyebrow="Open Notifications"
+          title="What still needs review"
+          description="Unread dashboard notifications and urgent alerts."
+          compact
+        />
+
+        <div className="mt-4 grid max-h-[320px] gap-3 overflow-y-auto pr-2">
+          {notifications.slice(0, 7).map((notification) => (
+            <div key={notification.id} className="rounded-2xl border border-white/10 bg-black/30 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-white">{item.title}</div>
-                  <div className="mt-1 truncate text-xs text-slate-500">{item.body}</div>
+                  <div className="truncate text-sm font-black text-white">{notification.title}</div>
+                  <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">
+                    {notification.status} · {formatDateTime(notification.createdAt)}
+                  </div>
                 </div>
-                <Pill tone={toneFor(item.urgency)}>{item.urgency}</Pill>
+                <Pill tone={toneFor(notification.urgency)}>{notification.urgency}</Pill>
               </div>
+              <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-400">{notification.body}</p>
             </div>
           ))}
-          {!visibleNotifications.length ? (
-            <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
-              No dashboard notifications yet.
+
+          {!notifications.length ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
+              No open dashboard notifications.
             </div>
           ) : null}
         </div>
+      </Card>
+    </div>
+  );
+}
+
+function AdoptionPanel({
+  moduleCards,
+  readiness,
+}: {
+  moduleCards: ModuleCardConfig[];
+  readiness: number;
+}) {
+  const lanes = [
+    {
+      title: "First 5 minutes",
+      body: "Open AI Studio, review alerts, then scan the Daily Brain.",
+      href: "/workspace/personal-bot",
+      tone: "cyan",
+      icon: "spark",
+    },
+    {
+      title: "First team meeting",
+      body: "Use Team Board to assign work, due dates, priority, reminders, and owners.",
+      href: "/workspace?tab=team-board",
+      tone: "green",
+      icon: "team",
+    },
+    {
+      title: "First client review",
+      body: "Open Clients and Client Briefings for clean, advisor-approved communication.",
+      href: "/workspace?tab=briefings",
+      tone: "purple",
+      icon: "client",
+    },
+    {
+      title: "First market review",
+      body: "Open Market Visuals and Opportunity Radar for technical and source-backed context.",
+      href: "/market-visuals",
+      tone: "red",
+      icon: "market",
+    },
+  ] satisfies Array<{ title: string; body: string; href: string; tone: Tone; icon: IconName }>;
+
+  return (
+    <Card className="p-5">
+      <div className="grid gap-5 xl:grid-cols-[1fr_320px] xl:items-center">
+        <div>
+          <SectionTitle
+            eyebrow="Adoption"
+            title="Make the platform obvious in the first session"
+            description="The workspace should not feel like a maze. It should tell a new advisor exactly where to start and why each area matters."
+            compact
+          />
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {lanes.map((lane) => (
+              <a
+                key={lane.title}
+                href={lane.href}
+                className={cx("group rounded-[1.35rem] border p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.08]", toneSoft[lane.tone])}
+              >
+                <div className="flex gap-3">
+                  <IconBadge icon={lane.icon} tone={lane.tone} size="sm" />
+                  <div>
+                    <div className="text-sm font-black text-white">{lane.title}</div>
+                    <div className="mt-1 text-xs leading-5 text-slate-400">{lane.body}</div>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <Panel tone={readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red"} className="bg-black/35">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+            Adoption Score
+          </div>
+          <div className="mt-2 text-4xl font-black text-white">{percent(readiness)}</div>
+          <div className="mt-3">
+            <ProgressBar value={readiness} tone={readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red"} />
+          </div>
+          <div className="mt-3 text-xs leading-5 text-slate-400">
+            {moduleCards.length} core modules stay visible from the workspace without forcing advisors to hunt through hidden pages.
+          </div>
+        </Panel>
       </div>
     </Card>
   );
 }
 
-function CohesionMatrix({
-  moduleCards,
-}: {
-  moduleCards: ModuleCardConfig[];
-}) {
-  const categories = ["Command", "Firm", "Advisor", "Markets", "Research", "System"];
+function CohesionMatrix({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
+  const categories = Array.from(new Set(moduleCards.map((module) => module.category)));
 
   return (
     <Card className="p-4">
       <SectionTitle
-        eyebrow="Platform Cohesion"
-        title="How the modules support the advisor team"
-        description="Every major section has a clear role, visual identity, and route back to the central command brain."
+        eyebrow="Workspace Cohesion"
+        title="Every module has a clean purpose"
+        description="The workspace now removes low-signal entries while keeping the high-value advisor operating flow intact."
         compact
       />
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {categories.map((category) => {
-          const items = moduleCards.filter((module) => module.category === category);
-          const tone = items[0]?.tone ?? "slate";
+          const modules = moduleCards.filter((module) => module.category === category);
+          const tone = modules[0]?.tone ?? "slate";
 
           return (
-            <div key={category} className={cx("rounded-[1.35rem] border p-3", toneSoft[tone])}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{category}</div>
-                  <div className="mt-1 text-lg font-black text-white">{items.length} module{items.length === 1 ? "" : "s"}</div>
-                </div>
-                <div className={cx("h-3 w-3 rounded-full shadow-lg", toneDot[tone])} />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {items.map((item) => (
-                  <a
-                    key={item.id}
-                    href={item.href}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[10px] font-black uppercase tracking-[0.13em] text-white transition hover:bg-white/10"
-                  >
-                    <span className="h-3.5 w-3.5">
-                      <IconSvg name={item.icon} />
-                    </span>
-                    {item.title}
+            <div key={category} className={cx("rounded-[1.35rem] border p-4", toneSoft[tone])}>
+              <div className="text-sm font-black text-white">{category}</div>
+              <div className="mt-1 text-xs text-slate-500">{modules.length} tool(s)</div>
+              <div className="mt-3 grid gap-2">
+                {modules.slice(0, 5).map((module) => (
+                  <a key={module.id} href={module.href} className="truncate rounded-xl bg-black/25 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-black/40">
+                    {module.title}
                   </a>
                 ))}
               </div>
             </div>
           );
         })}
-      </div>
-    </Card>
-  );
-}
-
-function CommandHealthPanel({
-  readiness,
-  kernelReadiness,
-  alerts,
-  failedRuns,
-  overdue,
-}: {
-  readiness: number;
-  kernelReadiness: number;
-  alerts: number;
-  failedRuns: number;
-  overdue: number;
-}) {
-  const items: Array<{
-    label: string;
-    value: string | number;
-    detail: string;
-    tone: Tone;
-    icon: IconName;
-  }> = [
-    {
-      label: "Advisor Brain",
-      value: percent(readiness),
-      detail: advisorReadinessLabel(readiness),
-      tone: readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red",
-      icon: "brain",
-    },
-    {
-      label: "Backend Kernel",
-      value: percent(kernelReadiness),
-      detail: kernelReadiness >= 75 ? "Healthy" : "Review services",
-      tone: kernelReadiness >= 75 ? "green" : kernelReadiness >= 45 ? "amber" : "red",
-      icon: "system",
-    },
-    {
-      label: "Alert Load",
-      value: alerts,
-      detail: alerts ? "Needs review" : "Clear",
-      tone: alerts ? "red" : "green",
-      icon: "bell",
-    },
-    {
-      label: "Execution Risk",
-      value: overdue + failedRuns,
-      detail: overdue || failedRuns ? "Follow up" : "Stable",
-      tone: overdue || failedRuns ? "amber" : "green",
-      icon: "target",
-    },
-  ];
-
-  return (
-    <Card className="p-4">
-      <SectionTitle
-        eyebrow="Command Health"
-        title="Operational status at a glance"
-        description="A production-grade advisor workspace should always show what is healthy, what needs review, and what needs action."
-        compact
-      />
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => (
-          <div key={item.label} className={cx("rounded-[1.35rem] border p-3", toneSoft[item.tone])}>
-            <div className="flex items-center justify-between gap-3">
-              <IconBadge icon={item.icon} tone={item.tone} size="md" />
-              <Pill tone={item.tone}>{item.detail}</Pill>
-            </div>
-            <div className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</div>
-            <div className="mt-1 text-2xl font-black text-white">{item.value}</div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function ClientShowcasePanel({
-  assets,
-  clients,
-  alerts,
-  ideas,
-}: {
-  assets: number;
-  clients: number;
-  alerts: number;
-  ideas: number;
-}) {
-  return (
-    <Card className="p-4">
-      <div className="grid gap-4 xl:grid-cols-[1fr_340px] xl:items-center">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
-            Client-Presentable Layer
-          </div>
-          <h2 className="mt-1.5 text-2xl font-black text-white md:text-3xl">
-            A workspace an advisor can confidently show a client.
-          </h2>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-            The dashboard frames the firm’s workflow professionally: intelligence enters the platform,
-            the advisor reviews it, the team delegates action, and client communication becomes polished,
-            trackable, and compliance-minded.
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Pill tone="cyan">AI-assisted</Pill>
-            <Pill tone="green">Action-oriented</Pill>
-            <Pill tone="purple">Client-ready</Pill>
-            <Pill tone="red">Source-aware</Pill>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <MetricCard label="Assets Watched" value={assets} helper="Watchlists" tone="amber" dense icon="market" />
-          <MetricCard label="Clients" value={clients} helper="Profiles" tone="purple" dense icon="client" />
-          <MetricCard label="Alerts" value={alerts} helper="Total" tone={alerts ? "red" : "green"} dense icon="bell" />
-          <MetricCard label="Ideas" value={ideas} helper="Growth" tone="cyan" dense icon="spark" />
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function ExecutiveCommandStrip({
-  moduleCards,
-}: {
-  moduleCards: ModuleCardConfig[];
-}) {
-  const actions = moduleCards.slice(0, 6);
-
-  return (
-    <Card className="p-3">
-      <div className="grid gap-2 lg:grid-cols-6">
-        {actions.map((item) => (
-          <a
-            key={item.id}
-            href={item.href}
-            className="group rounded-[1.15rem] border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
-          >
-            <div className="flex items-center gap-2">
-              <IconBadge icon={item.icon} tone={item.tone} size="sm" />
-              <div className="min-w-0">
-                <div className="truncate text-xs font-black text-white">{item.title}</div>
-                <div className="truncate text-[10px] font-semibold text-slate-500">{item.subtitle}</div>
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function SignalQualityPanel({
-  retained,
-  research,
-  watchlists,
-  deliveries,
-}: {
-  retained: number;
-  research: number;
-  watchlists: number;
-  deliveries: number;
-}) {
-  const rows: Array<{
-    label: string;
-    value: string | number;
-    helper: string;
-    tone: Tone;
-    icon: IconName;
-  }> = [
-    {
-      label: "Signal Discipline",
-      value: retained,
-      helper: "Retained opportunities",
-      tone: retained ? "red" : "slate",
-      icon: "radar",
-    },
-    {
-      label: "Research Base",
-      value: research,
-      helper: "Stored research items",
-      tone: "cyan",
-      icon: "report",
-    },
-    {
-      label: "Coverage",
-      value: watchlists,
-      helper: "Tracked watchlists",
-      tone: "amber",
-      icon: "market",
-    },
-    {
-      label: "Delivery Trail",
-      value: deliveries,
-      helper: "Notification records",
-      tone: "green",
-      icon: "mail",
-    },
-  ];
-
-  return (
-    <Card className="p-4">
-      <SectionTitle
-        eyebrow="Signal Quality"
-        title="Source-aware intelligence flow"
-        description="Important information should become reviewable, explainable, and actionable before it reaches a client."
-        compact
-      />
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {rows.map((row) => (
-          <div key={row.label} className={cx("rounded-[1.25rem] border p-3", toneSoft[row.tone])}>
-            <div className="flex items-start justify-between gap-3">
-              <IconBadge icon={row.icon} tone={row.tone} size="sm" />
-              <Pill tone={row.tone}>{row.value}</Pill>
-            </div>
-            <div className="mt-3 text-sm font-black text-white">{row.label}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-400">{row.helper}</div>
-          </div>
-        ))}
       </div>
     </Card>
   );
@@ -1934,7 +1896,7 @@ export default function WorkspacePage() {
       category: "Command",
       meta: [
         ["Briefings", currentCommand.counts.briefingCount],
-        ["Research", currentCommand.counts.researchCount],
+        ["Alerts", currentCommand.counts.totalAlertCount],
       ],
     },
     {
@@ -2013,18 +1975,18 @@ export default function WorkspacePage() {
       ],
     },
     {
-      id: "reports",
-      title: "Briefings",
-      subtitle: "PDF output",
-      description: "AI-generated briefings, client reports, founder reports, and advisor-ready PDFs.",
-      tone: "cyan",
+      id: "client-briefings",
+      title: "Client Briefings",
+      subtitle: "Approval-ready output",
+      description: "Create client-specific advisory notes, source-backed briefings, and approval-gated communication.",
+      tone: "purple",
       icon: "report",
-      href: "/workspace?tab=briefings",
-      button: "Open Reports",
+      href: "/workspace/client-briefings",
+      button: "Open Client Briefings",
       category: "Research",
       meta: [
         ["Briefings", currentCommand.counts.briefingCount],
-        ["Ideas", operations.sprintMetrics.ideas],
+        ["Deliveries", currentCommand.counts.deliveryCount],
       ],
     },
     {
@@ -2239,7 +2201,7 @@ export default function WorkspacePage() {
                   </h1>
                   <p className="mt-2 max-w-5xl text-sm leading-6 text-slate-400">
                     A client-presentable operating system connecting AI, firm delegation, clients, emails,
-                    markets, intelligence, portfolio tools, reports, alerts, security, and backend health.
+                    markets, intelligence, portfolio tools, client briefings, alerts, security, and backend health.
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -2312,10 +2274,12 @@ export default function WorkspacePage() {
 
               <SignalQualityPanel
                 retained={currentCommand.counts.retainedDecisionCount}
-                research={currentCommand.counts.researchCount}
                 watchlists={currentCommand.counts.watchlistCount}
                 deliveries={currentCommand.counts.deliveryCount}
+                alerts={currentCommand.counts.totalAlertCount}
               />
+
+              <AdoptionPanel moduleCards={moduleCards} readiness={currentCommand.readinessScore} />
 
               <div className="grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
                 <VisualModuleMap moduleCards={moduleCards} />
@@ -2375,7 +2339,7 @@ export default function WorkspacePage() {
                 <SectionTitle
                   eyebrow="Module Gallery"
                   title="All core tools, compact and connected"
-                  description="Every feature stays accessible without forcing the advisor team to hunt around the platform."
+                  description="The workspace now emphasizes the highest-adoption tools and removes low-signal report/research entries that were cluttering the portal."
                   compact
                 />
 
@@ -2405,7 +2369,7 @@ export default function WorkspacePage() {
               cards={[
                 {
                   title: "AI Studio",
-                  description: "Ask anything, use voice, create reports, and turn rough thoughts into professional output.",
+                  description: "Ask anything, use voice, create advisor-ready output, and turn rough thoughts into professional work.",
                   href: "/workspace/personal-bot",
                   button: "Open AI Studio",
                   tone: "cyan",
@@ -2567,19 +2531,15 @@ export default function WorkspacePage() {
                             className={cx(
                               "min-h-[108px] rounded-2xl border p-2 text-left transition hover:bg-white/[0.08]",
                               selected ? "border-red-400/50 bg-red-500/10" : "border-white/10 bg-white/[0.035]",
-                              !inMonth && "opacity-45"
+                              !inMonth && "opacity-40"
                             )}
                           >
                             <div className="text-xs font-black text-white">{monthDayLabel(day)}</div>
-                            <div className="mt-2 grid gap-1">
-                              {tasks.slice(0, 2).map((task) => (
+                            <div className="mt-1 grid gap-1">
+                              {tasks.slice(0, 3).map((task) => (
                                 <CalendarTaskPill key={task.id} task={task} dense />
                               ))}
-                              {tasks.length > 2 ? (
-                                <div className="text-[10px] font-bold text-slate-500">
-                                  +{tasks.length - 2}
-                                </div>
-                              ) : null}
+                              {tasks.length > 3 ? <div className="text-[10px] font-bold text-slate-500">+{tasks.length - 3}</div> : null}
                             </div>
                           </button>
                         );
@@ -2589,21 +2549,14 @@ export default function WorkspacePage() {
                 </Card>
 
                 <Card className="p-4">
-                  <SectionTitle
-                    eyebrow="Selected Day"
-                    title={dayLabel(selectedDay)}
-                    description={`${selectedDayTasks.length} due task(s).`}
-                    compact
-                  />
-
-                  <div className="mt-4 grid max-h-[500px] gap-3 overflow-y-auto pr-2">
+                  <SectionTitle eyebrow="Selected Day" title={dayLabel(selectedDay)} compact />
+                  <div className="mt-4 grid max-h-[520px] gap-3 overflow-y-auto pr-2">
                     {selectedDayTasks.map((task) => (
                       <CalendarTaskPill key={task.id} task={task} />
                     ))}
-
                     {!selectedDayTasks.length ? (
                       <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                        No due tasks for this day.
+                        No tasks on this date.
                       </div>
                     ) : null}
                   </div>
@@ -2612,142 +2565,38 @@ export default function WorkspacePage() {
             </section>
           ) : null}
 
-          {activeTab === "watchlists" ? (
-            <GenericModule
-              eyebrow="Markets"
-              title="Markets, watchlists, and visuals"
-              description="Track what matters, compare assets, and use market visuals for daily review."
-              cards={[
-                {
-                  title: "Market Visuals",
-                  description: "Advisor-grade charts, moving averages, comparisons, volume, RSI, MACD, and forecast ranges.",
-                  href: "/market-visuals",
-                  button: "Open Market Visuals",
-                  tone: "red",
-                  icon: "market",
-                },
-                {
-                  title: "Watchlist Alerts",
-                  description: "Watch tickers and event triggers that feed your triage engine.",
-                  href: "/watchlist-alerts",
-                  button: "Open Watchlists",
-                  tone: "amber",
-                  icon: "calendar",
-                  stats: [["Tracked", currentCommand.counts.watchlistCount]],
-                },
-                {
-                  title: "Opportunity Radar",
-                  description: "Review AI-scored, source-backed opportunities.",
-                  href: "/opportunity-radar",
-                  button: "Open Radar",
-                  tone: "purple",
-                  icon: "radar",
-                  stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
-                },
-              ]}
-            />
-          ) : null}
-
-          {activeTab === "comparison" ? (
-            <GenericModule
-              eyebrow="Compare"
-              title="Advisor comparison layer"
-              description="Compare assets, strategies, risk/reward, and opportunity signals."
-              cards={[
-                {
-                  title: "Market Visuals Compare",
-                  description: "Use the compare view for normalized asset performance, technical spreads, and relative analysis.",
-                  href: "/market-visuals",
-                  button: "Open Market Visuals",
-                  tone: "red",
-                  icon: "compare",
-                },
-                {
-                  title: "Opportunity Radar",
-                  description: "Compare retained signals, scores, risks, and source-backed opportunity records.",
-                  href: "/opportunity-radar",
-                  button: "Open Radar",
-                  tone: "purple",
-                  icon: "radar",
-                },
-                {
-                  title: "Portfolio Lab",
-                  description: "Compare holdings, client portfolios, and scenario models.",
-                  href: "/portfolio-lab",
-                  button: "Open Portfolio Lab",
-                  tone: "green",
-                  icon: "portfolio",
-                },
-              ]}
-            />
-          ) : null}
-
-          {activeTab === "alternatives" ? (
-            <GenericModule
-              eyebrow="Alternatives"
-              title="Alternative investments and venture tracking"
-              description="Track private market opportunities, alternatives, venture notes, goals, and research."
-              cards={[
-                {
-                  title: "Alternative Investments",
-                  description: "Track and compare non-traditional investment ideas.",
-                  href: "/alternative-investments",
-                  button: "Open Alternatives",
-                  tone: "amber",
-                  icon: "diamond",
-                  stats: [["Ventures", currentCommand.counts.ventureCount]],
-                },
-                {
-                  title: "Research Notes",
-                  description: "Capture investment theses and research links.",
-                  href: "/briefings",
-                  button: "Open Briefings",
-                  tone: "cyan",
-                  icon: "report",
-                  stats: [["Research", currentCommand.counts.researchCount]],
-                },
-                {
-                  title: "Opportunity Radar",
-                  description: "Review scored opportunities from the triage engine.",
-                  href: "/opportunity-radar",
-                  button: "Open Radar",
-                  tone: "red",
-                  icon: "radar",
-                },
-              ]}
-            />
-          ) : null}
-
           {activeTab === "clients" ? (
             <GenericModule
               eyebrow="Clients"
-              title="Client intelligence center"
-              description="Manage client profiles, briefings, communications, and advisor-ready notes."
+              title="Client relationship command"
+              description="Everything needed to prepare, document, and communicate with clients."
               cards={[
                 {
                   title: "Client Profiles",
-                  description: "Client records, holdings, notes, reviews, and risk profile context.",
-                  href: "/workspace/clients",
-                  button: "Open Clients",
+                  description: "Add clients, emails, household context, portfolio symbols, notes, tasks, and suitability details.",
+                  href: "/client-profiles",
+                  button: "Open Profiles",
                   tone: "purple",
                   icon: "client",
                   stats: [["Clients", currentCommand.counts.clientCount]],
                 },
                 {
                   title: "Client Briefings",
-                  description: "Generate advisor-ready client briefings.",
+                  description: "Create source-backed, advisor-approved client communication without cluttering the main workspace.",
                   href: "/workspace/client-briefings",
                   button: "Open Briefings",
                   tone: "cyan",
                   icon: "report",
+                  stats: [["Briefings", currentCommand.counts.briefingCount]],
                 },
                 {
                   title: "Client Email Center",
-                  description: "Draft, polish, queue, approve, and send client emails.",
+                  description: "Draft, polish, review, and prepare advisor-grade client emails.",
                   href: "/workspace/client-emails",
                   button: "Open Email Center",
                   tone: "green",
                   icon: "mail",
+                  stats: [["Deliveries", currentCommand.counts.deliveryCount]],
                 },
               ]}
             />
@@ -2756,36 +2605,70 @@ export default function WorkspacePage() {
           {activeTab === "emails" ? (
             <GenericModule
               eyebrow="Email Center"
-              title="Advisor-grade email workflow"
-              description="Draft one email, draft many emails, polish, approve, and send communications safely."
+              title="Client and advisor communication"
+              description="Create polished, reviewed, source-aware communication with the AI Studio and email center."
               cards={[
                 {
                   title: "Client Email Center",
-                  description: "AI drafts, manual drafts, approval queueing, and live/simulated sending.",
+                  description: "Generate and manage client emails from holdings, opportunities, and source-backed updates.",
                   href: "/workspace/client-emails",
                   button: "Open Email Center",
                   tone: "green",
                   icon: "mail",
-                  stats: [
-                    ["Clients", currentCommand.counts.clientCount],
-                    ["Deliveries", currentCommand.counts.deliveryCount],
-                  ],
+                  stats: [["Deliveries", currentCommand.counts.deliveryCount]],
                 },
                 {
-                  title: "AI Studio",
-                  description: "Ask the AI to draft, rewrite, summarize, or create client-ready language.",
-                  href: "/workspace/personal-bot",
-                  button: "Ask AI",
-                  tone: "cyan",
-                  icon: "spark",
+                  title: "Client Briefings",
+                  description: "Create briefing drafts when communication needs a full explanation, source list, and approval gate.",
+                  href: "/workspace/client-briefings",
+                  button: "Open Briefings",
+                  tone: "purple",
+                  icon: "report",
                 },
                 {
                   title: "Notifications",
-                  description: "Review whether email and dashboard alerts are being delivered.",
+                  description: "Review queued, delivered, failed, and simulated notifications.",
                   href: "/notifications",
-                  button: "Open Delivery",
+                  button: "Open Notifications",
                   tone: "amber",
                   icon: "bell",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "watchlists" ? (
+            <GenericModule
+              eyebrow="Markets"
+              title="Charts, watchlists, and market visuals"
+              description="Advisor-ready market tools for technical awareness and opportunity monitoring."
+              cards={[
+                {
+                  title: "Market Visuals",
+                  description: "Technical charts, predictive analysis, scenario overlays, and TradingView context.",
+                  href: "/market-visuals",
+                  button: "Open Visuals",
+                  tone: "red",
+                  icon: "market",
+                  stats: [["Watchlists", currentCommand.counts.watchlistCount]],
+                },
+                {
+                  title: "Watchlist Alerts",
+                  description: "Private advisor watchlists, technical criteria, and price/trigger alerts.",
+                  href: "/watchlist-alerts",
+                  button: "Open Watchlists",
+                  tone: "amber",
+                  icon: "bell",
+                  stats: [["Alerts", currentCommand.counts.totalAlertCount]],
+                },
+                {
+                  title: "Opportunity Radar",
+                  description: "Source-backed opportunity monitoring, headline scanning, and technical opportunity scoring.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "cyan",
+                  icon: "radar",
+                  stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
                 },
               ]}
             />
@@ -2794,8 +2677,8 @@ export default function WorkspacePage() {
           {activeTab === "portfolio" ? (
             <GenericModule
               eyebrow="Portfolio"
-              title="Portfolio lab"
-              description="Review holdings, models, accounts, scenarios, and dashboard analytics."
+              title="Portfolio tools and investment context"
+              description="Holdings, exposures, portfolio value, account context, model portfolios, and scenario analysis."
               cards={[
                 {
                   title: "Portfolio Lab",
@@ -2811,20 +2694,93 @@ export default function WorkspacePage() {
                   ],
                 },
                 {
+                  title: "Client Profiles",
+                  description: "Review which securities clients hold without storing sensitive allocation amounts.",
+                  href: "/client-profiles",
+                  button: "Open Client Profiles",
+                  tone: "purple",
+                  icon: "client",
+                  stats: [["Clients", currentCommand.counts.clientCount]],
+                },
+                {
                   title: "Market Visuals",
-                  description: "Visualize prices, technicals, moving averages, and relative performance.",
+                  description: "Visualize technicals, moving averages, and relative performance before client meetings.",
+                  href: "/market-visuals",
+                  button: "Open Visuals",
+                  tone: "red",
+                  icon: "chart",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "comparison" ? (
+            <GenericModule
+              eyebrow="Compare"
+              title="Compare investments, risk, and client context"
+              description="Use comparison tools when the advisor needs to explain tradeoffs clearly."
+              cards={[
+                {
+                  title: "Market Visuals",
+                  description: "Compare symbols, technical behavior, scenario paths, and price action.",
+                  href: "/market-visuals",
+                  button: "Compare Markets",
+                  tone: "red",
+                  icon: "compare",
+                },
+                {
+                  title: "Portfolio Lab",
+                  description: "Compare portfolio models, holdings, exposure, and scenario effects.",
+                  href: "/portfolio-lab",
+                  button: "Compare Portfolios",
+                  tone: "green",
+                  icon: "portfolio",
+                },
+                {
+                  title: "AI Studio",
+                  description: "Ask AI to explain tradeoffs, scenarios, risks, and meeting talking points.",
+                  href: "/workspace/personal-bot",
+                  button: "Ask AI",
+                  tone: "cyan",
+                  icon: "spark",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "alternatives" ? (
+            <GenericModule
+              eyebrow="Alternatives"
+              title="Alternative investments without workspace clutter"
+              description="Track crypto, penny-stock risk, venture opportunities, and alternative risk frameworks in one dedicated alternatives workspace."
+              cards={[
+                {
+                  title: "Alternative Investments",
+                  description: "Track crypto, speculative equities, venture opportunities, valuation context, and risk controls.",
+                  href: "/alternative-investments",
+                  button: "Open Alternatives",
+                  tone: "amber",
+                  icon: "diamond",
+                  stats: [
+                    ["Ventures", currentCommand.counts.ventureCount],
+                    ["Watchlists", currentCommand.counts.watchlistCount],
+                  ],
+                },
+                {
+                  title: "Market Visuals",
+                  description: "Use technical visuals and market overlays before discussing speculative or alternative assets.",
                   href: "/market-visuals",
                   button: "Open Visuals",
                   tone: "red",
                   icon: "market",
                 },
                 {
-                  title: "Alternative Investments",
-                  description: "Track alternatives and private opportunities.",
-                  href: "/alternative-investments",
-                  button: "Open Alternatives",
-                  tone: "amber",
-                  icon: "diamond",
+                  title: "Opportunity Radar",
+                  description: "Review headline and technical signals before an alternative idea becomes advisor-facing.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "cyan",
+                  icon: "radar",
                 },
               ]}
             />
@@ -2847,16 +2803,24 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "Triage Runs",
-                  description: "Review autonomous scan history and retained decision volume.",
-                  href: "/intelligence-settings",
-                  button: "Open Settings",
+                  description: "Review autonomous scan history, retained decision volume, and technical scanning readiness.",
+                  href: "/triage",
+                  button: "Open Triage",
                   tone: "cyan",
                   icon: "system",
                   stats: [["Runs", currentCommand.counts.triageRunCount]],
                 },
                 {
-                  title: "Watchlists",
-                  description: "Tune what matters to each advisor.",
+                  title: "Intelligence Settings",
+                  description: "Configure sources, trust levels, thresholds, and delivery settings.",
+                  href: "/intelligence-settings",
+                  button: "Open Settings",
+                  tone: "purple",
+                  icon: "signal",
+                },
+                {
+                  title: "Watchlist Alerts",
+                  description: "Tune what matters to each advisor and trigger alerts for specific stocks or criteria.",
                   href: "/watchlist-alerts",
                   button: "Open Watchlists",
                   tone: "amber",
@@ -2903,34 +2867,36 @@ export default function WorkspacePage() {
 
           {activeTab === "briefings" ? (
             <GenericModule
-              eyebrow="Briefings"
-              title="Reports and advisor briefings"
-              description="Generate and manage investment, client, and platform briefings."
+              eyebrow="Reports"
+              title="Client output and advisor-approved communication"
+              description="The Reports area is now focused on usable client communication and AI-generated output. Founder / Advisor Reports were removed from this workspace to keep the portal clean."
               cards={[
                 {
-                  title: "AI Studio Reports",
-                  description: "Generate presentation-ready reports through the AI Studio.",
-                  href: "/workspace/personal-bot",
-                  button: "Open AI Studio",
-                  tone: "cyan",
-                  icon: "spark",
-                  stats: [["Briefings", currentCommand.counts.briefingCount]],
-                },
-                {
                   title: "Client Briefings",
-                  description: "Create client-specific advisory notes and briefings.",
+                  description: "Create client-specific advisory notes, approval-gated briefings, and source-backed client updates.",
                   href: "/workspace/client-briefings",
                   button: "Open Client Briefings",
                   tone: "purple",
                   icon: "client",
+                  stats: [["Briefings", currentCommand.counts.briefingCount]],
                 },
                 {
-                  title: "Founder / Advisor Reports",
-                  description: "Review report readiness and platform output.",
-                  href: "/briefings",
-                  button: "Open Briefings",
-                  tone: "red",
-                  icon: "report",
+                  title: "AI Studio Output",
+                  description: "Use AI Studio for custom summaries, meeting prep, visuals, scenarios, and advisor-ready writing.",
+                  href: "/workspace/personal-bot",
+                  button: "Open AI Studio",
+                  tone: "cyan",
+                  icon: "spark",
+                  stats: [["Readiness", percent(currentCommand.readinessScore)]],
+                },
+                {
+                  title: "Client Email Center",
+                  description: "Draft, polish, approve, and organize client-facing communication.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
+                  stats: [["Deliveries", currentCommand.counts.deliveryCount]],
                 },
               ]}
             />
@@ -3027,7 +2993,8 @@ export default function WorkspacePage() {
                   Workspace Principle
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Built to be used every day by a wealth management team: clean left navigation, compact visual information, and all tools connected to one command brain.
+                  Built to be used every day by a wealth management team: clean left navigation, compact visual information,
+                  fewer distracting report/research entries, and all high-value tools connected to one command brain.
                 </p>
               </div>
 

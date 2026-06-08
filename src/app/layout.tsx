@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import PersonalBotWidget from "@/components/personal-bot-widget";
 import UserThemeProvider from "@/components/user-theme-provider";
+import WorkspaceDraggableOverlays from "@/components/workspace-draggable-overlays";
 import WorkspaceEmailQuickAccess from "@/components/workspace-email-quick-access";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({
         {children}
         <WorkspaceEmailQuickAccess />
         <PersonalBotWidget />
+        <WorkspaceDraggableOverlays />
       </body>
     </html>
   );

@@ -80,7 +80,7 @@ type PlatformBrainContext = {
     category: string;
     aliases: string[];
     capabilities: string[];
-    examples: string[];
+    examples?: string[];
   }>;
   learnedPhrases?: Array<{
     phrase: string;
@@ -138,20 +138,46 @@ const FALLBACK_ROUTES = [
   { route: "/workspace", label: "workspace", aliases: ["home", "dashboard", "main page"] },
   { route: "/workspace?tab=command", label: "command layer", aliases: ["command", "backend controls"] },
   { route: "/workspace?tab=firm-calendar", label: "calendar", aliases: ["firm calendar", "schedule", "agenda"] },
-  { route: "/workspace/personal-bot", label: "personal bot", aliases: ["bot", "robot", "assistant"] },
+  { route: "/workspace/personal-bot", label: "ai studio", aliases: ["bot", "robot", "assistant", "personal bot"] },
   { route: "/backend-kernel", label: "backend kernel", aliases: ["backend", "kernel", "jobs"] },
+  { route: "/backend-readiness", label: "backend readiness", aliases: ["readiness", "backend setup"] },
   { route: "/market-visuals", label: "market visuals", aliases: ["charts", "graphs", "visuals"] },
   { route: "/watchlist-alerts", label: "watchlist alerts", aliases: ["price alerts", "stock alerts"] },
   { route: "/advisor-command-center", label: "advisor command center", aliases: ["client brain", "next best action"] },
-  { route: "/triage", label: "triage", aliases: ["trage", "news triage"] },
+  { route: "/triage", label: "triage", aliases: ["news triage", "intelligence triage"] },
   { route: "/opportunity-radar", label: "opportunity radar", aliases: ["radar", "opportunities"] },
   { route: "/portfolio-lab", label: "portfolio lab", aliases: ["portfolio", "holdings"] },
-  { route: "/alternative-investments?view=venture", label: "venture monitor", aliases: ["ventures", "alternative ventures", "startups"] },
+  { route: "/alternative-investments?view=venture", label: "venture monitor", aliases: ["ventures", "startups"] },
   { route: "/alternative-investments?view=penny-stocks", label: "penny stocks", aliases: ["penny stock", "speculative equities"] },
   { route: "/alternative-investments?view=crypto", label: "crypto markets", aliases: ["crypto", "bitcoin"] },
-  { route: "/briefings", label: "briefings", aliases: ["reports", "briefing reports"] },
-  { route: "/security", label: "security", aliases: ["audit", "compliance"] },
+  { route: "/workspace/client-briefings", label: "client briefings", aliases: ["client reports", "client updates"] },
+  { route: "/security", label: "security", aliases: ["audit", "compliance", "security center"] },
 ];
+
+function normalizeKey(value: string) {
+  return value.trim().replace(/^["']|["']$/g, "");
+}
+
+function getOpenAiApiKey() {
+  return normalizeKey(
+    getOptionalEnv("OPENAI_API_KEY") ||
+      getOptionalEnv("OPENAI_KEY") ||
+      getOptionalEnv("OPENAI_SECRET_KEY")
+  );
+}
+
+export function getOpenAiRuntimeStatus() {
+  const apiKey = getOpenAiApiKey();
+  const model = getOptionalEnv("OPENAI_MODEL") || "gpt-4.1-mini";
+
+  return {
+    configured: Boolean(apiKey),
+    provider: apiKey ? "OpenAI Responses API" : "Local fallback",
+    model,
+    webSearchEnabled: getOptionalEnv("OPENAI_ENABLE_WEB_SEARCH") === "true",
+    requiredEnv: "OPENAI_API_KEY",
+  };
+}
 
 function hashText(value: string) {
   let hash = 5381;
@@ -167,9 +193,7 @@ function cleanupCache() {
   const now = Date.now();
 
   for (const [key, record] of aiCache.entries()) {
-    if (record.expiresAt <= now) {
-      aiCache.delete(key);
-    }
+    if (record.expiresAt <= now) aiCache.delete(key);
   }
 
   if (aiCache.size > 500) {
@@ -177,9 +201,7 @@ function cleanupCache() {
       (a, b) => a[1].expiresAt - b[1].expiresAt
     );
 
-    for (const [key] of ordered.slice(0, 150)) {
-      aiCache.delete(key);
-    }
+    for (const [key] of ordered.slice(0, 150)) aiCache.delete(key);
   }
 }
 
@@ -191,10 +213,10 @@ function cacheTtlForMode(mode: AiSpeedMode) {
 }
 
 function timeoutForMode(mode: AiSpeedMode) {
-  if (mode === "instant") return Number(getOptionalEnv("OPENAI_INSTANT_TIMEOUT_MS")) || 3500;
-  if (mode === "fast") return Number(getOptionalEnv("OPENAI_FAST_TIMEOUT_MS")) || 6500;
-  if (mode === "balanced") return Number(getOptionalEnv("OPENAI_BALANCED_TIMEOUT_MS")) || 14000;
-  return Number(getOptionalEnv("OPENAI_QUALITY_TIMEOUT_MS")) || 28000;
+  if (mode === "instant") return Number(getOptionalEnv("OPENAI_INSTANT_TIMEOUT_MS")) || 6000;
+  if (mode === "fast") return Number(getOptionalEnv("OPENAI_FAST_TIMEOUT_MS")) || 12000;
+  if (mode === "balanced") return Number(getOptionalEnv("OPENAI_BALANCED_TIMEOUT_MS")) || 24000;
+  return Number(getOptionalEnv("OPENAI_QUALITY_TIMEOUT_MS")) || 45000;
 }
 
 function modelForMode(mode: AiSpeedMode, explicitModel?: string) {
@@ -204,7 +226,7 @@ function modelForMode(mode: AiSpeedMode, explicitModel?: string) {
     return (
       getOptionalEnv("OPENAI_FAST_MODEL") ||
       getOptionalEnv("OPENAI_MODEL") ||
-      "gpt-5"
+      "gpt-4.1-mini"
     );
   }
 
@@ -212,11 +234,11 @@ function modelForMode(mode: AiSpeedMode, explicitModel?: string) {
     return (
       getOptionalEnv("OPENAI_QUALITY_MODEL") ||
       getOptionalEnv("OPENAI_MODEL") ||
-      "gpt-5"
+      "gpt-4.1"
     );
   }
 
-  return getOptionalEnv("OPENAI_MODEL") || "gpt-5";
+  return getOptionalEnv("OPENAI_MODEL") || "gpt-4.1-mini";
 }
 
 function extractText(payload: any) {
@@ -229,8 +251,11 @@ function extractText(payload: any) {
       for (const content of item.content) {
         if (typeof content?.text === "string") pieces.push(content.text);
         if (typeof content?.output_text === "string") pieces.push(content.output_text);
+        if (typeof content?.text?.value === "string") pieces.push(content.text.value);
       }
     }
+
+    if (typeof item?.content === "string") pieces.push(item.content);
   }
 
   return pieces.join("\n").trim();
@@ -269,7 +294,7 @@ function extractTicker(prompt: string) {
   const explicit =
     upper.match(/(?:STOCK|TICKER|SYMBOL|HOLDING|WATCH|RESEARCH)\s+([A-Z]{1,6})/) ??
     upper.match(/\$([A-Z]{1,6})/) ??
-    upper.match(/\b(NVDA|AAPL|MSFT|TSLA|META|GOOGL|GOOG|AMZN|AMD|NFLX|SPY|QQQ|IWM|TLT)\b/);
+    upper.match(/\b(NVDA|AAPL|MSFT|TSLA|META|GOOGL|GOOG|AMZN|AMD|NFLX|SPY|QQQ|IWM|TLT|AVGO|CRM|PLTR|COIN|MSTR)\b/);
 
   return explicit?.[1] ?? explicit?.[0] ?? null;
 }
@@ -304,15 +329,15 @@ function toneGuide(preferredTone?: string | null) {
   const tone = normalize(preferredTone || "professional");
 
   if (tone.includes("witty")) {
-    return "Use polished, quick British wit. Be clever, not silly. Keep the answer useful first and charming second.";
+    return "Use polished, quick wit. Be clever, not silly. Keep usefulness first.";
   }
 
   if (tone.includes("brutal") || tone.includes("honest")) {
-    return "Be direct, candid, and tactful. Say what matters plainly, without being rude.";
+    return "Be direct, candid, and tactful. Say what matters plainly.";
   }
 
   if (tone.includes("encourag")) {
-    return "Be upbeat, steady, and confidence-building while still being honest about risk and uncertainty.";
+    return "Be upbeat and confidence-building while still being honest about risk.";
   }
 
   if (tone.includes("calm")) {
@@ -320,7 +345,7 @@ function toneGuide(preferredTone?: string | null) {
   }
 
   if (tone.includes("direct")) {
-    return "Be concise and decisive. Lead with the answer, then give only the necessary supporting details.";
+    return "Be concise and decisive. Lead with the answer.";
   }
 
   return "Be professional, polished, concise, and advisor-grade.";
@@ -329,10 +354,10 @@ function toneGuide(preferredTone?: string | null) {
 function detailGuide(commandStyle?: string | null) {
   const style = normalize(commandStyle || "balanced detail");
 
-  if (style.includes("one-line")) return "Answer in one or two crisp sentences unless safety or complexity requires more.";
+  if (style.includes("one-line")) return "Answer in one or two crisp sentences unless complexity requires more.";
   if (style.includes("short")) return "Use a short summary with only the most important details.";
   if (style.includes("detailed")) return "Give a structured, detailed breakdown with clear next steps.";
-  if (style.includes("deep")) return "Give a deeper research-style response with assumptions, caveats, and practical implications.";
+  if (style.includes("deep")) return "Give a deeper research-style response with assumptions, caveats, and implications.";
 
   return "Use balanced detail: enough to be genuinely useful, not a wall of text.";
 }
@@ -349,73 +374,6 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   } finally {
     clearTimeout(timeout);
   }
-}
-
-export function fallbackSliceCommand(prompt: string, platformBrain?: PlatformBrainContext): SliceStructuredCommand {
-  const lower = normalize(prompt);
-  const route = routeFromPrompt(prompt, platformBrain);
-  let intent: SliceCommandIntent = route ? "navigate" : "answer";
-
-  if (lower.includes("source") || lower.includes("proof") || lower.includes("cite") || lower.includes("where did")) intent = "source_lookup";
-  if (lower.includes("search") || lower.includes("find") || lower.includes("look through") || lower.includes("ask the firm")) intent = "platform_search";
-  if (lower.includes("research") || lower.includes("analyze") || lower.includes("deep dive") || lower.includes("thesis")) intent = "research";
-  if (lower.includes("sort") || lower.includes("rank") || lower.includes("top ") || lower.includes("highest")) intent = "sort_data";
-  if (lower.includes("task") || lower.includes("to do") || lower.includes("todo") || lower.includes("remind")) intent = "create_task";
-  if (lower.includes("client") && (lower.includes("create") || lower.includes("add") || lower.includes("new"))) intent = "create_client";
-  if (lower.includes("project") && (lower.includes("create") || lower.includes("add") || lower.includes("new"))) intent = "create_project";
-  if (lower.includes("watch") || lower.includes("track ticker") || lower.includes("add ticker")) intent = "create_watchlist_item";
-  if (lower.includes("price alert") || lower.includes("hits") || lower.includes("above") || lower.includes("below")) intent = "create_price_alert";
-  if (lower.includes("email") || lower.includes("draft") || lower.includes("message investors")) intent = "draft_email";
-  if (lower.includes("pdf") || lower.includes("report")) intent = "create_report";
-  if (lower.includes("advisor day") || lower.includes("what should i do") || lower.includes("prioritize my day")) intent = "advisor_day";
-  if (lower.includes("backend") || lower.includes("kernel") || lower.includes("job")) intent = "backend_job";
-  if (lower.includes("approve") || lower.includes("reject") || lower.includes("decline")) intent = "approval_decision";
-  if (lower.includes("remember")) intent = "remember";
-  if (lower.includes("theme") || lower.includes("color")) intent = "theme";
-  if (lower.includes("help") || lower.includes("what can you do")) intent = "help";
-
-  const ticker = extractTicker(prompt);
-  const price = extractPrice(prompt);
-
-  return {
-    intent,
-    confidence: route ? 0.72 : 0.5,
-    riskLevel: ["draft_email", "queue_delivery", "create_report", "approval_decision"].includes(intent) ? "High" : "Low",
-    requiresApproval: ["draft_email", "queue_delivery", "create_report"].includes(intent),
-    route,
-    answer:
-      intent === "answer"
-        ? "I can answer open-ended questions through the universal AI layer, navigate Slice, research investments, search firm data, find sources, create tasks, create clients, create projects, add watchlists, create price alerts, draft approval-gated emails, create reports, run backend jobs, decide approvals, remember preferences, and change your theme."
-        : `I interpreted this as: ${intent}.`,
-    userFacingSummary: `Interpreted as ${intent}.`,
-    parameters: {
-      route,
-      ticker,
-      query: prompt,
-      title: prompt,
-      detail: prompt,
-      dueDate: null,
-      priority: lower.includes("urgent") || lower.includes("critical") ? "High" : "Medium",
-      clientName: null,
-      email: null,
-      projectTitle: prompt,
-      watchlistName: "AI Command Watchlist",
-      symbol: ticker,
-      upperTargetPrice: lower.includes("above") || lower.includes("high") ? price : null,
-      lowerTargetPrice: lower.includes("below") || lower.includes("low") ? price : null,
-      color: lower.includes("blue") ? "blue" : lower.includes("green") ? "green" : lower.includes("purple") ? "purple" : lower.includes("gold") ? "gold" : lower.includes("mint") ? "mint" : null,
-      reportTitle: "Slice AI Report",
-      subject: null,
-      body: null,
-      recipient: null,
-      deliveryChannel: lower.includes("text") || lower.includes("sms") ? "Text" : lower.includes("email") ? "Email" : "Dashboard",
-      phone: null,
-      jobKey: lower.includes("price") ? "watchlist_price_check" : lower.includes("delivery") ? "notification_delivery" : lower.includes("advisor day") ? "advisor_day" : "vendor_health",
-      memory: lower.includes("remember") ? prompt.replace(/remember/i, "").trim() : null,
-      approvalDecision: lower.includes("reject") || lower.includes("decline") ? "reject" : lower.includes("approve") ? "approve" : null,
-      researchDepth: lower.includes("deep") ? "deep" : lower.includes("quick") ? "quick" : "standard",
-    },
-  };
 }
 
 function commandSchema() {
@@ -517,6 +475,73 @@ function commandSchema() {
   };
 }
 
+export function fallbackSliceCommand(prompt: string, platformBrain?: PlatformBrainContext): SliceStructuredCommand {
+  const lower = normalize(prompt);
+  const route = routeFromPrompt(prompt, platformBrain);
+  let intent: SliceCommandIntent = route ? "navigate" : "answer";
+
+  if (lower.includes("source") || lower.includes("proof") || lower.includes("cite")) intent = "source_lookup";
+  if (lower.includes("search") || lower.includes("find") || lower.includes("ask the firm")) intent = "platform_search";
+  if (lower.includes("research") || lower.includes("analyze") || lower.includes("deep dive")) intent = "research";
+  if (lower.includes("sort") || lower.includes("rank") || lower.includes("top ")) intent = "sort_data";
+  if (lower.includes("task") || lower.includes("to do") || lower.includes("todo") || lower.includes("remind")) intent = "create_task";
+  if (lower.includes("client") && (lower.includes("create") || lower.includes("add") || lower.includes("new"))) intent = "create_client";
+  if (lower.includes("project") && (lower.includes("create") || lower.includes("add") || lower.includes("new"))) intent = "create_project";
+  if (lower.includes("watch") || lower.includes("track ticker") || lower.includes("add ticker")) intent = "create_watchlist_item";
+  if (lower.includes("price alert") || lower.includes("hits") || lower.includes("above") || lower.includes("below")) intent = "create_price_alert";
+  if (lower.includes("email") || lower.includes("draft") || lower.includes("message investors")) intent = "draft_email";
+  if (lower.includes("pdf") || lower.includes("report")) intent = "create_report";
+  if (lower.includes("advisor day") || lower.includes("what should i do") || lower.includes("prioritize my day")) intent = "advisor_day";
+  if (lower.includes("backend") || lower.includes("kernel") || lower.includes("job")) intent = "backend_job";
+  if (lower.includes("approve") || lower.includes("reject") || lower.includes("decline")) intent = "approval_decision";
+  if (lower.includes("remember")) intent = "remember";
+  if (lower.includes("theme") || lower.includes("color")) intent = "theme";
+  if (lower.includes("help") || lower.includes("what can you do")) intent = "help";
+
+  const ticker = extractTicker(prompt);
+  const price = extractPrice(prompt);
+
+  return {
+    intent,
+    confidence: route ? 0.72 : 0.5,
+    riskLevel: ["draft_email", "queue_delivery", "create_report", "approval_decision"].includes(intent) ? "High" : "Low",
+    requiresApproval: ["draft_email", "queue_delivery", "create_report"].includes(intent),
+    route,
+    answer:
+      intent === "answer"
+        ? "I can answer questions, navigate Slice, research investments, search firm data, create tasks, draft approval-gated emails, create reports, and help operate the platform."
+        : `I interpreted this as: ${intent}.`,
+    userFacingSummary: `Interpreted as ${intent}.`,
+    parameters: {
+      route,
+      ticker,
+      query: prompt,
+      title: prompt,
+      detail: prompt,
+      dueDate: null,
+      priority: lower.includes("urgent") || lower.includes("critical") ? "High" : "Medium",
+      clientName: null,
+      email: null,
+      projectTitle: prompt,
+      watchlistName: "AI Command Watchlist",
+      symbol: ticker,
+      upperTargetPrice: lower.includes("above") || lower.includes("high") ? price : null,
+      lowerTargetPrice: lower.includes("below") || lower.includes("low") ? price : null,
+      color: lower.includes("blue") ? "blue" : lower.includes("green") ? "green" : lower.includes("purple") ? "purple" : lower.includes("gold") ? "gold" : lower.includes("mint") ? "mint" : null,
+      reportTitle: "Slice AI Report",
+      subject: null,
+      body: null,
+      recipient: null,
+      deliveryChannel: lower.includes("text") || lower.includes("sms") ? "Text" : lower.includes("email") ? "Email" : "Dashboard",
+      phone: null,
+      jobKey: lower.includes("price") ? "watchlist_price_check" : lower.includes("delivery") ? "notification_delivery" : lower.includes("advisor day") ? "advisor_day" : "vendor_health",
+      memory: lower.includes("remember") ? prompt.replace(/remember/i, "").trim() : null,
+      approvalDecision: lower.includes("reject") || lower.includes("decline") ? "reject" : lower.includes("approve") ? "approve" : null,
+      researchDepth: lower.includes("deep") ? "deep" : lower.includes("quick") ? "quick" : "standard",
+    },
+  };
+}
+
 export async function generateAiText(input: {
   instructions?: string;
   prompt: string;
@@ -531,7 +556,7 @@ export async function generateAiText(input: {
   fallbackText?: string;
 }): Promise<AiResponseResult> {
   const startedAt = Date.now();
-  const apiKey = getOptionalEnv("OPENAI_API_KEY");
+  const apiKey = getOpenAiApiKey();
   const speedMode = input.speedMode || "balanced";
   const model = modelForMode(speedMode, input.model);
   const timeoutMs = input.timeoutMs ?? timeoutForMode(speedMode);
@@ -605,7 +630,7 @@ export async function generateAiText(input: {
     if (!response.ok) {
       return {
         ok: false,
-        provider: "OpenAI",
+        provider: `OpenAI/${model}`,
         status: "failed",
         text: input.fallbackText || "",
         raw: payload,
@@ -616,11 +641,13 @@ export async function generateAiText(input: {
       };
     }
 
+    const text = extractText(payload);
+
     const result: AiResponseResult = {
       ok: true,
-      provider: "OpenAI",
+      provider: `OpenAI/${model}`,
       status: "completed",
-      text: extractText(payload),
+      text,
       raw: payload,
       latencyMs: Date.now() - startedAt,
       model,
@@ -642,11 +669,11 @@ export async function generateAiText(input: {
 
     return {
       ok: false,
-      provider: "OpenAI",
+      provider: `OpenAI/${model}`,
       status: timedOut ? "timeout" : "failed",
       text: input.fallbackText || "",
       error: timedOut
-        ? `AI request exceeded ${timeoutMs}ms. Returned fast fallback to preserve responsiveness.`
+        ? `AI request exceeded ${timeoutMs}ms. Returned fallback to preserve responsiveness.`
         : error instanceof Error
           ? error.message
           : "AI request failed.",
@@ -658,29 +685,29 @@ export async function generateAiText(input: {
 }
 
 export async function generateUniversalAssistantReply(input: UniversalAssistantInput): Promise<AiResponseResult> {
-  const botName = input.botName || "Slice Bot";
+  const botName = input.botName || "Slice AI";
   const preferredTone = input.preferredTone || "Professional";
   const commandStyle = input.commandStyle || "Balanced detail";
-  const speedMode = input.speedMode || "fast";
+  const speedMode = input.speedMode || "balanced";
 
   const fallback = input.platformResult
-    ? `Certainly — here is what I found:\n\n${input.platformResult}`
-    : "Certainly — I can help with that. I can answer questions, navigate Slice, research investments, search firm data, prepare reports, and draft approval-gated communications.";
+    ? `Here is what I found:\n\n${input.platformResult}`
+    : "I can help with that. I can answer questions, navigate Slice, research investments, search firm data, prepare reports, and draft approval-gated communications.";
 
   const instructions = `
 You are ${botName}, the universal AI assistant inside Slice, an advisor intelligence operating system.
 
 Voice and personality:
-- Use polished British English phrasing.
 - Preferred tone: ${preferredTone}.
 - ${toneGuide(preferredTone)}
 - ${detailGuide(commandStyle)}
 
 Rules:
-- Be fast and useful.
+- Be clear, calm, useful, and easy to act on.
 - If platform context is supplied, preserve its facts exactly.
 - For finance, legal, tax, or compliance matters, avoid guarantees and unsupported recommendations.
 - Do not claim an action was completed unless platformResult proves it.
+- Use short sections when helpful.
 `;
 
   return generateAiText({
@@ -742,7 +769,7 @@ export async function parseSliceCommandWithAi(input: {
   provider: string;
   error?: string;
 }> {
-  const apiKey = getOptionalEnv("OPENAI_API_KEY");
+  const apiKey = getOpenAiApiKey();
 
   if (!apiKey) {
     return {
@@ -780,7 +807,7 @@ Return only JSON matching the schema.
     userName: input.userName,
     userEmail: input.userEmail,
     firmName: input.firmName ?? "No active firm",
-    botName: input.botName ?? "Slice Bot",
+    botName: input.botName ?? "Slice AI",
     preferredTone: input.preferredTone ?? "Professional",
     commandStyle: input.commandStyle ?? "Balanced detail",
     customInstructions: input.customInstructions ?? null,
@@ -838,7 +865,7 @@ Return only JSON matching the schema.
     if (!response.ok) {
       return {
         ok: false,
-        provider: "OpenAI",
+        provider: `OpenAI/${model}`,
         command: fallbackSliceCommand(input.prompt, input.platformBrain),
         error: payload?.error?.message || `OpenAI failed with ${response.status}`,
       };
@@ -857,10 +884,7 @@ Return only JSON matching the schema.
       ok: false,
       provider: `OpenAI/${model}`,
       command: fallbackSliceCommand(input.prompt, input.platformBrain),
-      error:
-        error instanceof Error
-          ? error.message
-          : "AI command parsing failed.",
+      error: error instanceof Error ? error.message : "AI command parsing failed.",
     };
   }
 }

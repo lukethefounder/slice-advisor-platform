@@ -38,6 +38,8 @@ export type InvestmentGradeResult = {
     immediacy: number;
     riskPenalty: number;
     noisePenalty: number;
+    corroboration: number;
+    verificationPenalty: number;
   };
   reasons: string[];
   risks: string[];
@@ -147,6 +149,9 @@ const NOISE_TERMS = [
   "hot pick",
   "rumor",
   "unconfirmed",
+  "anonymous sources say",
+  "viral",
+  "reddit says",
 ];
 
 function clamp(value: number, min = 0, max = 100) {
@@ -283,6 +288,50 @@ function immediacyScore(decision: TriageDecision, scanMode: ScanMode) {
   return clamp(score);
 }
 
+function reliabilityAnnotations(text: string) {
+  const sourceTrustMatch = text.match(/sourcetrust=(\d+)/i);
+  const corroboratingSourcesMatch = text.match(/corroboratingsources=(\d+)/i);
+  const strongestTrustMatch = text.match(/strongestcorroboratortrust=(\d+)/i);
+  const confirmationStatusMatch = text.match(/confirmationstatus=([^;]+)/i);
+  const lowerTrustMatch = text.match(/lowertrustrequiresconfirmation=(yes|no)/i);
+
+  const sourceTrustFromAnnotation = sourceTrustMatch
+    ? Number(sourceTrustMatch[1])
+    : null;
+  const corroboratingSources = corroboratingSourcesMatch
+    ? Number(corroboratingSourcesMatch[1])
+    : 0;
+  const strongestCorroboratorTrust = strongestTrustMatch
+    ? Number(strongestTrustMatch[1])
+    : 0;
+  const confirmationStatus = confirmationStatusMatch?.[1]?.trim() ?? "unknown";
+  const lowerTrustRequiresConfirmation = lowerTrustMatch?.[1] === "yes";
+
+  const corroboration = clamp(
+    corroboratingSources * 12 +
+      (strongestCorroboratorTrust >= 88 ? 18 : strongestCorroboratorTrust >= 70 ? 10 : 0),
+    0,
+    45
+  );
+
+  const verificationPenalty =
+    lowerTrustRequiresConfirmation && corroboratingSources < 2
+      ? 22
+      : confirmationStatus === "partially-corroborated"
+        ? 6
+        : 0;
+
+  return {
+    sourceTrustFromAnnotation,
+    corroboratingSources,
+    strongestCorroboratorTrust,
+    confirmationStatus,
+    lowerTrustRequiresConfirmation,
+    corroboration,
+    verificationPenalty,
+  };
+}
+
 function gradeFromScore(score: number, confidence: number, noise: number): InvestmentGrade {
   if (noise >= 35) return "Suppress";
   if (score >= 96 && confidence >= 82) return "A+";
@@ -296,7 +345,11 @@ function gradeFromScore(score: number, confidence: number, noise: number): Inves
   return "Watch";
 }
 
-function actionFromGrade(grade: InvestmentGrade, score: number, emailEligible: boolean): InvestmentGradeResult["action"] {
+function actionFromGrade(
+  grade: InvestmentGrade,
+  score: number,
+  emailEligible: boolean
+): InvestmentGradeResult["action"] {
   if (grade === "Suppress") return "SUPPRESS";
   if (emailEligible) return "SEND_ADVISOR_EMAIL";
   if (score >= 82) return "CREATE_DASHBOARD_ALERT";
@@ -317,7 +370,8 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
   const decision = input.decision;
   const text = lowerText(decision);
 
-  const sourceTrust = sourceTrustScore(decision.sourceTier);
+  const reliability = reliabilityAnnotations(text);
+  const sourceTrust = reliability.sourceTrustFromAnnotation ?? sourceTrustScore(decision.sourceTier);
   const uSMarketRelevance = usMarketRelevanceScore(text, decision);
   const criteriaFit = advisorCriteriaFit(decision, input.profile);
   const exposureFit = portfolioExposureFit(decision, input.profile);
@@ -328,31 +382,52 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
   const noise = noisePenalty(text);
 
   const baseScore =
-    decision.score * 0.22 +
-    sourceTrust * 0.16 +
-    uSMarketRelevance * 0.12 +
-    criteriaFit * 0.17 +
+    decision.score * 0.2 +
+    sourceTrust * 0.15 +
+    uSMarketRelevance * 0.11 +
+    criteriaFit * 0.16 +
     exposureFit * 0.13 +
-    catalyst * 0.11 +
+    catalyst * 0.1 +
     macro * 0.04 +
-    immediacy * 0.05;
+    immediacy * 0.05 +
+    reliability.corroboration * 0.06;
 
   const scanModeAdjustment =
     scanMode === "fast" ? 2 : scanMode === "deep" ? 4 : 0;
 
-  const finalScore = clamp(baseScore + scanModeAdjustment - risk * 0.28 - noise * 0.72);
-  const confidenceScore = clamp(sourceTrust * 0.42 + decision.trustScore * 0.24 + criteriaFit * 0.18 + uSMarketRelevance * 0.16);
+  const finalScore = clamp(
+    baseScore +
+      scanModeAdjustment -
+      risk * 0.28 -
+      noise * 0.72 -
+      reliability.verificationPenalty * 0.74
+  );
+
+  const confidenceScore = clamp(
+    sourceTrust * 0.36 +
+      decision.trustScore * 0.2 +
+      criteriaFit * 0.16 +
+      uSMarketRelevance * 0.14 +
+      reliability.corroboration * 0.14 -
+      reliability.verificationPenalty * 0.35
+  );
+
   const grade = gradeFromScore(finalScore, confidenceScore, noise);
   const urgency = urgencyFromScore(finalScore);
-
   const alertFloor = input.alertFloor ?? 86;
+
+  const lowerTrustConfirmed =
+    sourceTrust >= 65 ||
+    reliability.corroboratingSources >= 2 ||
+    reliability.strongestCorroboratorTrust >= 88;
 
   const emailEligible =
     grade !== "Suppress" &&
     finalScore >= alertFloor &&
-    confidenceScore >= 62 &&
-    sourceTrust >= 58 &&
+    confidenceScore >= 64 &&
+    sourceTrust >= 42 &&
     noise < 28 &&
+    lowerTrustConfirmed &&
     (criteriaFit >= 55 || exposureFit >= 55 || finalScore >= 92);
 
   const reasons = [
@@ -362,6 +437,9 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
     `Advisor criteria fit: ${criteriaFit}/100.`,
     `Portfolio/client exposure fit: ${exposureFit}/100.`,
     `Catalyst strength: ${catalyst}/100.`,
+    `Cross-source corroboration score: ${reliability.corroboration}/100.`,
+    `Corroborating independent sources detected: ${reliability.corroboratingSources}.`,
+    `Confirmation status: ${reliability.confirmationStatus}.`,
     `Confidence score: ${confidenceScore}/100.`,
   ];
 
@@ -391,6 +469,12 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
     risks.push(`Noise/promotional language penalty detected: ${noise}/100.`);
   }
 
+  if (reliability.verificationPenalty > 0) {
+    risks.push(
+      `Lower-trust source verification penalty applied: ${reliability.verificationPenalty}/100. Independent confirmation is required before advisor email delivery.`
+    );
+  }
+
   if (sourceTrust < 65) {
     risks.push("Source trust is below institutional-quality threshold. Verify before relying on this item.");
   }
@@ -399,8 +483,13 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
     risks.push("Confidence score is moderate. Advisor verification is recommended before action.");
   }
 
+  if (!lowerTrustConfirmed) {
+    risks.push("Automatic email delivery blocked because the lower-trust source was not sufficiently corroborated.");
+  }
+
   const nextActions = [
     "Open and verify the original source.",
+    "Check whether the item is corroborated by stronger or independent sources.",
     "Check current price action and volume.",
     "Compare against client holdings and concentration exposure.",
     "Review tax, liquidity, and suitability before any recommendation.",
@@ -432,6 +521,8 @@ export function gradeInvestmentSignal(input: GradeInput): InvestmentGradeResult 
       immediacy,
       riskPenalty: risk,
       noisePenalty: noise,
+      corroboration: reliability.corroboration,
+      verificationPenalty: reliability.verificationPenalty,
     },
     reasons,
     risks,
@@ -460,6 +551,7 @@ export function buildInstitutionalResearchMemo(input: {
   return [
     `Investment Grade: ${grade.grade}`,
     `Final Score: ${grade.finalScore}/100`,
+    `Confidence Score: ${grade.confidenceScore}/100`,
     `Urgency: ${grade.urgency}`,
     `Recommended Action: ${grade.action}`,
     "",
@@ -474,13 +566,15 @@ export function buildInstitutionalResearchMemo(input: {
     `- Tickers: ${matchedTickers}`,
     `- Themes: ${matchedAreas}`,
     "",
-    "Risk checks:",
-    ...(grade.risks.length ? grade.risks.map((risk) => `- ${risk}`) : ["- No major grading penalties were detected."]),
+    "Reliability and risk checks:",
+    ...(grade.risks.length
+      ? grade.risks.map((risk) => `- ${risk}`)
+      : ["- No major grading, source-trust, or verification penalties were detected."]),
     "",
     "Advisor next steps:",
     ...grade.nextActions.map((action) => `- ${action}`),
     "",
     "Compliance note:",
-    "This alert is for advisor research review only. It is not a client-specific recommendation, trade instruction, or guarantee of investment outcome.",
+    "- This is advisor research and triage support, not a recommendation, guarantee, or trading instruction.",
   ].join("\n");
 }

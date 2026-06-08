@@ -32,11 +32,52 @@ export type FetchResult = {
   headlines: RawHeadline[];
 };
 
-const MAX_TOTAL_LIVE_HEADLINES = 180;
-const DEFAULT_MAX_ITEMS_PER_SOURCE = 25;
+const MAX_LIVE_SOURCES_PER_RUN = 200;
+const MAX_TOTAL_LIVE_HEADLINES = 600;
+const DEFAULT_MAX_ITEMS_PER_SOURCE = 24;
 const DEFAULT_COOLDOWN_MINUTES = 15;
 const DEFAULT_TIMEOUT_MS = 9000;
 const MAX_FETCH_RETRIES = 2;
+const FETCH_CONCURRENCY = 12;
+
+const STOP_WORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "against",
+  "amid",
+  "among",
+  "announces",
+  "announcement",
+  "before",
+  "being",
+  "between",
+  "business",
+  "could",
+  "from",
+  "have",
+  "into",
+  "market",
+  "markets",
+  "more",
+  "news",
+  "over",
+  "public",
+  "report",
+  "reports",
+  "said",
+  "says",
+  "shares",
+  "stock",
+  "stocks",
+  "their",
+  "this",
+  "through",
+  "under",
+  "update",
+  "with",
+  "will",
+]);
 
 function decodeEntities(value: string) {
   return value
@@ -54,7 +95,12 @@ function decodeEntities(value: string) {
 }
 
 function stripHtml(value: string) {
-  return decodeEntities(value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " "));
+  return decodeEntities(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]*>/g, " ")
+  );
 }
 
 function compactText(value: unknown, fallback = "") {
@@ -104,6 +150,26 @@ function normalizeSourceTier(value: string): RawHeadline["sourceTier"] {
   return "unknown";
 }
 
+function sourceTrustScore(sourceTier: string) {
+  if (sourceTier === "official-regulatory") return 96;
+  if (sourceTier === "official-exchange") return 94;
+  if (sourceTier === "macro-source") return 88;
+  if (sourceTier === "market-news") return 72;
+  if (sourceTier === "crypto-source") return 62;
+  if (sourceTier === "venture-source") return 60;
+  return 42;
+}
+
+function sourceTrustLabel(sourceTier: string) {
+  const score = sourceTrustScore(sourceTier);
+
+  if (score >= 90) return "institutional-primary";
+  if (score >= 80) return "high-trust";
+  if (score >= 70) return "standard-news";
+  if (score >= 60) return "specialized-watch";
+  return "low-trust-open-web";
+}
+
 function maxItemsForSource(source: FetchableSource) {
   const value = source.maxItemsPerRun ?? DEFAULT_MAX_ITEMS_PER_SOURCE;
 
@@ -151,7 +217,44 @@ function headlineKey(headline: RawHeadline) {
     .slice(0, 300);
 }
 
-function parseRssOrAtom(raw: string, source: FetchableSource): {
+function headlineText(headline: RawHeadline) {
+  return `${headline.title} ${headline.summary ?? ""}`.toLowerCase();
+}
+
+function titleTerms(headline: RawHeadline) {
+  return Array.from(
+    new Set(
+      `${headline.title} ${headline.summary ?? ""}`
+        .toLowerCase()
+        .replace(/[^a-z0-9$.\s-]/g, " ")
+        .split(/\s+/)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 5 && !STOP_WORDS.has(term))
+    )
+  ).slice(0, 18);
+}
+
+function extractTickerHints(headline: RawHeadline) {
+  const text = `${headline.title} ${headline.summary ?? ""}`;
+  const dollarTickers = text.match(/\$[A-Z][A-Z0-9.-]{0,5}\b/g) ?? [];
+  const parentheticalTickers = text.match(/\(([A-Z]{1,5})\)/g) ?? [];
+
+  return Array.from(
+    new Set(
+      [
+        ...dollarTickers.map((ticker) => ticker.replace("$", "")),
+        ...parentheticalTickers.map((ticker) => ticker.replace(/[()]/g, "")),
+      ]
+        .map((ticker) => ticker.toUpperCase())
+        .filter((ticker) => ticker.length >= 1 && ticker.length <= 6)
+    )
+  );
+}
+
+function parseRssOrAtom(
+  raw: string,
+  source: FetchableSource
+): {
   parser: FetchResult["parser"];
   headlines: RawHeadline[];
 } {
@@ -183,7 +286,10 @@ function parseRssOrAtom(raw: string, source: FetchableSource): {
   };
 }
 
-function parseJsonFeed(raw: string, source: FetchableSource): {
+function parseJsonFeed(
+  raw: string,
+  source: FetchableSource
+): {
   parser: FetchResult["parser"];
   headlines: RawHeadline[];
 } {
@@ -269,7 +375,7 @@ function parseSourcePayload(raw: string, source: FetchableSource, contentType: s
     try {
       return parseJsonFeed(trimmed, source);
     } catch {
-      // Fall through to XML parsing. Some sources mislabel XML as JSON.
+      // Some sources mislabel XML as JSON. Fall through to XML parsing.
     }
   }
 
@@ -439,30 +545,129 @@ async function fetchOneSource(source: FetchableSource): Promise<FetchResult> {
   return result;
 }
 
+function overlapCount(a: string[], b: string[]) {
+  const set = new Set(a);
+  return b.filter((item) => set.has(item)).length;
+}
+
+function corroborationForHeadline(headline: RawHeadline, allHeadlines: RawHeadline[]) {
+  const tickers = extractTickerHints(headline);
+  const terms = titleTerms(headline);
+  const corroborators: RawHeadline[] = [];
+
+  for (const other of allHeadlines) {
+    if (other.sourceId === headline.sourceId) continue;
+
+    const otherTickers = extractTickerHints(other);
+    const otherTerms = titleTerms(other);
+
+    const tickerMatch =
+      tickers.length > 0 && otherTickers.some((ticker) => tickers.includes(ticker));
+    const termMatch = overlapCount(terms, otherTerms) >= 4;
+
+    if (tickerMatch || termMatch) {
+      corroborators.push(other);
+    }
+  }
+
+  const uniqueSourceNames = Array.from(
+    new Set(corroborators.map((item) => item.sourceName).filter(Boolean))
+  ).slice(0, 8);
+
+  const strongestCorroboratorTrust = corroborators.reduce(
+    (max, item) => Math.max(max, sourceTrustScore(item.sourceTier)),
+    0
+  );
+
+  return {
+    count: uniqueSourceNames.length,
+    sources: uniqueSourceNames,
+    strongestCorroboratorTrust,
+  };
+}
+
+function annotateHeadlineReliability(headline: RawHeadline, allHeadlines: RawHeadline[]) {
+  const sourceTrust = sourceTrustScore(headline.sourceTier);
+  const trustLabel = sourceTrustLabel(headline.sourceTier);
+  const corroboration = corroborationForHeadline(headline, allHeadlines);
+
+  const lowerTrustRequiresConfirmation = sourceTrust < 65;
+  const confirmationStatus =
+    sourceTrust >= 88
+      ? "primary-source"
+      : corroboration.count >= 2
+        ? "cross-source-confirmed"
+        : corroboration.count === 1
+          ? "partially-corroborated"
+          : lowerTrustRequiresConfirmation
+            ? "unconfirmed-low-trust"
+            : "single-source-standard";
+
+  const reliabilityNote = [
+    "Slice Reliability",
+    `sourceTrust=${sourceTrust}`,
+    `sourceTrustLabel=${trustLabel}`,
+    `sourceTier=${headline.sourceTier}`,
+    `corroboratingSources=${corroboration.count}`,
+    `strongestCorroboratorTrust=${corroboration.strongestCorroboratorTrust}`,
+    `confirmationStatus=${confirmationStatus}`,
+    `lowerTrustRequiresConfirmation=${lowerTrustRequiresConfirmation ? "yes" : "no"}`,
+    corroboration.sources.length
+      ? `corroborators=${corroboration.sources.join(" | ")}`
+      : "corroborators=none",
+  ].join("; ");
+
+  return {
+    ...headline,
+    summary: [headline.summary, reliabilityNote].filter(Boolean).join("\n\n"),
+  };
+}
+
+async function fetchSourcesInBatches(liveSources: FetchableSource[]) {
+  const results: FetchResult[] = [];
+
+  for (let index = 0; index < liveSources.length; index += FETCH_CONCURRENCY) {
+    const batch = liveSources.slice(index, index + FETCH_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map((source) => fetchOneSource(source)));
+    results.push(...batchResults);
+  }
+
+  return results;
+}
+
 export async function fetchFreeHeadlineBatch(sources: FetchableSource[]) {
   const liveSources = sources
     .filter((source) => source.enabled !== false && isValidHttpUrl(source.sourceUrl))
-    .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+    .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+    .slice(0, MAX_LIVE_SOURCES_PER_RUN);
 
-  const results: FetchResult[] = [];
+  const results = await fetchSourcesInBatches(liveSources);
+  const deduped = dedupeHeadlines(results.flatMap((result) => result.headlines));
 
-  for (const source of liveSources) {
-    const result = await fetchOneSource(source);
-    results.push(result);
-  }
-
-  const headlines = dedupeHeadlines(results.flatMap((result) => result.headlines))
+  const annotated = deduped
+    .map((headline) => annotateHeadlineReliability(headline, deduped))
     .slice(0, MAX_TOTAL_LIVE_HEADLINES);
 
   return {
     sourceResults: results,
-    headlines,
+    headlines: annotated,
     health: {
       sourceCount: liveSources.length,
+      maxSourceCapacity: MAX_LIVE_SOURCES_PER_RUN,
       ok: results.filter((result) => result.ok && !result.skipped).length,
       skipped: results.filter((result) => result.skipped).length,
       failed: results.filter((result) => !result.ok && !result.skipped).length,
-      itemCount: headlines.length,
+      itemCount: annotated.length,
+      concurrency: FETCH_CONCURRENCY,
+      reliability: {
+        annotated: annotated.length,
+        lowTrustItems: annotated.filter((headline) =>
+          headline.summary?.includes("lowerTrustRequiresConfirmation=yes")
+        ).length,
+        corroboratedItems: annotated.filter((headline) =>
+          headline.summary?.includes("confirmationStatus=cross-source-confirmed")
+        ).length,
+      },
     },
   };
 }

@@ -1,6 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+
+type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
+type View = "overview" | "health" | "approvals" | "quality" | "tools" | "jobs" | "tenant" | "events";
 
 type Payload = {
   message?: string;
@@ -126,60 +129,134 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function toneFor(value: string | number): "red" | "green" | "amber" | "purple" | "slate" {
-  const text = String(value).toLowerCase();
+function toneFor(value: string | number | boolean | null | undefined): Tone {
+  const text = String(value ?? "").toLowerCase();
 
-  if (text.includes("broken") || text.includes("missing") || text.includes("failed") || text.includes("rejected") || text.includes("critical")) {
+  if (
+    text.includes("broken") ||
+    text.includes("missing") ||
+    text.includes("failed") ||
+    text.includes("rejected") ||
+    text.includes("critical") ||
+    text.includes("poor") ||
+    text.includes("fallback")
+  ) {
     return "red";
   }
 
-  if (text.includes("healthy") || text.includes("configured") || text.includes("passed") || text.includes("approved") || text.includes("active") || text.includes("complete")) {
+  if (
+    text.includes("healthy") ||
+    text.includes("configured") ||
+    text.includes("passed") ||
+    text.includes("approved") ||
+    text.includes("active") ||
+    text.includes("complete") ||
+    text.includes("enabled")
+  ) {
     return "green";
   }
 
-  if (text.includes("pending") || text.includes("planned") || text.includes("needs") || text.includes("warning")) {
+  if (
+    text.includes("pending") ||
+    text.includes("planned") ||
+    text.includes("needs") ||
+    text.includes("warning") ||
+    text.includes("manual")
+  ) {
     return "amber";
   }
 
-  if (text.includes("ai") || text.includes("tool") || text.includes("job")) {
-    return "purple";
-  }
+  if (text.includes("ai") || text.includes("tool") || text.includes("job")) return "purple";
+  if (text.includes("vendor") || text.includes("health") || text.includes("data")) return "cyan";
 
   return "slate";
 }
 
-function Pill({
-  children,
-  tone = "slate",
-}: {
-  children: React.ReactNode;
-  tone?: "red" | "green" | "amber" | "purple" | "slate";
-}) {
-  const tones = {
+function scoreTone(score: number): Tone {
+  if (score >= 85) return "green";
+  if (score >= 68) return "cyan";
+  if (score >= 45) return "amber";
+  return "red";
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function relativeTime(value: string | null | undefined) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+
+  const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
+  const tones: Record<Tone, string> = {
     red: "bg-red-500/10 text-red-300 ring-red-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
+    cyan: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
   };
 
   return (
-    <span className={cx("inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1", tones[tone])}>
-      {children}
+    <span className={cx("inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1", tones[tone])}>
+      <span className="truncate">{children}</span>
     </span>
   );
 }
 
-function Card({
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+      {children}
+    </div>
+  );
+}
+
+function Panel({
   children,
   className = "",
+  tone = "slate",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
+  tone?: Tone;
 }) {
+  const glows: Record<Tone, string> = {
+    red: "from-red-500/16",
+    green: "from-emerald-500/16",
+    amber: "from-amber-500/16",
+    purple: "from-purple-500/16",
+    cyan: "from-cyan-500/16",
+    slate: "from-slate-400/8",
+  };
+
   return (
-    <div className={cx("rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20", className)}>
-      {children}
+    <div className={cx("relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.052] p-4 shadow-lg shadow-black/10", className)}>
+      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
+      <div className="relative">{children}</div>
     </div>
   );
 }
@@ -193,37 +270,72 @@ function Metric({
   label: string;
   value: string | number;
   helper?: string;
-  tone?: "red" | "green" | "amber" | "purple" | "slate";
+  tone?: Tone;
 }) {
-  const glows = {
+  const glows: Record<Tone, string> = {
     red: "from-red-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
+    cyan: "from-cyan-500/18",
     slate: "from-slate-400/10",
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
+    <div className="relative min-h-[112px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
       <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
       <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-        <div className="mt-2 text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 text-xs text-slate-500">{helper}</div> : null}
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
+        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
+        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
       </div>
     </div>
   );
 }
 
-function SectionHeader({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
+function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
+  const fills: Record<Tone, string> = {
+    red: "from-red-700 to-red-400",
+    green: "from-emerald-700 to-emerald-300",
+    amber: "from-amber-700 to-amber-300",
+    purple: "from-purple-700 to-purple-300",
+    slate: "from-slate-700 to-slate-300",
+    cyan: "from-cyan-700 to-cyan-300",
+  };
+
+  return (
+    <div className="h-2.5 overflow-hidden rounded-full bg-black/50">
+      <div
+        className={cx("h-full rounded-full bg-gradient-to-r", fills[tone])}
+        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+      />
+    </div>
+  );
+}
+
+function Logo() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+        <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+          S
+        </div>
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+      </div>
+
+      <div>
+        <div className="text-2xl font-black tracking-tight text-white">Slice</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+          Backend Readiness
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
     <div className="mb-5">
       <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">{eyebrow}</div>
@@ -237,12 +349,19 @@ export default function BackendReadinessPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState("");
+  const [activeView, setActiveView] = useState<View>("overview");
   const [approvalForm, setApprovalForm] = useState({
     title: "",
     actionType: "Manual Review",
     riskLevel: "Medium",
     summary: "",
   });
+
+  const pendingApprovals = useMemo(() => data?.approvals.filter((item) => item.status === "Pending") ?? [], [data]);
+  const weakHealth = useMemo(() => data?.healthChecks.filter((item) => item.score < 70) ?? [], [data]);
+  const weakQuality = useMemo(() => data?.dataQuality.filter((item) => item.qualityScore < 70 || item.fallbackUsed) ?? [], [data]);
+  const enabledTools = useMemo(() => data?.aiTools.filter((tool) => tool.enabled) ?? [], [data]);
+  const approvalTools = useMemo(() => data?.aiTools.filter((tool) => tool.approvalRequired) ?? [], [data]);
 
   async function load() {
     const response = await fetch("/api/backend-readiness", {
@@ -268,6 +387,7 @@ export default function BackendReadinessPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-slice-sensitive-action": action,
         },
         body: JSON.stringify({
           action,
@@ -313,10 +433,10 @@ export default function BackendReadinessPage() {
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-[#050505] p-6 text-white">
-        <Card className="mx-auto mt-20 max-w-3xl text-center">
-          <Pill tone="red">Slice</Pill>
-          <h1 className="mt-4 text-3xl font-black">Loading backend readiness...</h1>
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+        <Card className="mx-auto mt-20 max-w-3xl p-8 text-center">
+          <Logo />
+          <h1 className="mt-6 text-3xl font-black">Loading backend readiness...</h1>
           {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
         </Card>
       </main>
@@ -325,35 +445,60 @@ export default function BackendReadinessPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(88,28,135,0.24),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
-      <div className="mx-auto grid max-w-[1600px] gap-6">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+      <div className="mx-auto grid max-w-[1900px] gap-5">
+        <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.25),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.14),transparent_26%)]" />
+
+          <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                Slice Backend Readiness
+              <Logo />
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Pill tone="red">Security Foundation</Pill>
+                <Pill tone="cyan">Health Checks</Pill>
+                <Pill tone="purple">AI Tool Contracts</Pill>
+                <Pill tone="green">Tenant Isolation</Pill>
               </div>
-              <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                Backend foundation before live automation.
+
+              <h1 className="mt-5 max-w-6xl text-4xl font-black tracking-tight md:text-6xl">
+                Backend readiness before live automation.
               </h1>
-              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400">
-                This page prepares Slice for the real backend: health checks,
-                permissions, event logs, approvals, notification rules, data
-                quality, AI tool contracts, background jobs, tenant isolation,
-                and demo seed data.
+
+              <p className="mt-4 max-w-5xl text-sm leading-7 text-slate-400">
+                Review system health, role policies, approvals, notification rules, data quality, AI tools,
+                background jobs, tenant isolation, and seed data before connecting live services or enabling automated advisor workflows.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <a href="/workspace" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950">
-                Workspace
+            <div className="flex flex-wrap gap-2 xl:justify-end">
+              <a href="/workspace?tab=security" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg shadow-black/20">
+                ← Workspace
               </a>
-              <a href="/advisor-command-center" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100">
+              <a href="/security" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100">
+                Security Center
+              </a>
+              <a href="/advisor-command-center" className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm font-black text-purple-100">
                 AI Command
               </a>
-              <a href="/market-visuals" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100">
-                Market Visuals
-              </a>
+              <button
+                onClick={() => runAction("bootstrap")}
+                disabled={working === "bootstrap"}
+                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+              >
+                {working === "bootstrap" ? "Bootstrapping..." : "Bootstrap Foundation"}
+              </button>
             </div>
+          </div>
+
+          <div className="relative mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-8">
+            <Metric label="Readiness" value={`${data.readinessScore}%`} helper="Backend score" tone={scoreTone(data.readinessScore)} />
+            <Metric label="Health" value={`${data.metrics.healthAverage}%`} helper="System average" tone={scoreTone(data.metrics.healthAverage)} />
+            <Metric label="Approvals" value={data.metrics.pendingApprovals} helper="Pending items" tone={data.metrics.pendingApprovals ? "red" : "green"} />
+            <Metric label="Data Issues" value={data.metrics.poorDataQuality} helper="Quality records" tone={data.metrics.poorDataQuality ? "red" : "green"} />
+            <Metric label="AI Tools" value={data.metrics.enabledTools} helper={`${approvalTools.length} gated`} tone="purple" />
+            <Metric label="Jobs" value={data.metrics.jobs} helper={`${data.metrics.plannedJobs} planned`} tone="amber" />
+            <Metric label="Tenant Checks" value={data.metrics.tenantChecks} helper="Access isolation" tone={data.metrics.tenantChecks ? "green" : "amber"} />
+            <Metric label="Events" value={data.metrics.events} helper="Backend log" tone="cyan" />
           </div>
         </header>
 
@@ -363,397 +508,528 @@ export default function BackendReadinessPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Readiness" value={`${data.readinessScore}%`} helper="Backend score" tone={data.readinessScore >= 80 ? "green" : data.readinessScore >= 55 ? "amber" : "red"} />
-          <Metric label="Health" value={`${data.metrics.healthAverage}%`} helper="System average" tone={data.metrics.healthAverage >= 80 ? "green" : "amber"} />
-          <Metric label="Approvals" value={data.metrics.pendingApprovals} helper="Pending items" tone={data.metrics.pendingApprovals ? "red" : "green"} />
-          <Metric label="AI Tools" value={data.metrics.enabledTools} helper="Registered tools" tone="purple" />
-          <Metric label="Jobs" value={data.metrics.jobs} helper="Planned jobs" tone="amber" />
-          <Metric label="Quality Issues" value={data.metrics.poorDataQuality} helper="Score under 60" tone={data.metrics.poorDataQuality ? "red" : "green"} />
-        </section>
+        <Card className="p-3">
+          <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-8">
+            {[
+              ["overview", "Overview", "Readiness", "red"],
+              ["health", "Health", "Checks", "cyan"],
+              ["approvals", "Approvals", "Gates", "amber"],
+              ["quality", "Data Quality", "Vendors", "green"],
+              ["tools", "AI Tools", "Contracts", "purple"],
+              ["jobs", "Jobs", "Automation", "cyan"],
+              ["tenant", "Tenant", "Isolation", "green"],
+              ["events", "Events", "Log", "slate"],
+            ].map(([key, label, helper, tone]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveView(key as View)}
+                className={cx(
+                  "rounded-2xl px-4 py-3 text-left transition",
+                  activeView === key
+                    ? "bg-white text-slate-950 shadow-lg shadow-black/20"
+                    : "border border-white/10 bg-white/[0.045] text-white hover:bg-white/10"
+                )}
+              >
+                <div className="text-sm font-black">{label}</div>
+                <div className={cx("mt-1 text-[10px] font-bold", activeView === key ? "text-slate-500" : "text-slate-500")}>{helper}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            onClick={() => runAction("bootstrap")}
-            disabled={working === "bootstrap"}
-            className="rounded-[1.5rem] bg-white p-5 text-left text-slate-950 shadow-xl shadow-red-950/20 transition hover:scale-[1.01] disabled:opacity-50"
-          >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-red-700">Foundation</div>
-            <div className="mt-2 text-2xl font-black">Bootstrap</div>
-            <div className="mt-2 text-sm font-semibold text-slate-600">Create policies, tools, jobs, notification rules, quality records, and health checks.</div>
-          </button>
-
-          <button
-            onClick={() => runAction("runHealthChecks")}
-            disabled={working === "runHealthChecks"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.08] disabled:opacity-50"
-          >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">System</div>
-            <div className="mt-2 text-2xl font-black">Run Health</div>
-            <div className="mt-2 text-sm font-semibold text-slate-500">Refresh database, provider, AI, email, SMS, and job-readiness checks.</div>
-          </button>
-
-          <button
-            onClick={() => runAction("runTenantChecks")}
-            disabled={working === "runTenantChecks"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.08] disabled:opacity-50"
-          >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-purple-300">Tenant Safety</div>
-            <div className="mt-2 text-2xl font-black">Check Isolation</div>
-            <div className="mt-2 text-sm font-semibold text-slate-500">Validate user, firm, membership, and permission-scoping assumptions.</div>
-          </button>
-
-          <button
-            onClick={() => runAction("seedDemoData")}
-            disabled={working === "seedDemoData"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left transition hover:bg-white/[0.08] disabled:opacity-50"
-          >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-300">Demo System</div>
-            <div className="mt-2 text-2xl font-black">Seed Demo</div>
-            <div className="mt-2 text-sm font-semibold text-slate-500">Create demo clients, holdings, alerts, watchlists, and tasks for testing.</div>
-          </button>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <Card>
-            <SectionHeader
-              eyebrow="System Health"
-              title="Provider and infrastructure checks"
-              description="See what is ready, missing, or planned before connecting live backend services."
-            />
-
-            <div className="grid gap-3">
-              {data.healthChecks.map((check) => (
-                <div key={check.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{check.label}</div>
-                      <div className="mt-1 text-xs text-slate-500">{check.category} · Score {check.score}</div>
-                    </div>
-                    <Pill tone={toneFor(check.status)}>{check.status}</Pill>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <SectionHeader
-              eyebrow="Activity Timeline"
-              title="Event bus"
-              description="Every backend-relevant action should eventually write to this activity/event layer."
-            />
-
-            <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1">
-              {data.events.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{event.title}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {event.area} · {event.eventType} · {new Date(event.createdAt).toLocaleString()}
-                      </div>
-                    </div>
-                    <Pill tone={toneFor(event.severity)}>{event.severity}</Pill>
-                  </div>
-                  {event.detail ? <p className="mt-2 text-sm leading-6 text-slate-400">{event.detail}</p> : null}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <SectionHeader
-              eyebrow="Role Matrix"
-              title="Permissions and access design"
-              description="These policies define who can view, create, approve, send, export, manage, and override."
-            />
-
-            <div className="grid gap-3">
-              {data.rolePolicies.map((policy) => (
-                <div key={policy.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{policy.roleName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{policy.roleKey}</div>
-                    </div>
-                    <Pill tone={toneFor(policy.status)}>{policy.status}</Pill>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{policy.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {policy.permissions.slice(0, 10).map((permission) => (
-                      <Pill key={`${policy.id}-${permission}`} tone="slate">{permission}</Pill>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <SectionHeader
-              eyebrow="Approval Center"
-              title="Human-gated actions"
-              description="Client-facing communication, reports, high-risk bot actions, and sensitive automations should flow through approvals."
-            />
-
-            <form onSubmit={createApproval} className="mb-5 grid gap-3">
-              <input
-                value={approvalForm.title}
-                onChange={(event) => setApprovalForm((current) => ({ ...current, title: event.target.value }))}
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Approval title"
+        {activeView === "overview" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Readiness Model"
+                title="What must be true before automation goes live"
+                description="The backend readiness score blends health checks, role policies, notification rules, AI tools, jobs, pending approvals, and data-quality gaps."
               />
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  value={approvalForm.actionType}
-                  onChange={(event) => setApprovalForm((current) => ({ ...current, actionType: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                  placeholder="Action type"
+              <ProgressBar value={data.readinessScore} tone={scoreTone(data.readinessScore)} />
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {[
+                  ["System health", data.metrics.healthAverage, "Core health check average."],
+                  ["Role policies", data.metrics.rolePolicies ? 100 : 0, "Permission model exists."],
+                  ["Notification rules", data.metrics.notificationRules ? 100 : 0, "Delivery rules exist."],
+                  ["AI tools", data.metrics.enabledTools ? 100 : 0, "Registered AI tool contracts."],
+                  ["Background jobs", data.metrics.jobs ? 100 : 0, "Scheduled automation plan exists."],
+                  ["Data quality", data.metrics.poorDataQuality ? 45 : 100, "Provider readiness and fallback state."],
+                ].map(([label, score, helper]) => (
+                  <Panel key={String(label)} tone={scoreTone(Number(score))} className="bg-black/35">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-white">{label}</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">{helper}</p>
+                      </div>
+                      <Pill tone={scoreTone(Number(score))}>{score}%</Pill>
+                    </div>
+                    <div className="mt-3">
+                      <ProgressBar value={Number(score)} tone={scoreTone(Number(score))} />
+                    </div>
+                  </Panel>
+                ))}
+              </div>
+            </Card>
+
+            <div className="grid gap-5">
+              <Card className="p-5">
+                <SectionHeader
+                  eyebrow="Runbook"
+                  title="One-click readiness actions"
+                  description="Use these in order before live delivery, AI tool execution, or autonomous scanning."
                 />
 
-                <select
-                  value={approvalForm.riskLevel}
-                  onChange={(event) => setApprovalForm((current) => ({ ...current, riskLevel: event.target.value }))}
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                >
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                  <option>Critical</option>
-                </select>
-              </div>
+                <div className="grid gap-3">
+                  {[
+                    ["bootstrap", "Bootstrap Foundation", "Create/update policies, tools, jobs, notification rules, data quality, and first approval."],
+                    ["runHealthChecks", "Run Health Checks", "Update database, provider, AI, email, SMS, and job strategy checks."],
+                    ["runTenantChecks", "Run Tenant Checks", "Verify user and firm-scoped access boundaries."],
+                    ["seedDemoData", "Seed Demo Data", "Create safe sample records for readiness testing."],
+                  ].map(([action, label, helper]) => (
+                    <button
+                      key={action}
+                      type="button"
+                      disabled={working === action}
+                      onClick={() => runAction(action)}
+                      className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-left transition hover:bg-white/[0.09] disabled:opacity-50"
+                    >
+                      <div className="text-sm font-black text-white">{working === action ? "Working..." : label}</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-500">{helper}</div>
+                    </button>
+                  ))}
+                </div>
+              </Card>
 
-              <textarea
-                value={approvalForm.summary}
-                onChange={(event) => setApprovalForm((current) => ({ ...current, summary: event.target.value }))}
-                className="min-h-24 resize-none rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
-                placeholder="Summary"
+              <Card className="p-5">
+                <SectionHeader
+                  eyebrow="Risk items"
+                  title="Needs attention"
+                  description="Weak health, pending approvals, and weak data-quality records."
+                />
+
+                <div className="grid gap-3">
+                  <Metric label="Weak Health" value={weakHealth.length} tone={weakHealth.length ? "red" : "green"} />
+                  <Metric label="Pending Approvals" value={pendingApprovals.length} tone={pendingApprovals.length ? "amber" : "green"} />
+                  <Metric label="Weak Data Quality" value={weakQuality.length} tone={weakQuality.length ? "red" : "green"} />
+                </div>
+              </Card>
+            </div>
+          </section>
+        ) : null}
+
+        {activeView === "health" ? (
+          <section className="grid gap-5">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="System health"
+                title="Provider and platform health checks"
+                description="Core backend checks for database, schema readiness, market data, email, SMS, AI, and background job strategy."
               />
 
-              <button
-                disabled={working === "createApproval"}
-                className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-              >
-                Create Approval Item
-              </button>
-            </form>
-
-            <div className="grid max-h-[520px] gap-3 overflow-y-auto pr-1">
-              {data.approvals.map((approval) => (
-                <div key={approval.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{approval.title}</div>
-                      <div className="mt-1 text-xs text-slate-500">{approval.actionType} · {approval.riskLevel}</div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.healthChecks.map((check) => (
+                  <Panel key={check.id} tone={toneFor(check.status)} className="bg-black/35">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={toneFor(check.status)}>{check.status}</Pill>
+                          <Pill tone="slate">{check.category}</Pill>
+                        </div>
+                        <h3 className="mt-3 text-lg font-black text-white">{check.label}</h3>
+                        <p className="mt-1 text-xs text-slate-500">{relativeTime(check.lastCheckedAt)}</p>
+                      </div>
+                      <div className="rounded-2xl bg-black/35 px-3 py-2 text-center">
+                        <div className="text-[10px] font-black uppercase text-slate-500">Score</div>
+                        <div className="text-xl font-black text-white">{check.score}</div>
+                      </div>
                     </div>
-                    <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{approval.summary}</p>
-
-                  {approval.status === "Pending" ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => runAction("approveItem", { approvalId: approval.id })}
-                        className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => runAction("rejectItem", { approvalId: approval.id })}
-                        className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
-                      >
-                        Reject
-                      </button>
+                    <div className="mt-4">
+                      <ProgressBar value={check.score} tone={scoreTone(check.score)} />
                     </div>
-                  ) : null}
+                    <pre className="mt-4 max-h-[180px] overflow-y-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/35 p-3 text-xs leading-5 text-slate-400">
+                      {JSON.stringify(check.details, null, 2)}
+                    </pre>
+                  </Panel>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {activeView === "approvals" ? (
+          <section className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+            <Card className="p-5">
+              <SectionHeader
+                eyebrow="Approval center"
+                title="Manual gates for sensitive backend actions"
+                description="Create, approve, or reject readiness items before live automation or risky workflows."
+              />
+
+              <form onSubmit={createApproval} className="grid gap-3">
+                <input
+                  value={approvalForm.title}
+                  onChange={(event) => setApprovalForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Approval title"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                />
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <select
+                    value={approvalForm.actionType}
+                    onChange={(event) => setApprovalForm((current) => ({ ...current, actionType: event.target.value }))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                  >
+                    <option>Manual Review</option>
+                    <option>Backend Readiness</option>
+                    <option>Live Delivery</option>
+                    <option>AI Tool Execution</option>
+                    <option>Vendor Integration</option>
+                    <option>Security Change</option>
+                  </select>
+
+                  <select
+                    value={approvalForm.riskLevel}
+                    onChange={(event) => setApprovalForm((current) => ({ ...current, riskLevel: event.target.value }))}
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
                 </div>
-              ))}
-            </div>
-          </Card>
-        </section>
 
-        <section className="grid gap-6 xl:grid-cols-3">
-          <Card>
-            <SectionHeader
-              eyebrow="Notifications"
-              title="Preference rules"
-              description="Rules for alert fatigue, quiet hours, score thresholds, approval gates, and delivery channels."
-            />
+                <textarea
+                  value={approvalForm.summary}
+                  onChange={(event) => setApprovalForm((current) => ({ ...current, summary: event.target.value }))}
+                  placeholder="Approval summary"
+                  className="min-h-[120px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                />
 
-            <div className="grid gap-3">
-              {data.notificationRules.map((rule) => (
-                <div key={rule.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="font-black text-white">{rule.ruleName}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {rule.scopeType} · {rule.channel} · Score {rule.minScore}+
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Pill tone={toneFor(rule.status)}>{rule.status}</Pill>
-                    <Pill tone={rule.approvalRequired ? "amber" : "green"}>
-                      {rule.approvalRequired ? "Approval" : "Auto"}
-                    </Pill>
-                    <Pill tone={rule.digestOnly ? "purple" : "slate"}>
-                      {rule.digestOnly ? "Digest" : "Instant"}
-                    </Pill>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                <button
+                  disabled={working === "createApproval"}
+                  className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+                >
+                  Create Approval Gate
+                </button>
+              </form>
+            </Card>
 
-          <Card>
-            <SectionHeader
-              eyebrow="Data Quality"
-              title="Freshness and provider confidence"
-              description="Every live-data feature should report source, freshness, fallback, warning, and quality."
-            />
+            <Card className="p-5">
+              <div className="grid gap-4">
+                {data.approvals.map((approval) => (
+                  <Panel key={approval.id} tone={toneFor(approval.status)} className="bg-black/35">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
+                          <Pill tone={toneFor(approval.riskLevel)}>{approval.riskLevel}</Pill>
+                          <Pill tone="cyan">{approval.actionType}</Pill>
+                        </div>
+                        <h3 className="mt-3 text-xl font-black text-white">{approval.title}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-400">{approval.summary}</p>
+                        <div className="mt-2 text-xs text-slate-600">{formatDateTime(approval.createdAt)}</div>
+                      </div>
 
-            <div className="grid gap-3">
-              {data.dataQuality.map((record) => (
-                <div key={record.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{record.entityType}</div>
-                      <div className="mt-1 text-xs text-slate-500">{record.sourceName} · {record.freshnessStatus}</div>
+                      {approval.status === "Pending" ? (
+                        <div className="grid min-w-[170px] gap-2">
+                          <button
+                            onClick={() =>
+                              runAction("approveItem", {
+                                approvalId: approval.id,
+                                approvalNotes: "Approved from backend readiness console.",
+                              })
+                            }
+                            className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              runAction("rejectItem", {
+                                approvalId: approval.id,
+                                approvalNotes: "Rejected from backend readiness console.",
+                              })
+                            }
+                            className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
-                    <Pill tone={toneFor(record.liveStatus)}>{record.liveStatus}</Pill>
+                  </Panel>
+                ))}
+
+                {!data.approvals.length ? (
+                  <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
+                    No approval items yet.
                   </div>
-                  <div className="mt-3 text-sm text-slate-300">Quality: {record.qualityScore}%</div>
-                  {record.warning ? (
-                    <p className="mt-2 text-xs leading-5 text-slate-500">{record.warning}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </Card>
+                ) : null}
+              </div>
+            </Card>
+          </section>
+        ) : null}
 
-          <Card>
-            <SectionHeader
-              eyebrow="Tenant Isolation"
-              title="Firm/user scoping"
-              description="Every backend query should be scoped by user, firm, membership, and permission."
-            />
+        {activeView === "quality" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Data quality"
+                title="Provider readiness and fallback awareness"
+                description="Data quality records show whether important providers are configured or if the platform is using fallback/simulated behavior."
+              />
 
-            <div className="grid gap-3">
-              {data.tenantChecks.map((check) => (
-                <div key={check.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{check.checkName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{new Date(check.lastCheckedAt).toLocaleString()}</div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.dataQuality.map((record) => (
+                  <Panel key={record.id} tone={scoreTone(record.qualityScore)} className="bg-black/35">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={toneFor(record.liveStatus)}>{record.liveStatus}</Pill>
+                          <Pill tone={toneFor(record.freshnessStatus)}>{record.freshnessStatus}</Pill>
+                          {record.fallbackUsed ? <Pill tone="red">Fallback</Pill> : null}
+                        </div>
+                        <h3 className="mt-3 text-lg font-black text-white">{record.sourceName}</h3>
+                        <p className="mt-1 text-xs text-slate-500">{record.entityType} · {record.entityId}</p>
+                      </div>
+                      <div className="text-2xl font-black text-white">{record.qualityScore}</div>
                     </div>
-                    <Pill tone={toneFor(check.status)}>{check.status}</Pill>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{check.detail}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
 
-        <section className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <SectionHeader
-              eyebrow="AI Tool Registry"
-              title="Structured command contracts"
-              description="The bot should eventually call these tools with strict structured inputs rather than loose text."
-            />
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {data.aiTools.map((tool) => (
-                <div key={tool.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{tool.toolName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{tool.category} · {tool.toolKey}</div>
+                    <div className="mt-4">
+                      <ProgressBar value={record.qualityScore} tone={scoreTone(record.qualityScore)} />
                     </div>
-                    <Pill tone={tool.enabled ? "green" : "slate"}>{tool.enabled ? "On" : "Off"}</Pill>
+
+                    {record.warning ? (
+                      <p className="mt-4 text-sm leading-6 text-slate-400">{record.warning}</p>
+                    ) : null}
+                  </Panel>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Quality checklist"
+                title="Before live automation"
+                description="Provider keys and data-quality readiness should be verified before automatic alerts or client delivery."
+              />
+
+              <div className="grid gap-3">
+                {[
+                  "Configure market data provider before live watchlist-price alerts.",
+                  "Configure email provider before switching client delivery out of simulation.",
+                  "Configure AI provider before relying on AI-generated advisor output.",
+                  "Keep fallback behavior visible so demos do not overstate live capability.",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-sm leading-6 text-slate-300">
+                    {item}
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{tool.description}</p>
-                  <div className="mt-2 text-xs text-slate-500">
-                    Success {tool.successCount} · Failures {tool.failureCount}
-                  </div>
-                  {tool.approvalRequired ? (
-                    <div className="mt-3">
-                      <Pill tone="amber">Approval Required</Pill>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {activeView === "tools" ? (
+          <section className="grid gap-5">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="AI tool contracts"
+                title="Controlled AI execution surface"
+                description="Every AI tool should have a schema, approval rule, category, and success/failure trail before autonomous execution."
+              />
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.aiTools.map((tool) => (
+                  <Panel key={tool.id} tone={tool.enabled ? "purple" : "slate"} className="bg-black/35">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill tone={tool.enabled ? "green" : "slate"}>{tool.enabled ? "Enabled" : "Disabled"}</Pill>
+                          <Pill tone={tool.approvalRequired ? "amber" : "green"}>{tool.approvalRequired ? "Approval" : "Direct"}</Pill>
+                        </div>
+                        <h3 className="mt-3 text-lg font-black text-white">{tool.toolName}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-400">{tool.description}</p>
+                      </div>
                     </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </Card>
 
-          <Card>
-            <SectionHeader
-              eyebrow="Background Jobs"
-              title="Automation plan"
-              description="These jobs define the backend automation roadmap before connecting cron, queues, workers, and providers."
-            />
-
-            <div className="grid gap-3">
-              {data.jobs.map((job) => (
-                <div key={job.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{job.jobName}</div>
-                      <div className="mt-1 text-xs text-slate-500">{job.category} · {job.cadence}</div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <Metric label="Success" value={tool.successCount} tone="green" />
+                      <Metric label="Failure" value={tool.failureCount} tone={tool.failureCount ? "red" : "slate"} />
                     </div>
-                    <Pill tone={toneFor(job.status)}>{job.status}</Pill>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{job.description}</p>
-                  <div className="mt-2 text-xs font-semibold text-slate-500">{job.scheduleLabel}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
 
-        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-          <Card>
-            <SectionHeader
-              eyebrow="Demo Seed"
-              title="Testing data"
-              description="Seed data keeps the backend testable before real integrations are connected."
-            />
+                    <details className="mt-4 rounded-2xl border border-white/10 bg-black/35 p-3">
+                      <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                        Schemas
+                      </summary>
+                      <pre className="mt-3 max-h-[250px] overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-400">
+                        {JSON.stringify({ input: tool.inputSchema, output: tool.outputSchema }, null, 2)}
+                      </pre>
+                    </details>
+                  </Panel>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
 
-            <div className="grid gap-3">
-              <Metric label="Clients" value={data.metrics.clientCount} helper="User-scoped" tone="purple" />
-              <Metric label="Alerts" value={data.metrics.alertCount} helper="Alert events" tone="red" />
-              <Metric label="Watchlists" value={data.metrics.watchlistCount} helper="Named lists" tone="amber" />
-              <Metric label="Tasks" value={data.metrics.taskCount} helper="Personal tasks" tone="green" />
-              <Metric label="Bot Commands" value={data.metrics.botCommandCount} helper="Command history" tone="purple" />
-            </div>
-          </Card>
+        {activeView === "jobs" ? (
+          <section className="grid gap-5 xl:grid-cols-[1fr_430px]">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Background jobs"
+                title="Automation schedule and operating plan"
+                description="Planned jobs describe the backbone for market scans, news scans, watchlist checks, digests, vendor health, and compliance retention."
+              />
 
-          <Card>
-            <SectionHeader
-              eyebrow="Seed Runs"
-              title="Recent seed history"
-              description="Every demo seed run is recorded so you know what was created or refreshed."
-            />
-
-            <div className="grid gap-3">
-              {data.seedRuns.map((run) => (
-                <div key={run.id} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-black text-white">{run.summary}</div>
-                      <div className="mt-1 text-xs text-slate-500">{new Date(run.createdAt).toLocaleString()}</div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.jobs.map((job) => (
+                  <Panel key={job.id} tone={toneFor(job.status)} className="bg-black/35">
+                    <div className="flex flex-wrap gap-2">
+                      <Pill tone={toneFor(job.status)}>{job.status}</Pill>
+                      <Pill tone="purple">{job.category}</Pill>
+                      <Pill tone="cyan">{job.cadence}</Pill>
                     </div>
-                    <Pill tone={toneFor(run.status)}>{run.status}</Pill>
+
+                    <h3 className="mt-3 text-lg font-black text-white">{job.jobName}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{job.description}</p>
+
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/35 p-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Schedule</div>
+                      <div className="mt-1 text-sm font-black text-white">{job.scheduleLabel}</div>
+                    </div>
+                  </Panel>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Automation readiness"
+                title="Safe launch order"
+                description="Live automation should be phased so delivery, AI execution, and background scanning are not enabled before vendor readiness."
+              />
+
+              <div className="grid gap-3">
+                {[
+                  "1. Bootstrap foundation records.",
+                  "2. Run health checks.",
+                  "3. Resolve missing providers.",
+                  "4. Run tenant checks.",
+                  "5. Confirm approval gates.",
+                  "6. Enable live delivery only after email provider is configured.",
+                  "7. Enable autonomous scanning only after source thresholds are reviewed.",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-sm leading-6 text-slate-300">
+                    {item}
                   </div>
-                  <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/40 p-3 text-xs text-slate-300">
-                    {JSON.stringify(run.counts, null, 2)}
-                  </pre>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </section>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {activeView === "tenant" ? (
+          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Tenant isolation"
+                title="User and firm access boundary checks"
+                description="Tenant checks make sure user-scoped and firm-scoped records are not assumed available without membership and permission context."
+              />
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {data.tenantChecks.map((check) => (
+                  <Panel key={check.id} tone={toneFor(check.status)} className="bg-black/35">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <Pill tone={toneFor(check.status)}>{check.status}</Pill>
+                        <h3 className="mt-3 text-lg font-black text-white">{check.checkName}</h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-400">{check.detail}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-xs text-slate-500">{relativeTime(check.lastCheckedAt)}</div>
+                  </Panel>
+                ))}
+
+                {!data.tenantChecks.length ? (
+                  <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
+                    No tenant checks yet. Run tenant checks from the overview runbook.
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <SectionHeader
+                eyebrow="Tenant checklist"
+                title="Firm safety standard"
+                description="This is critical before adding multi-advisor firm accounts."
+              />
+
+              <div className="grid gap-3">
+                {[
+                  "Every firm-scoped record must include a firm ID.",
+                  "Every firm action must check active membership.",
+                  "Owner/admin-only actions must check permission flags.",
+                  "Client portfolio data should remain private to authorized users.",
+                  "Approvals and audit logs should be user- and firm-scoped.",
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.055] p-4 text-sm leading-6 text-slate-300">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </section>
+        ) : null}
+
+        {activeView === "events" ? (
+          <section className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+            <Card className="p-5">
+              <SectionHeader
+                eyebrow="Backend events"
+                title="Readiness event log"
+                description="A compact timeline of foundation changes, checks, approval actions, and seed activity."
+              />
+
+              <div className="grid gap-3">
+                <Metric label="Events" value={data.events.length} tone="cyan" />
+                <Metric label="Seed Runs" value={data.seedRuns.length} tone="purple" />
+                <Metric label="Clients" value={data.metrics.clientCount} tone="green" />
+                <Metric label="Alerts" value={data.metrics.alertCount} tone="red" />
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <div className="grid max-h-[980px] gap-4 overflow-y-auto pr-2">
+                {data.events.map((event) => (
+                  <Panel key={event.id} tone={toneFor(event.severity)} className="bg-black/35">
+                    <div className="flex flex-wrap gap-2">
+                      <Pill tone={toneFor(event.severity)}>{event.severity}</Pill>
+                      <Pill tone="purple">{event.area}</Pill>
+                      <Pill tone={toneFor(event.status)}>{event.status}</Pill>
+                      <Pill tone="slate">{relativeTime(event.createdAt)}</Pill>
+                    </div>
+                    <h3 className="mt-3 text-lg font-black text-white">{event.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{event.detail || "No detail recorded."}</p>
+                    <div className="mt-2 text-xs font-bold text-slate-600">{event.eventType}</div>
+                  </Panel>
+                ))}
+
+                {!data.events.length ? (
+                  <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
+                    No backend events yet.
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+          </section>
+        ) : null}
       </div>
     </main>
   );

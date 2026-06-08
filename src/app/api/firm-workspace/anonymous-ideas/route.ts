@@ -196,7 +196,7 @@ async function createIdea(input: {
       ? `Links:\n${input.fileLinks.map((link) => `- ${link}`).join("\n")}`
       : null,
     "",
-    "Voting: use the idea board vote button or reply with #vote / +1.",
+    "Voting is anonymous. Vote counts are shown only to firm leadership inside Slice.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -249,6 +249,37 @@ async function voteIdea(input: {
   firmId: string;
   ideaId: string;
   membership: FirmMemberWithUser;
+}) {
+  const idea = await prisma.firmPost.findFirst({
+    where: {
+      id: input.ideaId,
+      firmId: input.firmId,
+    },
+  });
+
+  if (!idea) throw new Error("Idea not found.");
+
+  const privateVoteMarker = [
+    "",
+    `[SLICE_PRIVATE_VOTE] #vote`,
+    `Timestamp: ${new Date().toISOString()}`,
+    `Anonymous: true`,
+    `VisibleTo: Owner`,
+  ].join("\n");
+
+  return prisma.firmPost.update({
+    where: { id: idea.id },
+    data: {
+      body: `${idea.body}\n${privateVoteMarker}`,
+    },
+  });
+}
+
+async function addIdeaNote(input: {
+  firmId: string;
+  ideaId: string;
+  membership: FirmMemberWithUser;
+  note: string;
   anonymous: boolean;
 }) {
   const idea = await prisma.firmPost.findFirst({
@@ -258,26 +289,59 @@ async function voteIdea(input: {
     },
   });
 
-  if (!idea) {
-    throw new Error("Idea not found.");
-  }
+  if (!idea) throw new Error("Idea not found.");
 
-  const voter = input.anonymous
-    ? "Anonymous voter"
+  const author = input.anonymous
+    ? "Anonymous contributor"
     : memberDisplayName(input.membership);
 
-  const voteMarker = input.anonymous
-    ? `#vote from Anonymous voter at ${new Date().toISOString()}`
-    : `#vote from ${voter} at ${new Date().toISOString()}`;
+  const noteBlock = [
+    "",
+    "[SLICE_IDEA_NOTE]",
+    `Author: ${author}`,
+    `Timestamp: ${new Date().toISOString()}`,
+    `Note: ${input.note}`,
+  ].join("\n");
 
-  return prisma.firmPost.update({
-    where: {
-      id: idea.id,
-    },
+  const updated = await prisma.firmPost.update({
+    where: { id: idea.id },
     data: {
-      body: `${idea.body}\n\n${voteMarker}`,
+      body: `${idea.body}\n${noteBlock}`,
     },
   });
+
+  const leaders = await prisma.firmMembership.findMany({
+    where: {
+      firmId: input.firmId,
+      status: "Active",
+      OR: [
+        { role: "Owner" },
+        { role: "Admin" },
+        { canManageFirm: true },
+        { canManageProjects: true },
+      ],
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  for (const leader of leaders) {
+    if (leader.userId === input.membership.userId) continue;
+
+    await createDashboardNotification({
+      targetUserId: leader.userId,
+      targetEmail: leader.user.email,
+      actorName: author,
+      title: `New brainstorm note: ${idea.title}`,
+      body: input.note,
+      reason: "A note was added to a brainstorm bubble.",
+      urgency: "Medium",
+      score: 66,
+    });
+  }
+
+  return updated;
 }
 
 async function updateIdeaStatus(input: {
@@ -298,12 +362,11 @@ async function updateIdeaStatus(input: {
     },
   });
 
-  if (!idea) {
-    throw new Error("Idea not found.");
-  }
+  if (!idea) throw new Error("Idea not found.");
 
   const updateNote = [
     "",
+    `[SLICE_STATUS_UPDATE]`,
     `Status update: ${input.status}`,
     `Updated by: ${memberDisplayName(input.membership)}`,
     input.note ? `Note: ${input.note}` : null,
@@ -312,9 +375,7 @@ async function updateIdeaStatus(input: {
     .join("\n");
 
   const updated = await prisma.firmPost.update({
-    where: {
-      id: idea.id,
-    },
+    where: { id: idea.id },
     data: {
       postType: `Idea: ${input.status}`,
       body: `${idea.body}\n${updateNote}`,
@@ -354,9 +415,7 @@ async function promoteIdeaToProject(input: {
     },
   });
 
-  if (!idea) {
-    throw new Error("Idea not found.");
-  }
+  if (!idea) throw new Error("Idea not found.");
 
   const project = await prisma.firmProject.create({
     data: {
@@ -370,9 +429,7 @@ async function promoteIdeaToProject(input: {
   });
 
   await prisma.firmPost.update({
-    where: {
-      id: idea.id,
-    },
+    where: { id: idea.id },
     data: {
       postType: "Idea: Promoted",
       projectId: project.id,
@@ -397,9 +454,7 @@ async function promoteIdeaToProject(input: {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
   const payload = (await request.json()) as Record<string, unknown>;
   const action = cleanText(payload.action, "createIdea");
@@ -433,13 +488,38 @@ export async function POST(request: Request) {
         firmId,
         ideaId,
         membership: context.membership as FirmMemberWithUser,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        idea,
+        message: "Anonymous vote recorded.",
+      });
+    }
+
+    if (action === "addIdeaNote") {
+      const ideaId = cleanText(payload.ideaId);
+      const note = cleanMultiline(payload.note);
+
+      if (!ideaId || !note) {
+        return NextResponse.json(
+          { error: "Idea and note are required." },
+          { status: 400 }
+        );
+      }
+
+      const idea = await addIdeaNote({
+        firmId,
+        ideaId,
+        membership: context.membership as FirmMemberWithUser,
+        note,
         anonymous: payload.anonymous !== false,
       });
 
       return NextResponse.json({
         ok: true,
         idea,
-        message: "Vote recorded.",
+        message: "Brainstorm note added.",
       });
     }
 

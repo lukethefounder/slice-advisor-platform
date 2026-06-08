@@ -113,7 +113,7 @@ export function BrandMark({
   subtitle?: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-600 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
         <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
@@ -383,21 +383,26 @@ export function TopNav({
 }) {
   return (
     <header className="sticky top-4 z-40 rounded-[1.75rem] border border-white/10 bg-black/72 p-4 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <BrandMark subtitle={subtitle} />
 
-        <nav className="flex flex-wrap items-center gap-2">
-          <LinkButton href="/" variant="secondary">
+        <nav className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <LinkButton href="/" variant="secondary" className="w-full sm:w-auto">
             Home
           </LinkButton>
-          <LinkButton href="/portal" variant="secondary">
-            Portal
+          <LinkButton
+            href="/founder-login"
+            variant="danger"
+            className="w-full sm:w-auto"
+          >
+            Login
           </LinkButton>
-          <LinkButton href="/workspace" variant="primary">
-            Workspace
-          </LinkButton>
-          <LinkButton href="/advisor-os" variant="danger">
-            Advisor OS
+          <LinkButton
+            href="/advisor-signup"
+            variant="primary"
+            className="w-full sm:w-auto"
+          >
+            Sign Up
           </LinkButton>
         </nav>
       </div>
