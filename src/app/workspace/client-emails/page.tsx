@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ClientEmail = {
   id: string;
@@ -48,6 +48,8 @@ type Draft = {
       status?: string;
       error?: string | null;
       strategy?: string;
+      researchSummary?: string;
+      sourceNotes?: string[];
     };
     aiPolish?: {
       mode?: string;
@@ -107,6 +109,13 @@ type EmailCenterPayload = {
     archivedDraftCount?: number;
     pendingApprovalCount: number;
     sentCount?: number;
+  };
+  aiRuntime?: {
+    configured: boolean;
+    provider: string;
+    model: string;
+    webSearchEnabled: boolean;
+    requiredEnv: string;
   };
 };
 
@@ -189,7 +198,9 @@ function toneFor(value: string | null | undefined): Tone {
     lower.includes("ai") ||
     lower.includes("polished") ||
     lower.includes("preview") ||
-    lower.includes("scratch")
+    lower.includes("scratch") ||
+    lower.includes("openai") ||
+    lower.includes("research")
   ) {
     return "cyan";
   }
@@ -201,7 +212,7 @@ function Pill({
   children,
   tone = "slate",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
@@ -229,7 +240,7 @@ function Card({
   children,
   className = "",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -362,6 +373,9 @@ export default function ClientEmailsPage() {
     tone: "Professional, calm, polished, and reassuring",
     advisorInstructions: "",
     callToAction: "",
+    researchContext: "",
+    draftDepth: "Thorough researched advisor draft",
+    useOpenAiResearch: false,
     includeAllClients: false,
     queueImmediately: false,
   });
@@ -386,11 +400,6 @@ export default function ClientEmailsPage() {
 
   const clientsWithEmail = useMemo(
     () => payload.clients.filter((client) => client.email),
-    [payload.clients]
-  );
-
-  const clientsMissingEmail = useMemo(
-    () => payload.clients.filter((client) => !client.email),
     [payload.clients]
   );
 
@@ -427,6 +436,7 @@ export default function ClientEmailsPage() {
     return payload.clients.filter((client) => {
       if (clientFilterMode === "with-email" && !client.email) return false;
       if (clientFilterMode === "missing-email" && client.email) return false;
+
       if (
         clientFilterMode === "selected" &&
         !selectedClientIds.includes(client.id)
@@ -474,14 +484,17 @@ export default function ClientEmailsPage() {
     return allDrafts.filter((draft) => {
       if (draftFilterMode === "active" && draft.status === "Archived") return false;
       if (draftFilterMode === "archived" && draft.status !== "Archived") return false;
+
       if (
         draftFilterMode === "needs-approval" &&
         draft.status !== "Needs Advisor Approval"
       ) {
         return false;
       }
+
       if (draftFilterMode === "draft" && draft.status !== "Draft") return false;
       if (draftFilterMode === "edited" && draft.status !== "Edited") return false;
+
       if (
         draftFilterMode === "sent" &&
         draft.status !== "Sent" &&
@@ -489,6 +502,7 @@ export default function ClientEmailsPage() {
       ) {
         return false;
       }
+
       if (draftFilterMode === "failed" && draft.status !== "Delivery Failed") {
         return false;
       }
@@ -503,6 +517,7 @@ export default function ClientEmailsPage() {
         draft.sourceSummary?.topic,
         draft.sourceSummary?.purpose,
         draft.sourceSummary?.ai?.strategy,
+        draft.sourceSummary?.ai?.researchSummary,
       ]
         .filter(Boolean)
         .join(" ")
@@ -681,6 +696,22 @@ export default function ClientEmailsPage() {
     setActivePanel("drafts");
   }
 
+  function buildOpenAiAdvisorInstructions() {
+    return [
+      aiForm.advisorInstructions.trim()
+        ? `Advisor instructions:\n${aiForm.advisorInstructions.trim()}`
+        : "",
+      aiForm.researchContext.trim()
+        ? `Research context and source notes to synthesize:\n${aiForm.researchContext.trim()}`
+        : "",
+      `Draft depth: ${aiForm.draftDepth}`,
+      `OpenAI research mode requested: ${aiForm.useOpenAiResearch ? "Yes" : "No"}`,
+      "Important: Write an original email from scratch. Do not paste the prompt into a template. Synthesize the topic, purpose, research context, client context, and holdings into a polished advisor draft.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
   async function createAiDrafts(event: FormEvent) {
     event.preventDefault();
 
@@ -706,8 +737,11 @@ export default function ClientEmailsPage() {
           topic: aiForm.topic,
           purpose: aiForm.purpose,
           tone: aiForm.tone,
-          advisorInstructions: aiForm.advisorInstructions,
+          advisorInstructions: buildOpenAiAdvisorInstructions(),
           callToAction: aiForm.callToAction,
+          researchContext: aiForm.researchContext,
+          draftDepth: aiForm.draftDepth,
+          useOpenAiResearch: aiForm.useOpenAiResearch,
           queueForApproval:
             aiForm.queueImmediately &&
             (aiForm.includeAllClients || selectedClientIds.length > 0),
@@ -723,12 +757,73 @@ export default function ClientEmailsPage() {
 
       setMessage(data.message ?? "AI email drafts created.");
       setSelectedDraftIds(data.drafts?.map((draft: { id: string }) => draft.id) ?? []);
-      setActivePanel("drafts");
+
+      if (data.approval) {
+        setActivePanel("approvals");
+      } else {
+        setActivePanel("drafts");
+      }
+
       await loadEmailCenter(data.drafts?.[0]?.id);
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Unable to create AI email drafts."
       );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createQueueAndJumpToSend() {
+    if (!aiForm.topic.trim()) {
+      setMessage("Enter a prompt/topic first.");
+      return;
+    }
+
+    if (!selectedClientIds.length && !aiForm.includeAllClients) {
+      setMessage("Select clients first, or turn on Draft for all clients with emails. Scratch drafts cannot be sent directly.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/client-emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "create-queue-ai-client-email-drafts",
+        },
+        body: JSON.stringify({
+          action: "createAiDrafts",
+          clientIds: selectedClientIds,
+          includeAllClients: aiForm.includeAllClients,
+          topic: aiForm.topic,
+          purpose: aiForm.purpose,
+          tone: aiForm.tone,
+          advisorInstructions: buildOpenAiAdvisorInstructions(),
+          callToAction: aiForm.callToAction,
+          researchContext: aiForm.researchContext,
+          draftDepth: aiForm.draftDepth,
+          useOpenAiResearch: aiForm.useOpenAiResearch,
+          queueForApproval: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error ?? "Unable to create and queue email drafts.");
+        return;
+      }
+
+      setMessage(data.message ?? "Drafts created and queued for approval.");
+      setSelectedDraftIds(data.drafts?.map((draft: { id: string }) => draft.id) ?? []);
+      setActivePanel("approvals");
+      await loadEmailCenter(data.drafts?.[0]?.id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create and queue email drafts.");
     } finally {
       setLoading(false);
     }
@@ -777,7 +872,13 @@ export default function ClientEmailsPage() {
 
       setMessage(data.message ?? "Manual email drafts created.");
       setSelectedDraftIds(data.drafts?.map((draft: { id: string }) => draft.id) ?? []);
-      setActivePanel("drafts");
+
+      if (data.approval) {
+        setActivePanel("approvals");
+      } else {
+        setActivePanel("drafts");
+      }
+
       await loadEmailCenter(data.drafts?.[0]?.id);
     } catch (error) {
       setMessage(
@@ -873,20 +974,11 @@ export default function ClientEmailsPage() {
     }
   }
 
-  async function queueSelectedDrafts() {
-    if (!selectedDraftIds.length) {
-      setMessage("Select at least one draft to queue for approval.");
-      return;
-    }
+  async function queueDraftIds(draftIds: string[], approvalTitle: string) {
+    const usableDraftIds = draftIds.filter(Boolean);
 
-    const scratchCount = selectedDrafts.filter(
-      (draft) => draft.sourceSummary?.scratchDraft
-    ).length;
-
-    if (scratchCount) {
-      setMessage(
-        "Scratch drafts are editable working drafts. Assign/adapt them to clients before queueing for sending."
-      );
+    if (!usableDraftIds.length) {
+      setMessage("Select at least one client-specific draft to queue.");
       return;
     }
 
@@ -902,28 +994,93 @@ export default function ClientEmailsPage() {
         },
         body: JSON.stringify({
           action: "queueDraftsForApproval",
-          draftIds: selectedDraftIds,
-          approvalTitle: "Approve selected client email drafts",
+          draftIds: usableDraftIds,
+          approvalTitle,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(data.error ?? "Unable to queue selected drafts.");
+        setMessage(data.error ?? "Unable to queue drafts.");
         return;
       }
 
       setMessage(data.message ?? "Drafts queued for approval.");
+      setSelectedDraftIds(usableDraftIds);
       setActivePanel("approvals");
       await loadEmailCenter(activeDraftId);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Unable to queue selected drafts."
-      );
+      setMessage(error instanceof Error ? error.message : "Unable to queue drafts.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function queueSelectedDrafts() {
+    if (!selectedDraftIds.length) {
+      setMessage("Select at least one draft to queue for approval.");
+      return;
+    }
+
+    const selectedClientDraftIds = selectedDrafts
+      .filter((draft) => !draft.sourceSummary?.scratchDraft)
+      .map((draft) => draft.id);
+
+    const scratchCount = selectedDrafts.length - selectedClientDraftIds.length;
+
+    if (scratchCount && !selectedClientDraftIds.length) {
+      setMessage(
+        "Scratch drafts cannot be sent directly. Select client-specific drafts or create drafts for selected clients."
+      );
+      return;
+    }
+
+    await queueDraftIds(
+      selectedClientDraftIds,
+      "Approve selected client email drafts"
+    );
+  }
+
+  async function queueActiveDraft() {
+    if (!activeDraft) {
+      setMessage("Select a draft first.");
+      return;
+    }
+
+    if (activeDraft.sourceSummary?.scratchDraft) {
+      setMessage(
+        "Scratch drafts cannot be sent directly. Create a client-specific draft first."
+      );
+      return;
+    }
+
+    await queueDraftIds(
+      [activeDraft.id],
+      `Approve client email draft: ${activeDraft.title}`
+    );
+  }
+
+  async function queueAllVisibleClientDrafts() {
+    const visibleClientDraftIds = filteredDrafts
+      .filter(
+        (draft) =>
+          !draft.sourceSummary?.scratchDraft &&
+          draft.status !== "Sent" &&
+          draft.status !== "Simulated" &&
+          draft.status !== "Archived"
+      )
+      .map((draft) => draft.id);
+
+    if (!visibleClientDraftIds.length) {
+      setMessage("No visible client-specific drafts are available to queue.");
+      return;
+    }
+
+    await queueDraftIds(
+      visibleClientDraftIds,
+      "Approve all visible client email drafts"
+    );
   }
 
   async function archiveSelectedDrafts(restore = false) {
@@ -1016,6 +1173,17 @@ export default function ClientEmailsPage() {
     }
   }
 
+  async function approveFirstPendingBatch() {
+    const firstPending = pendingApprovals[0];
+
+    if (!firstPending) {
+      setMessage("No pending approval batch is ready to send.");
+      return;
+    }
+
+    await approveAndSend(firstPending.id);
+  }
+
   useEffect(() => {
     void loadEmailCenter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1031,12 +1199,11 @@ export default function ClientEmailsPage() {
                 Slice Client Email Center
               </div>
               <h1 className="mt-2 text-4xl font-black md:text-6xl">
-                AI-drafted emails, scratch drafts, bulk workflows, and approval-safe sending.
+                OpenAI-researched emails, scratch drafts, bulk workflows, and approval-safe sending.
               </h1>
               <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-                Create one scratch draft from a prompt, draft many client emails at once,
-                edit manually, polish with AI, queue for approval, and send through Resend
-                when live email is configured.
+                Create original advisor email drafts, tailor them to selected clients, queue them for
+                approval, and send them through the approval-safe delivery flow.
               </p>
             </div>
 
@@ -1069,48 +1236,42 @@ export default function ClientEmailsPage() {
           </div>
         ) : null}
 
+        {payload.aiRuntime ? (
+          <div
+            className={cx(
+              "rounded-2xl border p-4 text-sm font-bold",
+              payload.aiRuntime.configured
+                ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-100"
+                : "border-red-500/30 bg-red-500/10 text-red-100"
+            )}
+          >
+            {payload.aiRuntime.configured ? (
+              <>
+                OpenAI connected: {payload.aiRuntime.provider} · Model:{" "}
+                {payload.aiRuntime.model}
+                {payload.aiRuntime.webSearchEnabled ? " · Web search enabled" : ""}
+              </>
+            ) : (
+              <>
+                OpenAI is not connected. Add {payload.aiRuntime.requiredEnv} to your server
+                environment, restart locally, and redeploy on Vercel.
+              </>
+            )}
+          </div>
+        ) : null}
+
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <Metric
-            label="Clients"
-            value={payload.metrics.clientCount}
-            helper="Active records"
-            tone="slate"
-          />
-          <Metric
-            label="Email Ready"
-            value={payload.metrics.clientsWithEmail}
-            helper="Can receive drafts"
-            tone="green"
-          />
-          <Metric
-            label="Missing Email"
-            value={payload.metrics.clientsMissingEmail}
-            helper="Needs cleanup"
-            tone={payload.metrics.clientsMissingEmail ? "red" : "green"}
-          />
-          <Metric
-            label="Active Drafts"
-            value={payload.metrics.draftCount}
-            helper="Working queue"
-            tone="cyan"
-          />
-          <Metric
-            label="Approvals"
-            value={payload.metrics.pendingApprovalCount}
-            helper="Pending send approval"
-            tone={payload.metrics.pendingApprovalCount ? "amber" : "green"}
-          />
-          <Metric
-            label="Sent/Simulated"
-            value={payload.metrics.sentCount ?? 0}
-            helper="Processed emails"
-            tone="purple"
-          />
+          <Metric label="Clients" value={payload.metrics.clientCount} helper="Active records" tone="slate" />
+          <Metric label="Email Ready" value={payload.metrics.clientsWithEmail} helper="Can receive drafts" tone="green" />
+          <Metric label="Missing Email" value={payload.metrics.clientsMissingEmail} helper="Needs cleanup" tone={payload.metrics.clientsMissingEmail ? "red" : "green"} />
+          <Metric label="Active Drafts" value={payload.metrics.draftCount} helper="Working queue" tone="cyan" />
+          <Metric label="Approvals" value={payload.metrics.pendingApprovalCount} helper="Pending send approval" tone={payload.metrics.pendingApprovalCount ? "amber" : "green"} />
+          <Metric label="Sent/Simulated" value={payload.metrics.sentCount ?? 0} helper="Processed emails" tone="purple" />
         </section>
 
         <section className="grid gap-3 rounded-[1.75rem] border border-white/10 bg-black/45 p-3 md:grid-cols-4">
           {[
-            ["ai", "AI Draft Desk", "Prompt-based and bulk drafts"],
+            ["ai", "AI Draft Desk", "OpenAI researched drafts"],
             ["manual", "Manual Drafts", "Scratch or client-specific"],
             ["drafts", "Draft Workspace", "Edit, polish, queue"],
             ["approvals", "Send Queue", "Approve and send"],
@@ -1127,12 +1288,7 @@ export default function ClientEmailsPage() {
               )}
             >
               <div className="text-sm font-black">{label}</div>
-              <div
-                className={cx(
-                  "mt-1 text-xs font-semibold",
-                  activePanel === key ? "text-slate-600" : "text-slate-500"
-                )}
-              >
+              <div className={cx("mt-1 text-xs font-semibold", activePanel === key ? "text-slate-600" : "text-slate-500")}>
                 {helper}
               </div>
             </button>
@@ -1171,9 +1327,7 @@ export default function ClientEmailsPage() {
 
               <select
                 value={clientFilterMode}
-                onChange={(event) =>
-                  setClientFilterMode(event.target.value as ClientFilterMode)
-                }
+                onChange={(event) => setClientFilterMode(event.target.value as ClientFilterMode)}
                 className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
               >
                 <option value="with-email">With email</option>
@@ -1183,39 +1337,19 @@ export default function ClientEmailsPage() {
               </select>
 
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={selectFilteredWithEmails}
-                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
-                >
+                <button type="button" onClick={selectFilteredWithEmails} className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10">
                   Select Filtered
                 </button>
-                <button
-                  type="button"
-                  onClick={selectAllWithEmails}
-                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
-                >
+                <button type="button" onClick={selectAllWithEmails} className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10">
                   Select All Email
                 </button>
-                <button
-                  type="button"
-                  onClick={selectByHoldingFilter}
-                  className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20"
-                >
+                <button type="button" onClick={selectByHoldingFilter} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20">
                   Select By Holding
                 </button>
-                <button
-                  type="button"
-                  onClick={invertFilteredSelection}
-                  className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-3 py-3 text-xs font-black text-purple-100 hover:bg-purple-500/20"
-                >
+                <button type="button" onClick={invertFilteredSelection} className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-3 py-3 text-xs font-black text-purple-100 hover:bg-purple-500/20">
                   Invert Filter
                 </button>
-                <button
-                  type="button"
-                  onClick={clearSelection}
-                  className="col-span-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20"
-                >
+                <button type="button" onClick={clearSelection} className="col-span-2 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20">
                   Clear Selection
                 </button>
               </div>
@@ -1239,29 +1373,19 @@ export default function ClientEmailsPage() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-white">
-                          {client.fullName}
-                        </div>
-                        <div className="mt-1 truncate text-xs text-slate-500">
-                          {client.email ?? "No email on file"}
-                        </div>
+                        <div className="truncate text-sm font-black text-white">{client.fullName}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">{client.email ?? "No email on file"}</div>
                       </div>
                       <div className="shrink-0">
-                        <Pill tone={client.email ? "green" : "red"}>
-                          {client.email ? "Ready" : "Missing"}
-                        </Pill>
+                        <Pill tone={client.email ? "green" : "red"}>{client.email ? "Ready" : "Missing"}</Pill>
                       </div>
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Pill tone={toneFor(client.riskProfile)}>
-                        {client.riskProfile}
-                      </Pill>
+                      <Pill tone={toneFor(client.riskProfile)}>{client.riskProfile}</Pill>
                       <Pill tone="slate">{client.clientType}</Pill>
                       {client.holdings.slice(0, 3).map((holding) => (
-                        <Pill key={holding.id} tone="purple">
-                          {holding.symbol}
-                        </Pill>
+                        <Pill key={holding.id} tone="purple">{holding.symbol}</Pill>
                       ))}
                     </div>
                   </button>
@@ -1299,26 +1423,18 @@ export default function ClientEmailsPage() {
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
                       AI Draft Desk
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">
-                      Create one draft or many at once
-                    </h2>
+                    <h2 className="mt-2 text-3xl font-black">Create drafts, queue, and send faster</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                      Enter a prompt. With no clients selected, Slice creates a scratch draft.
-                      With selected clients, it creates tailored drafts for each recipient.
+                      Select clients, enter a prompt, and use the one-click create-and-queue button to move directly into the send approval queue.
                     </p>
                   </div>
-                  <Pill tone="cyan">Scratch + bulk enabled</Pill>
+                  <Pill tone="cyan">OpenAI drafting</Pill>
                 </div>
 
                 <form onSubmit={createAiDrafts} className="mt-5 grid gap-3">
                   <textarea
                     value={aiForm.topic}
-                    onChange={(event) =>
-                      setAiForm((current) => ({
-                        ...current,
-                        topic: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setAiForm((current) => ({ ...current, topic: event.target.value }))}
                     placeholder="Prompt/topic: e.g. Draft a reassuring email to clients about recent market volatility and explain that we are monitoring risk carefully..."
                     className="min-h-[140px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
@@ -1326,24 +1442,14 @@ export default function ClientEmailsPage() {
                   <div className="grid gap-3 lg:grid-cols-2">
                     <input
                       value={aiForm.purpose}
-                      onChange={(event) =>
-                        setAiForm((current) => ({
-                          ...current,
-                          purpose: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => setAiForm((current) => ({ ...current, purpose: event.target.value }))}
                       placeholder="Purpose"
                       className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                     />
 
                     <input
                       value={aiForm.tone}
-                      onChange={(event) =>
-                        setAiForm((current) => ({
-                          ...current,
-                          tone: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => setAiForm((current) => ({ ...current, tone: event.target.value }))}
                       placeholder="Tone"
                       className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                     />
@@ -1351,24 +1457,45 @@ export default function ClientEmailsPage() {
 
                   <textarea
                     value={aiForm.advisorInstructions}
-                    onChange={(event) =>
-                      setAiForm((current) => ({
-                        ...current,
-                        advisorInstructions: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setAiForm((current) => ({ ...current, advisorInstructions: event.target.value }))}
                     placeholder="Advisor instructions: specific wording, things to avoid, client concerns, compliance reminders..."
                     className="min-h-[90px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
                   <textarea
+                    value={aiForm.researchContext}
+                    onChange={(event) => setAiForm((current) => ({ ...current, researchContext: event.target.value }))}
+                    placeholder="Research context / source notes..."
+                    className="min-h-[110px] rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-white outline-none ring-cyan-500 placeholder:text-cyan-200/50 focus:ring-2"
+                  />
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <select
+                      value={aiForm.draftDepth}
+                      onChange={(event) => setAiForm((current) => ({ ...current, draftDepth: event.target.value }))}
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                    >
+                      <option value="Concise researched advisor draft">Concise researched advisor draft</option>
+                      <option value="Thorough researched advisor draft">Thorough researched advisor draft</option>
+                      <option value="Detailed client education draft">Detailed client education draft</option>
+                      <option value="Short reassurance email">Short reassurance email</option>
+                      <option value="Executive-level client note">Executive-level client note</option>
+                    </select>
+
+                    <label className="flex items-center gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50">
+                      <input
+                        type="checkbox"
+                        checked={aiForm.useOpenAiResearch}
+                        onChange={(event) => setAiForm((current) => ({ ...current, useOpenAiResearch: event.target.checked }))}
+                        className="h-4 w-4 accent-cyan-500"
+                      />
+                      Use research/web-search mode
+                    </label>
+                  </div>
+
+                  <textarea
                     value={aiForm.callToAction}
-                    onChange={(event) =>
-                      setAiForm((current) => ({
-                        ...current,
-                        callToAction: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setAiForm((current) => ({ ...current, callToAction: event.target.value }))}
                     placeholder="Optional call to action: e.g. Reply with any questions, schedule a review, no action required..."
                     className="min-h-[80px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
@@ -1378,12 +1505,7 @@ export default function ClientEmailsPage() {
                       <input
                         type="checkbox"
                         checked={aiForm.includeAllClients}
-                        onChange={(event) =>
-                          setAiForm((current) => ({
-                            ...current,
-                            includeAllClients: event.target.checked,
-                          }))
-                        }
+                        onChange={(event) => setAiForm((current) => ({ ...current, includeAllClients: event.target.checked }))}
                       />
                       Draft for all clients with emails
                     </label>
@@ -1392,27 +1514,29 @@ export default function ClientEmailsPage() {
                       <input
                         type="checkbox"
                         checked={aiForm.queueImmediately}
-                        onChange={(event) =>
-                          setAiForm((current) => ({
-                            ...current,
-                            queueImmediately: event.target.checked,
-                          }))
-                        }
+                        onChange={(event) => setAiForm((current) => ({ ...current, queueImmediately: event.target.checked }))}
                       />
-                      Queue client-specific drafts for approval
+                      Create and queue for approval
                     </label>
                   </div>
 
-                  <button
-                    disabled={loading}
-                    className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                  >
-                    {loading
-                      ? "Creating..."
-                      : selectedClientIds.length || aiForm.includeAllClients
-                        ? "Create AI Drafts"
-                        : "Create Scratch AI Draft"}
-                  </button>
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <button
+                      disabled={loading}
+                      className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                    >
+                      {loading ? "Creating..." : "Create Drafts"}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={loading || (!selectedClientIds.length && !aiForm.includeAllClients)}
+                      onClick={createQueueAndJumpToSend}
+                      className="rounded-2xl border border-green-500/30 bg-green-500/10 px-5 py-4 text-sm font-black text-green-100 shadow-lg shadow-green-950/20 hover:bg-green-500/20 disabled:opacity-50"
+                    >
+                      Create Drafts + Queue to Send
+                    </button>
+                  </div>
                 </form>
               </Card>
             ) : null}
@@ -1424,12 +1548,9 @@ export default function ClientEmailsPage() {
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">
                       Manual Drafts
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">
-                      Create editable emails manually
-                    </h2>
+                    <h2 className="mt-2 text-3xl font-black">Create editable emails manually</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                      With no selected clients, this creates a scratch draft. With selected clients,
-                      it creates one draft per selected recipient.
+                      With no selected clients, this creates a scratch draft. With selected clients, it creates one draft per selected recipient.
                     </p>
                   </div>
                   <Pill tone="purple">Scratch + bulk enabled</Pill>
@@ -1438,24 +1559,14 @@ export default function ClientEmailsPage() {
                 <form onSubmit={createManualDrafts} className="mt-5 grid gap-3">
                   <input
                     value={manualForm.subject}
-                    onChange={(event) =>
-                      setManualForm((current) => ({
-                        ...current,
-                        subject: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setManualForm((current) => ({ ...current, subject: event.target.value }))}
                     placeholder="Subject"
                     className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
 
                   <textarea
                     value={manualForm.body}
-                    onChange={(event) =>
-                      setManualForm((current) => ({
-                        ...current,
-                        body: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => setManualForm((current) => ({ ...current, body: event.target.value }))}
                     placeholder="Email body..."
                     className="min-h-[220px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                   />
@@ -1463,12 +1574,7 @@ export default function ClientEmailsPage() {
                   <div className="grid gap-2 lg:grid-cols-2">
                     <input
                       value={manualForm.tone}
-                      onChange={(event) =>
-                        setManualForm((current) => ({
-                          ...current,
-                          tone: event.target.value,
-                        }))
-                      }
+                      onChange={(event) => setManualForm((current) => ({ ...current, tone: event.target.value }))}
                       placeholder="Tone"
                       className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                     />
@@ -1477,26 +1583,14 @@ export default function ClientEmailsPage() {
                       <input
                         type="checkbox"
                         checked={manualForm.queueImmediately}
-                        onChange={(event) =>
-                          setManualForm((current) => ({
-                            ...current,
-                            queueImmediately: event.target.checked,
-                          }))
-                        }
+                        onChange={(event) => setManualForm((current) => ({ ...current, queueImmediately: event.target.checked }))}
                       />
-                      Queue client-specific drafts for approval
+                      Create and queue for approval
                     </label>
                   </div>
 
-                  <button
-                    disabled={loading}
-                    className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                  >
-                    {loading
-                      ? "Creating..."
-                      : selectedClientIds.length
-                        ? "Create Manual Drafts"
-                        : "Create Scratch Manual Draft"}
+                  <button disabled={loading} className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50">
+                    {loading ? "Creating..." : "Create Manual Drafts"}
                   </button>
                 </form>
               </Card>
@@ -1509,12 +1603,9 @@ export default function ClientEmailsPage() {
                     <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
                       Draft Workspace
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">
-                      Edit, polish, select, and queue
-                    </h2>
+                    <h2 className="mt-2 text-3xl font-black">Edit, polish, select, and queue</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                      Work on many emails at once. Pick drafts on the left list, edit the active draft,
-                      polish with AI, then queue selected client-specific drafts for approval.
+                      Queue one draft, selected drafts, or all visible client-specific drafts.
                     </p>
                   </div>
                   <Pill tone="amber">{selectedDraftIds.length} selected</Pill>
@@ -1532,9 +1623,7 @@ export default function ClientEmailsPage() {
 
                       <select
                         value={draftFilterMode}
-                        onChange={(event) =>
-                          setDraftFilterMode(event.target.value as DraftFilterMode)
-                        }
+                        onChange={(event) => setDraftFilterMode(event.target.value as DraftFilterMode)}
                         className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
                       >
                         <option value="active">Active</option>
@@ -1548,33 +1637,20 @@ export default function ClientEmailsPage() {
                       </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={selectAllVisibleDrafts}
-                        className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
-                      >
+                    <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+                      <button type="button" onClick={selectAllVisibleDrafts} className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10">
                         Select Visible
                       </button>
-                      <button
-                        type="button"
-                        onClick={clearDraftSelection}
-                        className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10"
-                      >
+                      <button type="button" onClick={clearDraftSelection} className="rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-3 text-xs font-black text-white hover:bg-white/10">
                         Clear Drafts
                       </button>
-                      <button
-                        type="button"
-                        onClick={queueSelectedDrafts}
-                        className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20"
-                      >
+                      <button type="button" onClick={queueSelectedDrafts} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20">
                         Queue Selected
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => archiveSelectedDrafts(draftFilterMode === "archived")}
-                        className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20"
-                      >
+                      <button type="button" onClick={queueAllVisibleClientDrafts} className="rounded-2xl border border-green-500/30 bg-green-500/10 px-3 py-3 text-xs font-black text-green-100 hover:bg-green-500/20">
+                        Queue All Visible
+                      </button>
+                      <button type="button" onClick={() => archiveSelectedDrafts(draftFilterMode === "archived")} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-3 text-xs font-black text-red-100 hover:bg-red-500/20 xl:col-span-2">
                         {draftFilterMode === "archived" ? "Restore Selected" : "Archive Selected"}
                       </button>
                     </div>
@@ -1589,49 +1665,24 @@ export default function ClientEmailsPage() {
                             key={draft.id}
                             className={cx(
                               "rounded-[1.25rem] border p-4",
-                              active
-                                ? "border-cyan-400/50 bg-cyan-500/10"
-                                : "border-white/10 bg-white/[0.045]"
+                              active ? "border-cyan-400/50 bg-cyan-500/10" : "border-white/10 bg-white/[0.045]"
                             )}
                           >
                             <div className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => toggleDraft(draft.id)}
-                                className="mt-1"
-                              />
+                              <input type="checkbox" checked={selected} onChange={() => toggleDraft(draft.id)} className="mt-1" />
 
-                              <button
-                                type="button"
-                                onClick={() => openDraftEditor(draft)}
-                                className="min-w-0 flex-1 text-left"
-                              >
-                                <div className="truncate text-sm font-black text-white">
-                                  {draft.title}
-                                </div>
+                              <button type="button" onClick={() => openDraftEditor(draft)} className="min-w-0 flex-1 text-left">
+                                <div className="truncate text-sm font-black text-white">{draft.title}</div>
                                 <div className="mt-1 truncate text-xs text-slate-500">
                                   {getDraftRecipientLabel(draft)} · {formatDate(draft.updatedAt)}
                                 </div>
 
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                  <Pill tone={toneFor(draft.status)}>
-                                    {draft.status}
+                                  <Pill tone={toneFor(draft.status)}>{draft.status}</Pill>
+                                  <Pill tone={draft.sourceSummary?.scratchDraft ? "cyan" : "purple"}>
+                                    {draft.sourceSummary?.scratchDraft ? "Scratch" : "Client"}
                                   </Pill>
-                                  <Pill
-                                    tone={
-                                      draft.sourceSummary?.scratchDraft
-                                        ? "cyan"
-                                        : "purple"
-                                    }
-                                  >
-                                    {draft.sourceSummary?.scratchDraft
-                                      ? "Scratch"
-                                      : "Client"}
-                                  </Pill>
-                                  {draft.sourceSummary?.ai?.polished ? (
-                                    <Pill tone="cyan">AI Drafted</Pill>
-                                  ) : null}
+                                  {draft.sourceSummary?.ai?.polished ? <Pill tone="cyan">OpenAI Drafted</Pill> : null}
                                 </div>
                               </button>
                             </div>
@@ -1652,39 +1703,20 @@ export default function ClientEmailsPage() {
                       <form onSubmit={saveEditedDraft} className="grid gap-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                              Active Draft
-                            </div>
-                            <h3 className="mt-1 text-xl font-black">
-                              {getDraftRecipientLabel(activeDraft)}
-                            </h3>
+                            <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">Active Draft</div>
+                            <h3 className="mt-1 text-xl font-black">{getDraftRecipientLabel(activeDraft)}</h3>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Pill tone={toneFor(activeDraft.status)}>
-                              {activeDraft.status}
-                            </Pill>
-                            <Pill
-                              tone={
-                                activeDraft.sourceSummary?.scratchDraft
-                                  ? "cyan"
-                                  : "purple"
-                              }
-                            >
-                              {activeDraft.sourceSummary?.scratchDraft
-                                ? "Scratch"
-                                : "Client-specific"}
+                            <Pill tone={toneFor(activeDraft.status)}>{activeDraft.status}</Pill>
+                            <Pill tone={activeDraft.sourceSummary?.scratchDraft ? "cyan" : "purple"}>
+                              {activeDraft.sourceSummary?.scratchDraft ? "Scratch" : "Client-specific"}
                             </Pill>
                           </div>
                         </div>
 
                         <input
                           value={editForm.subject}
-                          onChange={(event) =>
-                            setEditForm((current) => ({
-                              ...current,
-                              subject: event.target.value,
-                            }))
-                          }
+                          onChange={(event) => setEditForm((current) => ({ ...current, subject: event.target.value }))}
                           disabled={!canEditDraft(activeDraft)}
                           className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 disabled:opacity-60 focus:ring-2"
                           placeholder="Subject"
@@ -1692,26 +1724,16 @@ export default function ClientEmailsPage() {
 
                         <textarea
                           value={editForm.body}
-                          onChange={(event) =>
-                            setEditForm((current) => ({
-                              ...current,
-                              body: event.target.value,
-                            }))
-                          }
+                          onChange={(event) => setEditForm((current) => ({ ...current, body: event.target.value }))}
                           disabled={!canEditDraft(activeDraft)}
                           className="min-h-[300px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold leading-7 text-white outline-none ring-red-500 placeholder:text-slate-600 disabled:opacity-60 focus:ring-2"
                           placeholder="Body"
                         />
 
-                        <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto]">
+                        <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto_auto]">
                           <select
                             value={editForm.status}
-                            onChange={(event) =>
-                              setEditForm((current) => ({
-                                ...current,
-                                status: event.target.value,
-                              }))
-                            }
+                            onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value }))}
                             disabled={!canEditDraft(activeDraft)}
                             className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 disabled:opacity-60 focus:ring-2"
                           >
@@ -1720,37 +1742,26 @@ export default function ClientEmailsPage() {
                             ))}
                           </select>
 
-                          <button
-                            type="submit"
-                            disabled={loading || !canEditDraft(activeDraft)}
-                            className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
-                          >
+                          <button type="submit" disabled={loading || !canEditDraft(activeDraft)} className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50">
                             Save Draft
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => setPreviewMode((current) => current === "email" ? "plain" : "email")}
-                            className="rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-3 text-sm font-black text-white hover:bg-white/10"
-                          >
+                          <button type="button" onClick={queueActiveDraft} disabled={loading || !activeDraft || activeDraft.sourceSummary?.scratchDraft} className="rounded-2xl border border-green-500/30 bg-green-500/10 px-5 py-3 text-sm font-black text-green-100 hover:bg-green-500/20 disabled:opacity-50">
+                            Queue Active
+                          </button>
+
+                          <button type="button" onClick={() => setPreviewMode((current) => current === "email" ? "plain" : "email")} className="rounded-2xl border border-white/10 bg-white/[0.055] px-5 py-3 text-sm font-black text-white hover:bg-white/10">
                             {previewMode === "email" ? "Plain Preview" : "Email Preview"}
                           </button>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                          <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                            AI Polish
-                          </div>
+                          <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">AI Polish</div>
 
                           <div className="mt-3 grid gap-2">
                             <select
                               value={polishForm.polishMode}
-                              onChange={(event) =>
-                                setPolishForm((current) => ({
-                                  ...current,
-                                  polishMode: event.target.value,
-                                }))
-                              }
+                              onChange={(event) => setPolishForm((current) => ({ ...current, polishMode: event.target.value }))}
                               className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
                             >
                               <option>Professional polish</option>
@@ -1763,39 +1774,19 @@ export default function ClientEmailsPage() {
 
                             <textarea
                               value={polishForm.advisorInstructions}
-                              onChange={(event) =>
-                                setPolishForm((current) => ({
-                                  ...current,
-                                  advisorInstructions: event.target.value,
-                                }))
-                              }
+                              onChange={(event) => setPolishForm((current) => ({ ...current, advisorInstructions: event.target.value }))}
                               placeholder="Optional polish instructions..."
                               className="min-h-[80px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
                             />
 
                             <div className="grid gap-2 md:grid-cols-3">
-                              <button
-                                type="button"
-                                onClick={() => polishActiveDraft()}
-                                disabled={loading || !canEditDraft(activeDraft)}
-                                className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
-                              >
+                              <button type="button" onClick={() => polishActiveDraft()} disabled={loading || !canEditDraft(activeDraft)} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50">
                                 Polish
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => polishActiveDraft("Shorter and cleaner")}
-                                disabled={loading || !canEditDraft(activeDraft)}
-                                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white hover:bg-white/10 disabled:opacity-50"
-                              >
+                              <button type="button" onClick={() => polishActiveDraft("Shorter and cleaner")} disabled={loading || !canEditDraft(activeDraft)} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white hover:bg-white/10 disabled:opacity-50">
                                 Shorten
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => polishActiveDraft("Compliance-safe rewrite")}
-                                disabled={loading || !canEditDraft(activeDraft)}
-                                className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
-                              >
+                              <button type="button" onClick={() => polishActiveDraft("Compliance-safe rewrite")} disabled={loading || !canEditDraft(activeDraft)} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-black text-amber-100 hover:bg-amber-500/20 disabled:opacity-50">
                                 Compliance Safe
                               </button>
                             </div>
@@ -1816,20 +1807,18 @@ export default function ClientEmailsPage() {
               <Card>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-green-400">
-                      Send Queue
-                    </div>
-                    <h2 className="mt-2 text-3xl font-black">
-                      Approval-gated email sending
-                    </h2>
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-green-400">Send Queue</div>
+                    <h2 className="mt-2 text-3xl font-black">Approval-gated email sending</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                      Approve pending email batches here. Live sending uses Resend when configured;
-                      otherwise sends are safely simulated.
+                      Approve pending email batches here. Live sending uses Resend when configured; otherwise sends are safely simulated.
                     </p>
                   </div>
-                  <Pill tone={pendingApprovals.length ? "amber" : "green"}>
-                    {pendingApprovals.length} pending
-                  </Pill>
+                  <div className="flex flex-wrap gap-2">
+                    <Pill tone={pendingApprovals.length ? "amber" : "green"}>{pendingApprovals.length} pending</Pill>
+                    <button type="button" onClick={approveFirstPendingBatch} disabled={loading || !pendingApprovals.length} className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50">
+                      Approve First Pending Batch
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 grid gap-3">
@@ -1837,40 +1826,22 @@ export default function ClientEmailsPage() {
                     const ids = approval.payload?.draftIds ?? [];
 
                     return (
-                      <div
-                        key={approval.id}
-                        className="rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4"
-                      >
+                      <div key={approval.id} className="rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div>
-                            <div className="font-black text-white">
-                              {approval.title}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {formatDate(approval.createdAt)} · {ids.length} draft(s)
-                            </div>
-                            <p className="mt-3 text-sm leading-6 text-slate-400">
-                              {approval.summary}
-                            </p>
+                            <div className="font-black text-white">{approval.title}</div>
+                            <div className="mt-1 text-xs text-slate-500">{formatDate(approval.createdAt)} · {ids.length} draft(s)</div>
+                            <p className="mt-3 text-sm leading-6 text-slate-400">{approval.summary}</p>
                           </div>
 
                           <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <Pill tone={toneFor(approval.status)}>
-                              {approval.status}
-                            </Pill>
-                            <Pill tone={toneFor(approval.riskLevel)}>
-                              {approval.riskLevel}
-                            </Pill>
+                            <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
+                            <Pill tone={toneFor(approval.riskLevel)}>{approval.riskLevel}</Pill>
                           </div>
                         </div>
 
                         {approval.status === "Pending" ? (
-                          <button
-                            type="button"
-                            onClick={() => approveAndSend(approval.id)}
-                            disabled={loading}
-                            className="mt-4 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
-                          >
+                          <button type="button" onClick={() => approveAndSend(approval.id)} disabled={loading} className="mt-4 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50">
                             Approve and Send
                           </button>
                         ) : null}
@@ -1891,12 +1862,8 @@ export default function ClientEmailsPage() {
           <Card className="min-h-[760px]">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">
-                  Preview
-                </div>
-                <h2 className="mt-2 text-2xl font-black">
-                  {activeDraft ? activeDraft.title : "No draft selected"}
-                </h2>
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">Preview</div>
+                <h2 className="mt-2 text-2xl font-black">{activeDraft ? activeDraft.title : "No draft selected"}</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   {activeDraft
                     ? `${getDraftRecipientLabel(activeDraft)} · ${wordCount(activeDraft.body)} words · ${readingTime(activeDraft.body)} min read`
@@ -1907,11 +1874,7 @@ export default function ClientEmailsPage() {
               {activeDraft ? (
                 <div className="flex flex-wrap gap-2">
                   <Pill tone={toneFor(activeDraft.status)}>{activeDraft.status}</Pill>
-                  <Pill
-                    tone={
-                      activeDraft.sourceSummary?.scratchDraft ? "cyan" : "purple"
-                    }
-                  >
+                  <Pill tone={activeDraft.sourceSummary?.scratchDraft ? "cyan" : "purple"}>
                     {activeDraft.sourceSummary?.scratchDraft ? "Scratch" : "Client"}
                   </Pill>
                 </div>
@@ -1920,90 +1883,73 @@ export default function ClientEmailsPage() {
 
             {activeDraft ? (
               <div className="mt-5 grid gap-4">
+                {activeDraft.sourceSummary?.ai?.error ? (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-red-200">AI Error</div>
+                    <p className="mt-2 text-sm leading-6 text-red-50">{activeDraft.sourceSummary.ai.error}</p>
+                  </div>
+                ) : null}
+
                 {activeDraft.sourceSummary?.ai?.strategy ? (
                   <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">
-                      AI Draft Strategy
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-cyan-50">
-                      {activeDraft.sourceSummary.ai.strategy}
-                    </p>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">AI Draft Strategy</div>
+                    <p className="mt-2 text-sm leading-6 text-cyan-50">{activeDraft.sourceSummary.ai.strategy}</p>
+                  </div>
+                ) : null}
+
+                {activeDraft.sourceSummary?.ai?.researchSummary ? (
+                  <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-200">Research Summary</div>
+                    <p className="mt-2 text-sm leading-6 text-purple-50">{activeDraft.sourceSummary.ai.researchSummary}</p>
                   </div>
                 ) : null}
 
                 {previewMode === "email" ? (
                   <div className="overflow-hidden rounded-[1.6rem] border border-slate-200 bg-slate-100 text-slate-950">
                     <div className="bg-gradient-to-br from-red-950 via-red-800 to-slate-950 p-6">
-                      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-red-200">
-                        Advisor Communication
-                      </div>
-                      <h3 className="mt-2 text-2xl font-black text-white">
-                        {activeDraft.title}
-                      </h3>
-                      <div className="mt-2 text-sm font-semibold text-red-100">
-                        Prepared for {getDraftRecipientLabel(activeDraft)}
-                      </div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-red-200">Advisor Communication</div>
+                      <h3 className="mt-2 text-2xl font-black text-white">{activeDraft.title}</h3>
+                      <div className="mt-2 text-sm font-semibold text-red-100">Prepared for {getDraftRecipientLabel(activeDraft)}</div>
                     </div>
 
                     <div className="space-y-4 p-6">
                       {emailParagraphs(activeDraft.body).map((paragraph, index) => (
-                        <p key={`${paragraph}-${index}`} className="text-sm leading-7 text-slate-700">
-                          {paragraph}
-                        </p>
+                        <p key={`${paragraph}-${index}`} className="text-sm leading-7 text-slate-700">{paragraph}</p>
                       ))}
 
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">
-                          Important note
-                        </div>
+                        <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">Important note</div>
                         <p className="mt-2 text-xs leading-6 text-amber-800">
-                          This message is intended for informational advisor-client communication.
-                          It is not a guarantee, trade instruction, or standalone recommendation.
+                          This message is intended for informational advisor-client communication. It is not a guarantee, trade instruction, or standalone recommendation.
                         </p>
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-[1.6rem] border border-white/10 bg-black/45 p-5">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                      Subject
-                    </div>
-                    <div className="mt-2 text-lg font-black text-white">
-                      {activeDraft.title}
-                    </div>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Subject</div>
+                    <div className="mt-2 text-lg font-black text-white">{activeDraft.title}</div>
 
-                    <div className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                      Body
-                    </div>
-                    <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-300">
-                      {activeDraft.body}
-                    </div>
+                    <div className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-slate-500">Body</div>
+                    <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-300">{activeDraft.body}</div>
                   </div>
                 )}
 
                 {activeDraft.complianceNotes?.length ? (
                   <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">
-                      Compliance Notes
-                    </div>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">Compliance Notes</div>
                     <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-amber-50">
-                      {activeDraft.complianceNotes.map((note) => (
-                        <li key={note}>{note}</li>
-                      ))}
+                      {activeDraft.complianceNotes.map((note) => <li key={note}>{note}</li>)}
                     </ul>
                   </div>
                 ) : null}
 
                 {activeDraft.sourceSummary?.holdings?.length ? (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-300">
-                      Context Used
-                    </div>
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-300">Context Used</div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {activeDraft.sourceSummary.holdings.slice(0, 10).map((holding) => (
-                        <Pill key={`${holding.symbol}-${holding.assetName}`} tone="purple">
-                          {holding.symbol}
-                        </Pill>
+                        <Pill key={`${holding.symbol}-${holding.assetName}`} tone="purple">{holding.symbol}</Pill>
                       ))}
                     </div>
                   </div>

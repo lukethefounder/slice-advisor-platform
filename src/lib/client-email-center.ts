@@ -24,6 +24,9 @@ type CreateAiDraftInput = {
   tone?: string | null;
   advisorInstructions?: string | null;
   callToAction?: string | null;
+  researchContext?: string | null;
+  draftDepth?: string | null;
+  useOpenAiResearch?: boolean;
   queueForApproval?: boolean;
 };
 
@@ -164,6 +167,46 @@ function normaliseDraftStatus(value: string | null | undefined) {
   return allowed.includes(clean) ? clean : "Draft";
 }
 
+function numberFromEnv(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function emailAiModel(useResearchMode: boolean) {
+  if (useResearchMode) {
+    return (
+      process.env.OPENAI_EMAIL_RESEARCH_MODEL ||
+      process.env.OPENAI_FAST_MODEL ||
+      process.env.OPENAI_MODEL ||
+      "gpt-4.1-mini"
+    );
+  }
+
+  return (
+    process.env.OPENAI_EMAIL_MODEL ||
+    process.env.OPENAI_FAST_MODEL ||
+    process.env.OPENAI_MODEL ||
+    "gpt-4.1-mini"
+  );
+}
+
+function emailAiTimeoutMs(useResearchMode: boolean) {
+  if (useResearchMode) {
+    return numberFromEnv(
+      process.env.OPENAI_EMAIL_RESEARCH_TIMEOUT_MS ||
+        process.env.OPENAI_QUALITY_TIMEOUT_MS,
+      55000
+    );
+  }
+
+  return numberFromEnv(
+    process.env.OPENAI_EMAIL_TIMEOUT_MS ||
+      process.env.OPENAI_FAST_TIMEOUT_MS ||
+      process.env.OPENAI_BALANCED_TIMEOUT_MS,
+    55000
+  );
+}
+
 async function resolveFirmId(userId: string) {
   const membership = await prisma.firmMembership.findFirst({
     where: {
@@ -182,7 +225,7 @@ function holdingSummary(holdings: any[]) {
   if (!holdings.length) return "No holdings currently stored.";
 
   return holdings
-    .slice(0, 14)
+    .slice(0, 10)
     .map((holding) => {
       const pieces = [
         holding.symbol,
@@ -269,8 +312,14 @@ function fallbackDraft(input: {
   purpose: string;
   callToAction: string;
   holdingsSummary: string;
+  researchContext?: string;
 }) {
-  const subject = `A brief update from your advisor`;
+  const subject =
+    input.topic.length > 80 ? "A brief update from your advisor" : `A brief update: ${input.topic}`;
+
+  const contextLine = input.researchContext
+    ? `I also reviewed the following context while preparing this note: ${input.researchContext}`
+    : "";
 
   const body = [
     `Hello ${input.clientName},`,
@@ -280,6 +329,8 @@ function fallbackDraft(input: {
     input.purpose
       ? `The purpose of this note is to ${input.purpose}.`
       : "The purpose of this note is to keep you informed in a calm, clear, and useful way.",
+    "",
+    contextLine,
     "",
     "The most important point is that we are monitoring the relevant information while keeping your broader financial plan in mind. Headlines and market conditions can move quickly, but any decision should be reviewed in the context of your goals, time horizon, risk tolerance, liquidity needs, and overall plan.",
     "",
@@ -301,6 +352,65 @@ function fallbackDraft(input: {
   return { subject, body };
 }
 
+function compactEmailPrompt(input: {
+  advisorName: string;
+  advisorEmail: string;
+  clientName: string;
+  topic: string;
+  purpose: string;
+  callToAction: string;
+  tone: string;
+  advisorInstructions: string;
+  clientContext: string;
+  holdingsSummary: string;
+  researchContext: string;
+  draftDepth: string;
+}) {
+  return JSON.stringify(
+    {
+      task: "Create one original advisor-client email draft. Do not use a template. Return strict JSON only.",
+      output: {
+        subject: "string",
+        body: "string",
+        strategy: "string",
+        researchSummary: "string",
+        sourceNotes: ["string"],
+        complianceNotes: ["string"],
+      },
+      advisor: {
+        name: input.advisorName,
+        email: input.advisorEmail,
+      },
+      client: {
+        name: input.clientName,
+        context: input.clientContext,
+        holdings: input.holdingsSummary,
+      },
+      request: {
+        topic: input.topic,
+        purpose: input.purpose,
+        tone: input.tone,
+        depth: input.draftDepth,
+        instructions: input.advisorInstructions,
+        researchContext: input.researchContext,
+        callToAction: input.callToAction,
+      },
+      rules: [
+        "Write from scratch in a polished advisor voice.",
+        "Use plain English and keep the body concise, normally 180-350 words unless the requested depth requires more.",
+        "Do not guarantee outcomes.",
+        "Do not promise performance.",
+        "Do not give tax or legal advice as a final conclusion.",
+        "Do not instruct buy, sell, hold, rebalance, allocate, or liquidate unless the advisor explicitly supplied approved recommendation language.",
+        "Do not invent client facts, performance figures, product details, testimonials, or unsupported statistics.",
+        "Include advisor review/compliance notes.",
+      ],
+    },
+    null,
+    2
+  );
+}
+
 async function draftEmailWithAi(input: {
   advisorName: string;
   advisorEmail: string;
@@ -312,59 +422,43 @@ async function draftEmailWithAi(input: {
   advisorInstructions: string;
   clientContext: string;
   holdingsSummary: string;
+  researchContext: string;
+  draftDepth: string;
+  useOpenAiResearch: boolean;
   fallbackSubject: string;
   fallbackBody: string;
 }) {
+  const useResearchMode = input.useOpenAiResearch === true;
+  const model = emailAiModel(useResearchMode);
+  const timeoutMs = emailAiTimeoutMs(useResearchMode);
+
   const ai = await generateAiText({
     safetyIdentifier: input.advisorEmail,
-    speedMode: "quality",
+    speedMode: useResearchMode ? "quality" : "fast",
+    model,
+    timeoutMs,
     useCache: false,
+    enableWebSearch: useResearchMode,
     instructions: `
-You are a senior wealth-management communications strategist.
-
-Create one thoughtful client email draft.
-
-Strict rules:
-- Return only valid JSON with exactly these keys: "subject", "body", "strategy", "complianceNotes".
-- "subject" must be concise, professional, and not clickbait.
-- "body" must be polished, warm, calm, useful, and client-friendly.
-- Think before drafting: tailor the message to the client context and holdings summary.
-- Do not guarantee outcomes.
-- Do not instruct the client to buy or sell.
-- Do not imply a final recommendation unless the advisor explicitly says so.
-- Do not invent facts, performance numbers, tax claims, or legal conclusions.
-- If the advisor provides a call to action, include it naturally.
-- Keep the email ready for advisor review and easy to edit.
-- Use the requested tone while remaining professional.
+You are a senior wealth-management communications strategist. Create concise, polished, original advisor-client emails. Return only strict JSON. Never use templates. Never provide unsupported recommendations, guarantees, or performance promises.
 `,
-    prompt: JSON.stringify(
-      {
-        advisorName: input.advisorName,
-        clientName: input.clientName,
-        topic: input.topic,
-        purpose: input.purpose,
-        tone: input.tone,
-        advisorInstructions: input.advisorInstructions,
-        callToAction: input.callToAction,
-        clientContext: input.clientContext,
-        holdingsSummary: input.holdingsSummary,
-        fallbackDraft: {
-          subject: input.fallbackSubject,
-          body: input.fallbackBody,
-        },
-      },
-      null,
-      2
-    ),
+    prompt: compactEmailPrompt(input),
     fallbackText: JSON.stringify({
       subject: input.fallbackSubject,
       body: input.fallbackBody,
       strategy:
-        "Fallback draft used because AI was unavailable. The message remains calm, professional, and review-safe.",
+        `Fallback draft used because OpenAI did not complete within ${timeoutMs}ms or returned an invalid response.`,
+      researchSummary:
+        "OpenAI did not complete for this request. Advisor should verify any facts and source context before sending.",
+      sourceNotes: [
+        `Model attempted: ${model}.`,
+        `Timeout limit used: ${timeoutMs}ms.`,
+        "Advisor should verify facts and source context before sending.",
+      ],
       complianceNotes: [
         "Advisor review required before sending.",
         "No performance guarantee included.",
-        "No trading instruction included.",
+        "No trade instruction included.",
       ],
     }),
   });
@@ -373,12 +467,21 @@ Strict rules:
     subject?: string;
     body?: string;
     strategy?: string;
+    researchSummary?: string;
+    sourceNotes?: string[];
     complianceNotes?: string[];
   }>(ai.text || "", {
     subject: input.fallbackSubject,
     body: input.fallbackBody,
     strategy:
       "Fallback draft used because AI was unavailable or returned non-JSON output.",
+    researchSummary:
+      "AI research synthesis was unavailable. Advisor should confirm any facts before sending.",
+    sourceNotes: [
+      `Model attempted: ${model}.`,
+      `Status: ${ai.status}.`,
+      ai.error ? `Error: ${ai.error}` : "No source package generated.",
+    ].filter(Boolean),
     complianceNotes: [
       "Advisor review required before sending.",
       "No performance guarantee included.",
@@ -389,7 +492,14 @@ Strict rules:
   return {
     subject: cleanText(parsed.subject, input.fallbackSubject),
     body: cleanMultiline(parsed.body, input.fallbackBody),
-    strategy: cleanMultiline(parsed.strategy, "Review-safe advisor email draft."),
+    strategy: cleanMultiline(parsed.strategy, "Original advisor email draft prepared for review."),
+    researchSummary: cleanMultiline(
+      parsed.researchSummary,
+      "Research synthesis unavailable. Advisor should confirm any facts before sending."
+    ),
+    sourceNotes: Array.isArray(parsed.sourceNotes)
+      ? parsed.sourceNotes.map((item) => cleanText(item)).filter(Boolean)
+      : [],
     complianceNotes: Array.isArray(parsed.complianceNotes)
       ? parsed.complianceNotes.map((item) => cleanText(item)).filter(Boolean)
       : [
@@ -401,6 +511,9 @@ Strict rules:
     aiProvider: ai.provider,
     aiStatus: ai.status,
     aiError: ai.error ?? null,
+    aiModel: ai.model ?? model,
+    aiLatencyMs: ai.latencyMs ?? null,
+    aiTimeoutMs: timeoutMs,
   };
 }
 
@@ -552,6 +665,9 @@ async function createScratchAiDraft(input: {
   tone: string;
   advisorInstructions: string;
   callToAction: string;
+  researchContext: string;
+  draftDepth: string;
+  useOpenAiResearch: boolean;
   queueForApproval: boolean;
 }) {
   const fallback = fallbackDraft({
@@ -561,6 +677,7 @@ async function createScratchAiDraft(input: {
     purpose: input.purpose,
     callToAction: input.callToAction,
     holdingsSummary: "",
+    researchContext: input.researchContext,
   });
 
   const aiDraft = await draftEmailWithAi({
@@ -575,6 +692,9 @@ async function createScratchAiDraft(input: {
     clientContext:
       "This is a scratch email draft. No specific client is assigned yet. Write it so the advisor can quickly adapt it for one or more recipients.",
     holdingsSummary: "No specific holdings attached because this is a scratch draft.",
+    researchContext: input.researchContext,
+    draftDepth: input.draftDepth,
+    useOpenAiResearch: input.useOpenAiResearch,
     fallbackSubject: fallback.subject,
     fallbackBody: fallback.body,
   });
@@ -588,12 +708,20 @@ async function createScratchAiDraft(input: {
     tone: input.tone,
     advisorInstructions: input.advisorInstructions,
     callToAction: input.callToAction,
+    researchContext: input.researchContext,
+    draftDepth: input.draftDepth,
+    useOpenAiResearch: input.useOpenAiResearch,
     ai: {
       polished: aiDraft.aiPolished,
       provider: aiDraft.aiProvider,
       status: aiDraft.aiStatus,
       error: aiDraft.aiError,
       strategy: aiDraft.strategy,
+      researchSummary: aiDraft.researchSummary,
+      sourceNotes: aiDraft.sourceNotes,
+      model: aiDraft.aiModel,
+      latencyMs: aiDraft.aiLatencyMs,
+      timeoutMs: aiDraft.aiTimeoutMs,
     },
     createdBy: input.user.email,
     createdAt: new Date().toISOString(),
@@ -611,12 +739,17 @@ async function createScratchAiDraft(input: {
       title: encryptSensitiveText(aiDraft.subject) ?? aiDraft.subject,
       body: encryptSensitiveText(aiDraft.body) ?? aiDraft.body,
       sourceSummaryJson: asJson(metadata),
-      complianceNotesJson: asJson([
-        "Scratch draft. Assign or adapt to a client before sending.",
-        "Advisor review is required before sending.",
-        "No performance outcome is promised.",
-        "No standalone buy/sell instruction is included.",
-      ]),
+      complianceNotesJson: asJson(
+        Array.from(
+          new Set([
+            "Scratch draft. Assign or adapt to a client before sending.",
+            "Advisor review is required before sending.",
+            "No performance outcome is promised.",
+            "No standalone buy/sell instruction is included.",
+            ...aiDraft.complianceNotes,
+          ])
+        )
+      ),
       status: input.queueForApproval ? "Needs Advisor Approval" : "Draft",
       tone: input.tone,
     },
@@ -633,6 +766,7 @@ async function createScratchAiDraft(input: {
     aiPolished: aiDraft.aiPolished,
     aiProvider: aiDraft.aiProvider,
     aiStatus: aiDraft.aiStatus,
+    aiError: aiDraft.aiError,
   };
 }
 
@@ -652,6 +786,9 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
   );
   const advisorInstructions = cleanMultiline(input.advisorInstructions);
   const callToAction = cleanMultiline(input.callToAction);
+  const researchContext = cleanMultiline(input.researchContext);
+  const draftDepth = cleanText(input.draftDepth, "Concise advisor email draft");
+  const useOpenAiResearch = input.useOpenAiResearch === true;
   const queueForApproval = input.queueForApproval === true;
 
   const clients = await getTargetClients({
@@ -672,6 +809,9 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       tone,
       advisorInstructions,
       callToAction,
+      researchContext,
+      draftDepth,
+      useOpenAiResearch,
       queueForApproval: false,
     });
 
@@ -680,11 +820,17 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       eventType: "client_email.scratch_ai_draft_created",
       severity: "Low",
       area: "Client Communication",
-      title: "Scratch AI email draft created",
-      detail: "An AI scratch email draft was created without assigned recipients.",
+      title: "OpenAI scratch email draft created",
+      detail:
+        "An AI scratch email draft was created without assigned recipients.",
       metadata: {
         draftId: scratchDraft.id,
         topic,
+        draftDepth,
+        useOpenAiResearch,
+        openAiStatus: scratchDraft.aiStatus,
+        openAiProvider: scratchDraft.aiProvider,
+        openAiError: scratchDraft.aiError,
       },
     });
 
@@ -693,8 +839,9 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       skippedMissingEmail: 0,
       approval: null,
       drafts: [scratchDraft],
-      message:
-        "1 AI scratch email draft created. Select clients later or copy/adapt this draft for many recipients.",
+      message: scratchDraft.aiPolished
+        ? "1 original OpenAI email draft created."
+        : `1 scratch draft created using fallback. OpenAI did not complete for this request. Status: ${scratchDraft.aiStatus}. Provider: ${scratchDraft.aiProvider}.`,
     };
   }
 
@@ -725,6 +872,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       purpose,
       callToAction,
       holdingsSummary: summary,
+      researchContext,
     });
 
     const aiDraft = await draftEmailWithAi({
@@ -738,6 +886,9 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       advisorInstructions,
       clientContext,
       holdingsSummary: summary,
+      researchContext,
+      draftDepth,
+      useOpenAiResearch,
       fallbackSubject: fallback.subject,
       fallbackBody: fallback.body,
     });
@@ -751,6 +902,9 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       tone,
       advisorInstructions,
       callToAction,
+      researchContext,
+      draftDepth,
+      useOpenAiResearch,
       clientContext,
       holdings: holdings.map((holding: any) => ({
         symbol: holding.symbol,
@@ -766,6 +920,11 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
         status: aiDraft.aiStatus,
         error: aiDraft.aiError,
         strategy: aiDraft.strategy,
+        researchSummary: aiDraft.researchSummary,
+        sourceNotes: aiDraft.sourceNotes,
+        model: aiDraft.aiModel,
+        latencyMs: aiDraft.aiLatencyMs,
+        timeoutMs: aiDraft.aiTimeoutMs,
       },
       createdBy: input.user.email,
       createdAt: new Date().toISOString(),
@@ -810,6 +969,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       aiPolished: aiDraft.aiPolished,
       aiProvider: aiDraft.aiProvider,
       aiStatus: aiDraft.aiStatus,
+      aiError: aiDraft.aiError,
     });
   }
 
@@ -820,12 +980,14 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
       user: input.user,
       firmId,
       draftIds: drafts.map((draft) => draft.id),
-      title: `Approve AI client email drafts: ${topic}`,
-      summary: `${drafts.length} AI-generated client email draft(s) are ready for advisor approval and sending.`,
+      title: `Approve OpenAI client email drafts: ${topic}`,
+      summary: `${drafts.length} client email draft(s) are ready for advisor approval and sending.`,
       metadata: {
         topic,
         purpose,
         tone,
+        draftDepth,
+        useOpenAiResearch,
         createdAt: new Date().toISOString(),
       },
     });
@@ -833,17 +995,26 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
 
   await recordSecurityEvent({
     userId: input.user.id,
-    eventType: "client_email.ai_drafts_created",
+    eventType: "client_email.openai_drafts_created",
     severity: "Medium",
     area: "Client Communication",
-    title: "AI client email drafts created",
+    title: "OpenAI client email drafts created",
     detail: `${drafts.length} AI client email draft(s) created.`,
     metadata: {
       draftIds: drafts.map((draft) => draft.id),
       approvalId: approval?.id ?? null,
       topic,
+      draftDepth,
+      useOpenAiResearch,
       clientCount: drafts.length,
       skippedMissingEmail,
+      aiStatuses: drafts.map((draft) => ({
+        draftId: draft.id,
+        clientName: draft.clientName,
+        aiStatus: draft.aiStatus,
+        aiProvider: draft.aiProvider,
+        aiError: draft.aiError,
+      })),
     },
   });
 
@@ -852,7 +1023,7 @@ export async function createAiClientEmailDrafts(input: CreateAiDraftInput) {
     skippedMissingEmail,
     approval,
     drafts,
-    message: `${drafts.length} thoughtful AI client email draft(s) created${
+    message: `${drafts.length} AI client email draft(s) created${
       queueForApproval ? " and queued for advisor approval" : ""
     }.`,
   };
@@ -1104,23 +1275,12 @@ export async function polishExistingClientEmailDraft(input: PolishDraftInput) {
 
   const ai = await generateAiText({
     safetyIdentifier: input.user.email,
-    speedMode: "quality",
+    speedMode: "fast",
+    model: process.env.OPENAI_EMAIL_MODEL || process.env.OPENAI_FAST_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+    timeoutMs: emailAiTimeoutMs(false),
     useCache: false,
     instructions: `
-You are a senior wealth-management communications editor.
-
-Improve the existing email draft.
-
-Strict requirements:
-- Return only valid JSON with exactly these keys: "subject", "body", "strategy", "complianceNotes".
-- Perfect grammar.
-- Clear, polished, professional, and easy to understand.
-- Reassuring without sounding dismissive.
-- No hype.
-- No guarantees.
-- No unsupported investment recommendation.
-- Do not add facts that are not already present.
-- Preserve the advisor's meaning.
+You are a senior wealth-management communications editor. Return only valid JSON with exactly these keys: "subject", "body", "strategy", "complianceNotes". Improve grammar, clarity, tone, and compliance safety. Do not add new facts.
 `,
     prompt: JSON.stringify(
       {

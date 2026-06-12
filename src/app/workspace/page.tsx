@@ -41,6 +41,7 @@ type Tab =
   | "alternatives"
   | "briefings"
   | "notifications"
+  | "compliance"
   | "security"
   | "system";
 
@@ -262,6 +263,24 @@ type ModuleCardConfig = {
   meta?: Array<[string, string | number]>;
 };
 
+type ComplianceControl = {
+  id: string;
+  title: string;
+  ruleArea: string;
+  status: "Active" | "Advisor Review" | "Compliance Review" | "Needs Firm Policy" | "Production Wiring";
+  tone: Tone;
+  summary: string;
+  evidence: string;
+};
+
+type ComplianceGate = {
+  id: string;
+  title: string;
+  trigger: string;
+  action: string;
+  tone: Tone;
+};
+
 const EMPTY_COMMAND: CommandOverview = {
   readinessScore: 0,
   counts: {
@@ -327,6 +346,158 @@ const EMPTY_FIRM_WORKSPACE: FirmWorkspace = {
   },
 };
 
+const SLICE_COMPLIANCE_PROFILE = {
+  readinessScore: 84,
+  positioning:
+    "Slice is an advisor workflow, intelligence, supervision, and documentation layer. It helps advisors move faster, but it should not replace the advisor, supervisor, CCO, firm policy, legal counsel, or regulatory review process.",
+  noAutoSendRule:
+    "AI may draft, summarize, rank, and prepare. It should not automatically send client-specific advice, trade instructions, performance advertising, testimonials, endorsements, private investment opportunities, or recommendation language without human approval.",
+  controls: [
+    {
+      id: "human-review",
+      title: "Human approval before client delivery",
+      ruleArea: "Advisor supervision",
+      status: "Active",
+      tone: "green",
+      summary:
+        "Client-facing communications are treated as drafts until reviewed by the advisor, supervisor, or compliance depending on risk.",
+      evidence:
+        "AI output is positioned as preparation, not final advice or automatic delivery.",
+    },
+    {
+      id: "books-records",
+      title: "Books-and-records package",
+      ruleArea: "Record retention",
+      status: "Active",
+      tone: "green",
+      summary:
+        "Drafts, final text, source packages, approval decisions, delivery metadata, and recommendation rationale should be retained.",
+      evidence:
+        "Workspace counts retained decisions, audit logs, briefings, deliveries, and required disclosures.",
+    },
+    {
+      id: "marketing-review",
+      title: "Marketing and performance pre-clearance",
+      ruleArea: "Marketing Rule",
+      status: "Compliance Review",
+      tone: "amber",
+      summary:
+        "Testimonials, endorsements, third-party ratings, performance claims, hypothetical performance, and public/prospect content require compliance review.",
+      evidence:
+        "Reports, briefings, email, and AI-generated output are labeled as approval-gated.",
+    },
+    {
+      id: "privacy-pii",
+      title: "Client data minimization",
+      ruleArea: "Privacy / customer information",
+      status: "Production Wiring",
+      tone: "amber",
+      summary:
+        "Client identifiers, account details, tax details, and personal information should be minimized in AI prompts and routed through approved systems.",
+      evidence:
+        "Client and portfolio descriptions avoid exposing allocation details in the workspace copy.",
+    },
+    {
+      id: "ai-governance",
+      title: "AI prompt and output governance",
+      ruleArea: "AI / vendor oversight",
+      status: "Needs Firm Policy",
+      tone: "cyan",
+      summary:
+        "Prompt, output, model/vendor, source basis, reviewer, edits, and final decision should be logged before production use.",
+      evidence:
+        "AI Studio is framed as advisor-ready preparation, not autonomous regulated advice.",
+    },
+    {
+      id: "source-substantiation",
+      title: "Source-backed claims",
+      ruleArea: "Substantiation",
+      status: "Active",
+      tone: "green",
+      summary:
+        "Market alerts, client briefings, and opportunity items should preserve source links and rationale before an advisor uses them.",
+      evidence:
+        "Intelligence, radar, and briefings are described as source-backed and retained.",
+    },
+  ] satisfies ComplianceControl[],
+  communicationGates: [
+    {
+      id: "recommendation-gate",
+      title: "Recommendation language",
+      trigger:
+        "Mentions buy, sell, rebalance, allocate, switch, reduce, increase, suitability, or specific securities advice.",
+      action:
+        "Require advisor review, client objective context, suitability/risk rationale, and retained source package.",
+      tone: "red",
+    },
+    {
+      id: "performance-gate",
+      title: "Performance or projection language",
+      trigger:
+        "Mentions past performance, backtests, forecasts, expected return, alpha, win rate, or model performance.",
+      action:
+        "Require compliance review, assumptions, net/gross treatment, time period, risks, limitations, and substantiation.",
+      tone: "amber",
+    },
+    {
+      id: "marketing-gate",
+      title: "Prospect or public-facing material",
+      trigger:
+        "Anything used for websites, social posts, public campaigns, prospect emails, seminars, ads, or general promotion.",
+      action:
+        "Route through marketing review before use and retain final version plus approval evidence.",
+      tone: "amber",
+    },
+    {
+      id: "testimonial-gate",
+      title: "Testimonials, endorsements, and ratings",
+      trigger:
+        "Client reviews, third-party ratings, paid promoters, referral quotes, five-star language, or endorsement claims.",
+      action:
+        "Require compliance review for disclosure, compensation, conflicts, oversight, written agreement, and disqualification checks.",
+      tone: "red",
+    },
+    {
+      id: "privacy-gate",
+      title: "Client PII or nonpublic personal information",
+      trigger:
+        "Names, emails, account data, tax facts, estate details, SSNs, birth dates, custodial information, or household financial facts.",
+      action:
+        "Minimize, permission, route through approved channels, and record privacy handling.",
+      tone: "purple",
+    },
+  ] satisfies ComplianceGate[],
+  booksAndRecordsPackage: [
+    "Original AI prompt",
+    "AI output",
+    "Human edits",
+    "Final approved version",
+    "Source links and documents",
+    "Assumptions and calculations",
+    "Recommendation rationale",
+    "Reviewer name, role, and timestamp",
+    "Approval or rejection decision",
+    "Delivery channel and recipient metadata",
+  ],
+  aiGuardrails: [
+    "AI output is draft-only until reviewed.",
+    "No client-specific recommendation should be sent without advisor approval.",
+    "No trade instruction should be sent without firm-approved workflow controls.",
+    "No marketing, testimonial, rating, or performance content should bypass compliance.",
+    "Every claim should be source-backed or labeled as internal analysis.",
+    "Prompt and output records should be retained in production.",
+  ],
+  prohibitedAutomations: [
+    "Auto-send investment recommendations",
+    "Auto-send trade instructions",
+    "Auto-send performance advertising",
+    "Auto-send testimonials or endorsements",
+    "Auto-send private investment opportunities",
+    "Use personal email or SMS without approved archiving",
+    "Delete drafts, source packages, or approval logs before retention period",
+  ],
+};
+
 const tabs: Array<{
   id: Tab;
   label: string;
@@ -341,7 +512,7 @@ const tabs: Array<{
   { id: "team-board", label: "Team Board", compact: "Team", description: "Delegate", icon: "team", tone: "green", group: "Firm" },
   { id: "firm-calendar", label: "Calendar", compact: "Calendar", description: "Due dates", icon: "calendar", tone: "purple", group: "Firm" },
   { id: "clients", label: "Clients", compact: "Clients", description: "CRM", icon: "client", tone: "purple", group: "Advisor" },
-  { id: "emails", label: "Email Center", compact: "Email", description: "Draft/send", icon: "mail", tone: "green", group: "Advisor" },
+  { id: "emails", label: "Email Center", compact: "Email", description: "Draft/review", icon: "mail", tone: "green", group: "Advisor" },
   { id: "notifications", label: "Alerts", compact: "Alerts", description: "Delivery", icon: "bell", tone: "amber", group: "Advisor" },
   { id: "watchlists", label: "Markets", compact: "Markets", description: "Visuals", icon: "market", tone: "amber", group: "Markets" },
   { id: "intelligence", label: "Intelligence", compact: "Intel", description: "Signals", icon: "signal", tone: "red", group: "Markets" },
@@ -349,6 +520,7 @@ const tabs: Array<{
   { id: "comparison", label: "Compare", compact: "Compare", description: "Risk", icon: "compare", tone: "slate", group: "Markets" },
   { id: "alternatives", label: "Alternatives", compact: "Alts", description: "Private", icon: "diamond", tone: "amber", group: "Markets" },
   { id: "briefings", label: "Reports", compact: "Reports", description: "Client output", icon: "report", tone: "cyan", group: "Research" },
+  { id: "compliance", label: "Compliance", compact: "Compliance", description: "Review gates", icon: "shield", tone: "red", group: "System" },
   { id: "security", label: "Security", compact: "Security", description: "Audit", icon: "shield", tone: "red", group: "System" },
   { id: "system", label: "System", compact: "System", description: "Kernel", icon: "system", tone: "cyan", group: "System" },
 ];
@@ -412,13 +584,6 @@ function money(value: number) {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
-  }).format(value || 0);
-}
-
-function compactNumber(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
   }).format(value || 0);
 }
 
@@ -578,6 +743,16 @@ function advisorReadinessLabel(score: number) {
   return "Setup needed";
 }
 
+function getComplianceTone(score: number): Tone {
+  if (score >= 80) return "green";
+  if (score >= 65) return "amber";
+  return "red";
+}
+
+function getActiveComplianceControlCount() {
+  return SLICE_COMPLIANCE_PROFILE.controls.filter((control) => control.status === "Active").length;
+}
+
 function IconSvg({ name }: { name: IconName }) {
   const common = "stroke-current";
   const strokeProps = {
@@ -605,7 +780,6 @@ function IconSvg({ name }: { name: IconName }) {
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
         <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
         <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
-        <path d="M5 16l.7 1.6L7.3 18l-1.6.7L5 20.3l-.7-1.6L2.7 18l1.6-.7L5 16z" />
       </svg>
     );
   }
@@ -793,32 +967,45 @@ function IconSvg({ name }: { name: IconName }) {
   if (name === "chart") {
     return (
       <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M4 19h16" />
-        <path d="M6 16V9" />
-        <path d="M12 16V5" />
-        <path d="M18 16v-7" />
+        <path d="M4 20V5" />
+        <path d="M4 20h16" />
+        <path d="M8 16v-5" />
+        <path d="M12 16V8" />
+        <path d="M16 16v-3" />
+        <path d="M20 16V6" />
       </svg>
     );
   }
 
-  if (name === "lock") {
-    return (
-      <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
-        <path d="M6 11h12v9H6z" />
-        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-        <path d="M12 15v2" />
-      </svg>
-    );
-  }
-
-  return null;
+  return (
+    <svg viewBox="0 0 24 24" className={common} {...strokeProps}>
+      <path d="M7 10V7a5 5 0 0 1 10 0v3" />
+      <path d="M5 10h14v11H5z" />
+      <path d="M12 15v2" />
+    </svg>
+  );
 }
 
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+function LogoMark({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/74 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative grid place-items-center overflow-hidden rounded-[1.1rem] border border-red-500/35 bg-gradient-to-br from-red-500/25 via-black to-zinc-950 shadow-lg shadow-red-950/40",
+        compact ? "h-11 w-11" : "h-14 w-14"
+      )}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(248,113,113,0.45),transparent_32%)]" />
+      <div className="relative text-xl font-black tracking-tight text-white">S</div>
+      <div className="absolute bottom-2 h-0.5 w-7 rotate-[-18deg] rounded-full bg-red-400" />
+    </div>
+  );
+}
+
+function Card({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-zinc-950/72 shadow-2xl shadow-black/35 backdrop-blur-xl",
         className
       )}
     >
@@ -829,98 +1016,70 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 function Panel({
   children,
-  className = "",
   tone = "slate",
+  className,
 }: {
   children: ReactNode;
-  className?: string;
   tone?: Tone;
+  className?: string;
 }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.052] p-4 shadow-lg shadow-black/10", className)}>
-      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glowClasses[tone])} />
-      <div className="relative">{children}</div>
+    <div className={cx("rounded-[1.35rem] border p-4 shadow-lg", toneClasses[tone], className)}>
+      {children}
     </div>
   );
 }
 
-function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) {
+function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
   return (
-    <span
-      className={cx(
-        "inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
-        toneClasses[tone]
-      )}
-    >
-      <span className="truncate">{children}</span>
+    <span className={cx("inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black", toneClasses[tone])}>
+      {children}
     </span>
   );
 }
 
-function LogoMark({ compact = false }: { compact?: boolean }) {
+function ProgressBar({ value, tone = "red" }: { value: number; tone?: Tone }) {
+  const fill =
+    tone === "green"
+      ? "bg-emerald-400"
+      : tone === "amber"
+        ? "bg-amber-400"
+        : tone === "purple"
+          ? "bg-purple-400"
+          : tone === "cyan"
+            ? "bg-cyan-400"
+            : tone === "slate"
+              ? "bg-slate-400"
+              : "bg-red-400";
+
   return (
-    <div
-      className={cx(
-        "relative flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40",
-        compact ? "h-10 w-10" : "h-14 w-14"
-      )}
-    >
-      <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-      <div
-        className={cx(
-          "relative flex items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 font-black text-white shadow-inner",
-          compact ? "h-7 w-7 text-base" : "h-9 w-9 text-xl"
-        )}
-      >
-        S
-      </div>
-      <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-      <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+      <div className={cx("h-full rounded-full", fill)} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
 }
 
 function IconBadge({
   icon,
-  tone,
+  tone = "red",
   size = "md",
 }: {
   icon: IconName;
-  tone: Tone;
+  tone?: Tone;
   size?: "sm" | "md" | "lg";
 }) {
   return (
-    <div
+    <span
       className={cx(
         "grid shrink-0 place-items-center rounded-2xl border shadow-lg",
-        size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11",
-        toneClasses[tone]
+        toneClasses[tone],
+        size === "sm" ? "h-9 w-9" : size === "lg" ? "h-14 w-14" : "h-11 w-11"
       )}
     >
       <span className={cx(size === "sm" ? "h-4 w-4" : size === "lg" ? "h-7 w-7" : "h-5 w-5")}>
         <IconSvg name={icon} />
       </span>
-    </div>
-  );
-}
-
-function ProgressBar({ value, tone = "red" }: { value: number; tone?: Tone }) {
-  const fills: Record<Tone, string> = {
-    red: "from-red-700 via-red-500 to-red-300",
-    green: "from-emerald-700 via-emerald-500 to-emerald-300",
-    amber: "from-amber-700 via-amber-500 to-amber-300",
-    purple: "from-purple-700 via-purple-500 to-purple-300",
-    cyan: "from-cyan-700 via-cyan-500 to-cyan-300",
-    slate: "from-slate-700 via-slate-500 to-slate-300",
-  };
-
-  return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-black/50">
-      <div
-        className={cx("h-full rounded-full bg-gradient-to-r shadow-lg", fills[tone])}
-        style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }}
-      />
-    </div>
+    </span>
   );
 }
 
@@ -929,7 +1088,7 @@ function MetricCard({
   value,
   helper,
   tone = "red",
-  icon,
+  icon = "brain",
   dense = false,
 }: {
   label: string;
@@ -940,32 +1099,28 @@ function MetricCard({
   dense?: boolean;
 }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.05]", dense ? "p-3" : "p-4")}>
-      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glowClasses[tone])} />
-      <div className="relative">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-            <div className={cx("mt-1 truncate font-black text-white", dense ? "text-xl" : "text-2xl")}>{value}</div>
-            {helper ? <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">{helper}</div> : null}
-          </div>
-          {icon ? <IconBadge icon={icon} tone={tone} size="sm" /> : null}
+    <Panel tone={tone} className={cx("relative overflow-hidden", dense ? "p-3" : "p-4")}>
+      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b to-transparent", glowClasses[tone])} />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+          <div className={cx("mt-1 truncate font-black text-white", dense ? "text-2xl" : "text-3xl")}>{value}</div>
+          {helper ? <div className="mt-1 truncate text-[11px] font-semibold text-slate-500">{helper}</div> : null}
         </div>
+        <IconBadge icon={icon} tone={tone} size="sm" />
       </div>
-    </div>
+    </Panel>
   );
 }
 
 function OrbitGraphic() {
   return (
-    <div className="pointer-events-none absolute right-0 top-0 hidden h-full w-[520px] opacity-70 2xl:block">
-      <div className="absolute right-[-120px] top-[-120px] h-[420px] w-[420px] rounded-full border border-red-500/20" />
-      <div className="absolute right-[40px] top-[80px] h-[260px] w-[260px] rounded-full border border-cyan-500/20" />
-      <div className="absolute right-[120px] top-[160px] h-[120px] w-[120px] rounded-full border border-purple-500/20" />
-      <div className="absolute right-[180px] top-[210px] h-14 w-14 rounded-full bg-gradient-to-br from-red-500 to-cyan-400 opacity-60 blur-2xl" />
-      <div className="absolute right-[95px] top-[95px] h-3 w-3 rounded-full bg-red-300 shadow-lg shadow-red-500/50" />
-      <div className="absolute right-[340px] top-[275px] h-3 w-3 rounded-full bg-cyan-300 shadow-lg shadow-cyan-500/50" />
-      <div className="absolute right-[230px] top-[360px] h-2.5 w-2.5 rounded-full bg-purple-300 shadow-lg shadow-purple-500/50" />
+    <div className="pointer-events-none absolute right-[-90px] top-[-120px] hidden h-[360px] w-[360px] rounded-full border border-red-500/10 opacity-80 2xl:block">
+      <div className="absolute inset-10 rounded-full border border-cyan-500/10" />
+      <div className="absolute inset-20 rounded-full border border-white/10" />
+      <div className="absolute left-16 top-28 h-3 w-3 rounded-full bg-red-400 shadow-lg shadow-red-500/50" />
+      <div className="absolute bottom-24 right-20 h-2.5 w-2.5 rounded-full bg-cyan-400 shadow-lg shadow-cyan-500/50" />
+      <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/10 blur-2xl" />
     </div>
   );
 }
@@ -974,31 +1129,27 @@ function SectionTitle({
   eyebrow,
   title,
   description,
-  action,
   compact = false,
+  action,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
-  action?: ReactNode;
   compact?: boolean;
+  action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div className="min-w-0">
+    <div className="relative flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
         {eyebrow ? (
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
             {eyebrow}
           </div>
         ) : null}
-        <h1 className={cx("mt-1.5 font-black tracking-tight text-white", compact ? "text-2xl md:text-3xl" : "text-3xl md:text-4xl")}>
+        <h2 className={cx("mt-1 font-black tracking-tight text-white", compact ? "text-xl md:text-2xl" : "text-2xl md:text-4xl")}>
           {title}
-        </h1>
-        {description ? (
-          <p className={cx("mt-2 max-w-4xl leading-6 text-slate-400", compact ? "text-xs" : "text-sm")}>
-            {description}
-          </p>
-        ) : null}
+        </h2>
+        {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{description}</p> : null}
       </div>
 
       {action ? <div className="shrink-0">{action}</div> : null}
@@ -1313,15 +1464,16 @@ function ClientShowcasePanel({
           </h2>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
             The workspace frames the firm’s workflow professionally: intelligence enters the platform,
-            the advisor reviews it, the team delegates action, and client communication becomes polished,
-            trackable, and compliance-minded.
+            the advisor reviews it, the team delegates action, client communication becomes polished,
+            and compliance gates make the process safer without making it feel complicated.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <Pill tone="cyan">AI-assisted</Pill>
             <Pill tone="green">Action-oriented</Pill>
             <Pill tone="purple">Client-ready</Pill>
-            <Pill tone="red">Source-aware</Pill>
+            <Pill tone="red">Compliance-aware</Pill>
+            <Pill tone="amber">Source-backed</Pill>
           </div>
         </div>
 
@@ -1352,34 +1504,37 @@ function CommandHealthPanel({
   const rows = [
     { label: "Advisor OS", value: readiness, tone: readiness >= 75 ? "green" : readiness >= 45 ? "amber" : "red" },
     { label: "Backend Kernel", value: kernelReadiness, tone: kernelReadiness >= 75 ? "green" : kernelReadiness >= 45 ? "amber" : "red" },
-    { label: "Alert Pressure", value: alerts ? Math.min(100, alerts * 14) : 0, tone: alerts ? "red" : "green" },
-    { label: "Execution Risk", value: failedRuns || overdue ? Math.min(100, (failedRuns + overdue) * 14) : 0, tone: failedRuns || overdue ? "amber" : "green" },
-  ] as Array<{ label: string; value: number; tone: Tone }>;
+    { label: "Compliance Layer", value: SLICE_COMPLIANCE_PROFILE.readinessScore, tone: getComplianceTone(SLICE_COMPLIANCE_PROFILE.readinessScore) },
+  ] satisfies Array<{ label: string; value: number; tone: Tone }>;
 
   return (
     <Card className="p-5">
-      <SectionTitle
-        eyebrow="Operating Health"
-        title="Know what is healthy and what needs action"
-        description="The command score blends platform setup, intelligence readiness, team execution, alerts, and backend health into one daily operating view."
-        compact
-      />
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <SectionTitle
+            eyebrow="Command Health"
+            title="One simple health view"
+            description="Readiness should be obvious: advisor workflow, backend services, compliance posture, alerts, and overdue work all show up in one place."
+            compact
+          />
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <MetricCard label="Unread Alerts" value={alerts} helper="Needs review" tone={alerts ? "red" : "green"} dense icon="bell" />
+            <MetricCard label="Failed Runs" value={failedRuns} helper="Backend" tone={failedRuns ? "red" : "green"} dense icon="system" />
+            <MetricCard label="Overdue" value={overdue} helper="Tasks" tone={overdue ? "red" : "green"} dense icon="target" />
+          </div>
+        </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {rows.map((row) => (
-          <Panel key={row.label} tone={row.tone} className="bg-black/35">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{row.label}</div>
-                <div className="mt-1 text-2xl font-black text-white">{percent(row.value)}</div>
+        <div className="grid gap-3">
+          {rows.map((row) => (
+            <div key={row.label} className="rounded-2xl border border-white/10 bg-black/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-white">{row.label}</div>
+                <Pill tone={row.tone}>{percent(row.value)}</Pill>
               </div>
-              <Pill tone={row.tone}>{row.tone === "green" ? "Good" : row.tone === "amber" ? "Review" : "Action"}</Pill>
-            </div>
-            <div className="mt-3">
               <ProgressBar value={row.value} tone={row.tone} />
             </div>
-          </Panel>
-        ))}
+          ))}
+        </div>
       </div>
     </Card>
   );
@@ -1396,63 +1551,20 @@ function SignalQualityPanel({
   deliveries: number;
   alerts: number;
 }) {
-  const rows: Array<{
-    label: string;
-    value: string | number;
-    helper: string;
-    tone: Tone;
-    icon: IconName;
-  }> = [
-    {
-      label: "Signal Discipline",
-      value: retained,
-      helper: "Retained opportunities",
-      tone: retained ? "red" : "slate",
-      icon: "radar",
-    },
-    {
-      label: "Coverage",
-      value: watchlists,
-      helper: "Tracked watchlists",
-      tone: "amber",
-      icon: "market",
-    },
-    {
-      label: "Delivery Trail",
-      value: deliveries,
-      helper: "Notification records",
-      tone: "green",
-      icon: "mail",
-    },
-    {
-      label: "Alert Surface",
-      value: alerts,
-      helper: "Total advisor alerts",
-      tone: alerts ? "red" : "green",
-      icon: "bell",
-    },
-  ];
-
   return (
-    <Card className="p-4">
+    <Card className="p-5">
       <SectionTitle
         eyebrow="Signal Quality"
-        title="Source-aware intelligence flow"
-        description="Important information should become reviewable, explainable, and actionable before it reaches a client."
+        title="Signals need sources, retained rationale, and advisor review"
+        description="Slice can move quickly, but the safer version does not just fire alerts. It retains why the alert mattered, what source supported it, and who reviewed the client-facing output."
         compact
       />
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {rows.map((row) => (
-          <div key={row.label} className={cx("rounded-[1.25rem] border p-3", toneSoft[row.tone])}>
-            <div className="flex items-start justify-between gap-3">
-              <IconBadge icon={row.icon} tone={row.tone} size="sm" />
-              <Pill tone={row.tone}>{row.value}</Pill>
-            </div>
-            <div className="mt-3 text-sm font-black text-white">{row.label}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-400">{row.helper}</div>
-          </div>
-        ))}
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MetricCard label="Retained Rationale" value={retained} helper="Decision records" tone="green" dense icon="report" />
+        <MetricCard label="Watchlists" value={watchlists} helper="Market monitoring" tone="amber" dense icon="market" />
+        <MetricCard label="Deliveries" value={deliveries} helper="Communications" tone="purple" dense icon="mail" />
+        <MetricCard label="Alerts" value={alerts} helper="Triage input" tone={alerts ? "red" : "green"} dense icon="signal" />
       </div>
     </Card>
   );
@@ -1462,68 +1574,59 @@ function VisualModuleMap({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
   const featured = moduleCards.slice(0, 8);
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
-            System Map
-          </div>
-          <h2 className="mt-1.5 text-2xl font-black text-white">Everything connects to the brain</h2>
+    <Card className="p-5">
+      <SectionTitle
+        eyebrow="Command Map"
+        title="Everything stays connected"
+        description="The advisor does not need to hunt. The most important modules stay available from the command center."
+        compact
+      />
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px_1fr]">
+        <div className="grid gap-3">
+          {featured.slice(0, 4).map((module) => (
+            <a
+              key={module.id}
+              href={module.href}
+              className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+            >
+              <div className="flex items-center gap-3">
+                <IconBadge icon={module.icon} tone={module.tone} size="sm" />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-white">{module.title}</div>
+                  <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
+                </div>
+                <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
+              </div>
+            </a>
+          ))}
         </div>
-        <Pill tone="cyan">Simplified</Pill>
-      </div>
 
-      <div className="relative mt-4 overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
-        <div className="absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500/20 blur-3xl" />
-        <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-400/20" />
-        <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-400/10" />
+        <div className="grid place-items-center rounded-[1.5rem] border border-red-500/20 bg-red-500/10 p-4">
+          <div className="text-center">
+            <LogoMark />
+            <div className="mt-3 text-lg font-black text-white">Command Brain</div>
+            <div className="mt-1 text-xs leading-5 text-slate-400">AI, data, clients, markets, team, compliance</div>
+          </div>
+        </div>
 
-        <div className="relative grid gap-3 lg:grid-cols-[1fr_220px_1fr]">
-          <div className="grid gap-3">
-            {featured.slice(0, 4).map((module) => (
-              <a
-                key={module.id}
-                href={module.href}
-                className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
-              >
-                <div className="flex items-center gap-3">
-                  <IconBadge icon={module.icon} tone={module.tone} size="sm" />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{module.title}</div>
-                    <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
-                  </div>
-                  <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
+        <div className="grid gap-3">
+          {featured.slice(4, 8).map((module) => (
+            <a
+              key={module.id}
+              href={module.href}
+              className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
+            >
+              <div className="flex items-center gap-3">
+                <IconBadge icon={module.icon} tone={module.tone} size="sm" />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-white">{module.title}</div>
+                  <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
                 </div>
-              </a>
-            ))}
-          </div>
-
-          <div className="grid place-items-center rounded-[1.5rem] border border-red-500/20 bg-red-500/10 p-4">
-            <div className="text-center">
-              <LogoMark />
-              <div className="mt-3 text-lg font-black text-white">Command Brain</div>
-              <div className="mt-1 text-xs leading-5 text-slate-400">AI, data, clients, markets, team, alerts</div>
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            {featured.slice(4, 8).map((module) => (
-              <a
-                key={module.id}
-                href={module.href}
-                className="group rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
-              >
-                <div className="flex items-center gap-3">
-                  <IconBadge icon={module.icon} tone={module.tone} size="sm" />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{module.title}</div>
-                    <div className="truncate text-[11px] font-semibold text-slate-500">{module.subtitle}</div>
-                  </div>
-                  <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
-                </div>
-              </a>
-            ))}
-          </div>
+                <span className="ml-auto text-slate-600 transition group-hover:text-white">→</span>
+              </div>
+            </a>
+          ))}
         </div>
       </div>
     </Card>
@@ -1555,14 +1658,14 @@ function AdvisorWorkflowBlueprint({
       icon: "target",
     },
     {
-      title: "Act",
-      body: "Delegate through Team Board and track completion visibly.",
-      tone: "green",
-      icon: "team",
+      title: "Review",
+      body: "Compliance gates check advice, marketing, performance, testimonials, and privacy concerns.",
+      tone: "red",
+      icon: "shield",
     },
     {
       title: "Communicate",
-      body: `${clientCount} client profile(s) available for polished communication.`,
+      body: `${clientCount} client profile(s) available for polished, approval-aware communication.`,
       tone: "purple",
       icon: "mail",
     },
@@ -1573,7 +1676,7 @@ function AdvisorWorkflowBlueprint({
       <SectionTitle
         eyebrow="Daily Flow"
         title="Four-step advisor workflow"
-        description="A simple rhythm makes adoption easier: scan, prioritize, act, communicate."
+        description="A simple rhythm makes adoption easier: scan, prioritize, review, communicate."
         compact
       />
 
@@ -1609,7 +1712,7 @@ function CompactActivityPanel({
         <SectionTitle
           eyebrow="Activity"
           title="Recent workspace activity"
-          description="Firm messages, ideas, notes, and shared updates."
+          description="Firm messages, ideas, notes, shared updates, and internal context."
           compact
         />
 
@@ -1641,7 +1744,7 @@ function CompactActivityPanel({
         <SectionTitle
           eyebrow="Open Notifications"
           title="What still needs review"
-          description="Unread dashboard notifications and urgent alerts."
+          description="Unread dashboard notifications, urgent alerts, and review-worthy items."
           compact
         />
 
@@ -1702,11 +1805,11 @@ function AdoptionPanel({
       icon: "client",
     },
     {
-      title: "First market review",
-      body: "Open Market Visuals and Opportunity Radar for technical and source-backed context.",
-      href: "/market-visuals",
+      title: "First compliance review",
+      body: "Open Compliance to show human approval, source retention, and communication gates.",
+      href: "/workspace?tab=compliance",
       tone: "red",
-      icon: "market",
+      icon: "shield",
     },
   ] satisfies Array<{ title: string; body: string; href: string; tone: Tone; icon: IconName }>;
 
@@ -1717,7 +1820,7 @@ function AdoptionPanel({
           <SectionTitle
             eyebrow="Adoption"
             title="Make the platform obvious in the first session"
-            description="The workspace should not feel like a maze. It should tell a new advisor exactly where to start and why each area matters."
+            description="The workspace should not feel like a maze. It should tell a new advisor exactly where to start, where compliance lives, and why each area matters."
             compact
           />
 
@@ -1765,7 +1868,7 @@ function CohesionMatrix({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
       <SectionTitle
         eyebrow="Workspace Cohesion"
         title="Every module has a clean purpose"
-        description="The workspace now removes low-signal entries while keeping the high-value advisor operating flow intact."
+        description="The workspace stays consolidated while compliance is added as a native operating layer, not a separate maze."
         compact
       />
 
@@ -1793,9 +1896,269 @@ function CohesionMatrix({ moduleCards }: { moduleCards: ModuleCardConfig[] }) {
   );
 }
 
+function ComplianceStatusStrip() {
+  const activeControls = getActiveComplianceControlCount();
+  const totalControls = SLICE_COMPLIANCE_PROFILE.controls.length;
+  const scoreTone = getComplianceTone(SLICE_COMPLIANCE_PROFILE.readinessScore);
+
+  return (
+    <Card className="p-4">
+      <SectionTitle
+        eyebrow="Compliance Layer"
+        title="Advisor supervision added without changing the workspace"
+        description="Slice still feels like the same command brain, but now client communications, AI output, performance language, testimonials, private opportunities, and recommendations are routed through visible review gates."
+        compact
+        action={
+          <BeautifulButton href="/workspace?tab=compliance" tone="red" compact>
+            Open Compliance
+          </BeautifulButton>
+        }
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MetricCard
+          label="Compliance Score"
+          value={percent(SLICE_COMPLIANCE_PROFILE.readinessScore)}
+          helper="Demo posture"
+          tone={scoreTone}
+          dense
+          icon="shield"
+        />
+        <MetricCard
+          label="Active Controls"
+          value={`${activeControls}/${totalControls}`}
+          helper="Workflow guardrails"
+          tone="green"
+          dense
+          icon="lock"
+        />
+        <MetricCard
+          label="Auto-Send Advice"
+          value="Off"
+          helper="Human review required"
+          tone="red"
+          dense
+          icon="mail"
+        />
+        <MetricCard
+          label="Record Package"
+          value="Required"
+          helper="Sources + approvals"
+          tone="cyan"
+          dense
+          icon="report"
+        />
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-3">
+        {SLICE_COMPLIANCE_PROFILE.communicationGates.slice(0, 3).map((gate) => (
+          <div key={gate.id} className={cx("rounded-[1.35rem] border p-4", toneSoft[gate.tone])}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-white">{gate.title}</div>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">
+                  {gate.trigger}
+                </p>
+              </div>
+              <Pill tone={gate.tone}>Gate</Pill>
+            </div>
+            <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
+              {gate.action}
+            </p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ComplianceCenterModule() {
+  const activeControls = getActiveComplianceControlCount();
+  const totalControls = SLICE_COMPLIANCE_PROFILE.controls.length;
+  const scoreTone = getComplianceTone(SLICE_COMPLIANCE_PROFILE.readinessScore);
+
+  return (
+    <section className="grid gap-4">
+      <Card className="p-5">
+        <SectionTitle
+          eyebrow="Compliance"
+          title="Advisor compliance command layer"
+          description="This is an addition to the current Slice workspace. It adds review gates, recordkeeping awareness, AI governance, marketing controls, privacy controls, and advisor supervision without replacing the original command center."
+          compact
+          action={<Pill tone="red">No auto-send advice</Pill>}
+        />
+
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <MetricCard
+            label="Posture"
+            value={percent(SLICE_COMPLIANCE_PROFILE.readinessScore)}
+            helper="Compliance readiness"
+            tone={scoreTone}
+            dense
+            icon="shield"
+          />
+          <MetricCard
+            label="Controls"
+            value={`${activeControls}/${totalControls}`}
+            helper="Active guardrails"
+            tone="green"
+            dense
+            icon="lock"
+          />
+          <MetricCard
+            label="Review Gates"
+            value={SLICE_COMPLIANCE_PROFILE.communicationGates.length}
+            helper="Communication checks"
+            tone="amber"
+            dense
+            icon="flow"
+          />
+          <MetricCard
+            label="Archive Fields"
+            value={SLICE_COMPLIANCE_PROFILE.booksAndRecordsPackage.length}
+            helper="Record package"
+            tone="cyan"
+            dense
+            icon="report"
+          />
+        </div>
+
+        <div className="mt-5 rounded-[1.5rem] border border-red-500/20 bg-red-500/10 p-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-300">
+            Core rule inside Slice
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-red-50">
+            {SLICE_COMPLIANCE_PROFILE.noAutoSendRule}
+          </p>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 2xl:grid-cols-[1.05fr_0.95fr]">
+        <Card className="p-4">
+          <SectionTitle
+            eyebrow="Control Matrix"
+            title="What Slice now checks"
+            description="These controls are designed to make the existing advisor portal more usable for regulated teams."
+            compact
+          />
+
+          <div className="mt-4 grid gap-3">
+            {SLICE_COMPLIANCE_PROFILE.controls.map((control) => (
+              <div key={control.id} className="rounded-[1.35rem] border border-white/10 bg-black/30 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-sm font-black text-white">{control.title}</div>
+                    <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      {control.ruleArea}
+                    </div>
+                  </div>
+                  <Pill tone={control.tone}>{control.status}</Pill>
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-slate-400">{control.summary}</p>
+
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    Evidence
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-300">{control.evidence}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <div className="grid gap-4">
+          <Card className="p-4">
+            <SectionTitle
+              eyebrow="Blocked Automation"
+              title="What Slice should not do automatically"
+              description="These restrictions keep the platform useful without turning it into an unsupervised advice engine."
+              compact
+            />
+
+            <div className="mt-4 grid gap-2">
+              {SLICE_COMPLIANCE_PROFILE.prohibitedAutomations.map((item) => (
+                <div key={item} className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold leading-5 text-red-50">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <SectionTitle
+              eyebrow="AI Governance"
+              title="AI stays draft-only"
+              description="The advisor, supervisor, or compliance officer stays in control."
+              compact
+            />
+
+            <div className="mt-4 grid gap-2">
+              {SLICE_COMPLIANCE_PROFILE.aiGuardrails.map((item) => (
+                <div key={item} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs font-bold leading-5 text-cyan-50">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid gap-4 2xl:grid-cols-2">
+        <Card className="p-4">
+          <SectionTitle
+            eyebrow="Communication Gates"
+            title="When advisor output needs review"
+            description="These gates should be checked before sending emails, client briefings, alerts, or public-facing material."
+            compact
+          />
+
+          <div className="mt-4 grid gap-3">
+            {SLICE_COMPLIANCE_PROFILE.communicationGates.map((gate) => (
+              <div key={gate.id} className={cx("rounded-[1.35rem] border p-4", toneSoft[gate.tone])}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black text-white">{gate.title}</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">{gate.trigger}</p>
+                  </div>
+                  <Pill tone={gate.tone}>Review</Pill>
+                </div>
+                <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
+                  {gate.action}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <SectionTitle
+            eyebrow="Books & Records"
+            title="Record package for advisor teams"
+            description="Every serious client-facing output should preserve the evidence trail, not just the final message."
+            compact
+          />
+
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            {SLICE_COMPLIANCE_PROFILE.booksAndRecordsPackage.map((item) => (
+              <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <span className="mt-1.5 h-2 w-2 rounded-full bg-red-400 shadow-lg shadow-red-500/40" />
+                  <p className="text-xs font-bold leading-5 text-slate-200">{item}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
 export default function WorkspacePage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [message, setMessage] = useState("");
+  const [message] = useState("");
   const [backendMessage, setBackendMessage] = useState("");
   const [backendWorking, setBackendWorking] = useState("");
   const [command, setCommand] = useState<CommandOverview | null>(null);
@@ -1888,7 +2251,7 @@ export default function WorkspacePage() {
       id: "ai",
       title: "AI Studio",
       subtitle: "Command assistant",
-      description: "Ask anything, generate advisor-ready output, create reports, use voice, and prepare client material.",
+      description: "Ask anything, generate advisor-reviewed drafts, create reports, use voice, and prepare client material with source and approval awareness.",
       tone: "cyan",
       icon: "spark",
       href: "/workspace/personal-bot",
@@ -1933,7 +2296,7 @@ export default function WorkspacePage() {
       id: "emails",
       title: "Email Center",
       subtitle: "Communication OS",
-      description: "Draft, refine, approve, and send advisor-grade client communication.",
+      description: "Draft, refine, review, archive, and prepare advisor-grade client communication through approved workflows.",
       tone: "green",
       icon: "mail",
       href: "/workspace?tab=emails",
@@ -1948,7 +2311,7 @@ export default function WorkspacePage() {
       id: "intel",
       title: "Intelligence",
       subtitle: "Continuous scan",
-      description: "Source-backed market and opportunity intelligence with triage scoring and alert delivery.",
+      description: "Source-backed market and opportunity intelligence with triage scoring, advisor review gates, and retained rationale.",
       tone: "red",
       icon: "signal",
       href: "/workspace?tab=intelligence",
@@ -1978,7 +2341,7 @@ export default function WorkspacePage() {
       id: "client-briefings",
       title: "Client Briefings",
       subtitle: "Approval-ready output",
-      description: "Create client-specific advisory notes, source-backed briefings, and approval-gated communication.",
+      description: "Create client-specific advisory notes, source-backed briefings, retained rationale, and approval-gated communication.",
       tone: "purple",
       icon: "report",
       href: "/workspace/client-briefings",
@@ -1987,6 +2350,21 @@ export default function WorkspacePage() {
       meta: [
         ["Briefings", currentCommand.counts.briefingCount],
         ["Deliveries", currentCommand.counts.deliveryCount],
+      ],
+    },
+    {
+      id: "compliance",
+      title: "Compliance Guardrails",
+      subtitle: "Review gates",
+      description: "Advisor review, marketing controls, books-and-records, privacy, AI governance, and no auto-send advice.",
+      tone: "red",
+      icon: "shield",
+      href: "/workspace?tab=compliance",
+      button: "Open Compliance",
+      category: "System",
+      meta: [
+        ["Score", percent(SLICE_COMPLIANCE_PROFILE.readinessScore)],
+        ["Controls", SLICE_COMPLIANCE_PROFILE.controls.length],
       ],
     },
     {
@@ -2044,11 +2422,11 @@ export default function WorkspacePage() {
       icon: "team",
     },
     {
-      title: "Client Base",
-      value: currentCommand.counts.clientCount,
-      helper: "Client profiles",
-      tone: "purple",
-      icon: "client",
+      title: "Compliance",
+      value: percent(SLICE_COMPLIANCE_PROFILE.readinessScore),
+      helper: "Guardrail posture",
+      tone: getComplianceTone(SLICE_COMPLIANCE_PROFILE.readinessScore),
+      icon: "shield",
     },
   ] satisfies Array<{
     title: string;
@@ -2201,7 +2579,7 @@ export default function WorkspacePage() {
                   </h1>
                   <p className="mt-2 max-w-5xl text-sm leading-6 text-slate-400">
                     A client-presentable operating system connecting AI, firm delegation, clients, emails,
-                    markets, intelligence, portfolio tools, client briefings, alerts, security, and backend health.
+                    markets, intelligence, portfolio tools, client briefings, alerts, compliance, security, and backend health.
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -2212,6 +2590,7 @@ export default function WorkspacePage() {
                     <Pill tone="amber">{tasksDueToday.length} due today</Pill>
                     <Pill tone="purple">{operations.sprintMetrics.ideas} ideas</Pill>
                     <Pill tone="cyan">{percent(currentCommand.readinessScore)} ready</Pill>
+                    <Pill tone="red">Compliance-aware</Pill>
                   </div>
                 </div>
               </div>
@@ -2237,8 +2616,8 @@ export default function WorkspacePage() {
                   <BeautifulButton href="/workspace/personal-bot" tone="cyan" compact>
                     Ask AI
                   </BeautifulButton>
-                  <BeautifulButton href="/workspace?tab=team-board" tone="green" compact>
-                    Delegate
+                  <BeautifulButton href="/workspace?tab=compliance" tone="red" compact>
+                    Review
                   </BeautifulButton>
                 </div>
               </Panel>
@@ -2263,6 +2642,8 @@ export default function WorkspacePage() {
                 alerts={currentCommand.counts.totalAlertCount}
                 ideas={operations.sprintMetrics.ideas}
               />
+
+              <ComplianceStatusStrip />
 
               <CommandHealthPanel
                 readiness={currentCommand.readinessScore}
@@ -2339,7 +2720,7 @@ export default function WorkspacePage() {
                 <SectionTitle
                   eyebrow="Module Gallery"
                   title="All core tools, compact and connected"
-                  description="The workspace now emphasizes the highest-adoption tools and removes low-signal report/research entries that were cluttering the portal."
+                  description="The workspace emphasizes the highest-adoption tools, now with compliance guardrails included directly in the same portal."
                   compact
                 />
 
@@ -2365,11 +2746,11 @@ export default function WorkspacePage() {
             <GenericModule
               eyebrow="AI Command"
               title="Ask, draft, summarize, report, and operate"
-              description="Use this tab when the platform needs to think, draft, explain, summarize, or generate."
+              description="Use this tab when the platform needs to think, draft, explain, summarize, or generate. AI output is advisor-reviewed before it becomes client-facing."
               cards={[
                 {
                   title: "AI Studio",
-                  description: "Ask anything, use voice, create advisor-ready output, and turn rough thoughts into professional work.",
+                  description: "Ask anything, use voice, create advisor-reviewed output, and turn rough thoughts into professional work.",
                   href: "/workspace/personal-bot",
                   button: "Open AI Studio",
                   tone: "cyan",
@@ -2378,6 +2759,15 @@ export default function WorkspacePage() {
                     ["Readiness", percent(currentCommand.readinessScore)],
                     ["Briefings", currentCommand.counts.briefingCount],
                   ],
+                },
+                {
+                  title: "Compliance-Aware Drafting",
+                  description: "Use AI to prepare client material while preserving review gates, sources, rationale, and archive requirements.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Guardrails",
+                  tone: "red",
+                  icon: "shield",
+                  stats: [["Score", percent(SLICE_COMPLIANCE_PROFILE.readinessScore)]],
                 },
                 {
                   title: "Backend Kernel",
@@ -2618,6 +3008,15 @@ export default function WorkspacePage() {
                   stats: [["Deliveries", currentCommand.counts.deliveryCount]],
                 },
                 {
+                  title: "Compliance Review Gates",
+                  description: "Check whether a message contains recommendation, performance, testimonial, marketing, or privacy risk.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "shield",
+                  stats: [["Guardrails", SLICE_COMPLIANCE_PROFILE.communicationGates.length]],
+                },
+                {
                   title: "Client Briefings",
                   description: "Create briefing drafts when communication needs a full explanation, source list, and approval gate.",
                   href: "/workspace/client-briefings",
@@ -2663,12 +3062,50 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "Opportunity Radar",
-                  description: "Source-backed opportunity monitoring, headline scanning, and technical opportunity scoring.",
+                  description: "Source-backed opportunity monitoring, headline scanning, technical scoring, and advisor review gates.",
                   href: "/opportunity-radar",
                   button: "Open Radar",
                   tone: "cyan",
                   icon: "radar",
                   stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "intelligence" ? (
+            <GenericModule
+              eyebrow="Intelligence"
+              title="Source-backed opportunity intelligence"
+              description="Scan the market, monitor signals, preserve rationale, and route anything client-facing through advisor review."
+              cards={[
+                {
+                  title: "Opportunity Radar",
+                  description: "Scan sources, score opportunities, retain decisions, and identify advisor follow-up.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
+                  tone: "red",
+                  icon: "radar",
+                  stats: [
+                    ["Retained", currentCommand.counts.retainedDecisionCount],
+                    ["Runs", currentCommand.counts.triageRunCount],
+                  ],
+                },
+                {
+                  title: "Intelligence Settings",
+                  description: "Configure thresholds, urgency, source quality, notification preferences, and compliance review sensitivity.",
+                  href: "/intelligence-settings",
+                  button: "Open Settings",
+                  tone: "cyan",
+                  icon: "system",
+                },
+                {
+                  title: "Email Center",
+                  description: "Create client emails and advisor communications after review.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
                 },
               ]}
             />
@@ -2695,7 +3132,7 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "Client Profiles",
-                  description: "Review which securities clients hold without storing sensitive allocation amounts.",
+                  description: "Review which securities clients hold without exposing unnecessary sensitive allocation details in AI prompts.",
                   href: "/client-profiles",
                   button: "Open Client Profiles",
                   tone: "purple",
@@ -2738,11 +3175,19 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "AI Studio",
-                  description: "Ask AI to explain tradeoffs, scenarios, risks, and meeting talking points.",
+                  description: "Ask AI to explain tradeoffs, scenarios, risks, and meeting talking points for advisor review.",
                   href: "/workspace/personal-bot",
                   button: "Ask AI",
                   tone: "cyan",
                   icon: "spark",
+                },
+                {
+                  title: "Compliance Gate",
+                  description: "If comparison output becomes a recommendation, preserve rationale and route it through review.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "shield",
                 },
               ]}
             />
@@ -2751,115 +3196,33 @@ export default function WorkspacePage() {
           {activeTab === "alternatives" ? (
             <GenericModule
               eyebrow="Alternatives"
-              title="Alternative investments without workspace clutter"
-              description="Track crypto, penny-stock risk, venture opportunities, and alternative risk frameworks in one dedicated alternatives workspace."
+              title="Private market and alternative investment workflow"
+              description="Treat alternatives as high-supervision items with eligibility, suitability, source, risk, and approval controls."
               cards={[
                 {
-                  title: "Alternative Investments",
-                  description: "Track crypto, speculative equities, venture opportunities, valuation context, and risk controls.",
-                  href: "/alternative-investments",
-                  button: "Open Alternatives",
+                  title: "Alternative Opportunity Review",
+                  description: "Organize private-market ideas, source packages, eligibility notes, and approval-ready rationale.",
+                  href: "/opportunity-radar",
+                  button: "Open Radar",
                   tone: "amber",
                   icon: "diamond",
-                  stats: [
-                    ["Ventures", currentCommand.counts.ventureCount],
-                    ["Watchlists", currentCommand.counts.watchlistCount],
-                  ],
-                },
-                {
-                  title: "Market Visuals",
-                  description: "Use technical visuals and market overlays before discussing speculative or alternative assets.",
-                  href: "/market-visuals",
-                  button: "Open Visuals",
-                  tone: "red",
-                  icon: "market",
-                },
-                {
-                  title: "Opportunity Radar",
-                  description: "Review headline and technical signals before an alternative idea becomes advisor-facing.",
-                  href: "/opportunity-radar",
-                  button: "Open Radar",
-                  tone: "cyan",
-                  icon: "radar",
-                },
-              ]}
-            />
-          ) : null}
-
-          {activeTab === "intelligence" ? (
-            <GenericModule
-              eyebrow="Intelligence"
-              title="Signal and triage intelligence"
-              description="Continuous scans, source credibility, AI briefings, and advisor-specific opportunities."
-              cards={[
-                {
-                  title: "Opportunity Radar",
-                  description: "Source-backed signals, AI briefings, credibility, urgency, and scoring.",
-                  href: "/opportunity-radar",
-                  button: "Open Radar",
-                  tone: "red",
-                  icon: "radar",
                   stats: [["Retained", currentCommand.counts.retainedDecisionCount]],
                 },
                 {
-                  title: "Triage Runs",
-                  description: "Review autonomous scan history, retained decision volume, and technical scanning readiness.",
-                  href: "/triage",
-                  button: "Open Triage",
-                  tone: "cyan",
-                  icon: "system",
-                  stats: [["Runs", currentCommand.counts.triageRunCount]],
-                },
-                {
-                  title: "Intelligence Settings",
-                  description: "Configure sources, trust levels, thresholds, and delivery settings.",
-                  href: "/intelligence-settings",
-                  button: "Open Settings",
+                  title: "Client Suitability Context",
+                  description: "Review client profile, liquidity, time horizon, risk tolerance, and restrictions before any alternative idea is discussed.",
+                  href: "/client-profiles",
+                  button: "Open Profiles",
                   tone: "purple",
-                  icon: "signal",
+                  icon: "client",
                 },
                 {
-                  title: "Watchlist Alerts",
-                  description: "Tune what matters to each advisor and trigger alerts for specific stocks or criteria.",
-                  href: "/watchlist-alerts",
-                  button: "Open Watchlists",
-                  tone: "amber",
-                  icon: "market",
-                },
-              ]}
-            />
-          ) : null}
-
-          {activeTab === "notifications" ? (
-            <GenericModule
-              eyebrow="Notifications"
-              title="Delivery and alert center"
-              description="Review email, dashboard, and alert delivery events."
-              cards={[
-                {
-                  title: "Notifications",
-                  description: "Inspect deliveries, queued alerts, dashboard notifications, and failures.",
-                  href: "/notifications",
-                  button: "Open Notifications",
-                  tone: "amber",
-                  icon: "bell",
-                  stats: [["Deliveries", currentCommand.counts.deliveryCount]],
-                },
-                {
-                  title: "Alert Settings",
-                  description: "Configure thresholds, urgency, and notification preferences.",
-                  href: "/intelligence-settings",
-                  button: "Open Settings",
-                  tone: "cyan",
-                  icon: "system",
-                },
-                {
-                  title: "Email Center",
-                  description: "Create client emails and advisor communications.",
-                  href: "/workspace/client-emails",
-                  button: "Open Email Center",
-                  tone: "green",
-                  icon: "mail",
+                  title: "Compliance Review",
+                  description: "Private investments should never be auto-sent. Route through advisor and compliance review before client delivery.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "shield",
                 },
               ]}
             />
@@ -2869,7 +3232,7 @@ export default function WorkspacePage() {
             <GenericModule
               eyebrow="Reports"
               title="Client output and advisor-approved communication"
-              description="The Reports area is now focused on usable client communication and AI-generated output. Founder / Advisor Reports were removed from this workspace to keep the portal clean."
+              description="The Reports area is focused on usable client communication and AI-generated output with source retention and approval gates."
               cards={[
                 {
                   title: "Client Briefings",
@@ -2882,7 +3245,7 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "AI Studio Output",
-                  description: "Use AI Studio for custom summaries, meeting prep, visuals, scenarios, and advisor-ready writing.",
+                  description: "Use AI Studio for custom summaries, meeting prep, visuals, scenarios, and advisor-reviewed writing.",
                   href: "/workspace/personal-bot",
                   button: "Open AI Studio",
                   tone: "cyan",
@@ -2891,16 +3254,64 @@ export default function WorkspacePage() {
                 },
                 {
                   title: "Client Email Center",
-                  description: "Draft, polish, approve, and organize client-facing communication.",
+                  description: "Draft, polish, approve, archive, and organize client-facing communication.",
                   href: "/workspace/client-emails",
                   button: "Open Email Center",
                   tone: "green",
                   icon: "mail",
                   stats: [["Deliveries", currentCommand.counts.deliveryCount]],
                 },
+                {
+                  title: "Review Gates",
+                  description: "Check client output for recommendation, performance, marketing, testimonial, and privacy issues.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "shield",
+                },
               ]}
             />
           ) : null}
+
+          {activeTab === "notifications" ? (
+            <GenericModule
+              eyebrow="Notifications"
+              title="Alerts, delivery, and notification control"
+              description="Review queued, delivered, failed, and simulated notifications before client-facing delivery."
+              cards={[
+                {
+                  title: "Notifications Center",
+                  description: "Review queued, delivered, failed, and simulated notifications.",
+                  href: "/notifications",
+                  button: "Open Notifications",
+                  tone: "amber",
+                  icon: "bell",
+                  stats: [
+                    ["Unread", currentCommand.counts.unreadAlertCount],
+                    ["Total", currentCommand.counts.totalAlertCount],
+                  ],
+                },
+                {
+                  title: "Email Center",
+                  description: "Convert alerts into advisor-reviewed client communication.",
+                  href: "/workspace/client-emails",
+                  button: "Open Email Center",
+                  tone: "green",
+                  icon: "mail",
+                },
+                {
+                  title: "Compliance Gate",
+                  description: "Client alerts that imply action, recommendation, or urgency should be reviewed before delivery.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "shield",
+                },
+              ]}
+            />
+          ) : null}
+
+          {activeTab === "compliance" ? <ComplianceCenterModule /> : null}
 
           {activeTab === "security" ? (
             <GenericModule
@@ -2916,6 +3327,15 @@ export default function WorkspacePage() {
                   tone: "red",
                   icon: "shield",
                   stats: [["Audit Logs", currentCommand.counts.auditLogCount]],
+                },
+                {
+                  title: "Compliance Guardrails",
+                  description: "Review advisor approval gates, AI output controls, books-and-records, and marketing review requirements.",
+                  href: "/workspace?tab=compliance",
+                  button: "Open Compliance",
+                  tone: "red",
+                  icon: "lock",
+                  stats: [["Score", percent(SLICE_COMPLIANCE_PROFILE.readinessScore)]],
                 },
                 {
                   title: "Backend Readiness",
@@ -2994,7 +3414,8 @@ export default function WorkspacePage() {
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   Built to be used every day by a wealth management team: clean left navigation, compact visual information,
-                  fewer distracting report/research entries, and all high-value tools connected to one command brain.
+                  fewer distracting report/research entries, all high-value tools connected to one command brain, and compliance
+                  factors added without burying the advisor experience.
                 </p>
               </div>
 
@@ -3005,8 +3426,8 @@ export default function WorkspacePage() {
                 <BeautifulButton href="/workspace/personal-bot" tone="cyan" compact>
                   AI Studio
                 </BeautifulButton>
-                <BeautifulButton href="/market-visuals" tone="red" compact>
-                  Market Visuals
+                <BeautifulButton href="/workspace?tab=compliance" tone="red" compact>
+                  Compliance
                 </BeautifulButton>
               </div>
             </div>

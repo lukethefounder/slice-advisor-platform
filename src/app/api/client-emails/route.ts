@@ -13,6 +13,7 @@ import {
   noStoreJson,
   protectClientDataRoute,
 } from "@/lib/client-data-security";
+import { getOpenAiRuntimeStatus } from "@/lib/integrations/ai";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,7 +59,11 @@ export async function GET(request: Request) {
 
   try {
     const result = await listClientEmailCenter(user);
-    return noStoreJson(result);
+
+    return noStoreJson({
+      ...result,
+      aiRuntime: getOpenAiRuntimeStatus(),
+    });
   } catch (error) {
     return noStoreJson(
       {
@@ -107,6 +112,9 @@ export async function POST(request: Request) {
         tone: body.tone,
         advisorInstructions: body.advisorInstructions,
         callToAction: body.callToAction,
+        researchContext: body.researchContext,
+        draftDepth: body.draftDepth,
+        useOpenAiResearch: body.useOpenAiResearch === true,
         queueForApproval: body.queueForApproval === true,
       });
 
