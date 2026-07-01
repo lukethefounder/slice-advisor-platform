@@ -2415,3 +2415,89 @@ model PersonalUserBotResearchRun {
   @@index([depth])
   @@index([status])
 }
+
+model AdvisorRealtimeSource {
+  id                  String   @id @default(cuid())
+  userId              String
+  name                String
+  platformType        String   @default("Research")
+  sourceKind          String   @default("RSS")
+  sourceUrl           String
+  method              String   @default("GET")
+  enabled             Boolean  @default(true)
+  termsAcknowledged   Boolean  @default(false)
+  accessMode          String   @default("Licensed API/RSS/Export")
+  headersJson         String   @default("{}")
+  encryptedSecretJson String?
+  minScoreToRetain    Int      @default(55)
+  minScoreToAlert     Int      @default(88)
+  maxItemsPerRun      Int      @default(40)
+  lastRunAt           DateTime?
+  lastStatus          String   @default("Pending")
+  lastError           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+  @@index([enabled])
+  @@index([sourceKind])
+  @@index([platformType])
+  @@index([lastRunAt])
+}
+
+model RealtimePriceSnapshot {
+  id                String    @id @default(cuid())
+  userId            String?
+  symbol            String
+  assetType         String    @default("Equity")
+  provider          String
+  isRealtime        Boolean   @default(false)
+  price             Float
+  previousClose     Float?
+  change            Float?
+  changePercent     Float?
+  bid               Float?
+  ask               Float?
+  volume            Float?
+  currency          String    @default("USD")
+  marketState       String    @default("Unknown")
+  qualityScore      Int       @default(0)
+  latencyMs         Int       @default(0)
+  providerTimestamp DateTime?
+  receivedAt        DateTime  @default(now())
+  technicalsJson    String    @default("{}")
+  warningsJson      String    @default("[]")
+  rawJson           String    @default("{}")
+  createdAt         DateTime  @default(now())
+
+  @@index([userId])
+  @@index([symbol])
+  @@index([provider])
+  @@index([isRealtime])
+  @@index([qualityScore])
+  @@index([createdAt])
+}
+
+model RealtimeInvestorNotification {
+  id             String    @id @default(cuid())
+  userId         String
+  symbol         String?
+  title          String
+  body           String
+  severity       String    @default("Medium")
+  score          Int       @default(50)
+  sourceName     String?
+  sourceUrl      String?
+  investorScope  String    @default("Advisor Review")
+  channelsJson   String    @default("[]")
+  status         String    @default("Unread")
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
+
+  @@index([userId])
+  @@index([symbol])
+  @@index([severity])
+  @@index([score])
+  @@index([status])
+  @@index([createdAt])
+}
