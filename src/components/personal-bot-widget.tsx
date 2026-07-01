@@ -82,20 +82,27 @@ type SpeechRecognitionEventLike = {
   results: ArrayLike<SpeechRecognitionResultLike>;
 };
 
-type SpeechRecognitionInstance = {
+type PersonalBotSpeechRecognitionInstance = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  maxAlternatives?: number;
   start: () => void;
   stop: () => void;
   abort?: () => void;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onend: (() => void) | null;
-  onerror: ((event?: unknown) => void) | null;
+  onerror: ((event: unknown) => void) | null;
 };
 
-type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+type PersonalBotSpeechRecognitionConstructor =
+  new () => PersonalBotSpeechRecognitionInstance;
+
+type PersonalBotSpeechWindow = {
+  SpeechRecognition?: PersonalBotSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: PersonalBotSpeechRecognitionConstructor;
+};
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -305,15 +312,15 @@ function HumanRobotAvatar({
             />
           </div>
         </div>
+      </div>
 
-        <div
-          className={cx(
-            "absolute rounded-full border border-white/10 bg-black/85 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-white shadow-lg",
-            isLarge ? "-bottom-3" : "-bottom-2"
-          )}
-        >
-          {listening ? "Listening" : speaking ? "Speaking" : "Ask"}
-        </div>
+      <div
+        className={cx(
+          "absolute rounded-full border border-white/10 bg-black/85 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-white shadow-lg",
+          isLarge ? "-bottom-3" : "-bottom-2"
+        )}
+      >
+        {listening ? "Listening" : speaking ? "Speaking" : "Ask"}
       </div>
     </div>
   );
@@ -359,7 +366,7 @@ export default function PersonalBotWidget() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [recognitionLanguage, setRecognitionLanguage] = useState("en-US");
 
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const recognitionRef = useRef<PersonalBotSpeechRecognitionInstance | null>(null);
   const finalTranscriptRef = useRef("");
   const interimTranscriptRef = useRef("");
 
@@ -557,10 +564,7 @@ export default function PersonalBotWidget() {
       return;
     }
 
-    const speechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
+    const speechWindow = window as unknown as PersonalBotSpeechWindow;
 
     const SpeechRecognition =
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
@@ -584,6 +588,7 @@ export default function PersonalBotWidget() {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = recognitionLanguage;
+    recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setPanelOpen(true);

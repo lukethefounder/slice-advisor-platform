@@ -1,8 +1,15 @@
+import { prisma } from "@/lib/prisma";
+import { decryptSecret, safeJsonParse } from "@/lib/secret-crypto";
+
 export type SourceTier =
   | "official-regulatory"
   | "official-exchange"
   | "public-news"
+  | "advisor-paid"
+  | "advisor-authorized"
   | "demo";
+
+export type SourceKind = "RSS" | "JSON_API" | "HEADLINE_API";
 
 export type FreeSource = {
   id: string;
@@ -15,9 +22,27 @@ export type FreeSource = {
     | "exchange"
     | "halts"
     | "market-news"
-    | "regulatory";
+    | "regulatory"
+    | "advisor-research"
+    | "macro"
+    | "portfolio";
   baseTrust: number;
   minPollSeconds: number;
+  kind?: SourceKind;
+  maxItemsPerRun?: number;
+};
+
+export type AdvisorSourceForScan = {
+  id: string;
+  name: string;
+  sourceUrl: string;
+  sourceKind: SourceKind;
+  platformType: string;
+  enabled: boolean;
+  headers: Record<string, string>;
+  minScoreToRetain: number;
+  minScoreToAlert: number;
+  maxItemsPerRun: number;
 };
 
 export type WatchAsset = {
@@ -40,6 +65,9 @@ export type RawNewsItem = {
   sourceName: string;
   sourceTier: SourceTier;
   sourceCategory: FreeSource["category"];
+  sourceBaseTrust: number;
+  minScoreToAlert: number;
+  minScoreToRetain: number;
   title: string;
   summary: string;
   link: string;
@@ -64,6 +92,7 @@ export type SourceStatus = {
   name: string;
   ok: boolean;
   fetched: number;
+  paid: boolean;
   error?: string;
 };
 
@@ -86,6 +115,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "sec",
     baseTrust: 24,
     minPollSeconds: 300,
+    kind: "RSS",
   },
   {
     id: "sec-trading-suspensions",
@@ -95,6 +125,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "regulatory",
     baseTrust: 28,
     minPollSeconds: 300,
+    kind: "RSS",
   },
   {
     id: "sec-xbrl-filings",
@@ -104,6 +135,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "filings",
     baseTrust: 26,
     minPollSeconds: 600,
+    kind: "RSS",
   },
   {
     id: "nasdaq-trade-halts",
@@ -113,6 +145,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "halts",
     baseTrust: 30,
     minPollSeconds: 60,
+    kind: "RSS",
   },
   {
     id: "nasdaq-current-news",
@@ -122,6 +155,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "exchange",
     baseTrust: 20,
     minPollSeconds: 300,
+    kind: "RSS",
   },
   {
     id: "nasdaq-equity-alerts",
@@ -131,6 +165,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "exchange",
     baseTrust: 22,
     minPollSeconds: 300,
+    kind: "RSS",
   },
   {
     id: "nasdaq-regulatory-alerts",
@@ -140,6 +175,7 @@ export const FREE_RSS_SOURCES: FreeSource[] = [
     category: "regulatory",
     baseTrust: 24,
     minPollSeconds: 300,
+    kind: "RSS",
   },
 ];
 
@@ -184,6 +220,9 @@ export const DEMO_SLICE_PROFILE: SliceUserProfile = {
     "acquisition",
     "crypto",
     "venture capital",
+    "tax",
+    "fed",
+    "treasury",
   ],
   blockedTerms: [
     "sponsored",
@@ -339,9 +378,8 @@ function extractTag(block: string, names: string[]) {
   for (const name of names) {
     const pattern = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, "i");
     const match = block.match(pattern);
-    if (match?.[1]) {
-      return stripHtml(match[1]);
-    }
+
+    if (match?.[1]) return stripHtml(match[1]);
   }
 
   return "";
@@ -365,11 +403,24 @@ function normalize(value: string) {
 function includesTicker(text: string, ticker: string) {
   const escaped = ticker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(^|[^A-Z0-9])\\$?${escaped}([^A-Z0-9]|$)`, "i");
+
   return regex.test(text);
 }
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function sourceToRawItemDefaults(source: FreeSource) {
+  return {
+    sourceId: source.id,
+    sourceName: source.name,
+    sourceTier: source.tier,
+    sourceCategory: source.category,
+    sourceBaseTrust: source.baseTrust,
+    minScoreToAlert: 88,
+    minScoreToRetain: 55,
+  };
 }
 
 function parseRss(xml: string, source: FreeSource): RawNewsItem[] {
@@ -378,7 +429,7 @@ function parseRss(xml: string, source: FreeSource): RawNewsItem[] {
     xml.match(/<entry[\s\S]*?<\/entry>/gi) ??
     [];
 
-  return itemBlocks.map((block) => {
+  return itemBlocks.slice(0, source.maxItemsPerRun ?? 40).map((block) => {
     const title = extractTag(block, ["title"]);
     const summary = extractTag(block, ["description", "summary", "content"]);
     const link =
@@ -394,11 +445,73 @@ function parseRss(xml: string, source: FreeSource): RawNewsItem[] {
 
     return {
       id: simpleHash(`${source.id}:${title}:${link}`),
-      sourceId: source.id,
-      sourceName: source.name,
-      sourceTier: source.tier,
-      sourceCategory: source.category,
+      ...sourceToRawItemDefaults(source),
       title: title || "Untitled item",
+      summary,
+      link,
+      publishedAt,
+    };
+  });
+}
+
+function extractJsonItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+
+  if (!payload || typeof payload !== "object") return [];
+
+  const object = payload as Record<string, unknown>;
+
+  for (const key of ["articles", "items", "results", "data", "headlines", "news"]) {
+    if (Array.isArray(object[key])) return object[key] as unknown[];
+  }
+
+  return [];
+}
+
+function jsonText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  return "";
+}
+
+function parseJsonFeed(payload: unknown, source: FreeSource): RawNewsItem[] {
+  const items = extractJsonItems(payload);
+
+  return items.slice(0, source.maxItemsPerRun ?? 40).map((item) => {
+    const object =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+
+    const title =
+      jsonText(object.title) ||
+      jsonText(object.headline) ||
+      jsonText(object.name) ||
+      "Untitled item";
+
+    const summary =
+      jsonText(object.summary) ||
+      jsonText(object.description) ||
+      jsonText(object.abstract) ||
+      jsonText(object.content);
+
+    const link =
+      jsonText(object.url) ||
+      jsonText(object.link) ||
+      jsonText(object.web_url) ||
+      jsonText(object.sourceUrl);
+
+    const publishedAt =
+      jsonText(object.publishedAt) ||
+      jsonText(object.published_at) ||
+      jsonText(object.datetime) ||
+      jsonText(object.date) ||
+      jsonText(object.created_at);
+
+    return {
+      id: simpleHash(`${source.id}:${title}:${link}`),
+      ...sourceToRawItemDefaults(source),
+      title,
       summary,
       link,
       publishedAt,
@@ -410,26 +523,18 @@ function scoreRecency(publishedAt: string) {
   const parsed = Date.parse(publishedAt);
 
   if (Number.isNaN(parsed)) {
-    return { points: 6, reason: "No timestamp found; modest recency credit only." };
+    return {
+      points: 6,
+      reason: "No timestamp found; modest recency credit only.",
+    };
   }
 
   const minutesOld = Math.max(0, (Date.now() - parsed) / 1000 / 60);
 
-  if (minutesOld <= 15) {
-    return { points: 22, reason: "Very recent item." };
-  }
-
-  if (minutesOld <= 60) {
-    return { points: 18, reason: "Recent within the last hour." };
-  }
-
-  if (minutesOld <= 360) {
-    return { points: 10, reason: "Same-day item." };
-  }
-
-  if (minutesOld <= 1440) {
-    return { points: 5, reason: "Published within the last day." };
-  }
+  if (minutesOld <= 15) return { points: 22, reason: "Very recent item." };
+  if (minutesOld <= 60) return { points: 18, reason: "Recent within the last hour." };
+  if (minutesOld <= 360) return { points: 10, reason: "Same-day item." };
+  if (minutesOld <= 1440) return { points: 5, reason: "Published within the last day." };
 
   return { points: 0, reason: "Older item; no recency boost." };
 }
@@ -445,11 +550,9 @@ export function scoreNewsItem(
   const matchedCompanies: string[] = [];
   const matchedThemes: string[] = [];
 
-  let score = item.sourceTier === "official-regulatory" ? item.sourceName.includes("SEC") ? 24 : 22 : 0;
-  score += item.sourceTier === "official-exchange" ? 20 : 0;
-  score += item.sourceTier === "public-news" ? 10 : 0;
+  let score = item.sourceBaseTrust;
 
-  if (score > 0) {
+  if (item.sourceBaseTrust > 0) {
     reasons.push(`Trusted source: ${item.sourceName}.`);
   }
 
@@ -466,9 +569,8 @@ export function scoreNewsItem(
 
     for (const company of asset.companyNames) {
       if (normalized.includes(normalize(company))) {
-        if (!matchedCompanies.includes(company)) {
-          matchedCompanies.push(company);
-        }
+        if (!matchedCompanies.includes(company)) matchedCompanies.push(company);
+
         score += 18;
         reasons.push(`Company/watchlist name match: ${company}.`);
       }
@@ -476,9 +578,8 @@ export function scoreNewsItem(
 
     for (const sector of asset.sectors) {
       if (normalized.includes(normalize(sector))) {
-        if (!matchedThemes.includes(sector)) {
-          matchedThemes.push(sector);
-        }
+        if (!matchedThemes.includes(sector)) matchedThemes.push(sector);
+
         score += 8;
         reasons.push(`Relevant sector/theme match: ${sector}.`);
       }
@@ -519,7 +620,16 @@ export function scoreNewsItem(
     reasons.push("Regulatory source receives priority boost.");
   }
 
-  if (matchedTickers.length === 0 && matchedCompanies.length === 0 && matchedThemes.length === 0) {
+  if (item.sourceTier === "advisor-paid" || item.sourceTier === "advisor-authorized") {
+    score += 8;
+    reasons.push("Advisor-approved paid or authorized source.");
+  }
+
+  if (
+    matchedTickers.length === 0 &&
+    matchedCompanies.length === 0 &&
+    matchedThemes.length === 0
+  ) {
     score -= 20;
     reasons.push("No direct user relevance match; suppressed unless materiality is very high.");
   }
@@ -528,17 +638,13 @@ export function scoreNewsItem(
 
   let urgency: ScoredNewsItem["urgency"] = "Low";
 
-  if (score >= 90) {
-    urgency = "Critical";
-  } else if (score >= 75) {
-    urgency = "High";
-  } else if (score >= 55) {
-    urgency = "Medium";
-  } else if (score < 35) {
-    urgency = "Suppressed";
-  }
+  if (score >= 90) urgency = "Critical";
+  else if (score >= 75) urgency = "High";
+  else if (score >= 55) urgency = "Medium";
+  else if (score < 35) urgency = "Suppressed";
 
   const shouldAlert =
+    score >= item.minScoreToAlert ||
     score >= 90 ||
     (score >= 75 && (matchedTickers.length > 0 || matchedCompanies.length > 0)) ||
     (score >= 80 && item.sourceCategory === "halts") ||
@@ -548,12 +654,12 @@ export function scoreNewsItem(
     ? urgency === "Critical"
       ? ["SMS", "Email", "Dashboard"]
       : ["Email", "Dashboard"]
-    : score >= 55
+    : score >= item.minScoreToRetain
       ? ["Digest"]
       : [];
 
   const complianceLabel = shouldAlert
-    ? "Market intelligence alert — not a buy/sell recommendation."
+    ? "Market intelligence alert — not a buy/sell recommendation. Advisor review required before client-specific use."
     : "Stored for review or digest only.";
 
   const primaryReason = reasons[0] ?? "Relevant market item detected.";
@@ -569,7 +675,7 @@ export function scoreNewsItem(
     matchedTickers,
     matchedCompanies,
     matchedThemes,
-    reasons: Array.from(new Set(reasons)).slice(0, 8),
+    reasons: Array.from(new Set(reasons)).slice(0, 10),
     shouldAlert,
     channels,
     complianceLabel,
@@ -577,19 +683,24 @@ export function scoreNewsItem(
   };
 }
 
-async function fetchSource(source: FreeSource): Promise<{
+async function fetchSource(source: FreeSource, headers: Record<string, string> = {}): Promise<{
   status: SourceStatus;
   items: RawNewsItem[];
 }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
+  const timeout = setTimeout(() => controller.abort(), 12_000);
 
   try {
     const response = await fetch(source.url, {
       signal: controller.signal,
+      method: "GET",
       headers: {
-        "User-Agent": "SliceDemo/1.0 development@example.com",
-        Accept: "application/rss+xml, application/xml, text/xml, */*",
+        "User-Agent": "SliceIntelligence/1.0",
+        Accept:
+          source.kind === "JSON_API"
+            ? "application/json, text/json, */*"
+            : "application/rss+xml, application/xml, text/xml, */*",
+        ...headers,
       },
       cache: "no-store",
     });
@@ -601,14 +712,17 @@ async function fetchSource(source: FreeSource): Promise<{
           name: source.name,
           ok: false,
           fetched: 0,
+          paid: source.tier === "advisor-paid" || source.tier === "advisor-authorized",
           error: `HTTP ${response.status}`,
         },
         items: [],
       };
     }
 
-    const xml = await response.text();
-    const items = parseRss(xml, source);
+    const items =
+      source.kind === "JSON_API"
+        ? parseJsonFeed(await response.json(), source)
+        : parseRss(await response.text(), source);
 
     return {
       status: {
@@ -616,6 +730,7 @@ async function fetchSource(source: FreeSource): Promise<{
         name: source.name,
         ok: true,
         fetched: items.length,
+        paid: source.tier === "advisor-paid" || source.tier === "advisor-authorized",
       },
       items,
     };
@@ -626,6 +741,7 @@ async function fetchSource(source: FreeSource): Promise<{
         name: source.name,
         ok: false,
         fetched: 0,
+        paid: source.tier === "advisor-paid" || source.tier === "advisor-authorized",
         error: error instanceof Error ? error.message : "Unknown source error",
       },
       items: [],
@@ -640,7 +756,7 @@ function dedupeItems(items: RawNewsItem[]) {
   const deduped: RawNewsItem[] = [];
 
   for (const item of items) {
-    const key = normalize(`${item.title}:${item.link}`).slice(0, 180);
+    const key = normalize(`${item.title}:${item.link}`).slice(0, 220);
 
     if (!seen.has(key)) {
       seen.add(key);
@@ -651,19 +767,146 @@ function dedupeItems(items: RawNewsItem[]) {
   return deduped;
 }
 
-export async function scanFreeSources(
-  profile: SliceUserProfile = DEMO_SLICE_PROFILE
+function advisorSourceToFreeSource(source: AdvisorSourceForScan): FreeSource {
+  return {
+    id: `advisor-${source.id}`,
+    name: source.name,
+    url: source.sourceUrl,
+    tier: "advisor-paid",
+    category: "advisor-research",
+    baseTrust: 24,
+    minPollSeconds: 300,
+    kind: source.sourceKind,
+    maxItemsPerRun: source.maxItemsPerRun,
+  };
+}
+
+export async function getAdvisorSourcesForScan(userId: string): Promise<AdvisorSourceForScan[]> {
+  const sources = await prisma.advisorRealtimeSource.findMany({
+    where: {
+      userId,
+      enabled: true,
+      termsAcknowledged: true,
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+  });
+
+  return sources.map((source) => {
+    const nonSecretHeaders = safeJsonParse<Record<string, string>>(
+      source.headersJson,
+      {}
+    );
+
+    const decrypted = source.encryptedSecretJson
+      ? safeJsonParse<{
+          authHeaderName?: string;
+          authHeaderValue?: string;
+        }>(decryptSecret(source.encryptedSecretJson), {})
+      : {};
+
+    const headers = {
+      ...nonSecretHeaders,
+      ...(decrypted.authHeaderName && decrypted.authHeaderValue
+        ? { [decrypted.authHeaderName]: decrypted.authHeaderValue }
+        : {}),
+    };
+
+    return {
+      id: source.id,
+      name: source.name,
+      sourceUrl: source.sourceUrl,
+      sourceKind: source.sourceKind as SourceKind,
+      platformType: source.platformType,
+      enabled: source.enabled,
+      headers,
+      minScoreToRetain: source.minScoreToRetain,
+      minScoreToAlert: source.minScoreToAlert,
+      maxItemsPerRun: source.maxItemsPerRun,
+    };
+  });
+}
+
+export async function buildProfileForUser(userId: string): Promise<SliceUserProfile> {
+  const [user, watchAssets] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    }),
+    prisma.watchAsset.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+
+  const watchlist =
+    watchAssets.length > 0
+      ? watchAssets.map((asset) => ({
+          ticker: asset.ticker.toUpperCase(),
+          companyNames: [
+            asset.name,
+            asset.ticker,
+            asset.name.replace(/\b(inc|corp|corporation|company|ltd|plc)\b/gi, "").trim(),
+          ].filter(Boolean),
+          sectors: [
+            asset.assetType,
+            asset.signal ?? "",
+            asset.notes ?? "",
+          ].filter(Boolean),
+        }))
+      : DEMO_SLICE_PROFILE.watchlist;
+
+  return {
+    id: user?.id ?? userId,
+    name: user?.name ?? "Slice Investor",
+    watchlist,
+    interests: DEMO_SLICE_PROFILE.interests,
+    blockedTerms: DEMO_SLICE_PROFILE.blockedTerms,
+  };
+}
+
+export async function scanPermittedSources(
+  profile: SliceUserProfile = DEMO_SLICE_PROFILE,
+  advisorSources: AdvisorSourceForScan[] = []
 ): Promise<ScanResult> {
-  const sourceResults = await Promise.all(FREE_RSS_SOURCES.map(fetchSource));
+  const advisorFreeSources = advisorSources.map(advisorSourceToFreeSource);
+
+  const freeSourceJobs = FREE_RSS_SOURCES.map((source) => fetchSource(source));
+  const advisorSourceJobs = advisorSources.map((source) => {
+    const freeSource = advisorSourceToFreeSource(source);
+
+    freeSource.baseTrust = 24;
+    freeSource.maxItemsPerRun = source.maxItemsPerRun;
+
+    return fetchSource(freeSource, source.headers);
+  });
+
+  const sourceResults = await Promise.all([...freeSourceJobs, ...advisorSourceJobs]);
 
   const statuses = sourceResults.map((result) => result.status);
   const rawItems = sourceResults.flatMap((result) => result.items);
   const deduped = dedupeItems(rawItems);
 
   const items = deduped
-    .map((item) => scoreNewsItem(item, profile))
+    .map((item) => {
+      const advisorSource = advisorFreeSources.find((source) => source.id === item.sourceId);
+      const sourceConfig = advisorSource
+        ? advisorSources.find((source) => `advisor-${source.id}` === item.sourceId)
+        : null;
+
+      return scoreNewsItem(
+        {
+          ...item,
+          minScoreToAlert: sourceConfig?.minScoreToAlert ?? item.minScoreToAlert,
+          minScoreToRetain: sourceConfig?.minScoreToRetain ?? item.minScoreToRetain,
+        },
+        profile
+      );
+    })
+    .filter((item) => item.score >= item.minScoreToRetain || item.shouldAlert)
     .sort((left, right) => right.score - left.score)
-    .slice(0, 80);
+    .slice(0, 120);
 
   return {
     scannedAt: new Date().toISOString(),
@@ -672,8 +915,177 @@ export async function scanFreeSources(
     items,
     alertCandidates: items.filter((item) => item.shouldAlert),
     digestCandidates: items.filter(
-      (item) => !item.shouldAlert && item.score >= 55
+      (item) => !item.shouldAlert && item.score >= item.minScoreToRetain
     ),
-    suppressed: items.filter((item) => item.score < 55),
+    suppressed: items.filter((item) => item.score < item.minScoreToRetain),
   };
+}
+
+export async function scanFreeSources(
+  profile: SliceUserProfile = DEMO_SLICE_PROFILE
+): Promise<ScanResult> {
+  return scanPermittedSources(profile, []);
+}
+
+function headlineExpiresAt(item: ScoredNewsItem) {
+  const days =
+    item.urgency === "Critical" || item.urgency === "High"
+      ? 45
+      : item.urgency === "Medium"
+        ? 21
+        : 7;
+
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+export async function persistIntelligenceResult(userId: string, result: ScanResult) {
+  await prisma.intelligenceRun.create({
+    data: {
+      userId,
+      mode: "realtime-advisor-sources",
+      scannedCount: result.items.length + result.suppressed.length,
+      retainedCount: result.items.length,
+      alertCount: result.alertCandidates.length,
+      digestCount: result.digestCandidates.length,
+      discardedCount: result.suppressed.length,
+      durationMs: 0,
+    },
+  });
+
+  for (const item of result.items.slice(0, 80)) {
+    await prisma.headlineDecision.upsert({
+      where: {
+        userId_dedupeKey: {
+          userId,
+          dedupeKey: item.id,
+        },
+      },
+      update: {
+        title: item.title,
+        summary: item.summary,
+        sourceName: item.sourceName,
+        sourceTier: item.sourceTier,
+        url: item.link,
+        category: item.sourceCategory,
+        subcategory: item.sourceTier,
+        importanceTier: item.urgency,
+        action: item.shouldAlert ? "Alert" : "Digest",
+        urgency: item.urgency,
+        score: item.score,
+        materialityScore: item.score,
+        relevanceScore: item.matchedTickers.length || item.matchedCompanies.length ? 90 : 50,
+        trustScore: item.sourceBaseTrust,
+        matchedTickersJson: JSON.stringify(item.matchedTickers),
+        matchedAreasJson: JSON.stringify(item.matchedThemes),
+        reasonsJson: JSON.stringify(item.reasons),
+        channelsJson: JSON.stringify(item.channels),
+        expiresAt: headlineExpiresAt(item),
+      },
+      create: {
+        userId,
+        dedupeKey: item.id,
+        title: item.title,
+        summary: item.summary,
+        sourceName: item.sourceName,
+        sourceTier: item.sourceTier,
+        url: item.link,
+        category: item.sourceCategory,
+        subcategory: item.sourceTier,
+        importanceTier: item.urgency,
+        action: item.shouldAlert ? "Alert" : "Digest",
+        urgency: item.urgency,
+        score: item.score,
+        materialityScore: item.score,
+        relevanceScore: item.matchedTickers.length || item.matchedCompanies.length ? 90 : 50,
+        trustScore: item.sourceBaseTrust,
+        matchedTickersJson: JSON.stringify(item.matchedTickers),
+        matchedAreasJson: JSON.stringify(item.matchedThemes),
+        reasonsJson: JSON.stringify(item.reasons),
+        channelsJson: JSON.stringify(item.channels),
+        expiresAt: headlineExpiresAt(item),
+      },
+    });
+  }
+
+  for (const item of result.alertCandidates.slice(0, 30)) {
+    const dedupeKey = `intel:${item.id}`;
+
+    const existingAlert = await prisma.alertEvent.findUnique({
+      where: {
+        userId_dedupeKey: {
+          userId,
+          dedupeKey,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const alertEvent = await prisma.alertEvent.upsert({
+      where: {
+        userId_dedupeKey: {
+          userId,
+          dedupeKey,
+        },
+      },
+      update: {
+        title: item.title,
+        body: item.alertCopy,
+        source: item.sourceName,
+        ticker: item.matchedTickers[0] ?? null,
+        urgency: item.urgency,
+        score: item.score,
+        channel: item.channels.join(", "),
+        sourceUrl: item.link,
+        aiBriefing: item.reasons.join("\n"),
+      },
+      create: {
+        userId,
+        dedupeKey,
+        title: item.title,
+        body: item.alertCopy,
+        source: item.sourceName,
+        ticker: item.matchedTickers[0] ?? null,
+        urgency: item.urgency,
+        score: item.score,
+        channel: item.channels.join(", "),
+        sourceUrl: item.link,
+        aiBriefing: item.reasons.join("\n"),
+      },
+    });
+
+    if (!existingAlert) {
+      await prisma.notificationDelivery.create({
+        data: {
+          userId,
+          alertEventId: alertEvent.id,
+          channel: item.channels.join(", "),
+          destination: "advisor-dashboard",
+          status: "Queued",
+          urgency: item.urgency,
+          score: item.score,
+          title: item.title,
+          body: item.alertCopy,
+          reason: item.reasons.join(" | "),
+          simulated: true,
+        },
+      });
+
+      await prisma.realtimeInvestorNotification.create({
+        data: {
+          userId,
+          symbol: item.matchedTickers[0] ?? null,
+          title: item.title,
+          body: item.alertCopy,
+          severity: item.urgency,
+          score: item.score,
+          sourceName: item.sourceName,
+          sourceUrl: item.link,
+          investorScope: "Advisor Review",
+          channelsJson: JSON.stringify(item.channels),
+        },
+      });
+    }
+  }
 }
