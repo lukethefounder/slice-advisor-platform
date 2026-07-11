@@ -1,19 +1,15 @@
 "use client";
 
-import {
-  FormEvent,
-  KeyboardEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { ReactNode } from "react";
+import Link from "next/link";
+import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandMark } from "@/components/slice-ui";
 
-type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
-type StudioView = "chat" | "prompts" | "scenarios" | "reports" | "memory" | "settings";
+type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "blue" | "slate";
+type StudioTab = "command" | "voice" | "tasks" | "reports" | "settings";
 type AnswerMode = "quick" | "balanced" | "deep";
-type ChatFocus = "advisor" | "client" | "meeting" | "market" | "report" | "platform";
+type Priority = "Critical" | "High" | "Medium" | "Low";
+type TaskStatus = "Backlog" | "To Do" | "In Progress" | "Review" | "Blocked" | "Complete";
 
 type ClientAction = {
   type?: string;
@@ -29,22 +25,15 @@ type BotMessage = {
   createdAt: string;
   metadata?: {
     clientAction?: ClientAction;
-    structuredCommand?: {
-      intent?: string;
-      confidence?: number;
-      riskLevel?: string;
-      requiresApproval?: boolean;
-    };
     answerMode?: AnswerMode;
-    aiParserOk?: boolean;
-    aiParserError?: string;
-    spokenAccent?: string;
     universalAiProvider?: string;
     universalAiStatus?: string;
     universalAiError?: string;
     universalAiModel?: string;
     universalAiConfigured?: boolean;
     universalAiLatencyMs?: number;
+    spokenAccent?: string;
+    reportError?: string | null;
   };
 };
 
@@ -56,6 +45,42 @@ type BotCommand = {
   resultSummary: string | null;
   createdAt: string;
   action?: Record<string, unknown>;
+};
+
+type ReportSection = {
+  title?: string;
+  body?: string;
+  bullets?: string[];
+};
+
+type ReportMetric = {
+  label?: string;
+  value?: string | number;
+  helper?: string;
+  tone?: Tone;
+};
+
+type PdfReport = {
+  id: string;
+  title: string;
+  reportType: string;
+  status: string;
+  downloadUrl: string;
+  createdAt?: string;
+  summary?: string;
+  sections?: ReportSection[];
+  design?: {
+    generatedBy?: string;
+    preparedFor?: string;
+    investmentGrade?: string;
+    confidenceScore?: number;
+    metrics?: ReportMetric[];
+    charts?: Array<{
+      title?: string;
+      subtitle?: string;
+      data?: Array<{ label?: string; value?: number }>;
+    }>;
+  };
 };
 
 type BotPayload = {
@@ -103,14 +128,7 @@ type BotPayload = {
     pinnedCommands: string[];
     status: string;
   }>;
-  pdfReports?: Array<{
-    id: string;
-    title: string;
-    reportType: string;
-    status: string;
-    downloadUrl: string;
-    createdAt?: string;
-  }>;
+  pdfReports?: PdfReport[];
   memories?: Array<{
     id: string;
     memoryType: string;
@@ -135,16 +153,70 @@ type BotPayload = {
     summary: string;
     status: string;
   }>;
-  platformMap?: Array<{
+};
+
+type FirmWorkspacePayload = {
+  firm: {
     id: string;
-    label: string;
-    route: string;
-    category: string;
-    aliases: string[];
-    capabilities: string[];
-    examplePrompts: string[];
+    name: string;
+    firmEmail?: string | null;
+  } | null;
+  membership: {
+    id: string;
+    userId: string;
+    role: string;
+    canManageProjects: boolean;
+    canManageFirm: boolean;
+  } | null;
+  members: Array<{
+    id: string;
+    firmId: string;
+    userId: string;
+    role: string;
     status: string;
+    calendarColor: string;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+    };
   }>;
+  projects: Array<{
+    id: string;
+    title: string;
+    description?: string | null;
+    status: string;
+    priority: string;
+    dueDate?: string | null;
+  }>;
+  operations?: {
+    allTasks: Array<{
+      id: string;
+      title: string;
+      detail?: string | null;
+      status: string;
+      priority: string;
+      dueDate?: string | null;
+      ownerName?: string;
+    }>;
+    sprintMetrics?: {
+      total: number;
+      open: number;
+      inProgress: number;
+      review: number;
+      blocked: number;
+      complete: number;
+      overdue: number;
+      ideas: number;
+      deadlines: number;
+      timedReminders: number;
+    };
+  };
+  emailResult?: {
+    status: string;
+    reason: string;
+    simulated: boolean;
+  };
 };
 
 type SpeechRecognitionAlternativeLike = {
@@ -177,171 +249,353 @@ type SpeechRecognitionInstance = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
-type ScenarioSettings = {
-  clientName: string;
-  clientAge: number;
-  startingBalance: number;
-  monthlyContribution: number;
-  horizonYears: number;
-  expectedReturn: number;
-  bearReturn: number;
-  bullReturn: number;
-  inflation: number;
-  advisoryFee: number;
-  taxDrag: number;
-  volatility: number;
-  stockAllocation: number;
-  bondAllocation: number;
-  cashAllocation: number;
-  alternativeAllocation: number;
-  riskProfile: "Conservative" | "Balanced" | "Growth" | "Aggressive";
-};
-
-type ScenarioSeries = {
-  year: number;
-  base: number;
-  bull: number;
-  bear: number;
-  realBase: number;
-  contributions: number;
-};
-
-const starterPrompts = [
-  "Explain what Slice does in simple terms for a wealth manager.",
-  "Help me prepare for a client meeting in a calm, professional way.",
-  "Create a client-friendly explanation of NVDA exposure.",
-  "Summarize the most important things I should work on inside Slice today.",
-  "Draft a polished advisor email about recent market volatility.",
-  "Create a report explaining why this platform matters.",
-];
-
-const focusCards: Array<{
-  id: ChatFocus;
+type TeamTaskDraft = {
   title: string;
+  detail: string;
+  priority: Priority;
+  status: TaskStatus;
+  dueDate: string;
+  reminderAt: string;
+  reminderNote: string;
+  projectId: string;
+  notifyEmail: boolean;
+};
+
+type AdvancedSettings = {
+  responseLayout: "Executive Summary" | "Advisor Memo" | "Client Friendly" | "Action Plan";
+  defaultAnswerMode: AnswerMode;
+  compactReplies: boolean;
+  autoReadReplies: boolean;
+  voiceAutoSend: boolean;
+  voiceLanguage: "en-US" | "en-GB" | "es-US";
+  voiceRate: "Slow" | "Normal" | "Fast";
+  reportStyle: "Premium Red" | "Boardroom" | "Client Clean" | "Technical";
+  reportDepth: "Concise" | "Balanced" | "Full";
+  includeReviewChecklist: boolean;
+  includeAssumptions: boolean;
+  includeRiskNotes: boolean;
+  taskDefaultPriority: Priority;
+  taskDefaultStatus: TaskStatus;
+  taskDueDays: "Today" | "Tomorrow" | "3 Days" | "1 Week";
+  taskEmailDefault: boolean;
+  approvalStyle: "Advisor approval required" | "Draft only" | "Suggest only" | "Autonomous where safe";
+};
+
+type AccountSettingsPayload = {
+  ok: boolean;
+  account: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    timezone: string;
+    platformStatus: string;
+    createdAt: string;
+  };
+  appearance: {
+    mode: "dark" | "light" | "system";
+    density: "Comfortable" | "Compact" | "Spacious";
+    accent: "Slice Red" | "Crimson" | "Ruby" | "Graphite";
+  };
+  privacy: {
+    aiMemoryEnabled: boolean;
+    analyticsEnabled: boolean;
+    personalizationEnabled: boolean;
+    marketingEmailsEnabled: boolean;
+    shareUsageForImprovement: boolean;
+    showProfileToTeam: boolean;
+    retainReports: "30 days" | "90 days" | "1 year" | "Forever";
+    exportFormat: "PDF" | "CSV" | "JSON";
+  };
+  security: {
+    mfaEnabled: boolean;
+    requireReauthForSensitiveActions: boolean;
+    alertOnNewLogin: boolean;
+    advisorModeEnabled: boolean;
+    sessionTimeoutMinutes: number;
+    lastSecurityReviewAt?: string | null;
+  };
+  notifications: Array<{
+    id?: string;
+    channel: string;
+    enabled: boolean;
+    minUrgency: string;
+    minScore: number;
+    digestOnly: boolean;
+    quietHoursStart?: string | null;
+    quietHoursEnd?: string | null;
+    cooldownMinutes: number;
+  }>;
+  contact: {
+    name: string;
+    phone: string;
+    phoneHref: string;
+    email: string;
+    emailHref: string;
+  };
+};
+
+type RouteIntent = {
+  label: string;
+  helper: string;
+  href: string;
+  tone: Tone;
+};
+
+const ADVANCED_SETTINGS_KEY = "slice-ai-studio-advanced-settings-v4";
+
+const defaultAdvancedSettings: AdvancedSettings = {
+  responseLayout: "Executive Summary",
+  defaultAnswerMode: "balanced",
+  compactReplies: true,
+  autoReadReplies: false,
+  voiceAutoSend: false,
+  voiceLanguage: "en-US",
+  voiceRate: "Normal",
+  reportStyle: "Premium Red",
+  reportDepth: "Balanced",
+  includeReviewChecklist: true,
+  includeAssumptions: true,
+  includeRiskNotes: true,
+  taskDefaultPriority: "Medium",
+  taskDefaultStatus: "To Do",
+  taskDueDays: "Tomorrow",
+  taskEmailDefault: true,
+  approvalStyle: "Advisor approval required",
+};
+
+const defaultAccountSettings: AccountSettingsPayload = {
+  ok: true,
+  account: {
+    id: "",
+    name: "",
+    email: "",
+    phone: "",
+    timezone: "America/Phoenix",
+    platformStatus: "Active",
+    createdAt: "",
+  },
+  appearance: {
+    mode: "dark",
+    density: "Comfortable",
+    accent: "Slice Red",
+  },
+  privacy: {
+    aiMemoryEnabled: true,
+    analyticsEnabled: true,
+    personalizationEnabled: true,
+    marketingEmailsEnabled: false,
+    shareUsageForImprovement: false,
+    showProfileToTeam: true,
+    retainReports: "1 year",
+    exportFormat: "PDF",
+  },
+  security: {
+    mfaEnabled: false,
+    requireReauthForSensitiveActions: true,
+    alertOnNewLogin: true,
+    advisorModeEnabled: false,
+    sessionTimeoutMinutes: 43200,
+    lastSecurityReviewAt: null,
+  },
+  notifications: [
+    {
+      channel: "Dashboard",
+      enabled: true,
+      minUrgency: "Medium",
+      minScore: 70,
+      digestOnly: false,
+      quietHoursStart: "21:00",
+      quietHoursEnd: "07:00",
+      cooldownMinutes: 20,
+    },
+    {
+      channel: "Email",
+      enabled: true,
+      minUrgency: "High",
+      minScore: 80,
+      digestOnly: false,
+      quietHoursStart: "21:00",
+      quietHoursEnd: "07:00",
+      cooldownMinutes: 30,
+    },
+    {
+      channel: "Security",
+      enabled: true,
+      minUrgency: "Low",
+      minScore: 50,
+      digestOnly: false,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+      cooldownMinutes: 0,
+    },
+    {
+      channel: "Reports",
+      enabled: true,
+      minUrgency: "Medium",
+      minScore: 70,
+      digestOnly: true,
+      quietHoursStart: "21:00",
+      quietHoursEnd: "07:00",
+      cooldownMinutes: 60,
+    },
+    {
+      channel: "SMS",
+      enabled: false,
+      minUrgency: "Critical",
+      minScore: 90,
+      digestOnly: false,
+      quietHoursStart: "21:00",
+      quietHoursEnd: "07:00",
+      cooldownMinutes: 60,
+    },
+    {
+      channel: "Push",
+      enabled: false,
+      minUrgency: "High",
+      minScore: 80,
+      digestOnly: false,
+      quietHoursStart: "21:00",
+      quietHoursEnd: "07:00",
+      cooldownMinutes: 30,
+    },
+  ],
+  contact: {
+    name: "Luke Royal Price",
+    phone: "(985) 290-3067",
+    phoneHref: "tel:+19852903067",
+    email: "price.luke.royal@gmail.com",
+    emailHref: "mailto:price.luke.royal@gmail.com",
+  },
+};
+
+const tabs: Array<{
+  id: StudioTab;
+  label: string;
   helper: string;
   tone: Tone;
-  promptPrefix: string;
 }> = [
+  { id: "command", label: "Command", helper: "Input + reply", tone: "red" },
+  { id: "voice", label: "Voice Ops", helper: "Speak outcomes", tone: "purple" },
+  { id: "tasks", label: "Tasks", helper: "Assign work", tone: "green" },
+  { id: "reports", label: "Reports", helper: "Reliable viewer", tone: "amber" },
+  { id: "settings", label: "Settings", helper: "Customize", tone: "blue" },
+];
+
+const routeIntents: RouteIntent[] = [
   {
-    id: "advisor",
-    title: "Advisor Answer",
-    helper: "Reasoning, decisions, next steps.",
+    label: "Market analysis",
+    helper: "Custom Board",
+    href: "/workspace/custom-board",
     tone: "cyan",
-    promptPrefix: "Answer this like an advisor operating assistant: ",
   },
   {
-    id: "client",
-    title: "Client Friendly",
-    helper: "Clear, calm, non-intimidating.",
-    tone: "green",
-    promptPrefix: "Turn this into a client-friendly explanation: ",
-  },
-  {
-    id: "meeting",
-    title: "Meeting Prep",
-    helper: "Agenda, risks, talking points.",
-    tone: "purple",
-    promptPrefix: "Prepare me for a client or advisor meeting about: ",
-  },
-  {
-    id: "market",
-    title: "Market Lens",
-    helper: "Equities, risk, signals, context.",
+    label: "Watchlist rules",
+    helper: "Watchlists",
+    href: "/workspace/watchlists",
     tone: "amber",
-    promptPrefix: "Analyze this market or investment topic carefully: ",
   },
   {
-    id: "report",
-    title: "Report Builder",
-    helper: "Structured PDF/report-ready output.",
-    tone: "red",
-    promptPrefix: "Create a report-ready briefing about: ",
+    label: "Team execution",
+    helper: "Team Board",
+    href: "/workspace/team-board",
+    tone: "green",
   },
   {
-    id: "platform",
-    title: "Use Slice",
-    helper: "Navigation and workflow help.",
-    tone: "slate",
-    promptPrefix: "Help me use Slice to accomplish this: ",
+    label: "Client records",
+    helper: "Client Profiles",
+    href: "/workspace/clients",
+    tone: "purple",
+  },
+  {
+    label: "Client messages",
+    helper: "Portal Inbox",
+    href: "/workspace/client-portal-inbox",
+    tone: "purple",
+  },
+  {
+    label: "Draft email",
+    helper: "Email Center",
+    href: "/workspace/client-emails",
+    tone: "cyan",
   },
 ];
 
-const quickModes = [
+const reportBlueprints = [
+  "Client portfolio review packet",
+  "Advisor executive summary",
+  "Market volatility explanation",
+  "Slice platform value report",
+  "Investment scenario report",
+  "Team execution recap",
+];
+
+const advancedReportBlueprints = [
   {
-    title: "Explain",
-    prompt: "Explain this clearly and simply: ",
-    helper: "Turn complexity into plain English.",
-    tone: "cyan" as Tone,
+    title: "Client Review Packet",
+    prompt:
+      "Create a client portfolio review packet with executive summary, current objectives, risk discussion, recommended talking points, follow-up tasks, and advisor review checklist.",
+    tone: "red" as Tone,
   },
   {
-    title: "Prepare",
-    prompt: "Prepare me for this advisor meeting: ",
-    helper: "Agenda, talking points, risks.",
+    title: "Investment Scenario",
+    prompt:
+      "Create an investment scenario report with base, bull, and bear case framing, assumptions, risks, client-friendly explanation, and advisor action items.",
     tone: "purple" as Tone,
   },
   {
-    title: "Draft",
-    prompt: "Draft a polished client-safe message about: ",
-    helper: "Client-ready communication.",
-    tone: "green" as Tone,
-  },
-  {
-    title: "Analyze",
-    prompt: "Analyze this from an advisor perspective: ",
-    helper: "Balanced review and next steps.",
+    title: "Market Volatility",
+    prompt:
+      "Create a market volatility report explaining recent uncertainty in plain English, including risks, behavioral coaching notes, portfolio review questions, and compliance-conscious disclaimers.",
     tone: "amber" as Tone,
   },
+  {
+    title: "Executive Platform Memo",
+    prompt:
+      "Create an executive memo explaining the Slice platform value proposition, workflow benefits, advisor efficiency gains, implementation plan, and investor-ready talking points.",
+    tone: "green" as Tone,
+  },
+];
+
+const voiceExamples = [
+  "Create a PDF report for tomorrow’s client meeting and include risks, assumptions, and action items.",
+  "Assign Jordan a high-priority task to review the client briefing by Friday.",
+  "Draft a client email explaining market volatility in plain English.",
+  "Prepare a meeting plan, then create follow-up tasks for the team.",
+  "Open the watchlists area and help me review high-priority symbols.",
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function toneFor(value: string | null | undefined): Tone {
-  const lower = String(value ?? "").toLowerCase();
-
-  if (
-    lower.includes("failed") ||
-    lower.includes("critical") ||
-    lower.includes("high") ||
-    lower.includes("error") ||
-    lower.includes("missing")
-  ) {
-    return "red";
-  }
-
-  if (
-    lower.includes("complete") ||
-    lower.includes("active") ||
-    lower.includes("ready") ||
-    lower.includes("configured") ||
-    lower.includes("generated") ||
-    lower.includes("completed")
-  ) {
-    return "green";
-  }
-
-  if (
-    lower.includes("open") ||
-    lower.includes("queued") ||
-    lower.includes("draft") ||
-    lower.includes("pending") ||
-    lower.includes("approval") ||
-    lower.includes("timeout")
-  ) {
-    return "amber";
-  }
-
-  if (lower.includes("ai") || lower.includes("bot") || lower.includes("research")) return "purple";
-  if (lower.includes("voice") || lower.includes("backend") || lower.includes("tool")) return "cyan";
-
-  return "slate";
+function ymd(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
-function modeTone(mode: AnswerMode): Tone {
-  if (mode === "quick") return "cyan";
-  if (mode === "deep") return "purple";
-  return "green";
+function addDays(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return ymd(date);
+}
+
+function dueDateFromSetting(value: AdvancedSettings["taskDueDays"]) {
+  if (value === "Today") return ymd(new Date());
+  if (value === "3 Days") return addDays(3);
+  if (value === "1 Week") return addDays(7);
+  return addDays(1);
+}
+
+function shortTime(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatTime(value: string | null | undefined) {
@@ -353,18 +607,6 @@ function formatTime(value: string | null | undefined) {
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function shortTime(value: string | null | undefined) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-
-  return date.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -387,29 +629,58 @@ function relativeTime(value: string | null | undefined) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: Math.abs(value) >= 10 ? 0 : 2,
-  }).format(Number.isFinite(value) ? value : 0);
+function toneFor(value: string | number | null | undefined): Tone {
+  const lower = String(value ?? "").toLowerCase();
+  const numeric = typeof value === "number" ? value : Number.NaN;
+
+  if (
+    lower.includes("failed") ||
+    lower.includes("critical") ||
+    lower.includes("blocked") ||
+    lower.includes("high") ||
+    lower.includes("error") ||
+    lower.includes("missing") ||
+    (!Number.isNaN(numeric) && numeric < 35)
+  ) {
+    return "red";
+  }
+
+  if (
+    lower.includes("complete") ||
+    lower.includes("active") ||
+    lower.includes("ready") ||
+    lower.includes("configured") ||
+    lower.includes("generated") ||
+    lower.includes("delivered") ||
+    lower.includes("connected") ||
+    (!Number.isNaN(numeric) && numeric >= 75)
+  ) {
+    return "green";
+  }
+
+  if (
+    lower.includes("open") ||
+    lower.includes("queued") ||
+    lower.includes("draft") ||
+    lower.includes("pending") ||
+    lower.includes("approval") ||
+    lower.includes("timeout") ||
+    lower.includes("review") ||
+    (!Number.isNaN(numeric) && numeric >= 35 && numeric < 75)
+  ) {
+    return "amber";
+  }
+
+  if (lower.includes("voice") || lower.includes("bot") || lower.includes("ai")) return "purple";
+  if (lower.includes("backend") || lower.includes("tool")) return "cyan";
+
+  return "slate";
 }
 
-function compactMoney(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(Number.isFinite(value) ? value : 0);
-}
-
-function actionLabel(action?: ClientAction) {
-  if (!action?.href) return null;
-  if (action.type === "report") return "Open Report";
-  if (action.type === "source") return "Open Source";
-  if (action.type === "navigate") return "Open Section";
-  return "Open Result";
+function modeTone(mode: AnswerMode): Tone {
+  if (mode === "quick") return "cyan";
+  if (mode === "deep") return "purple";
+  return "green";
 }
 
 function stripForSpeech(text: string) {
@@ -427,130 +698,179 @@ function sanitizeError(value?: string) {
   const lower = value.toLowerCase();
 
   if (lower.includes("fallback") || lower.includes("responsiveness")) {
-    return "The live AI response took longer than expected. Deep Mode is designed to wait longer for complete answers.";
+    return "The live AI response took longer than expected. Deep Mode waits longer for fuller answers.";
   }
 
   return value;
 }
 
-function scenarioNetAnnualReturn(grossReturn: number, advisoryFee: number, taxDrag: number) {
-  return (grossReturn - advisoryFee - taxDrag) / 100;
+function actionLabel(action?: ClientAction) {
+  if (!action?.href) return null;
+  if (action.type === "report") return "Open Report";
+  if (action.type === "source") return "Open Source";
+  if (action.type === "navigate") return "Open Section";
+  return "Open Result";
 }
 
-function futureValueMonthly({
-  start,
-  monthly,
-  annualReturn,
-  years,
-}: {
-  start: number;
-  monthly: number;
-  annualReturn: number;
-  years: number;
-}) {
-  const months = Math.max(0, Math.round(years * 12));
-  const monthlyRate = annualReturn / 12;
-  let balance = Number.isFinite(start) ? start : 0;
+function getTwoChatRecollection(messages: BotMessage[]) {
+  if (messages.length <= 4) return messages;
 
-  for (let month = 1; month <= months; month += 1) {
-    balance = balance * (1 + monthlyRate) + (Number.isFinite(monthly) ? monthly : 0);
+  const chunks: BotMessage[][] = [];
+  let currentChunk: BotMessage[] = [];
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    currentChunk.unshift(message);
+
+    if (message.role === "user") {
+      chunks.unshift(currentChunk);
+      currentChunk = [];
+
+      if (chunks.length >= 2) break;
+    }
   }
 
-  return balance;
+  const selected = chunks.flat();
+
+  if (selected.length) return selected.slice(-4);
+
+  return messages.slice(-4);
 }
 
-function buildScenarioSeries(settings: ScenarioSettings): ScenarioSeries[] {
-  const series: ScenarioSeries[] = [];
-  const years = Math.max(1, Math.round(settings.horizonYears));
+function compactBotPayload(payload: BotPayload): BotPayload {
+  return {
+    ...payload,
+    messages: getTwoChatRecollection(payload.messages ?? []),
+  };
+}
 
-  for (let year = 0; year <= years; year += 1) {
-    const baseReturn = scenarioNetAnnualReturn(settings.expectedReturn, settings.advisoryFee, settings.taxDrag);
-    const bullReturn = scenarioNetAnnualReturn(settings.bullReturn, settings.advisoryFee, settings.taxDrag);
-    const bearReturn = scenarioNetAnnualReturn(settings.bearReturn, settings.advisoryFee, settings.taxDrag);
-    const inflationRate = settings.inflation / 100;
+function safeMemberName(member: FirmWorkspacePayload["members"][number]) {
+  return member.user?.name || member.user?.email || "Team member";
+}
 
-    const base = futureValueMonthly({
-      start: settings.startingBalance,
-      monthly: settings.monthlyContribution,
-      annualReturn: baseReturn,
-      years: year,
-    });
+function buildReportPrompt(topic: string, sourceText?: string, settings?: AdvancedSettings) {
+  const cleanTopic = topic.trim() || "Slice advisor report";
+  const activeSettings = settings ?? defaultAdvancedSettings;
 
-    const bull = futureValueMonthly({
-      start: settings.startingBalance,
-      monthly: settings.monthlyContribution,
-      annualReturn: bullReturn,
-      years: year,
-    });
+  return `Create a beautiful customized Slice PDF report titled "${cleanTopic}".
 
-    const bear = futureValueMonthly({
-      start: settings.startingBalance,
-      monthly: settings.monthlyContribution,
-      annualReturn: bearReturn,
-      years: year,
-    });
+Report style:
+- Visual style: ${activeSettings.reportStyle}
+- Depth: ${activeSettings.reportDepth}
+- Include assumptions: ${activeSettings.includeAssumptions ? "Yes" : "No"}
+- Include risk notes: ${activeSettings.includeRiskNotes ? "Yes" : "No"}
+- Include review checklist: ${activeSettings.includeReviewChecklist ? "Yes" : "No"}
 
-    series.push({
-      year,
-      base,
-      bull,
-      bear,
-      realBase: base / Math.pow(1 + inflationRate, year),
-      contributions: settings.startingBalance + settings.monthlyContribution * 12 * year,
-    });
+Accuracy and quality requirements:
+- Be precise, advisor-grade, and easy to review.
+- Separate facts, assumptions, estimates, and recommendations.
+- Do not invent live market data, prices, client facts, legal conclusions, or compliance approvals.
+- If a data point is unknown or not supplied, clearly label it as an assumption or item to verify.
+- Include an executive summary, key findings, workflow implications, risks, advisor action items, and final review checklist.
+- Include a compliance-conscious review note before any client-facing use.
+- Use polished Slice language and make the output suitable for a professional wealth manager.
+
+Source material:
+${sourceText?.trim() || cleanTopic}`;
+}
+
+function inferTaskTitle(value: string) {
+  const cleaned = value
+    .replace(/^create\s+(a\s+)?task\s*(to|for|about)?/i, "")
+    .replace(/^assign\s+/i, "")
+    .trim();
+
+  return cleaned.slice(0, 90) || "AI Studio follow-up task";
+}
+
+function previewText(value: string, maxChars = 900) {
+  const clean = value.trim();
+  if (clean.length <= maxChars) return clean;
+  return `${clean.slice(0, maxChars).trim()}...`;
+}
+
+function reportToken(report: PdfReport) {
+  try {
+    const url = new URL(
+      report.downloadUrl,
+      typeof window !== "undefined" ? window.location.origin : "http://localhost",
+    );
+    return url.searchParams.get("token") || "";
+  } catch {
+    return "";
+  }
+}
+
+function reportViewerHref(report: PdfReport) {
+  const token = reportToken(report);
+  return token ? `/workspace/personal-bot/reports?token=${encodeURIComponent(token)}` : report.downloadUrl;
+}
+
+function reportPdfHref(report: PdfReport) {
+  return report.downloadUrl;
+}
+
+function themeVars(isLight: boolean, accent: AccountSettingsPayload["appearance"]["accent"]) {
+  const red = accent === "Crimson" ? "#b91c1c" : accent === "Ruby" ? "#e11d48" : accent === "Graphite" ? "#334155" : "#dc2626";
+  const redDark = accent === "Graphite" ? "#0f172a" : "#7f1d1d";
+
+  if (isLight) {
+    return {
+      "--bg": "#f8fafc",
+      "--bg2": "#fff7f7",
+      "--surface": "rgba(255,255,255,0.92)",
+      "--surfaceStrong": "#ffffff",
+      "--panel": "rgba(15,23,42,0.045)",
+      "--panel2": "rgba(255,255,255,0.72)",
+      "--input": "#ffffff",
+      "--text": "#0f172a",
+      "--muted": "#64748b",
+      "--muted2": "#475569",
+      "--border": "rgba(15,23,42,0.12)",
+      "--shadow": "rgba(15,23,42,0.12)",
+      "--accent": red,
+      "--accentDark": redDark,
+      "--accentSoft": "rgba(220,38,38,0.10)",
+    } as CSSProperties;
   }
 
-  return series;
-}
-
-function riskCommentary(settings: ScenarioSettings) {
-  if (settings.riskProfile === "Conservative") {
-    return "This profile should emphasize downside control, liquidity, and client comfort over maximum upside.";
-  }
-
-  if (settings.riskProfile === "Balanced") {
-    return "This profile can balance growth and stability, but the advisor should make volatility expectations very clear.";
-  }
-
-  if (settings.riskProfile === "Growth") {
-    return "This profile can tolerate more equity exposure, but scenario ranges should be reviewed before implementation.";
-  }
-
-  return "This profile is aggressive. Use strict suitability review, volatility education, and clear downside framing.";
-}
-
-function allocationTotal(settings: ScenarioSettings) {
-  return (
-    settings.stockAllocation +
-    settings.bondAllocation +
-    settings.cashAllocation +
-    settings.alternativeAllocation
-  );
-}
-
-function readinessTone(value: number): Tone {
-  if (value >= 85) return "green";
-  if (value >= 68) return "cyan";
-  if (value >= 45) return "amber";
-  return "red";
-}
-
-function messageWordCount(messages: BotMessage[]) {
-  return messages.reduce((count, message) => count + message.content.split(/\s+/).filter(Boolean).length, 0);
+  return {
+    "--bg": "#020202",
+    "--bg2": "#260606",
+    "--surface": "rgba(9,9,11,0.78)",
+    "--surfaceStrong": "#09090b",
+    "--panel": "rgba(255,255,255,0.055)",
+    "--panel2": "rgba(0,0,0,0.32)",
+    "--input": "rgba(0,0,0,0.42)",
+    "--text": "#ffffff",
+    "--muted": "#94a3b8",
+    "--muted2": "#cbd5e1",
+    "--border": "rgba(255,255,255,0.11)",
+    "--shadow": "rgba(0,0,0,0.35)",
+    "--accent": red,
+    "--accentDark": redDark,
+    "--accentSoft": "rgba(220,38,38,0.16)",
+  } as CSSProperties;
 }
 
 function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
-    green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-    amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
-    purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
-    cyan: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/30",
+    red: "bg-red-500/12 text-red-100 ring-red-500/35",
+    green: "bg-emerald-500/10 text-emerald-100 ring-emerald-500/30",
+    amber: "bg-amber-500/10 text-amber-100 ring-amber-500/30",
+    purple: "bg-purple-500/10 text-purple-100 ring-purple-500/30",
+    cyan: "bg-cyan-500/10 text-cyan-100 ring-cyan-500/30",
+    blue: "bg-blue-500/10 text-blue-100 ring-blue-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
   };
 
   return (
-    <span className={cx("inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1", tones[tone])}>
+    <span
+      className={cx(
+        "inline-flex max-w-full rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] ring-1",
+        tones[tone],
+      )}
+    >
       <span className="truncate">{children}</span>
     </span>
   );
@@ -558,97 +878,142 @@ function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/74 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div
+      className={cx(
+        "relative min-h-0 overflow-hidden rounded-[2rem] border shadow-2xl backdrop-blur-2xl",
+        className,
+      )}
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border)",
+        color: "var(--text)",
+        boxShadow: "0 24px 70px var(--shadow)",
+      }}
+    >
       {children}
     </div>
   );
 }
 
-function Panel({ children, className = "", tone = "slate" }: { children: ReactNode; className?: string; tone?: Tone }) {
-  const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
-    green: "from-emerald-500/16",
-    amber: "from-amber-500/16",
-    purple: "from-purple-500/16",
-    cyan: "from-cyan-500/16",
+function Panel({
+  children,
+  className = "",
+  tone = "red",
+}: {
+  children: ReactNode;
+  className?: string;
+  tone?: Tone;
+}) {
+  const glow: Record<Tone, string> = {
+    red: "from-red-500/18",
+    green: "from-emerald-500/14",
+    amber: "from-amber-500/14",
+    purple: "from-purple-500/14",
+    cyan: "from-cyan-500/14",
+    blue: "from-blue-500/14",
     slate: "from-slate-400/8",
   };
 
   return (
-    <div className={cx("relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.052] p-4 shadow-lg shadow-black/10", className)}>
-      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
-      <div className="relative">{children}</div>
+    <div
+      className={cx(
+        "relative min-h-0 overflow-hidden rounded-[1.5rem] border p-4 shadow-xl",
+        className,
+      )}
+      style={{
+        background: "var(--panel)",
+        borderColor: "var(--border)",
+        color: "var(--text)",
+      }}
+    >
+      <div className={cx("pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b to-transparent", glow[tone])} />
+      <div className="relative min-h-0">{children}</div>
     </div>
   );
 }
 
-function Metric({ label, value, helper, tone = "slate" }: { label: string; value: string | number; helper?: string; tone?: Tone }) {
-  const glows: Record<Tone, string> = {
+function Metric({
+  label,
+  value,
+  helper,
+  tone = "red",
+}: {
+  label: string;
+  value: string | number;
+  helper?: string;
+  tone?: Tone;
+}) {
+  const glow: Record<Tone, string> = {
     red: "from-red-500/18",
-    green: "from-emerald-500/18",
-    amber: "from-amber-500/18",
-    purple: "from-purple-500/18",
-    cyan: "from-cyan-500/18",
+    green: "from-emerald-500/14",
+    amber: "from-amber-500/14",
+    purple: "from-purple-500/14",
+    cyan: "from-cyan-500/14",
+    blue: "from-blue-500/14",
     slate: "from-slate-400/10",
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4">
-      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
+    <div
+      className="relative overflow-hidden rounded-[1.35rem] border p-4"
+      style={{
+        background: "var(--panel)",
+        borderColor: "var(--border)",
+      }}
+    >
+      <div className={cx("absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent", glow[tone])} />
       <div className="relative">
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
+        <div className="truncate text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--muted)" }}>
+          {label}
+        </div>
+        <div className="mt-1 truncate text-2xl font-black" style={{ color: "var(--text)" }}>{value}</div>
+        {helper ? <div className="mt-0.5 truncate text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{helper}</div> : null}
       </div>
     </div>
   );
 }
 
-function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
-  const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
-    green: "from-emerald-700 to-emerald-300",
-    amber: "from-amber-700 to-amber-300",
-    purple: "from-purple-700 to-purple-300",
-    slate: "from-slate-700 to-slate-300",
-    cyan: "from-cyan-700 to-cyan-300",
-  };
-
-  return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-black/50">
-      <div
-        className={cx("h-full rounded-full bg-gradient-to-r", fills[tone])}
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
-    </div>
-  );
-}
-
-function BotOrb({ listening, speaking, configured }: { listening: boolean; speaking: boolean; configured: boolean }) {
+function BotOrb({
+  listening,
+  speaking,
+  configured,
+  size = "large",
+}: {
+  listening: boolean;
+  speaking: boolean;
+  configured: boolean;
+  size?: "large" | "small";
+}) {
   const active = listening || speaking;
+  const outer = size === "large" ? "h-28 w-28" : "h-20 w-20";
+  const inner = size === "large" ? "h-20 w-20" : "h-16 w-16";
+  const core = size === "large" ? "h-12 w-12 text-base" : "h-10 w-10 text-sm";
 
   return (
-    <div className="relative grid h-20 w-20 shrink-0 place-items-center">
+    <div className={cx("relative grid shrink-0 place-items-center", outer)}>
       <span
         className={cx(
           "absolute inset-0 rounded-full blur-2xl",
-          active ? "bg-cyan-400/25" : configured ? "bg-emerald-400/14" : "bg-amber-500/18"
+          active ? "bg-red-400/40" : configured ? "bg-red-500/22" : "bg-amber-500/18",
         )}
       />
-      {active ? <span className="absolute inset-0 animate-ping rounded-full border border-cyan-300/45" /> : null}
+      <span className="absolute inset-1 rounded-full border border-red-400/25" />
+      <span className={cx("absolute inset-4 rounded-full border", active ? "border-red-300/45" : "border-white/10")} />
+      {active ? <span className="absolute inset-1 animate-ping rounded-full border border-red-300/45" /> : null}
 
       <div
         className={cx(
-          "relative grid h-16 w-16 place-items-center rounded-full border shadow-2xl",
+          "relative grid place-items-center rounded-full border shadow-2xl",
+          inner,
           active
-            ? "border-cyan-300/60 bg-gradient-to-br from-cyan-300/20 via-slate-950 to-black shadow-cyan-950/40"
+            ? "border-red-300/70 bg-gradient-to-br from-red-300/25 via-red-950 to-black shadow-red-950/60"
             : configured
-              ? "border-emerald-300/30 bg-gradient-to-br from-emerald-500/10 via-zinc-950 to-black shadow-emerald-950/35"
-              : "border-amber-300/30 bg-gradient-to-br from-amber-500/10 via-zinc-950 to-black shadow-amber-950/35"
+              ? "border-red-300/35 bg-gradient-to-br from-red-500/16 via-zinc-950 to-black shadow-red-950/40"
+              : "border-amber-300/30 bg-gradient-to-br from-amber-500/10 via-zinc-950 to-black shadow-amber-950/35",
         )}
       >
-        <div className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-black/60 text-lg font-black">
-          S
+        <div className={cx("grid place-items-center rounded-full border border-white/15 bg-black/70 font-black text-white", core)}>
+          AI
         </div>
       </div>
     </div>
@@ -668,28 +1033,13 @@ function AnswerModeSelector({
     helper: string;
     tone: Tone;
   }> = [
-    {
-      id: "quick",
-      label: "Quick",
-      helper: "Shorter answer",
-      tone: "cyan",
-    },
-    {
-      id: "balanced",
-      label: "Balanced",
-      helper: "Best default",
-      tone: "green",
-    },
-    {
-      id: "deep",
-      label: "Deep",
-      helper: "Longer wait, fuller answer",
-      tone: "purple",
-    },
+    { id: "quick", label: "Quick", helper: "Fast", tone: "cyan" },
+    { id: "balanced", label: "Balanced", helper: "Default", tone: "green" },
+    { id: "deep", label: "Deep", helper: "Reports", tone: "purple" },
   ];
 
   return (
-    <div className="grid gap-2 rounded-[1.35rem] border border-white/10 bg-black/35 p-2 md:grid-cols-3">
+    <div className="grid gap-1.5 rounded-[1.35rem] border p-1.5 md:grid-cols-3" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
       {modes.map((mode) => (
         <button
           key={mode.id}
@@ -698,9 +1048,10 @@ function AnswerModeSelector({
           className={cx(
             "rounded-2xl px-3 py-2.5 text-left transition",
             answerMode === mode.id
-              ? "bg-white text-slate-950 shadow-lg shadow-black/20"
-              : "bg-white/[0.045] text-white hover:bg-white/[0.08]"
+              ? "bg-gradient-to-br from-white via-red-100 to-red-200 text-slate-950 shadow-lg shadow-red-950/20"
+              : "hover:bg-red-500/10",
           )}
+          style={answerMode === mode.id ? undefined : { color: "var(--text)" }}
         >
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs font-black">{mode.label}</div>
@@ -711,11 +1062,11 @@ function AnswerModeSelector({
                   ? "bg-cyan-400"
                   : mode.tone === "green"
                     ? "bg-emerald-400"
-                    : "bg-purple-400"
+                    : "bg-purple-400",
               )}
             />
           </div>
-          <div className={cx("mt-1 text-[10px] font-bold", answerMode === mode.id ? "text-slate-500" : "text-slate-500")}>
+          <div className="mt-0.5 text-[10px] font-bold" style={{ color: answerMode === mode.id ? "#64748b" : "var(--muted)" }}>
             {mode.helper}
           </div>
         </button>
@@ -724,236 +1075,269 @@ function AnswerModeSelector({
   );
 }
 
-function ScenarioChart({ series }: { series: ScenarioSeries[] }) {
-  const width = 900;
-  const height = 340;
-  const padding = 36;
-
-  const values = series.flatMap((item) => [item.bear, item.base, item.bull, item.contributions]);
-  const max = Math.max(...values);
-  const min = Math.min(...values, 0);
-  const range = max - min || 1;
-
-  function pathFor(key: keyof Pick<ScenarioSeries, "base" | "bull" | "bear" | "contributions">) {
-    return series
-      .map((point, index) => {
-        const x = padding + (index / Math.max(series.length - 1, 1)) * (width - padding * 2);
-        const y = height - padding - ((point[key] - min) / range) * (height - padding * 2);
-        return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-      })
-      .join(" ");
-  }
-
+function TabButton({
+  tab,
+  active,
+  onClick,
+}: {
+  tab: (typeof tabs)[number];
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[340px] w-full">
-        <path d={pathFor("bull")} fill="none" stroke="rgba(110,231,183,.95)" strokeWidth="4" />
-        <path d={pathFor("base")} fill="none" stroke="rgba(34,211,238,.95)" strokeWidth="4" />
-        <path d={pathFor("bear")} fill="none" stroke="rgba(248,113,113,.95)" strokeWidth="4" />
-        <path d={pathFor("contributions")} fill="none" stroke="rgba(148,163,184,.65)" strokeWidth="3" strokeDasharray="8 8" />
-        <text x={padding} y="24" fill="rgba(226,232,240,.9)" fontSize="14" fontWeight="700">
-          Investment scenario projection
-        </text>
-        <text x={padding} y={height - 8} fill="rgba(148,163,184,.85)" fontSize="12">
-          Year 0
-        </text>
-        <text x={width - padding - 70} y={height - 8} fill="rgba(148,163,184,.85)" fontSize="12">
-          Final year
-        </text>
-        <text x={width - padding - 130} y="24" fill="rgba(226,232,240,.85)" fontSize="12">
-          {compactMoney(max)}
-        </text>
-      </svg>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Pill tone="green">Bull</Pill>
-        <Pill tone="cyan">Base</Pill>
-        <Pill tone="red">Bear</Pill>
-        <Pill tone="slate">Contributions</Pill>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        "min-w-0 rounded-[1.25rem] px-3 py-2.5 text-left ring-1 transition hover:-translate-y-0.5",
+        active
+          ? "bg-gradient-to-br from-white via-red-100 to-red-200 text-slate-950 shadow-xl shadow-red-950/25 ring-white/40"
+          : "hover:bg-red-500/10 hover:ring-red-400/30",
+      )}
+      style={active ? undefined : { background: "var(--panel)", color: "var(--text)", borderColor: "var(--border)" }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="truncate text-sm font-black">{tab.label}</div>
+        <span className={cx("h-2 w-2 rounded-full", dotClass(tab.tone))} />
       </div>
-    </div>
+      <div className="mt-0.5 truncate text-[10px] font-bold" style={{ color: active ? "#64748b" : "var(--muted)" }}>
+        {tab.helper}
+      </div>
+    </button>
   );
 }
 
-function AllocationBar({ settings }: { settings: ScenarioSettings }) {
-  const total = Math.max(allocationTotal(settings), 1);
+function dotClass(tone: Tone) {
+  const dots: Record<Tone, string> = {
+    red: "bg-red-400 shadow-red-400/60",
+    green: "bg-emerald-400 shadow-emerald-400/60",
+    amber: "bg-amber-400 shadow-amber-400/60",
+    purple: "bg-purple-400 shadow-purple-400/60",
+    cyan: "bg-cyan-400 shadow-cyan-400/60",
+    blue: "bg-blue-400 shadow-blue-400/60",
+    slate: "bg-slate-400 shadow-slate-400/60",
+  };
 
-  const items = [
-    ["Stocks", settings.stockAllocation, "bg-red-400"],
-    ["Bonds", settings.bondAllocation, "bg-cyan-400"],
-    ["Cash", settings.cashAllocation, "bg-emerald-400"],
-    ["Alts", settings.alternativeAllocation, "bg-purple-400"],
-  ];
+  return dots[tone];
+}
 
+function ThemedInput({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  value: string | number;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ring-red-500 focus:ring-2"
+      style={{
+        background: "var(--input)",
+        borderColor: "var(--border)",
+        color: "var(--text)",
+      }}
+    />
+  );
+}
+
+function ThemedSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  helper,
+}: {
+  label: string;
+  value: T;
+  options: T[];
+  onChange: (value: T) => void;
+  helper?: string;
+}) {
+  return (
+    <label>
+      <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ring-red-500 focus:ring-2"
+        style={{
+          background: "var(--input)",
+          borderColor: "var(--border)",
+          color: "var(--text)",
+        }}
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+      {helper ? <div className="mt-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{helper}</div> : null}
+    </label>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+  helper,
+  tone = "slate",
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  helper?: string;
+  tone?: Tone;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm font-bold" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+      <span>
+        {label}
+        {helper ? <span className="mt-1 block text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{helper}</span> : null}
+      </span>
+      <span className="flex items-center gap-2">
+        <Pill tone={checked ? tone : "slate"}>{checked ? "On" : "Off"}</Pill>
+        <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      </span>
+    </label>
+  );
+}
+
+function SectionHeader({ eyebrow, title, helper }: { eyebrow: string; title: string; helper?: string }) {
   return (
     <div>
-      <div className="flex h-4 overflow-hidden rounded-full bg-black/50">
-        {items.map(([label, value, color]) => (
-          <div
-            key={String(label)}
-            className={String(color)}
-            style={{ width: `${(Number(value) / total) * 100}%` }}
-          />
-        ))}
-      </div>
-      <div className="mt-3 grid gap-2 md:grid-cols-4">
-        {items.map(([label, value]) => (
-          <div key={String(label)} className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-            <div className="mt-1 text-xl font-black text-white">{value}%</div>
-          </div>
-        ))}
-      </div>
+      <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">{eyebrow}</div>
+      <h2 className="mt-2 text-3xl font-black" style={{ color: "var(--text)" }}>{title}</h2>
+      {helper ? <p className="mt-2 max-w-4xl text-sm leading-6" style={{ color: "var(--muted)" }}>{helper}</p> : null}
     </div>
   );
 }
 
-function MessageBubble({
-  message,
+function LatestAnswerPanel({
+  latestAssistant,
+  saving,
+  answerMode,
   onCopy,
   onSpeak,
+  onReport,
 }: {
-  message: BotMessage;
+  latestAssistant?: BotMessage;
+  saving: boolean;
+  answerMode: AnswerMode;
   onCopy: (text: string) => void;
   onSpeak: (text: string) => void;
+  onReport: (text: string) => void;
 }) {
-  const isUser = message.role === "user";
-  const action = message.metadata?.clientAction;
+  if (saving) return <ThinkingCard answerMode={answerMode} />;
+
+  if (!latestAssistant) {
+    return (
+      <Panel tone="red">
+        <div className="text-2xl font-black" style={{ color: "var(--text)" }}>No command yet.</div>
+        <p className="mt-2 text-sm leading-6" style={{ color: "var(--muted)" }}>
+          Use the command input on the left. The clean output appears here without turning into a long wall of chat.
+        </p>
+      </Panel>
+    );
+  }
+
+  const action = latestAssistant.metadata?.clientAction;
   const actionText = actionLabel(action);
-  const cleanedError = sanitizeError(message.metadata?.universalAiError);
+  const cleanedError = sanitizeError(latestAssistant.metadata?.universalAiError);
 
   return (
-    <div className={cx("flex", isUser ? "justify-end" : "justify-start")}>
-      <article
-        className={cx(
-          "group max-w-[92%] rounded-[1.6rem] border shadow-lg md:max-w-[84%]",
-          isUser
-            ? "border-red-500/25 bg-gradient-to-br from-red-500/12 to-red-950/20 text-red-50"
-            : "border-white/10 bg-gradient-to-br from-white/[0.075] to-white/[0.035] text-slate-100"
-        )}
-      >
-        <div
-          className={cx(
-            "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
-            isUser ? "border-red-500/15" : "border-white/10"
-          )}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <Pill tone={isUser ? "red" : toneFor(message.metadata?.universalAiStatus || message.intent)}>
-              {isUser ? "You" : "Slice AI"}
-            </Pill>
-            <span className="text-[11px] font-semibold text-slate-500">{shortTime(message.createdAt)}</span>
-            {!isUser && message.metadata?.answerMode ? (
-              <Pill tone={modeTone(message.metadata.answerMode)}>
-                {message.metadata.answerMode}
+    <div className="grid gap-4">
+      <Panel tone="red">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap gap-2">
+              <Pill tone={toneFor(latestAssistant.metadata?.universalAiStatus || latestAssistant.intent)}>
+                Slice Executive AI
               </Pill>
-            ) : null}
-            {!isUser && message.metadata?.universalAiLatencyMs ? (
-              <span className="text-[11px] text-slate-600">
-                {Math.round(message.metadata.universalAiLatencyMs / 1000)}s
-              </span>
-            ) : null}
+              {latestAssistant.metadata?.answerMode ? (
+                <Pill tone={modeTone(latestAssistant.metadata.answerMode)}>{latestAssistant.metadata.answerMode}</Pill>
+              ) : null}
+              <Pill tone="slate">{shortTime(latestAssistant.createdAt)}</Pill>
+            </div>
+
+            <h3 className="mt-3 text-2xl font-black" style={{ color: "var(--text)" }}>Executive answer preview</h3>
           </div>
 
-          <div className="flex gap-2 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={() => onCopy(message.content)}
-              className="rounded-xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-[10px] font-black text-slate-300 hover:bg-black/40"
-            >
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => onSpeak(latestAssistant.content)} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100">
+              Read
+            </button>
+            <button type="button" onClick={() => onCopy(latestAssistant.content)} className="rounded-2xl border px-4 py-2 text-xs font-black" style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}>
               Copy
             </button>
-            {!isUser ? (
-              <button
-                type="button"
-                onClick={() => onSpeak(message.content)}
-                className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] font-black text-cyan-100"
-              >
-                Read
-              </button>
-            ) : null}
+            <button type="button" onClick={() => onReport(latestAssistant.content)} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-black text-amber-100">
+              Make PDF
+            </button>
           </div>
         </div>
 
-        <div className="px-4 py-4">
-          <div className="whitespace-pre-wrap text-sm leading-7">{message.content}</div>
-
-          {cleanedError ? (
-            <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
-              {cleanedError}
-            </div>
-          ) : null}
-
-          {action?.href && actionText ? (
-            <a
-              href={action.href}
-              target={action.type === "report" || action.type === "source" ? "_blank" : undefined}
-              rel={action.type === "report" || action.type === "source" ? "noreferrer" : undefined}
-              className="mt-4 inline-flex rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-            >
-              {actionText}
-            </a>
-          ) : null}
+        <div className="mt-4 rounded-[1.35rem] border p-4" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+          <div className="whitespace-pre-wrap text-sm leading-7" style={{ color: "var(--muted2)" }}>
+            {previewText(latestAssistant.content)}
+          </div>
         </div>
-      </article>
-    </div>
-  );
-}
 
-function EmptyChatState({
-  onPrompt,
-}: {
-  onPrompt: (prompt: string) => void;
-}) {
-  return (
-    <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-black/25 p-6">
-      <div className="mx-auto max-w-3xl text-center">
-        <div className="text-2xl font-black text-white">Start with a normal sentence.</div>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          Slice AI is designed to feel like a teammate. Ask for a client explanation, meeting prep,
-          investment scenario, platform guidance, or a report.
-        </p>
-      </div>
+        {cleanedError ? (
+          <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+            {cleanedError}
+          </div>
+        ) : null}
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        {[
-          "Prepare me for a client portfolio review.",
-          "Explain this market move to a client.",
-          "Build a retirement scenario for a new client.",
-        ].map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => onPrompt(item)}
-            className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-left text-sm leading-6 text-slate-300 hover:bg-white/[0.08]"
+        {action?.href && actionText ? (
+          <a
+            href={action.href}
+            target={action.type === "report" || action.type === "source" ? "_blank" : undefined}
+            rel={action.type === "report" || action.type === "source" ? "noreferrer" : undefined}
+            className="mt-4 inline-flex rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
           >
-            {item}
-          </button>
-        ))}
-      </div>
+            {actionText}
+          </a>
+        ) : null}
+      </Panel>
+
+      <details className="group rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+        <summary className="cursor-pointer list-none text-sm font-black" style={{ color: "var(--text)" }}>
+          Open full response
+          <span className="ml-2 text-xs font-semibold group-open:hidden" style={{ color: "var(--muted)" }}>+</span>
+          <span className="ml-2 hidden text-xs font-semibold group-open:inline" style={{ color: "var(--muted)" }}>−</span>
+        </summary>
+        <div className="mt-4 max-h-[420px] overflow-y-auto rounded-[1.25rem] border p-4" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+          <div className="whitespace-pre-wrap text-sm leading-7" style={{ color: "var(--muted2)" }}>{latestAssistant.content}</div>
+        </div>
+      </details>
     </div>
   );
 }
 
 function ThinkingCard({ answerMode }: { answerMode: AnswerMode }) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[86%] rounded-[1.6rem] border border-cyan-500/20 bg-cyan-500/10 p-4 shadow-lg shadow-cyan-950/20">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.3s]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.15s]" />
-            <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-300" />
+    <div className="rounded-[1.4rem] border border-red-500/25 bg-red-500/10 p-4 shadow-lg shadow-red-950/20">
+      <div className="flex items-center gap-3">
+        <div className="flex gap-1">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-red-300" />
+        </div>
+        <div>
+          <div className="text-sm font-black text-white">
+            {answerMode === "deep" ? "Building an executive-grade answer..." : "Thinking..."}
           </div>
-          <div>
-            <div className="text-sm font-black text-white">
-              {answerMode === "deep" ? "Building a deeper answer..." : "Thinking..."}
-            </div>
-            <div className="mt-1 text-xs text-cyan-100/70">
-              {answerMode === "deep"
-                ? "Deep Mode waits longer so the answer can be more complete."
-                : "Slice AI is preparing a clean advisor-grade response."}
-            </div>
+          <div className="mt-1 text-xs text-red-100/70">
+            {answerMode === "deep"
+              ? "Deep Mode gives report-quality structure and stronger review notes."
+              : "Slice AI is preparing a clean advisor-grade response."}
           </div>
         </div>
       </div>
@@ -961,89 +1345,43 @@ function ThinkingCard({ answerMode }: { answerMode: AnswerMode }) {
   );
 }
 
-function ChatFocusPanel({
-  selectedFocus,
-  setSelectedFocus,
-  onApply,
-}: {
-  selectedFocus: ChatFocus;
-  setSelectedFocus: (focus: ChatFocus) => void;
-  onApply: (prefix: string) => void;
-}) {
-  return (
-    <Panel tone="cyan" className="bg-black/35">
-      <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
-        Choose a helpful starting lens
-      </div>
+function MessageMiniCard({ message }: { message: BotMessage }) {
+  const isUser = message.role === "user";
 
-      <div className="mt-3 grid gap-2">
-        {focusCards.map((focus) => (
-          <button
-            key={focus.id}
-            type="button"
-            onClick={() => {
-              setSelectedFocus(focus.id);
-              onApply(focus.promptPrefix);
-            }}
-            className={cx(
-              "rounded-2xl border p-3 text-left transition hover:bg-white/[0.08]",
-              selectedFocus === focus.id
-                ? "border-white/25 bg-white text-slate-950"
-                : "border-white/10 bg-white/[0.045] text-white"
-            )}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-black">{focus.title}</div>
-                <div className={cx("mt-1 text-xs", selectedFocus === focus.id ? "text-slate-500" : "text-slate-500")}>
-                  {focus.helper}
-                </div>
-              </div>
-              <span
-                className={cx(
-                  "mt-1 h-2.5 w-2.5 rounded-full",
-                  focus.tone === "red"
-                    ? "bg-red-400"
-                    : focus.tone === "green"
-                      ? "bg-emerald-400"
-                      : focus.tone === "amber"
-                        ? "bg-amber-400"
-                        : focus.tone === "purple"
-                          ? "bg-purple-400"
-                          : focus.tone === "cyan"
-                            ? "bg-cyan-400"
-                            : "bg-slate-400"
-                )}
-              />
-            </div>
-          </button>
-        ))}
+  return (
+    <div className="rounded-[1.25rem] border p-3" style={{ background: isUser ? "var(--accentSoft)" : "var(--panel)", borderColor: "var(--border)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <Pill tone={isUser ? "red" : "slate"}>{isUser ? "You" : "AI"}</Pill>
+        <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{shortTime(message.createdAt)}</span>
       </div>
-    </Panel>
+      <p className="mt-2 line-clamp-3 text-xs leading-5" style={{ color: "var(--muted)" }}>{message.content}</p>
+    </div>
   );
 }
 
-function ConversationStats({
-  messages,
-  latestAssistant,
-}: {
-  messages: BotMessage[];
-  latestAssistant?: BotMessage;
-}) {
-  const assistantCount = messages.filter((message) => message.role === "assistant").length;
-  const userCount = messages.filter((message) => message.role === "user").length;
-  const words = messageWordCount(messages);
-
+function ReportLibraryCard({ report }: { report: PdfReport }) {
   return (
-    <Panel tone="purple" className="bg-black/35">
-      <div className="text-xs font-black uppercase tracking-[0.22em] text-purple-300">
-        Conversation
+    <Panel tone={toneFor(report.status)}>
+      <div className="flex flex-wrap gap-2">
+        <Pill tone={toneFor(report.status)}>{report.status}</Pill>
+        <Pill tone="red">{report.reportType}</Pill>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Metric label="You" value={userCount} tone="red" />
-        <Metric label="AI" value={assistantCount} tone="cyan" />
-        <Metric label="Words" value={words} tone="purple" />
-        <Metric label="Latest" value={latestAssistant ? relativeTime(latestAssistant.createdAt) : "—"} tone="slate" />
+
+      <h3 className="mt-3 line-clamp-2 text-sm font-black" style={{ color: "var(--text)" }}>{report.title}</h3>
+      <div className="mt-2 text-xs" style={{ color: "var(--muted)" }}>{formatTime(report.createdAt)}</div>
+
+      {report.summary ? (
+        <p className="mt-3 line-clamp-3 text-xs leading-5" style={{ color: "var(--muted)" }}>{report.summary}</p>
+      ) : null}
+
+      <div className="mt-4 grid gap-2">
+        <a href={reportViewerHref(report)} target="_blank" rel="noreferrer" className="inline-flex justify-center rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950">
+          Open Browser Report
+        </a>
+
+        <a href={reportPdfHref(report)} target="_blank" rel="noreferrer" className="inline-flex justify-center rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100">
+          Open Raw PDF
+        </a>
       </div>
     </Panel>
   );
@@ -1051,36 +1389,36 @@ function ConversationStats({
 
 export default function PersonalBotPage() {
   const [data, setData] = useState<BotPayload | null>(null);
+  const [workspace, setWorkspace] = useState<FirmWorkspacePayload | null>(null);
+  const [accountSettings, setAccountSettings] = useState<AccountSettingsPayload>(defaultAccountSettings);
+  const [activeTab, setActiveTab] = useState<StudioTab>("command");
   const [prompt, setPrompt] = useState("");
+  const [voiceDraft, setVoiceDraft] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [activeView, setActiveView] = useState<StudioView>("chat");
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [answerMode, setAnswerMode] = useState<AnswerMode>("balanced");
-  const [selectedFocus, setSelectedFocus] = useState<ChatFocus>("advisor");
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
-
-  const [scenario, setScenario] = useState<ScenarioSettings>({
-    clientName: "New Client",
-    clientAge: 42,
-    startingBalance: 250000,
-    monthlyContribution: 2500,
-    horizonYears: 20,
-    expectedReturn: 7,
-    bearReturn: 2,
-    bullReturn: 10,
-    inflation: 2.5,
-    advisoryFee: 0.85,
-    taxDrag: 0.6,
-    volatility: 14,
-    stockAllocation: 65,
-    bondAllocation: 25,
-    cashAllocation: 5,
-    alternativeAllocation: 5,
-    riskProfile: "Balanced",
+  const [systemDark, setSystemDark] = useState(true);
+  const [reportTopic, setReportTopic] = useState("Slice advisor executive report");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [deactivateConfirm, setDeactivateConfirm] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>(defaultAdvancedSettings);
+  const [taskDraft, setTaskDraft] = useState<TeamTaskDraft>({
+    title: "",
+    detail: "",
+    priority: defaultAdvancedSettings.taskDefaultPriority,
+    status: defaultAdvancedSettings.taskDefaultStatus,
+    dueDate: dueDateFromSetting(defaultAdvancedSettings.taskDueDays),
+    reminderAt: "",
+    reminderNote: "",
+    projectId: "",
+    notifyEmail: defaultAdvancedSettings.taskEmailDefault,
   });
-
   const [draftProfile, setDraftProfile] = useState({
     botName: "",
     preferredTone: "Professional",
@@ -1091,7 +1429,16 @@ export default function PersonalBotPage() {
   });
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const appearanceMode = accountSettings.appearance.mode;
+  const isLight = appearanceMode === "light" || (appearanceMode === "system" && !systemDark);
+  const themeStyle = themeVars(isLight, accountSettings.appearance.accent);
+  const densityClass =
+    accountSettings.appearance.density === "Compact"
+      ? "gap-3"
+      : accountSettings.appearance.density === "Spacious"
+        ? "gap-6"
+        : "gap-4";
 
   const profile = data?.profile;
   const aiEngine = data?.aiEngine;
@@ -1100,73 +1447,261 @@ export default function PersonalBotPage() {
   const commands = data?.commands ?? [];
   const memories = data?.memories ?? [];
   const approvals = [...(data?.approvals ?? []), ...(data?.backendApprovals ?? [])];
-
+  const teamMetrics = workspace?.operations?.sprintMetrics;
+  const visibleTaskCount = workspace?.operations?.allTasks?.length ?? 0;
   const latestAssistant = useMemo(
     () => [...messages].reverse().find((item) => item.role === "assistant"),
-    [messages]
+    [messages],
   );
+  const latestUser = useMemo(
+    () => [...messages].reverse().find((item) => item.role === "user"),
+    [messages],
+  );
+  const previousContext = useMemo(() => messages.filter((item) => item.id !== latestAssistant?.id && item.id !== latestUser?.id), [
+    latestAssistant?.id,
+    latestUser?.id,
+    messages,
+  ]);
+  const lastCommand = commands[0];
 
-  const pinnedPrompts = useMemo(() => {
-    const pinned = data?.tabs?.flatMap((tab) => tab.pinnedCommands ?? []) ?? [];
-    return pinned.length ? pinned.slice(0, 8) : starterPrompts;
-  }, [data]);
-
-  const scenarioSeries = useMemo(() => buildScenarioSeries(scenario), [scenario]);
-  const finalScenario = scenarioSeries[scenarioSeries.length - 1];
-  const totalContributions = finalScenario?.contributions ?? 0;
-  const projectedGain = (finalScenario?.base ?? 0) - totalContributions;
-  const allocationSum = allocationTotal(scenario);
   const studioReadiness = useMemo(() => {
-    let score = 30;
+    let score = 36;
 
-    if (aiEngine?.configured) score += 25;
-    if (messages.length) score += 12;
+    if (aiEngine?.configured) score += 24;
+    if (profile?.voiceEnabled) score += 8;
     if (reports.length) score += 8;
-    if (profile?.customInstructions) score += 8;
-    if (profile?.voiceEnabled) score += 7;
+    if (workspace?.firm) score += 8;
+    if (profile?.customInstructions) score += 7;
     if (approvals.length === 0) score += 5;
-    if (memories.length) score += 5;
+    if (memories.length) score += 4;
 
     return Math.max(0, Math.min(100, score));
-  }, [aiEngine?.configured, messages.length, reports.length, profile?.customInstructions, profile?.voiceEnabled, approvals.length, memories.length]);
-
-  const scenarioPrompt = useMemo(() => {
-    return `Create a client-friendly investment scenario for ${scenario.clientName}. Starting balance: ${money(
-      scenario.startingBalance
-    )}. Monthly contribution: ${money(scenario.monthlyContribution)}. Horizon: ${
-      scenario.horizonYears
-    } years. Risk profile: ${scenario.riskProfile}. Allocation: ${scenario.stockAllocation}% stocks, ${
-      scenario.bondAllocation
-    }% bonds, ${scenario.cashAllocation}% cash, ${
-      scenario.alternativeAllocation
-    }% alternatives. Base return: ${scenario.expectedReturn}%, bear return: ${
-      scenario.bearReturn
-    }%, bull return: ${scenario.bullReturn}%, inflation: ${scenario.inflation}%, advisory fee: ${
-      scenario.advisoryFee
-    }%, tax drag: ${scenario.taxDrag}%. Explain the base, bull, and bear cases clearly, include advisor talking points, and avoid guarantees.`;
-  }, [scenario]);
+  }, [
+    aiEngine?.configured,
+    approvals.length,
+    memories.length,
+    profile?.customInstructions,
+    profile?.voiceEnabled,
+    reports.length,
+    workspace?.firm,
+  ]);
 
   async function loadData() {
-    const response = await fetch("/api/personal-bot", {
-      cache: "no-store",
-    });
+    try {
+      const response = await fetch("/api/personal-bot", { cache: "no-store" });
+      const payload = (await response.json()) as BotPayload & { error?: string };
 
-    const payload = await response.json();
+      if (!response.ok) {
+        setMessage(payload.error ?? "Could not load AI Studio.");
+        return;
+      }
 
-    if (!response.ok) {
-      setMessage(payload.error ?? "Could not load AI Studio.");
-      return;
+      setData(compactBotPayload(payload));
+      setDraftProfile({
+        botName: payload.profile.botName ?? "Slice AI",
+        preferredTone: payload.profile.preferredTone ?? "Professional",
+        commandStyle: payload.profile.commandStyle ?? "Balanced detail",
+        autonomyLevel: payload.profile.autonomyLevel ?? "Advisor approval required",
+        customInstructions: payload.profile.customInstructions ?? "",
+        voiceEnabled: Boolean(payload.profile.voiceEnabled),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load AI Studio.");
     }
+  }
 
-    setData(payload);
-    setDraftProfile({
-      botName: payload.profile.botName ?? "Slice AI",
-      preferredTone: payload.profile.preferredTone ?? "Professional",
-      commandStyle: payload.profile.commandStyle ?? "Balanced detail",
-      autonomyLevel: payload.profile.autonomyLevel ?? "Advisor approval required",
-      customInstructions: payload.profile.customInstructions ?? "",
-      voiceEnabled: Boolean(payload.profile.voiceEnabled),
-    });
+  async function loadAccountSettings() {
+    try {
+      const response = await fetch("/api/account-settings", { cache: "no-store" });
+      const payload = (await response.json()) as AccountSettingsPayload & { error?: string };
+
+      if (!response.ok) {
+        setMessage(payload.error ?? "Could not load account settings.");
+        return;
+      }
+
+      setAccountSettings({
+        ...defaultAccountSettings,
+        ...payload,
+        account: { ...defaultAccountSettings.account, ...payload.account },
+        appearance: { ...defaultAccountSettings.appearance, ...payload.appearance },
+        privacy: { ...defaultAccountSettings.privacy, ...payload.privacy },
+        security: { ...defaultAccountSettings.security, ...payload.security },
+        notifications: payload.notifications?.length ? payload.notifications : defaultAccountSettings.notifications,
+        contact: { ...defaultAccountSettings.contact, ...payload.contact },
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load account settings.");
+    }
+  }
+
+  async function loadWorkspace() {
+    setWorkspaceLoading(true);
+
+    try {
+      const response = await fetch("/api/firm-workspace", { cache: "no-store" });
+      const payload = (await response.json()) as FirmWorkspacePayload & { error?: string };
+
+      if (!response.ok) {
+        setWorkspace(null);
+        return;
+      }
+
+      setWorkspace(payload);
+
+      if (!selectedMemberId && payload.members?.[0]) {
+        setSelectedMemberId(payload.members[0].id);
+      }
+    } catch {
+      setWorkspace(null);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }
+
+  async function saveAccountSettings() {
+    setAccountSaving(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "save-account-settings",
+        },
+        body: JSON.stringify({
+          action: "saveAccountSettings",
+          account: accountSettings.account,
+          appearance: accountSettings.appearance,
+          privacy: accountSettings.privacy,
+          security: accountSettings.security,
+          notifications: accountSettings.notifications,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(payload.error ?? "Could not save settings.");
+        return;
+      }
+
+      setAccountSettings({
+        ...defaultAccountSettings,
+        ...payload,
+        account: { ...defaultAccountSettings.account, ...payload.account },
+        appearance: { ...defaultAccountSettings.appearance, ...payload.appearance },
+        privacy: { ...defaultAccountSettings.privacy, ...payload.privacy },
+        security: { ...defaultAccountSettings.security, ...payload.security },
+        notifications: payload.notifications?.length ? payload.notifications : defaultAccountSettings.notifications,
+        contact: { ...defaultAccountSettings.contact, ...payload.contact },
+      });
+      setMessage("Settings saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save settings.");
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+  async function requestPasswordReset() {
+    setAccountSaving(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "request-password-reset",
+        },
+        body: JSON.stringify({ action: "requestPasswordReset" }),
+      });
+
+      const payload = await response.json();
+
+      setMessage(payload.message || payload.error || "Password reset request submitted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not request password reset.");
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+  async function logout() {
+    setAccountSaving(true);
+
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: {
+          "x-slice-sensitive-action": "logout",
+        },
+      });
+    } finally {
+      window.location.href = "/login";
+    }
+  }
+
+  async function deactivateAccount() {
+    setAccountSaving(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "deactivate-account",
+        },
+        body: JSON.stringify({
+          action: "deactivateAccount",
+          confirmation: deactivateConfirm,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(payload.error || "Could not deactivate account.");
+        return;
+      }
+
+      window.location.href = payload.redirectTo || "/login";
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+  async function deleteAccount() {
+    setAccountSaving(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/account-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "delete-account",
+        },
+        body: JSON.stringify({
+          action: "deleteAccount",
+          confirmation: deleteConfirm,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(payload.error || "Could not delete account.");
+        return;
+      }
+
+      window.location.href = payload.redirectTo || "/login";
+    } finally {
+      setAccountSaving(false);
+    }
   }
 
   async function sendPrompt(value = prompt, voiceTranscript?: string) {
@@ -1178,12 +1713,27 @@ export default function PersonalBotPage() {
     setMessage("");
     setPrompt("");
 
+    const lower = trimmed.toLowerCase();
+
+    if (lower.includes("task") || lower.includes("assign") || lower.includes("delegate")) {
+      setTaskDraft((current) => ({
+        ...current,
+        title: current.title || inferTaskTitle(trimmed),
+        detail: current.detail || trimmed,
+      }));
+      setActiveTab("tasks");
+    }
+
+    if (lower.includes("pdf") || lower.includes("report") || lower.includes("briefing") || lower.includes("packet")) {
+      setActiveTab("reports");
+    }
+
     try {
       const response = await fetch("/api/personal-bot", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-slice-sensitive-action": "ai-studio-send-message",
+          "x-slice-sensitive-action": "ai-executive-studio-send-message",
         },
         body: JSON.stringify({
           action: "sendMessage",
@@ -1191,18 +1741,33 @@ export default function PersonalBotPage() {
           answerMode,
           voiceTranscript,
           currentPath: "/workspace/personal-bot",
-          pageTitle: "Slice AI Studio",
+          pageTitle: "Slice AI Executive Studio",
+          visibleMemoryWindow: 2,
+          advancedSettings,
+          accountSettings: {
+            appearance: accountSettings.appearance,
+            privacy: accountSettings.privacy,
+          },
+          instruction:
+            "Treat this as an executive operator request. Infer the correct Slice workflow. Keep the reply concise, structured, and non-overwhelming unless deep detail is explicitly required.",
         }),
       });
 
-      const payload = await response.json();
+      const payload = (await response.json()) as BotPayload & { error?: string };
 
       if (!response.ok) {
         setMessage(payload.error ?? "AI Studio could not answer.");
         return;
       }
 
-      setData(payload);
+      const compactPayload = compactBotPayload(payload);
+      setData(compactPayload);
+
+      const newestAssistant = [...(compactPayload.messages ?? [])].reverse().find((item) => item.role === "assistant");
+
+      if (advancedSettings.autoReadReplies && newestAssistant?.content) {
+        speak(newestAssistant.content);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "AI Studio could not answer.");
     } finally {
@@ -1215,60 +1780,119 @@ export default function PersonalBotPage() {
     setMessage("");
 
     try {
+      window.localStorage.setItem(ADVANCED_SETTINGS_KEY, JSON.stringify(advancedSettings));
+
       const response = await fetch("/api/personal-bot", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-slice-sensitive-action": "ai-studio-update-profile",
+          "x-slice-sensitive-action": "ai-executive-studio-update-profile",
         },
         body: JSON.stringify({
           action: "updateProfile",
           ...draftProfile,
+          autonomyLevel: advancedSettings.approvalStyle,
         }),
       });
 
-      const payload = await response.json();
+      const payload = (await response.json()) as BotPayload & { error?: string };
 
       if (!response.ok) {
         setMessage(payload.error ?? "Could not save profile.");
         return;
       }
 
-      setData(payload);
-      setMessage("AI Studio preferences saved.");
+      setData(compactBotPayload(payload));
+      setMessage("AI Studio settings saved.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function copyText(text: string, label = "Copied.") {
-    await navigator.clipboard.writeText(text);
-    setMessage(label);
+  async function createTeamTask(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+
+    if (!taskDraft.title.trim()) {
+      setMessage("Task title is required.");
+      return;
+    }
+
+    if (!workspace?.firm?.id) {
+      setMessage("Create or connect to a firm before assigning Team Board tasks.");
+      return;
+    }
+
+    const targetMembershipId = selectedMemberId || workspace.members[0]?.id;
+
+    if (!targetMembershipId) {
+      setMessage("Add a team member before assigning this task.");
+      return;
+    }
+
+    setWorkspaceLoading(true);
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/firm-workspace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": "ai-executive-studio-create-team-task",
+        },
+        body: JSON.stringify({
+          firmId: workspace.firm.id,
+          action: "createDelegatedTask",
+          targetMembershipId,
+          title: taskDraft.title,
+          detail: taskDraft.detail,
+          priority: taskDraft.priority,
+          status: taskDraft.status,
+          dueDate: taskDraft.dueDate,
+          reminderAt: taskDraft.reminderAt,
+          reminderNote: taskDraft.reminderNote,
+          projectId: taskDraft.projectId || null,
+          notifyEmail: taskDraft.notifyEmail,
+        }),
+      });
+
+      const payload = (await response.json()) as FirmWorkspacePayload & { error?: string };
+
+      if (!response.ok) {
+        setMessage(payload.error ?? "Task could not be created.");
+        return;
+      }
+
+      setWorkspace(payload);
+      setTaskDraft((current) => ({
+        ...current,
+        title: "",
+        detail: "",
+        reminderAt: "",
+        reminderNote: "",
+      }));
+
+      const emailNote = payload.emailResult ? ` Email: ${payload.emailResult.status}.` : "";
+      setMessage(`Team Board task created and assigned.${emailNote}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Task could not be created.");
+    } finally {
+      setWorkspaceLoading(false);
+    }
   }
 
-  async function copyScenarioSummary() {
-    const summary = [
-      `${scenario.clientName} Investment Scenario`,
-      "",
-      `Starting balance: ${money(scenario.startingBalance)}`,
-      `Monthly contribution: ${money(scenario.monthlyContribution)}`,
-      `Horizon: ${scenario.horizonYears} years`,
-      `Risk profile: ${scenario.riskProfile}`,
-      `Allocation: ${scenario.stockAllocation}% stocks, ${scenario.bondAllocation}% bonds, ${scenario.cashAllocation}% cash, ${scenario.alternativeAllocation}% alternatives`,
-      "",
-      `Base projected value: ${money(finalScenario?.base ?? 0)}`,
-      `Bull projected value: ${money(finalScenario?.bull ?? 0)}`,
-      `Bear projected value: ${money(finalScenario?.bear ?? 0)}`,
-      `Real base value after inflation: ${money(finalScenario?.realBase ?? 0)}`,
-      `Total contributions: ${money(totalContributions)}`,
-      `Projected base gain: ${money(projectedGain)}`,
-      "",
-      riskCommentary(scenario),
-      "",
-      "This is a planning illustration, not a guarantee or recommendation.",
-    ].join("\n");
+  async function copyText(text: string, label = "Copied.") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage(label);
+    } catch {
+      setMessage("Copy failed. Select the text manually.");
+    }
+  }
 
-    await copyText(summary, "Scenario summary copied.");
+  function generateReport(topic = reportTopic, sourceText?: string) {
+    setAnswerMode("deep");
+    setActiveTab("reports");
+    void sendPrompt(buildReportPrompt(topic, sourceText, advancedSettings));
   }
 
   function speak(text: string) {
@@ -1277,8 +1901,8 @@ export default function PersonalBotPage() {
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(stripForSpeech(text));
-    utterance.lang = profile?.speechLanguage || "en-GB";
-    utterance.rate = 0.92;
+    utterance.lang = advancedSettings.voiceLanguage || profile?.speechLanguage || "en-US";
+    utterance.rate = advancedSettings.voiceRate === "Slow" ? 0.82 : advancedSettings.voiceRate === "Fast" ? 1.04 : 0.92;
     utterance.pitch = 1;
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
@@ -1291,25 +1915,29 @@ export default function PersonalBotPage() {
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
+
     setSpeaking(false);
   }
 
-  function startListening() {
+  function startListening(target: "prompt" | "voice" = "prompt") {
     if (typeof window === "undefined") return;
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
+    const browserWindow = window as unknown as {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+
+    const SpeechRecognition = browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setMessage("Voice recognition is not available in this browser.");
       return;
     }
 
-    const recognition = new (SpeechRecognition as SpeechRecognitionConstructor)();
+    const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = profile?.speechLanguage || "en-GB";
+    recognition.lang = advancedSettings.voiceLanguage || profile?.speechLanguage || "en-US";
 
     let finalTranscript = "";
 
@@ -1329,14 +1957,28 @@ export default function PersonalBotPage() {
         }
       }
 
-      setPrompt((finalTranscript || interim).trim());
+      const liveText = (finalTranscript || interim).trim();
+
+      if (target === "voice") {
+        setVoiceDraft(liveText);
+      } else {
+        setPrompt(liveText);
+      }
     };
 
     recognition.onend = () => {
       setListening(false);
 
       if (finalTranscript.trim()) {
-        void sendPrompt(finalTranscript.trim(), finalTranscript.trim());
+        if (target === "voice") {
+          setVoiceDraft(finalTranscript.trim());
+
+          if (advancedSettings.voiceAutoSend) {
+            void sendPrompt(finalTranscript.trim(), finalTranscript.trim());
+          }
+        } else {
+          void sendPrompt(finalTranscript.trim(), finalTranscript.trim());
+        }
       }
     };
 
@@ -1361,38 +2003,140 @@ export default function PersonalBotPage() {
     }
   }
 
-  function updateScenario<K extends keyof ScenarioSettings>(key: K, value: ScenarioSettings[K]) {
-    setScenario((current) => ({
+  function updateAdvancedSettings<K extends keyof AdvancedSettings>(key: K, value: AdvancedSettings[K]) {
+    setAdvancedSettings((current) => {
+      const next = { ...current, [key]: value };
+
+      if (key === "defaultAnswerMode") {
+        setAnswerMode(value as AnswerMode);
+      }
+
+      if (key === "taskDefaultPriority") {
+        setTaskDraft((draft) => ({ ...draft, priority: value as Priority }));
+      }
+
+      if (key === "taskDefaultStatus") {
+        setTaskDraft((draft) => ({ ...draft, status: value as TaskStatus }));
+      }
+
+      if (key === "taskDueDays") {
+        setTaskDraft((draft) => ({ ...draft, dueDate: dueDateFromSetting(value as AdvancedSettings["taskDueDays"]) }));
+      }
+
+      if (key === "taskEmailDefault") {
+        setTaskDraft((draft) => ({ ...draft, notifyEmail: value as boolean }));
+      }
+
+      return next;
+    });
+  }
+
+  function updateAccount<K extends keyof AccountSettingsPayload["account"]>(key: K, value: AccountSettingsPayload["account"][K]) {
+    setAccountSettings((current) => ({
       ...current,
-      [key]: value,
+      account: {
+        ...current.account,
+        [key]: value,
+      },
     }));
   }
 
-  function applyFocusPrefix(prefix: string) {
-    setPrompt((current) => {
-      if (current.trim().startsWith(prefix.trim())) return current;
-      return current.trim() ? `${prefix}${current}` : prefix;
-    });
+  function updateAppearance<K extends keyof AccountSettingsPayload["appearance"]>(key: K, value: AccountSettingsPayload["appearance"][K]) {
+    setAccountSettings((current) => ({
+      ...current,
+      appearance: {
+        ...current.appearance,
+        [key]: value,
+      },
+    }));
+  }
+
+  function updatePrivacy<K extends keyof AccountSettingsPayload["privacy"]>(key: K, value: AccountSettingsPayload["privacy"][K]) {
+    setAccountSettings((current) => ({
+      ...current,
+      privacy: {
+        ...current.privacy,
+        [key]: value,
+      },
+    }));
+  }
+
+  function updateSecurity<K extends keyof AccountSettingsPayload["security"]>(key: K, value: AccountSettingsPayload["security"][K]) {
+    setAccountSettings((current) => ({
+      ...current,
+      security: {
+        ...current.security,
+        [key]: value,
+      },
+    }));
+  }
+
+  function updateNotification(index: number, patch: Partial<AccountSettingsPayload["notifications"][number]>) {
+    setAccountSettings((current) => ({
+      ...current,
+      notifications: current.notifications.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    }));
   }
 
   useEffect(() => {
     void loadData();
+    void loadWorkspace();
+    void loadAccountSettings();
 
     if (typeof window !== "undefined") {
-      setVoiceSupported(Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition));
+      const browserWindow = window as unknown as {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      };
+
+      setVoiceSupported(Boolean(browserWindow.SpeechRecognition || browserWindow.webkitSpeechRecognition));
+
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      setSystemDark(media.matches);
+
+      const listener = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+      media.addEventListener?.("change", listener);
+
+      try {
+        const raw = window.localStorage.getItem(ADVANCED_SETTINGS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<AdvancedSettings>;
+          const merged = { ...defaultAdvancedSettings, ...parsed };
+          setAdvancedSettings(merged);
+          setAnswerMode(merged.defaultAnswerMode);
+          setTaskDraft((current) => ({
+            ...current,
+            priority: merged.taskDefaultPriority,
+            status: merged.taskDefaultStatus,
+            dueDate: dueDateFromSetting(merged.taskDueDays),
+            notifyEmail: merged.taskEmailDefault,
+          }));
+        }
+      } catch {
+        setAdvancedSettings(defaultAdvancedSettings);
+      }
+
+      return () => media.removeEventListener?.("change", listener);
     }
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, saving]);
+    if (typeof document === "undefined") return;
+
+    document.documentElement.dataset.sliceTheme = isLight ? "light" : "dark";
+    document.documentElement.style.colorScheme = isLight ? "light" : "dark";
+  }, [isLight]);
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.30),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+      <main className="min-h-screen p-5 text-white" style={themeStyle}>
         <Card className="mx-auto mt-20 max-w-3xl p-8 text-center">
-          <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">Slice AI Studio</div>
-          <h1 className="mt-4 text-3xl font-black">Loading your AI workspace...</h1>
+          <div className="mx-auto flex justify-center rounded-3xl bg-zinc-950/90 p-4">
+            <BrandMark />
+          </div>
+          <h1 className="mt-8 text-3xl font-black">Loading Slice AI Executive Studio...</h1>
           {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
         </Card>
       </main>
@@ -1400,827 +2144,884 @@ export default function PersonalBotPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.30),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
-      <div className="mx-auto grid max-w-[1900px] gap-5">
-        <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/76 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.20),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.12),transparent_26%)]" />
+    <main
+      className="min-h-screen overflow-x-hidden p-3 md:p-5"
+      style={{
+        ...themeStyle,
+        background: isLight
+          ? "radial-gradient(circle at top left, rgba(220,38,38,0.14), transparent 30%), radial-gradient(circle at top right, rgba(248,113,113,0.16), transparent 28%), linear-gradient(135deg, var(--bg), var(--bg2))"
+          : "radial-gradient(circle at top left, rgba(127,29,29,0.48), transparent 30%), radial-gradient(circle at top right, rgba(239,68,68,0.24), transparent 26%), radial-gradient(circle at bottom, rgba(153,27,27,0.30), transparent 38%), linear-gradient(135deg, var(--bg), #09090b, #111111, var(--bg2))",
+        color: "var(--text)",
+      }}
+    >
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-[-12%] top-[-18%] h-[34rem] w-[34rem] rounded-full bg-red-700/20 blur-3xl" />
+        <div className="absolute right-[-14%] top-[5%] h-[34rem] w-[34rem] rounded-full bg-red-500/14 blur-3xl" />
+        <div className="absolute bottom-[-20%] left-[25%] h-[30rem] w-[30rem] rounded-full bg-orange-700/10 blur-3xl" />
+      </div>
 
-          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex gap-5">
-              <BotOrb listening={listening} speaking={speaking} configured={Boolean(aiEngine?.configured)} />
+      <div className={cx("relative mx-auto grid max-w-[1900px]", densityClass)}>
+        <header className="relative overflow-hidden rounded-[2.25rem] border p-5 shadow-2xl backdrop-blur-2xl" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)", boxShadow: "0 24px 70px var(--shadow)" }}>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(239,68,68,0.20),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(248,113,113,0.12),transparent_26%)]" />
 
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Pill tone={aiEngine?.configured ? "green" : "amber"}>
-                    {aiEngine?.configured ? "API connected" : "Fallback mode"}
-                  </Pill>
-                  <Pill tone={modeTone(answerMode)}>{answerMode} mode</Pill>
-                  <Pill tone="purple">Scenario lab</Pill>
-                  <Pill tone="green">Client friendly</Pill>
+          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className={cx("inline-flex rounded-3xl p-3", isLight ? "bg-zinc-950" : "bg-transparent")}>
+                <BrandMark />
+              </div>
+
+              <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-center">
+                <BotOrb listening={listening} speaking={speaking} configured={Boolean(aiEngine?.configured)} />
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap gap-2">
+                    <Pill tone={aiEngine?.configured ? "green" : "amber"}>
+                      {aiEngine?.configured ? "Live AI connected" : "Fallback mode"}
+                    </Pill>
+                    <Pill tone={modeTone(answerMode)}>{answerMode} mode</Pill>
+                    <Pill tone="red">Premium command center</Pill>
+                    <Pill tone="cyan">{isLight ? "Light mode" : "Dark mode"}</Pill>
+                    <Pill tone={voiceSupported ? "green" : "slate"}>
+                      Voice {voiceSupported ? "available" : "unavailable"}
+                    </Pill>
+                  </div>
+
+                  <h1 className="mt-3 text-4xl font-black tracking-tight md:text-6xl" style={{ color: "var(--text)" }}>
+                    AI Executive Studio
+                  </h1>
+
+                  <p className="mt-3 max-w-5xl text-sm font-semibold leading-7" style={{ color: "var(--muted)" }}>
+                    A premium, voice-first command center for advisor work: speak naturally, get clean execution,
+                    generate reports, assign tasks, draft client-ready language, and customize the platform to the user.
+                  </p>
                 </div>
-
-                <h1 className="mt-4 max-w-5xl text-4xl font-black tracking-tight md:text-6xl">
-                  Slice AI Studio, simplified.
-                </h1>
-
-                <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-400">
-                  A calmer, cleaner command center for answers, client communication, meeting prep,
-                  investment scenarios, reports, platform guidance, and voice-assisted work.
-                </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 xl:justify-end">
-              <a href="/workspace" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg shadow-black/20">
-                ← Workspace
-              </a>
-              <a href="/workspace/client-briefings" className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm font-black text-purple-100 hover:bg-purple-500/20">
-                Client Briefings
-              </a>
-              <a href="/market-visuals" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20">
-                Market Visuals
-              </a>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {activeTab === "settings" ? (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 shadow-lg shadow-red-950/20 transition hover:-translate-y-0.5"
+                >
+                  Logout
+                </button>
+              ) : null}
+              <Link
+                href="/workspace"
+                prefetch={false}
+                className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-red-950/20 transition hover:-translate-y-0.5"
+              >
+                ← Return to Workspace
+              </Link>
             </div>
           </div>
 
-          <div className="relative mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="relative mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             <Metric label="AI Provider" value={aiEngine?.configured ? "OpenAI" : "Fallback"} helper={aiEngine?.provider} tone={aiEngine?.configured ? "green" : "amber"} />
-            <Metric label="Model" value={answerMode === "deep" ? aiEngine?.qualityModel ?? aiEngine?.model ?? "—" : aiEngine?.model ?? "—"} helper="Selected by mode" tone="cyan" />
-            <Metric label="Studio Score" value={`${studioReadiness}%`} helper="Usability readiness" tone={readinessTone(studioReadiness)} />
+            <Metric label="Model" value={answerMode === "deep" ? aiEngine?.qualityModel ?? aiEngine?.model ?? "—" : aiEngine?.model ?? "—"} helper="Selected by mode" tone="red" />
+            <Metric label="Studio Score" value={`${studioReadiness}%`} helper="Executive readiness" tone={toneFor(studioReadiness)} />
             <Metric label="Reports" value={reports.length} helper="Generated PDFs" tone="green" />
-            <Metric label="Approvals" value={approvals.length} helper="Review gates" tone={approvals.length ? "amber" : "slate"} />
-            <Metric label="Voice" value={voiceSupported ? "Available" : "Unavailable"} helper={profile?.speechLanguage ?? "en-GB"} tone={voiceSupported ? "green" : "slate"} />
+            <Metric label="Team Tasks" value={visibleTaskCount} helper={workspace?.firm?.name ?? "No firm"} tone="purple" />
+            <Metric label="Last Command" value={lastCommand ? relativeTime(lastCommand.createdAt) : "—"} helper={lastCommand?.status ?? "No command yet"} tone={toneFor(lastCommand?.status)} />
           </div>
         </header>
 
-        {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
-            {message}
-          </div>
-        ) : null}
-
-        <Card className="p-3">
-          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
-            {[
-              ["chat", "Chat", "Clean command", "cyan"],
-              ["prompts", "Shortcuts", "Start faster", "green"],
-              ["scenarios", "Scenarios", "Client graphs", "red"],
-              ["reports", "Reports", "PDF output", "purple"],
-              ["memory", "Memory", "Context", "amber"],
-              ["settings", "Settings", "Tone + API", "slate"],
-            ].map(([key, label, helper, tone]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveView(key as StudioView)}
-                className={cx(
-                  "rounded-2xl px-4 py-3 text-left transition",
-                  activeView === key
-                    ? "bg-white text-slate-950 shadow-lg shadow-black/20"
-                    : "border border-white/10 bg-white/[0.045] text-white hover:bg-white/10"
-                )}
-              >
-                <div className="text-sm font-black">{label}</div>
-                <div className={cx("mt-1 text-[10px] font-bold", activeView === key ? "text-slate-500" : "text-slate-500")}>
-                  {helper}
-                </div>
-              </button>
+        <Card className="p-2">
+          <div className="grid gap-2 md:grid-cols-5">
+            {tabs.map((tab) => (
+              <TabButton key={tab.id} tab={tab} active={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
             ))}
           </div>
         </Card>
 
-        {activeView === "chat" ? (
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
-            <Card className="grid min-h-[760px] grid-rows-[auto_1fr_auto] p-0">
-              <div className="border-b border-white/10 bg-black/20 p-5">
-                <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
-                      Clean Chat Workspace
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">Ask. Review. Use.</h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                      Choose a response depth, write naturally, and keep the conversation focused.
-                    </p>
-                  </div>
+        {message ? (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+            {message}
+          </div>
+        ) : null}
 
-                  <div className="min-w-[300px] 2xl:min-w-[420px]">
-                    <AnswerModeSelector answerMode={answerMode} setAnswerMode={setAnswerMode} />
-                  </div>
+        {activeTab === "command" ? (
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <Card className="p-5">
+              <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                <SectionHeader
+                  eyebrow="Command Input"
+                  title="Tell Slice the outcome."
+                  helper="Write or speak naturally. Slice should infer whether this is a report, task, route, meeting prep, client draft, or advisor analysis."
+                />
+                <div className="w-[360px] max-w-full">
+                  <AnswerModeSelector answerMode={answerMode} setAnswerMode={setAnswerMode} />
                 </div>
               </div>
 
-              <div className="grid max-h-[650px] gap-4 overflow-y-auto bg-black/10 p-5">
-                {messages.length ? (
-                  messages.map((item) => (
-                    <MessageBubble
-                      key={item.id}
-                      message={item}
-                      onCopy={(text) => copyText(text, "Message copied.")}
-                      onSpeak={speak}
-                    />
-                  ))
-                ) : (
-                  <EmptyChatState
-                    onPrompt={(item) => {
-                      setPrompt(item);
-                    }}
-                  />
-                )}
-                {saving ? <ThinkingCard answerMode={answerMode} /> : null}
-                <div ref={messagesEndRef} />
-              </div>
+              <form
+                onSubmit={(event: FormEvent) => {
+                  event.preventDefault();
+                  void sendPrompt();
+                }}
+                className="mt-5 rounded-[1.75rem] border p-4"
+                style={{ background: "var(--panel2)", borderColor: "var(--border)" }}
+              >
+                <textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  onKeyDown={onPromptKeyDown}
+                  placeholder="Example: Create a concise client-ready PDF report for tomorrow’s meeting and prepare three follow-up tasks for the team..."
+                  className="min-h-[250px] w-full resize-none rounded-[1.5rem] border px-5 py-4 text-base leading-7 outline-none focus:border-red-400/40"
+                  style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }}
+                />
 
-              <div className="border-t border-white/10 bg-zinc-950/95 p-4">
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {focusCards.slice(0, 4).map((focus) => (
-                    <button
-                      key={focus.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedFocus(focus.id);
-                        applyFocusPrefix(focus.promptPrefix);
-                      }}
-                      className={cx(
-                        "rounded-2xl px-3 py-2 text-xs font-black ring-1 transition",
-                        selectedFocus === focus.id
-                          ? "bg-white text-slate-950 ring-white/20"
-                          : "bg-white/[0.045] text-slate-300 ring-white/10 hover:bg-white/[0.08]"
-                      )}
-                    >
-                      {focus.title}
-                    </button>
-                  ))}
-                </div>
-
-                <form
-                  onSubmit={(event: FormEvent) => {
-                    event.preventDefault();
-                    void sendPrompt();
-                  }}
-                  className="rounded-[1.75rem] border border-white/10 bg-black/35 p-3"
-                >
-                  <textarea
-                    value={prompt}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    onKeyDown={onPromptKeyDown}
-                    placeholder="Ask naturally. Example: Help me prepare a client-friendly explanation of NVDA exposure..."
-                    className="min-h-[118px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/40"
-                  />
-
-                  <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="flex flex-wrap gap-2">
-                      {voiceSupported ? (
-                        <button
-                          type="button"
-                          onClick={listening ? stopListening : startListening}
-                          className={cx(
-                            "rounded-2xl px-4 py-2 text-xs font-black ring-1",
-                            listening
-                              ? "bg-red-500/10 text-red-100 ring-red-500/30"
-                              : "bg-cyan-500/10 text-cyan-100 ring-cyan-500/30"
-                          )}
-                        >
-                          {listening ? "Stop Listening" : "Voice"}
-                        </button>
-                      ) : null}
-
-                      {latestAssistant?.content ? (
-                        <button
-                          type="button"
-                          onClick={() => speak(latestAssistant.content)}
-                          className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-xs font-black text-cyan-100"
-                        >
-                          Read Latest
-                        </button>
-                      ) : null}
-
-                      {speaking ? (
-                        <button
-                          type="button"
-                          onClick={stopSpeaking}
-                          className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
-                        >
-                          Stop Voice
-                        </button>
-                      ) : null}
-
+                <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    {voiceSupported ? (
                       <button
                         type="button"
-                        onClick={() => setPrompt("")}
-                        className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-black text-slate-300"
+                        onClick={listening ? stopListening : () => startListening("prompt")}
+                        className={cx(
+                          "rounded-2xl px-4 py-3 text-xs font-black ring-1",
+                          listening
+                            ? "bg-red-500/20 text-red-100 ring-red-400/40"
+                            : "bg-red-500/10 text-red-100 ring-red-500/30",
+                        )}
                       >
-                        Clear
+                        {listening ? "Stop Listening" : "Speak Command"}
                       </button>
-                    </div>
+                    ) : null}
 
-                    <button
-                      disabled={saving || !prompt.trim()}
-                      className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
-                    >
-                      {saving ? (answerMode === "deep" ? "Thinking deeply..." : "Thinking...") : "Send"}
+                    <button type="button" onClick={() => setPrompt("")} className="rounded-2xl border px-4 py-3 text-xs font-black" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                      Clear
                     </button>
                   </div>
-                </form>
+
+                  <button disabled={saving || !prompt.trim()} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-6 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 disabled:opacity-50">
+                    {saving ? "Thinking..." : "Execute Command"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {[
+                  ["Report", "Say PDF, report, briefing, packet, deck, or presentation.", "red"],
+                  ["Task", "Say assign, delegate, task, follow up, owner, due date.", "green"],
+                  ["Draft", "Say email, note, client explanation, meeting prep, talking points.", "purple"],
+                ].map(([title, helper, tone]) => (
+                  <Panel key={title} tone={tone as Tone}>
+                    <div className="text-sm font-black" style={{ color: "var(--text)" }}>{title}</div>
+                    <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>{helper}</p>
+                  </Panel>
+                ))}
               </div>
-            </Card>
 
-            <div className="grid gap-5">
-              <Panel tone={aiEngine?.configured ? "green" : "amber"} className="bg-black/35">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
-                      API status
-                    </div>
-                    <h3 className="mt-2 text-2xl font-black text-white">
-                      {aiEngine?.configured ? "Live AI is connected" : "Fallback mode is active"}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {aiEngine?.configured
-                        ? `Using ${aiEngine.provider}. Deep Mode waits longer for fuller answers.`
-                        : `Add ${aiEngine?.requiredEnv ?? "OPENAI_API_KEY"} to enable live AI responses.`}
-                    </p>
-                  </div>
-                  <Pill tone={aiEngine?.configured ? "green" : "amber"}>
-                    {aiEngine?.configured ? "Ready" : "Needs key"}
-                  </Pill>
-                </div>
-
-                <div className="mt-4">
-                  <ProgressBar value={studioReadiness} tone={readinessTone(studioReadiness)} />
-                </div>
-              </Panel>
-
-              <ChatFocusPanel
-                selectedFocus={selectedFocus}
-                setSelectedFocus={setSelectedFocus}
-                onApply={applyFocusPrefix}
-              />
-
-              <ConversationStats messages={messages} latestAssistant={latestAssistant} />
-
-              <Panel tone="green" className="bg-black/35">
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
-                  Best quick starts
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {starterPrompts.slice(0, 5).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => setPrompt(item)}
-                      className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 text-left text-sm leading-6 text-slate-300 hover:bg-white/[0.08]"
-                    >
-                      {item}
-                    </button>
+              <Panel tone="cyan" className="mt-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Smart destinations</div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  {routeIntents.slice(0, 6).map((route) => (
+                    <Link key={route.href} href={route.href} prefetch={false} className="rounded-2xl border p-3 transition hover:border-red-400/30 hover:bg-red-500/10" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                      <div className="text-xs font-black" style={{ color: "var(--text)" }}>{route.label}</div>
+                      <div className="mt-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{route.helper}</div>
+                    </Link>
                   ))}
                 </div>
               </Panel>
-            </div>
-          </section>
-        ) : null}
-
-        {activeView === "prompts" ? (
-          <section className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-green-300">
-                Shortcuts
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Make AI Studio easier to use</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Pick a mode or prompt. It loads into the chat box so the user does not have to start from a blank page.
-              </p>
-
-              <div className="mt-5 grid gap-3">
-                {quickModes.map((mode) => (
-                  <button
-                    key={mode.title}
-                    type="button"
-                    onClick={() => {
-                      setPrompt(mode.prompt);
-                      setActiveView("chat");
-                    }}
-                    className="rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-4 text-left hover:bg-white/[0.08]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-lg font-black text-white">{mode.title}</div>
-                        <p className="mt-1 text-sm text-slate-400">{mode.helper}</p>
-                      </div>
-                      <Pill tone={mode.tone}>Mode</Pill>
-                    </div>
-                  </button>
-                ))}
-              </div>
             </Card>
 
             <Card className="p-5">
-              <div className="grid gap-3 md:grid-cols-2">
-                {pinnedPrompts.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => {
-                      setPrompt(item);
-                      setActiveView("chat");
-                    }}
-                    className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]"
-                  >
-                    <div className="text-sm font-black text-white">Prompt</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{item}</p>
-                  </button>
-                ))}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <SectionHeader
+                  eyebrow="Clean Reply"
+                  title="No wall of text."
+                  helper="The latest answer is summarized first. Full detail is tucked behind an expandable section."
+                />
+                <Pill tone="cyan">{messages.length} visible messages</Pill>
               </div>
+
+              <div className="mt-5">
+                <LatestAnswerPanel
+                  latestAssistant={latestAssistant}
+                  saving={saving}
+                  answerMode={answerMode}
+                  onCopy={(text) => copyText(text, "Latest answer copied.")}
+                  onSpeak={speak}
+                  onReport={(text) => generateReport("Report from latest Slice AI answer", text)}
+                />
+              </div>
+
+              {latestUser || previousContext.length ? (
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                  {latestUser ? <MessageMiniCard message={latestUser} /> : null}
+                  {previousContext.slice(-1).map((item) => (
+                    <MessageMiniCard key={item.id} message={item} />
+                  ))}
+                </div>
+              ) : null}
             </Card>
           </section>
         ) : null}
 
-        {activeView === "scenarios" ? (
-          <section className="grid gap-5 xl:grid-cols-[460px_minmax(0,1fr)]">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
-                New client scenario lab
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Build a client-ready investment scenario</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Adjust assumptions, view base/bull/bear outcomes, then ask Slice AI to turn it into a client-friendly explanation.
-              </p>
+        {activeTab === "voice" ? (
+          <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <Card className="p-6">
+              <div className="flex flex-col items-center text-center">
+                <BotOrb listening={listening} speaking={speaking} configured={Boolean(aiEngine?.configured)} size="large" />
 
-              <div className="mt-5 grid gap-4">
-                <label>
-                  <span className="text-xs font-black uppercase text-slate-500">Client name</span>
-                  <input
-                    value={scenario.clientName}
-                    onChange={(event) => updateScenario("clientName", event.target.value)}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Client age</span>
-                    <input
-                      type="number"
-                      value={scenario.clientAge}
-                      onChange={(event) => updateScenario("clientAge", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Risk profile</span>
-                    <select
-                      value={scenario.riskProfile}
-                      onChange={(event) => updateScenario("riskProfile", event.target.value as ScenarioSettings["riskProfile"])}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    >
-                      <option>Conservative</option>
-                      <option>Balanced</option>
-                      <option>Growth</option>
-                      <option>Aggressive</option>
-                    </select>
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Starting balance</span>
-                    <input
-                      type="number"
-                      value={scenario.startingBalance}
-                      onChange={(event) => updateScenario("startingBalance", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Monthly contribution</span>
-                    <input
-                      type="number"
-                      value={scenario.monthlyContribution}
-                      onChange={(event) => updateScenario("monthlyContribution", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                </div>
-
-                <label>
-                  <span className="text-xs font-black uppercase text-slate-500">Horizon: {scenario.horizonYears} years</span>
-                  <input
-                    type="range"
-                    min={1}
-                    max={40}
-                    value={scenario.horizonYears}
-                    onChange={(event) => updateScenario("horizonYears", Number(event.target.value))}
-                    className="mt-3 w-full"
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Bear %</span>
-                    <input
-                      type="number"
-                      value={scenario.bearReturn}
-                      onChange={(event) => updateScenario("bearReturn", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Base %</span>
-                    <input
-                      type="number"
-                      value={scenario.expectedReturn}
-                      onChange={(event) => updateScenario("expectedReturn", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Bull %</span>
-                    <input
-                      type="number"
-                      value={scenario.bullReturn}
-                      onChange={(event) => updateScenario("bullReturn", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Inflation %</span>
-                    <input
-                      type="number"
-                      value={scenario.inflation}
-                      onChange={(event) => updateScenario("inflation", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Fee %</span>
-                    <input
-                      type="number"
-                      value={scenario.advisoryFee}
-                      onChange={(event) => updateScenario("advisoryFee", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Tax drag %</span>
-                    <input
-                      type="number"
-                      value={scenario.taxDrag}
-                      onChange={(event) => updateScenario("taxDrag", Number(event.target.value))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    />
-                  </label>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-black text-white">Allocation</div>
-                    <Pill tone={allocationSum === 100 ? "green" : "amber"}>{allocationSum}%</Pill>
-                  </div>
-
-                  <div className="mt-4 grid gap-3">
-                    {[
-                      ["Stocks", "stockAllocation"],
-                      ["Bonds", "bondAllocation"],
-                      ["Cash", "cashAllocation"],
-                      ["Alternatives", "alternativeAllocation"],
-                    ].map(([label, key]) => (
-                      <label key={key}>
-                        <span className="text-xs font-black uppercase text-slate-500">
-                          {label}: {scenario[key as keyof ScenarioSettings]}%
-                        </span>
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          value={Number(scenario[key as keyof ScenarioSettings])}
-                          onChange={(event) => updateScenario(key as keyof ScenarioSettings, Number(event.target.value) as never)}
-                          className="mt-2 w-full"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrompt(scenarioPrompt);
-                      setAnswerMode("deep");
-                      setActiveView("chat");
-                    }}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-                  >
-                    Ask AI to Explain
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={copyScenarioSummary}
-                    className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
-                  >
-                    Copy Summary
-                  </button>
-                </div>
-              </div>
-            </Card>
-
-            <div className="grid gap-5">
-              <Card className="p-5">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
-                      Scenario output
-                    </div>
-                    <h2 className="mt-2 text-2xl font-black text-white">{scenario.clientName}</h2>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                      {riskCommentary(scenario)}
-                    </p>
-                  </div>
-                  <Pill tone={allocationSum === 100 ? "green" : "amber"}>
-                    {allocationSum === 100 ? "Allocation balanced" : "Allocation needs review"}
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  <Pill tone="red">Voice-first</Pill>
+                  <Pill tone={voiceSupported ? "green" : "slate"}>{voiceSupported ? "Browser ready" : "Browser unsupported"}</Pill>
+                  <Pill tone={advancedSettings.voiceAutoSend ? "amber" : "green"}>
+                    {advancedSettings.voiceAutoSend ? "Auto-send on" : "Review before send"}
                   </Pill>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Metric label="Base value" value={money(finalScenario?.base ?? 0)} helper="Projected nominal" tone="cyan" />
-                  <Metric label="Bull value" value={money(finalScenario?.bull ?? 0)} helper="Upside case" tone="green" />
-                  <Metric label="Bear value" value={money(finalScenario?.bear ?? 0)} helper="Downside case" tone="red" />
-                  <Metric label="Real base" value={money(finalScenario?.realBase ?? 0)} helper="After inflation" tone="purple" />
-                  <Metric label="Contributions" value={money(totalContributions)} helper="Total paid in" tone="slate" />
-                  <Metric label="Base gain" value={money(projectedGain)} helper="Projected growth" tone={projectedGain >= 0 ? "green" : "red"} />
-                  <Metric label="Net base return" value={`${(scenario.expectedReturn - scenario.advisoryFee - scenario.taxDrag).toFixed(2)}%`} helper="After fee/tax drag" tone="amber" />
-                  <Metric label="Volatility" value={`${scenario.volatility}%`} helper="Planning assumption" tone="red" />
-                </div>
-
-                <div className="mt-5">
-                  <ScenarioChart series={scenarioSeries} />
-                </div>
-              </Card>
-
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
-                  Allocation view
-                </div>
-                <div className="mt-4">
-                  <AllocationBar settings={scenario} />
-                </div>
-              </Card>
-
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-purple-300">
-                  Advisor talking points
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {[
-                    "This is an illustration, not a guarantee.",
-                    "The bear case helps frame downside expectations before the client sees upside projections.",
-                    "Real return after inflation is often more useful than nominal return for planning conversations.",
-                    "Fees and tax drag should be visible so expectations feel honest.",
-                    "Allocation should total 100% before using this in a client meeting.",
-                    "Ask AI to turn this scenario into client-friendly language before sending externally.",
-                  ].map((item) => (
-                    <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-slate-300">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          </section>
-        ) : null}
-
-        {activeView === "reports" ? (
-          <section className="grid gap-5">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-purple-300">
-                Reports
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white">AI-generated reports</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Reports are created when the prompt asks for a report, PDF, briefing, deck, packet, or presentation.
-              </p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {reports.map((report) => (
-                  <Panel key={report.id} tone={toneFor(report.status)} className="bg-black/35">
-                    <div className="flex flex-wrap gap-2">
-                      <Pill tone={toneFor(report.status)}>{report.status}</Pill>
-                      <Pill tone="purple">{report.reportType}</Pill>
-                    </div>
-                    <h3 className="mt-3 text-lg font-black text-white">{report.title}</h3>
-                    <div className="mt-2 text-xs text-slate-500">{formatTime(report.createdAt)}</div>
-                    <a
-                      href={report.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 inline-flex rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-                    >
-                      Open Report
-                    </a>
-                  </Panel>
-                ))}
-
-                {!reports.length ? (
-                  <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
-                    No reports yet. Ask AI Studio to “create a report” or “make a PDF.”
-                  </div>
-                ) : null}
-              </div>
-            </Card>
-          </section>
-        ) : null}
-
-        {activeView === "memory" ? (
-          <section className="grid gap-5 xl:grid-cols-[1fr_430px]">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">
-                Memory
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Useful context</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                AI Studio can display stored preferences, remembered items, approvals, and platform routes.
-              </p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                {memories.map((memory) => (
-                  <Panel key={memory.id} tone={toneFor(memory.status)} className="bg-black/35">
-                    <div className="flex flex-wrap gap-2">
-                      <Pill tone="amber">{memory.memoryType}</Pill>
-                      <Pill tone={toneFor(memory.status)}>{memory.status}</Pill>
-                    </div>
-                    <h3 className="mt-3 text-lg font-black text-white">{memory.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{memory.value}</p>
-                    <div className="mt-3 text-xs text-slate-500">Confidence {memory.confidenceScore}%</div>
-                  </Panel>
-                ))}
-
-                {!memories.length ? (
-                  <div className="rounded-3xl border border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
-                    No memories yet.
-                  </div>
-                ) : null}
-              </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
-                Approvals
-              </div>
-              <div className="mt-4 grid gap-3">
-                {approvals.slice(0, 8).map((approval) => (
-                  <Panel key={approval.id} tone={toneFor(approval.status)} className="bg-black/35">
-                    <div className="flex flex-wrap gap-2">
-                      <Pill tone={toneFor(approval.status)}>{approval.status}</Pill>
-                      <Pill tone={toneFor(approval.riskLevel)}>{approval.riskLevel}</Pill>
-                    </div>
-                    <h3 className="mt-3 text-sm font-black text-white">{approval.title}</h3>
-                    <p className="mt-2 text-xs leading-5 text-slate-400">{approval.summary}</p>
-                  </Panel>
-                ))}
-                {!approvals.length ? <div className="text-sm text-slate-500">No approvals pending.</div> : null}
-              </div>
-            </Card>
-          </section>
-        ) : null}
-
-        {activeView === "settings" ? (
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
-                Preferences
-              </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Make AI Studio feel like you want</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                These settings keep the assistant useful without making the interface feel overly technical.
-              </p>
-
-              <div className="mt-5 grid gap-4">
-                <label>
-                  <span className="text-xs font-black uppercase text-slate-500">Bot name</span>
-                  <input
-                    value={draftProfile.botName}
-                    onChange={(event) => setDraftProfile((current) => ({ ...current, botName: event.target.value }))}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Tone</span>
-                    <select
-                      value={draftProfile.preferredTone}
-                      onChange={(event) => setDraftProfile((current) => ({ ...current, preferredTone: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    >
-                      <option>Professional</option>
-                      <option>Calm</option>
-                      <option>Direct</option>
-                      <option>Encouraging</option>
-                      <option>Brutally honest</option>
-                      <option>Witty</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Detail</span>
-                    <select
-                      value={draftProfile.commandStyle}
-                      onChange={(event) => setDraftProfile((current) => ({ ...current, commandStyle: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    >
-                      <option>Short</option>
-                      <option>Balanced detail</option>
-                      <option>Detailed</option>
-                      <option>Deep research</option>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span className="text-xs font-black uppercase text-slate-500">Autonomy</span>
-                    <select
-                      value={draftProfile.autonomyLevel}
-                      onChange={(event) => setDraftProfile((current) => ({ ...current, autonomyLevel: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    >
-                      <option>Advisor approval required</option>
-                      <option>Suggest only</option>
-                      <option>Draft only</option>
-                      <option>Autonomous where safe</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label>
-                  <span className="text-xs font-black uppercase text-slate-500">Custom instructions</span>
-                  <textarea
-                    value={draftProfile.customInstructions}
-                    onChange={(event) => setDraftProfile((current) => ({ ...current, customInstructions: event.target.value }))}
-                    className="mt-2 min-h-[140px] w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
-                    placeholder="Tell Slice AI how to answer, what to prioritize, and what to avoid..."
-                  />
-                </label>
-
-                <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
-                  Voice replies enabled
-                  <input
-                    type="checkbox"
-                    checked={draftProfile.voiceEnabled}
-                    onChange={(event) => setDraftProfile((current) => ({ ...current, voiceEnabled: event.target.checked }))}
-                  />
-                </label>
+                <h2 className="mt-5 text-4xl font-black tracking-tight" style={{ color: "var(--text)" }}>
+                  Say the outcome. Slice handles the workflow.
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-7" style={{ color: "var(--muted)" }}>
+                  This is not a rigid command list. Speak naturally and edit the transcript before execution.
+                </p>
 
                 <button
                   type="button"
-                  onClick={saveProfile}
-                  disabled={saving}
-                  className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50"
+                  onClick={listening ? stopListening : () => startListening("voice")}
+                  disabled={!voiceSupported}
+                  className={cx(
+                    "mt-8 rounded-full px-10 py-5 text-lg font-black shadow-2xl transition hover:-translate-y-1 disabled:opacity-50",
+                    listening
+                      ? "bg-red-500 text-white shadow-red-950/50"
+                      : "bg-gradient-to-br from-white via-red-100 to-red-200 text-slate-950 shadow-red-950/30",
+                  )}
                 >
-                  Save Preferences
+                  {listening ? "Listening..." : "Start Voice Command"}
                 </button>
+              </div>
+
+              <div className="mt-8 rounded-[1.75rem] border p-4" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">Live Transcript</div>
+                <textarea
+                  value={voiceDraft}
+                  onChange={(event) => setVoiceDraft(event.target.value)}
+                  placeholder="Your spoken instruction will appear here. You can edit it before execution."
+                  className="mt-3 min-h-[160px] w-full resize-none rounded-[1.4rem] border px-4 py-3 text-sm leading-6 outline-none focus:border-red-400/40"
+                  style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }}
+                />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void sendPrompt(voiceDraft, voiceDraft)} disabled={!voiceDraft.trim() || saving} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50">
+                    Execute Voice Command
+                  </button>
+                  <button type="button" onClick={() => setVoiceDraft("")} className="rounded-2xl border px-5 py-3 text-sm font-black" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            <div className="grid gap-4">
+              <Card className="p-5">
+                <SectionHeader eyebrow="Natural Voice Patterns" title="Speak like a person." />
+                <div className="mt-4 grid gap-3">
+                  {voiceExamples.map((item) => (
+                    <button key={item} type="button" onClick={() => setVoiceDraft(item)} className="rounded-[1.35rem] border p-4 text-left text-sm leading-6 transition hover:-translate-y-0.5 hover:border-red-400/30 hover:bg-red-500/10" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--muted2)" }}>
+                      “{item}”
+                    </button>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-purple-300">Voice Execution Logic</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Metric label="Report Intent" value="PDF / report" helper="Creates report flow" tone="amber" />
+                  <Metric label="Task Intent" value="Assign / task" helper="Prepares delegation" tone="green" />
+                  <Metric label="Route Intent" value="Open / show" helper="Navigates platform" tone="cyan" />
+                  <Metric label="Draft Intent" value="Email / note" helper="Creates client draft" tone="purple" />
+                </div>
+              </Card>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "tasks" ? (
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <SectionHeader
+                  eyebrow="Team Task Commander"
+                  title="Create and assign Team Board tasks."
+                  helper="Tasks can be manually refined here after Slice interprets a typed or spoken command."
+                />
+                <Pill tone={workspace?.firm ? "green" : "amber"}>
+                  {workspaceLoading ? "Loading" : workspace?.firm?.name ?? "No firm"}
+                </Pill>
+              </div>
+
+              <form onSubmit={createTeamTask} className="mt-5 grid gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Assign to</span>
+                    <select value={selectedMemberId} onChange={(event) => setSelectedMemberId(event.target.value)} className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ring-red-500 focus:ring-2" style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }}>
+                      {workspace?.members?.length ? (
+                        workspace.members.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {safeMemberName(member)} · {member.role}
+                          </option>
+                        ))
+                      ) : (
+                        <option>No team members available</option>
+                      )}
+                    </select>
+                  </label>
+
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Project</span>
+                    <select value={taskDraft.projectId} onChange={(event) => setTaskDraft((current) => ({ ...current, projectId: event.target.value }))} className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm font-semibold outline-none ring-red-500 focus:ring-2" style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }}>
+                      <option value="">No project</option>
+                      {workspace?.projects?.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label>
+                  <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Task title</span>
+                  <ThemedInput value={taskDraft.title} onChange={(value) => setTaskDraft((current) => ({ ...current, title: value }))} placeholder="Review client briefing and prepare follow-up notes" />
+                </label>
+
+                <label>
+                  <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Details</span>
+                  <textarea value={taskDraft.detail} onChange={(event) => setTaskDraft((current) => ({ ...current, detail: event.target.value }))} placeholder="Explain expected output, context, client/advisor review notes..." className="mt-2 min-h-[120px] w-full resize-none rounded-2xl border px-4 py-3 text-sm font-semibold leading-6 outline-none ring-red-500 focus:ring-2" style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }} />
+                </label>
+
+                <div className="grid gap-4 md:grid-cols-4">
+                  <ThemedSelect label="Priority" value={taskDraft.priority} options={["Critical", "High", "Medium", "Low"]} onChange={(value) => setTaskDraft((current) => ({ ...current, priority: value }))} />
+                  <ThemedSelect label="Status" value={taskDraft.status} options={["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"]} onChange={(value) => setTaskDraft((current) => ({ ...current, status: value }))} />
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Due</span>
+                    <ThemedInput type="date" value={taskDraft.dueDate} onChange={(value) => setTaskDraft((current) => ({ ...current, dueDate: value }))} />
+                  </label>
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Reminder</span>
+                    <ThemedInput type="datetime-local" value={taskDraft.reminderAt} onChange={(value) => setTaskDraft((current) => ({ ...current, reminderAt: value }))} />
+                  </label>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <ThemedInput value={taskDraft.reminderNote} onChange={(value) => setTaskDraft((current) => ({ ...current, reminderNote: value }))} placeholder="Reminder note" />
+                  <ToggleRow label="Notify email" checked={taskDraft.notifyEmail} onChange={(value) => setTaskDraft((current) => ({ ...current, notifyEmail: value }))} tone="green" />
+                </div>
+
+                <button type="submit" disabled={workspaceLoading} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 disabled:opacity-50">
+                  {workspaceLoading ? "Creating Task..." : "Create Team Board Task"}
+                </button>
+              </form>
+            </Card>
+
+            <div className="grid gap-4">
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-green-300">Team Snapshot</div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Metric label="Total" value={teamMetrics?.total ?? 0} helper="Tasks" tone="red" />
+                  <Metric label="Open" value={teamMetrics?.open ?? 0} helper="Not complete" tone="amber" />
+                  <Metric label="Progress" value={teamMetrics?.inProgress ?? 0} helper="Active" tone="purple" />
+                  <Metric label="Complete" value={teamMetrics?.complete ?? 0} helper="Done" tone="green" />
+                </div>
+                <Link href="/workspace/team-board" prefetch={false} className="mt-4 inline-flex rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm font-black text-green-100">
+                  Open Team Board
+                </Link>
+              </Card>
+
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">Recent Team Tasks</div>
+                <div className="mt-4 grid gap-3">
+                  {(workspace?.operations?.allTasks ?? []).slice(0, 6).map((task) => (
+                    <Panel key={task.id} tone={toneFor(task.priority)}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black" style={{ color: "var(--text)" }}>{task.title}</div>
+                          <div className="mt-1 truncate text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+                            {task.ownerName ?? "Team"} · {task.dueDate ?? "No due date"}
+                          </div>
+                        </div>
+                        <Pill tone={toneFor(task.priority)}>{task.priority}</Pill>
+                      </div>
+                    </Panel>
+                  ))}
+
+                  {!workspace?.operations?.allTasks?.length ? (
+                    <div className="rounded-2xl border border-dashed p-4 text-sm" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                      No team tasks loaded yet.
+                    </div>
+                  ) : null}
+                </div>
+              </Card>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "reports" ? (
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
+            <Card className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <SectionHeader
+                  eyebrow="Advanced Slice Report Studio"
+                  title="Create reports that always open."
+                  helper="Reports open through a normal browser viewer first. If raw browser PDF rendering fails, the HTML viewer still works and can be printed or saved as PDF."
+                />
+                <Pill tone="red">{reports.length} reports</Pill>
+              </div>
+
+              <div className="mt-5 grid gap-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+                  <textarea value={reportTopic} onChange={(event) => setReportTopic(event.target.value)} className="min-h-[220px] w-full resize-none rounded-2xl border px-4 py-3 text-sm font-semibold leading-6 outline-none ring-red-500 focus:ring-2" style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }} placeholder="Describe the report you want Slice to generate..." />
+
+                  <Panel tone="amber">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">Report Defaults</div>
+                    <div className="mt-3 grid gap-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                      <div>Style: {advancedSettings.reportStyle}</div>
+                      <div>Depth: {advancedSettings.reportDepth}</div>
+                      <div>Assumptions: {advancedSettings.includeAssumptions ? "Included" : "Hidden"}</div>
+                      <div>Risk notes: {advancedSettings.includeRiskNotes ? "Included" : "Hidden"}</div>
+                      <div>Checklist: {advancedSettings.includeReviewChecklist ? "Included" : "Hidden"}</div>
+                    </div>
+                    <button type="button" onClick={() => setActiveTab("settings")} className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-black text-amber-100">
+                      Edit Defaults
+                    </button>
+                  </Panel>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {advancedReportBlueprints.map((blueprint) => (
+                    <button key={blueprint.title} type="button" onClick={() => setReportTopic(blueprint.prompt)} className="rounded-2xl border p-4 text-left transition hover:bg-red-500/10" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                      <Pill tone={blueprint.tone}>{blueprint.title}</Pill>
+                      <p className="mt-3 line-clamp-3 text-xs leading-5" style={{ color: "var(--muted)" }}>{blueprint.prompt}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {reportBlueprints.map((blueprint) => (
+                    <button key={blueprint} type="button" onClick={() => setReportTopic(blueprint)} className="rounded-2xl border p-3 text-left text-xs font-black transition hover:bg-red-500/10" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                      {blueprint}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <button type="button" onClick={() => generateReport(reportTopic)} disabled={saving} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 disabled:opacity-50">
+                    Generate Report
+                  </button>
+
+                  <button type="button" onClick={() => generateReport("Report from latest Slice AI answer", latestAssistant?.content || "No latest answer available. Create a report explaining Slice AI Studio capability.")} disabled={saving} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 transition hover:-translate-y-0.5 disabled:opacity-50">
+                    Use Latest Answer
+                  </button>
+
+                  <button type="button" onClick={() => window.print()} className="rounded-2xl border px-5 py-3 text-sm font-black transition hover:-translate-y-0.5" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                    Print Studio View
+                  </button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Panel tone="green">
+                    <div className="text-sm font-black" style={{ color: "var(--text)" }}>Reliable Opening</div>
+                    <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                      Opens through `/workspace/personal-bot/reports` instead of relying only on raw PDF rendering.
+                    </p>
+                  </Panel>
+                  <Panel tone="red">
+                    <div className="text-sm font-black" style={{ color: "var(--text)" }}>Raw PDF Fallback</div>
+                    <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                      The original PDF endpoint remains available if the browser supports it.
+                    </p>
+                  </Panel>
+                  <Panel tone="amber">
+                    <div className="text-sm font-black" style={{ color: "var(--text)" }}>Print to PDF</div>
+                    <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                      The browser viewer can be printed or saved as PDF even if the raw PDF route fails.
+                    </p>
+                  </Panel>
+                </div>
               </div>
             </Card>
 
             <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
-                API setup
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">Report Library</div>
+
+              <div className="mt-4 grid gap-3">
+                {reports.slice(0, 8).map((report) => (
+                  <ReportLibraryCard key={report.id} report={report} />
+                ))}
+
+                {!reports.length ? (
+                  <div className="rounded-3xl border border-dashed p-6 text-center text-sm leading-6" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                    No reports yet. Generate one from the report builder.
+                  </div>
+                ) : null}
               </div>
-              <h2 className="mt-2 text-2xl font-black text-white">
-                {aiEngine?.configured ? "Connected" : "Needs environment key"}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                AI Studio uses the shared Slice AI integration. Add your key as an environment variable named <span className="font-black text-white">OPENAI_API_KEY</span>, then restart the dev server.
-              </p>
+            </Card>
+          </section>
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+            <Card className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <SectionHeader
+                  eyebrow="Enhanced Settings"
+                  title="Make Slice yours."
+                  helper="Account, security, privacy, notifications, appearance, AI behavior, support, and account control live here in one premium settings center."
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={saveAccountSettings} disabled={accountSaving} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 disabled:opacity-50">
+                    {accountSaving ? "Saving..." : "Save All"}
+                  </button>
+                  <button type="button" onClick={logout} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100">
+                    Logout
+                  </button>
+                </div>
+              </div>
 
               <div className="mt-5 grid gap-3">
-                <Metric label="Provider" value={aiEngine?.provider ?? "—"} tone={aiEngine?.configured ? "green" : "amber"} />
-                <Metric label="Quick/Balanced Model" value={aiEngine?.model ?? "—"} tone="cyan" />
-                <Metric label="Deep Model" value={aiEngine?.qualityModel ?? aiEngine?.model ?? "—"} tone="purple" />
-                <Metric label="Web Search" value={aiEngine?.webSearchEnabled ? "Enabled" : "Off"} tone={aiEngine?.webSearchEnabled ? "green" : "slate"} />
-              </div>
+                <details open className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Account & profile</summary>
 
-              <div className="mt-5 rounded-2xl border border-white/10 bg-black/35 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Local setup</div>
-                <pre className="mt-3 whitespace-pre-wrap text-xs leading-5 text-slate-300">{`OPENAI_API_KEY=your_key_here
-OPENAI_MODEL=gpt-4.1-mini
-OPENAI_QUALITY_MODEL=gpt-4.1
-OPENAI_ENABLE_WEB_SEARCH=false`}</pre>
-              </div>
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label>
+                        <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Name</span>
+                        <ThemedInput value={accountSettings.account.name} onChange={(value) => updateAccount("name", value)} placeholder="Your name" />
+                      </label>
+                      <label>
+                        <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Email</span>
+                        <ThemedInput value={accountSettings.account.email} onChange={(value) => updateAccount("email", value)} placeholder="you@example.com" />
+                      </label>
+                    </div>
 
-              <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Timeout policy</div>
-                <div className="mt-3 grid gap-2 text-sm text-emerald-50/80">
-                  <div>Quick: about {Math.round((aiEngine?.timeoutPolicy?.quickMs ?? 45000) / 1000)}s</div>
-                  <div>Balanced: about {Math.round((aiEngine?.timeoutPolicy?.balancedMs ?? 95000) / 1000)}s</div>
-                  <div>Deep: about {Math.round((aiEngine?.timeoutPolicy?.deepMs ?? 150000) / 1000)}s</div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label>
+                        <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Phone</span>
+                        <ThemedInput value={accountSettings.account.phone} onChange={(value) => updateAccount("phone", value)} placeholder="(555) 555-5555" />
+                      </label>
+                      <ThemedSelect
+                        label="Timezone"
+                        value={accountSettings.account.timezone}
+                        options={["America/Phoenix", "America/Chicago", "America/New_York", "America/Los_Angeles", "America/Denver"]}
+                        onChange={(value) => updateAccount("timezone", value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Metric label="Status" value={accountSettings.account.platformStatus || "Active"} helper="Account state" tone={toneFor(accountSettings.account.platformStatus)} />
+                      <Metric label="Email" value={accountSettings.account.email || "—"} helper="Login identity" tone="cyan" />
+                      <Metric label="Phone" value={accountSettings.account.phone || "Not set"} helper="Optional contact" tone="purple" />
+                    </div>
+                  </div>
+                </details>
+
+                <details open className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Appearance & personalization</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <ThemedSelect
+                        label="Theme"
+                        value={accountSettings.appearance.mode}
+                        options={["dark", "light", "system"]}
+                        onChange={(value) => updateAppearance("mode", value)}
+                        helper="Applies to AI Studio immediately."
+                      />
+                      <ThemedSelect
+                        label="Density"
+                        value={accountSettings.appearance.density}
+                        options={["Comfortable", "Compact", "Spacious"]}
+                        onChange={(value) => updateAppearance("density", value)}
+                      />
+                      <ThemedSelect
+                        label="Accent"
+                        value={accountSettings.appearance.accent}
+                        options={["Slice Red", "Crimson", "Ruby", "Graphite"]}
+                        onChange={(value) => updateAppearance("accent", value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Panel tone="red">
+                        <div className="text-sm font-black" style={{ color: "var(--text)" }}>Theme preview</div>
+                        <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                          Text, panels, inputs, cards, and backgrounds respond to the selected mode.
+                        </p>
+                      </Panel>
+                      <Panel tone="purple">
+                        <div className="text-sm font-black" style={{ color: "var(--text)" }}>Unique workspace</div>
+                        <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                          Density and accent make each user’s platform feel personalized.
+                        </p>
+                      </Panel>
+                      <Panel tone="cyan">
+                        <div className="text-sm font-black" style={{ color: "var(--text)" }}>System mode</div>
+                        <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                          System follows the device light/dark preference automatically.
+                        </p>
+                      </Panel>
+                    </div>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Notifications & alerts</summary>
+
+                  <div className="mt-4 grid gap-3">
+                    {accountSettings.notifications.map((item, index) => (
+                      <div key={item.channel} className="rounded-[1.35rem] border p-4" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div>
+                            <div className="text-lg font-black" style={{ color: "var(--text)" }}>{item.channel}</div>
+                            <p className="text-xs" style={{ color: "var(--muted)" }}>
+                              Alert threshold, quiet hours, cooldown, and digest behavior.
+                            </p>
+                          </div>
+                          <ToggleRow label="Enabled" checked={item.enabled} onChange={(value) => updateNotification(index, { enabled: value })} tone="green" />
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-5">
+                          <ThemedSelect
+                            label="Urgency"
+                            value={item.minUrgency}
+                            options={["Low", "Medium", "High", "Critical"]}
+                            onChange={(value) => updateNotification(index, { minUrgency: value })}
+                          />
+                          <label>
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Score</span>
+                            <ThemedInput type="number" value={item.minScore} onChange={(value) => updateNotification(index, { minScore: Number(value) })} />
+                          </label>
+                          <label>
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Quiet start</span>
+                            <ThemedInput type="time" value={item.quietHoursStart || ""} onChange={(value) => updateNotification(index, { quietHoursStart: value })} />
+                          </label>
+                          <label>
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Quiet end</span>
+                            <ThemedInput type="time" value={item.quietHoursEnd || ""} onChange={(value) => updateNotification(index, { quietHoursEnd: value })} />
+                          </label>
+                          <label>
+                            <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Cooldown</span>
+                            <ThemedInput type="number" value={item.cooldownMinutes} onChange={(value) => updateNotification(index, { cooldownMinutes: Number(value) })} />
+                          </label>
+                        </div>
+
+                        <div className="mt-3">
+                          <ToggleRow label="Digest only" checked={item.digestOnly} onChange={(value) => updateNotification(index, { digestOnly: value })} tone="amber" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Security</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <ToggleRow label="Multi-factor authentication" helper="UI-ready setting. Connect MFA provider when ready." checked={accountSettings.security.mfaEnabled} onChange={(value) => updateSecurity("mfaEnabled", value)} tone="green" />
+                      <ToggleRow label="Require re-auth for sensitive actions" checked={accountSettings.security.requireReauthForSensitiveActions} onChange={(value) => updateSecurity("requireReauthForSensitiveActions", value)} tone="red" />
+                      <ToggleRow label="Alert on new login" checked={accountSettings.security.alertOnNewLogin} onChange={(value) => updateSecurity("alertOnNewLogin", value)} tone="amber" />
+                      <ToggleRow label="Advisor mode" helper="Extra review posture for client-facing actions." checked={accountSettings.security.advisorModeEnabled} onChange={(value) => updateSecurity("advisorModeEnabled", value)} tone="purple" />
+                    </div>
+
+                    <label>
+                      <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Session timeout minutes</span>
+                      <ThemedInput type="number" value={accountSettings.security.sessionTimeoutMinutes} onChange={(value) => updateSecurity("sessionTimeoutMinutes", Number(value))} />
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={requestPasswordReset} disabled={accountSaving} className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm font-black text-amber-100 disabled:opacity-50">
+                        Send Password Reset Email
+                      </button>
+                      <button type="button" onClick={logout} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100">
+                        Logout Now
+                      </button>
+                    </div>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Privacy & data controls</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <ToggleRow label="AI memory" helper="Allow Slice to remember preferences and workflow style." checked={accountSettings.privacy.aiMemoryEnabled} onChange={(value) => updatePrivacy("aiMemoryEnabled", value)} tone="purple" />
+                      <ToggleRow label="Personalization" helper="Use preferences to tailor UI and AI behavior." checked={accountSettings.privacy.personalizationEnabled} onChange={(value) => updatePrivacy("personalizationEnabled", value)} tone="green" />
+                      <ToggleRow label="Analytics" helper="Use platform analytics to improve the user experience." checked={accountSettings.privacy.analyticsEnabled} onChange={(value) => updatePrivacy("analyticsEnabled", value)} tone="cyan" />
+                      <ToggleRow label="Usage improvement sharing" helper="Optional product improvement signal." checked={accountSettings.privacy.shareUsageForImprovement} onChange={(value) => updatePrivacy("shareUsageForImprovement", value)} tone="amber" />
+                      <ToggleRow label="Marketing emails" checked={accountSettings.privacy.marketingEmailsEnabled} onChange={(value) => updatePrivacy("marketingEmailsEnabled", value)} tone="slate" />
+                      <ToggleRow label="Show profile to team" checked={accountSettings.privacy.showProfileToTeam} onChange={(value) => updatePrivacy("showProfileToTeam", value)} tone="blue" />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <ThemedSelect label="Report retention" value={accountSettings.privacy.retainReports} options={["30 days", "90 days", "1 year", "Forever"]} onChange={(value) => updatePrivacy("retainReports", value)} />
+                      <ThemedSelect label="Default export format" value={accountSettings.privacy.exportFormat} options={["PDF", "CSV", "JSON"]} onChange={(value) => updatePrivacy("exportFormat", value)} />
+                    </div>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>AI Studio behavior</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <label>
+                      <span className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>Bot name</span>
+                      <ThemedInput value={draftProfile.botName} onChange={(value) => setDraftProfile((current) => ({ ...current, botName: value }))} />
+                    </label>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <ThemedSelect label="Tone" value={draftProfile.preferredTone} options={["Professional", "Calm", "Direct", "Encouraging", "Brutally honest", "Witty"]} onChange={(value) => setDraftProfile((current) => ({ ...current, preferredTone: value }))} />
+                      <ThemedSelect label="Detail" value={draftProfile.commandStyle} options={["Short", "Balanced detail", "Detailed", "Deep research"]} onChange={(value) => setDraftProfile((current) => ({ ...current, commandStyle: value }))} />
+                      <ThemedSelect label="Reply layout" value={advancedSettings.responseLayout} options={["Executive Summary", "Advisor Memo", "Client Friendly", "Action Plan"]} onChange={(value) => updateAdvancedSettings("responseLayout", value)} />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <ThemedSelect label="Default mode" value={advancedSettings.defaultAnswerMode} options={["quick", "balanced", "deep"]} onChange={(value) => updateAdvancedSettings("defaultAnswerMode", value)} />
+                      <ToggleRow label="Compact replies" helper="Show preview first, full detail on demand." checked={advancedSettings.compactReplies} onChange={(value) => updateAdvancedSettings("compactReplies", value)} tone="green" />
+                      <ToggleRow label="Auto-read replies" helper="Speak the newest assistant response." checked={advancedSettings.autoReadReplies} onChange={(value) => updateAdvancedSettings("autoReadReplies", value)} tone="purple" />
+                    </div>
+
+                    <textarea value={draftProfile.customInstructions} onChange={(event) => setDraftProfile((current) => ({ ...current, customInstructions: event.target.value }))} className="min-h-[150px] w-full resize-none rounded-2xl border px-4 py-3 text-sm font-semibold leading-6 outline-none ring-red-500 focus:ring-2" style={{ background: "var(--input)", borderColor: "var(--border)", color: "var(--text)" }} placeholder="Tell Slice AI how to answer, what to prioritize, what to avoid, and how to handle client-facing output..." />
+
+                    <button type="button" onClick={saveProfile} disabled={saving} className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-5 py-3 text-sm font-black text-purple-100 disabled:opacity-50">
+                      Save AI Behavior
+                    </button>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Report defaults</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <ThemedSelect label="Report style" value={advancedSettings.reportStyle} options={["Premium Red", "Boardroom", "Client Clean", "Technical"]} onChange={(value) => updateAdvancedSettings("reportStyle", value)} />
+                      <ThemedSelect label="Report depth" value={advancedSettings.reportDepth} options={["Concise", "Balanced", "Full"]} onChange={(value) => updateAdvancedSettings("reportDepth", value)} />
+                      <ToggleRow label="Review checklist" checked={advancedSettings.includeReviewChecklist} onChange={(value) => updateAdvancedSettings("includeReviewChecklist", value)} tone="amber" />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <ToggleRow label="Include assumptions" checked={advancedSettings.includeAssumptions} onChange={(value) => updateAdvancedSettings("includeAssumptions", value)} tone="green" />
+                      <ToggleRow label="Include risk notes" checked={advancedSettings.includeRiskNotes} onChange={(value) => updateAdvancedSettings("includeRiskNotes", value)} tone="red" />
+                    </div>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Task defaults</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <ThemedSelect label="Priority" value={advancedSettings.taskDefaultPriority} options={["Critical", "High", "Medium", "Low"]} onChange={(value) => updateAdvancedSettings("taskDefaultPriority", value)} />
+                      <ThemedSelect label="Status" value={advancedSettings.taskDefaultStatus} options={["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"]} onChange={(value) => updateAdvancedSettings("taskDefaultStatus", value)} />
+                      <ThemedSelect label="Due date" value={advancedSettings.taskDueDays} options={["Today", "Tomorrow", "3 Days", "1 Week"]} onChange={(value) => updateAdvancedSettings("taskDueDays", value)} />
+                      <ToggleRow label="Email notify" checked={advancedSettings.taskEmailDefault} onChange={(value) => updateAdvancedSettings("taskEmailDefault", value)} tone="green" />
+                    </div>
+
+                    <ThemedSelect
+                      label="Approval style"
+                      value={advancedSettings.approvalStyle}
+                      options={["Advisor approval required", "Draft only", "Suggest only", "Autonomous where safe"]}
+                      onChange={(value) => updateAdvancedSettings("approvalStyle", value)}
+                      helper="Sensitive external communication and client-money workflows should remain advisor-reviewed."
+                    />
+                  </div>
+                </details>
+
+                <details open className="rounded-[1.5rem] border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+                  <summary className="cursor-pointer text-sm font-black" style={{ color: "var(--text)" }}>Contact us</summary>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <a href={accountSettings.contact.phoneHref} className="rounded-2xl border p-4 transition hover:bg-red-500/10" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-red-300">Phone</div>
+                      <div className="mt-2 text-xl font-black" style={{ color: "var(--text)" }}>{accountSettings.contact.phone}</div>
+                      <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>Call or tap from mobile.</p>
+                    </a>
+                    <a href={accountSettings.contact.emailHref} className="rounded-2xl border p-4 transition hover:bg-red-500/10" style={{ background: "var(--panel2)", borderColor: "var(--border)" }}>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-red-300">Email</div>
+                      <div className="mt-2 break-all text-xl font-black" style={{ color: "var(--text)" }}>{accountSettings.contact.email}</div>
+                      <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>Send a support or founder note.</p>
+                    </a>
+                  </div>
+                </details>
+
+                <details className="rounded-[1.5rem] border border-red-500/30 bg-red-500/10 p-4">
+                  <summary className="cursor-pointer text-sm font-black text-red-100">Danger zone</summary>
+
+                  <div className="mt-4 grid gap-4">
+                    <Panel tone="amber">
+                      <div className="text-sm font-black" style={{ color: "var(--text)" }}>Deactivate account</div>
+                      <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                        This suspends access and logs you out. Type DEACTIVATE to confirm.
+                      </p>
+                      <ThemedInput value={deactivateConfirm} onChange={setDeactivateConfirm} placeholder="DEACTIVATE" />
+                      <button type="button" onClick={deactivateAccount} disabled={accountSaving || deactivateConfirm !== "DEACTIVATE"} className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm font-black text-amber-100 disabled:opacity-50">
+                        Deactivate Account
+                      </button>
+                    </Panel>
+
+                    <Panel tone="red">
+                      <div className="text-sm font-black" style={{ color: "var(--text)" }}>Delete account</div>
+                      <p className="mt-2 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                        This permanently deletes the user account and cascaded account data. Type DELETE MY ACCOUNT to confirm.
+                      </p>
+                      <ThemedInput value={deleteConfirm} onChange={setDeleteConfirm} placeholder="DELETE MY ACCOUNT" />
+                      <button type="button" onClick={deleteAccount} disabled={accountSaving || deleteConfirm !== "DELETE MY ACCOUNT"} className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-50">
+                        Delete Account
+                      </button>
+                    </Panel>
+                  </div>
+                </details>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button type="button" onClick={saveAccountSettings} disabled={accountSaving} className="rounded-2xl bg-gradient-to-br from-white via-red-100 to-red-200 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 disabled:opacity-50">
+                    {accountSaving ? "Saving..." : "Save All Settings"}
+                  </button>
+                  <button type="button" onClick={logout} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100">
+                    Logout
+                  </button>
                 </div>
               </div>
             </Card>
+
+            <div className="grid gap-4">
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">Account Snapshot</div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Metric label="Name" value={accountSettings.account.name || "—"} helper="Profile" tone="red" />
+                  <Metric label="Theme" value={accountSettings.appearance.mode} helper={accountSettings.appearance.density} tone="cyan" />
+                  <Metric label="Voice Input" value={voiceSupported ? "Available" : "Unavailable"} helper={advancedSettings.voiceLanguage} tone={voiceSupported ? "green" : "slate"} />
+                  <Metric label="Security" value={accountSettings.security.requireReauthForSensitiveActions ? "Protected" : "Standard"} helper="Sensitive actions" tone={accountSettings.security.requireReauthForSensitiveActions ? "green" : "amber"} />
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Privacy + Memory</div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Metric label="AI Memory" value={accountSettings.privacy.aiMemoryEnabled ? "On" : "Off"} helper="Preference learning" tone={accountSettings.privacy.aiMemoryEnabled ? "purple" : "slate"} />
+                  <Metric label="Marketing" value={accountSettings.privacy.marketingEmailsEnabled ? "On" : "Off"} helper="Optional emails" tone={accountSettings.privacy.marketingEmailsEnabled ? "amber" : "green"} />
+                  <Metric label="Approvals" value={approvals.length} helper="Open gates" tone={approvals.length ? "amber" : "green"} />
+                  <Metric label="Memories" value={memories.length} helper="Stored prefs" tone={memories.length ? "purple" : "slate"} />
+                </div>
+              </Card>
+
+              <Card className="p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Quick Contact</div>
+                <div className="mt-4 grid gap-3">
+                  <a href={accountSettings.contact.phoneHref} className="rounded-2xl border p-4 text-sm font-black" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                    {accountSettings.contact.phone}
+                  </a>
+                  <a href={accountSettings.contact.emailHref} className="rounded-2xl border p-4 text-sm font-black" style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}>
+                    {accountSettings.contact.email}
+                  </a>
+                </div>
+              </Card>
+            </div>
           </section>
         ) : null}
       </div>

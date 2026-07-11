@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "blue" | "slate";
 type ThemeMode = "dark" | "light";
-type OutletId = "overview" | "watchlists";
+type OutletId = "overview";
 type WorkspaceMode = "guided" | "power" | "focus";
 type AdvisorRole = "Founder" | "Lead Advisor" | "Service Advisor" | "Ops";
 
@@ -31,7 +31,6 @@ type IconName =
 
 type ActionTarget =
   | { type: "route"; href: string }
-  | { type: "outlet"; outlet: OutletId }
   | { type: "mode"; mode: WorkspaceMode }
   | { type: "role"; role: AdvisorRole }
   | { type: "search"; query: string };
@@ -62,16 +61,6 @@ type SearchSuggestion = {
   tone: Tone;
   action: ActionTarget;
   keywords: string[];
-};
-
-type WatchItem = {
-  id: string;
-  symbol: string;
-  name: string;
-  constraint: string;
-  targetValue: string;
-  note: string;
-  source: "Manual" | "Custom Board";
 };
 
 type TeamInvite = {
@@ -109,8 +98,6 @@ type MarketPulseItem = {
 };
 
 const THEME_KEY = "slice-theme-mode-v1";
-const OUTLET_KEY = "slice-console-outlet-v14";
-const WATCHLIST_KEY = "slice-shared-watchlist-v1";
 const TEAM_INVITES_KEY = "slice-team-invites-v1";
 
 const WORKSPACE_TOOLS: WorkspaceTool[] = [
@@ -139,12 +126,12 @@ const WORKSPACE_TOOLS: WorkspaceTool[] = [
     description: "Monitor symbols, constraints, thresholds, and advisor notes.",
     icon: "watch",
     tone: "amber",
-    target: { type: "outlet", outlet: "watchlists" },
-    routeLabel: "/workspace?tab=watchlists",
+    target: { type: "route", href: "/workspace/watchlists" },
+    routeLabel: "/workspace/watchlists",
     category: "Market",
     outcome: "Track important signals",
     differentiator: "Constraint-based monitoring",
-    status: "Workspace outlet",
+    status: "Live route",
     tags: ["watchlist", "alerts", "constraints", "thresholds", "monitoring"],
   },
   {
@@ -290,36 +277,6 @@ const WORKSPACE_TOOLS: WorkspaceTool[] = [
     differentiator: "Team execution next to advisor tools",
     status: "Live route",
     tags: ["team", "tasks", "calendar", "brainstorm", "docs"],
-  },
-];
-
-const DEFAULT_WATCHLIST: WatchItem[] = [
-  {
-    id: "watch-spy",
-    symbol: "SPY",
-    name: "S&P 500 ETF",
-    constraint: "Notify above",
-    targetValue: "550",
-    note: "Broad market strength check",
-    source: "Custom Board",
-  },
-  {
-    id: "watch-nvda",
-    symbol: "NVDA",
-    name: "NVIDIA",
-    constraint: "Notify move",
-    targetValue: "±4%",
-    note: "AI exposure review",
-    source: "Manual",
-  },
-  {
-    id: "watch-tlt",
-    symbol: "TLT",
-    name: "20+ Year Treasury ETF",
-    constraint: "Notify below",
-    targetValue: "88",
-    note: "Rate-sensitive portfolio review",
-    source: "Manual",
   },
 ];
 
@@ -656,19 +613,9 @@ function BrandMark({ theme }: { theme: ThemeMode }) {
 
 function targetLabel(target: ActionTarget) {
   if (target.type === "route") return target.href;
-  if (target.type === "outlet") return `/workspace?tab=${target.outlet}`;
   if (target.type === "mode") return `Mode: ${target.mode}`;
   if (target.type === "role") return `Role: ${target.role}`;
   return `Search: ${target.query}`;
-}
-
-function toolTargetToOutlet(target: ActionTarget): OutletId | null {
-  if (target.type === "outlet") return target.outlet;
-  return null;
-}
-
-function saveWatchlist(items: WatchItem[]) {
-  window.localStorage.setItem(WATCHLIST_KEY, JSON.stringify(items));
 }
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -866,11 +813,9 @@ function useMarketQuotes() {
 }
 
 function Sidebar({
-  activeOutlet,
   onOpenTarget,
   theme,
 }: {
-  activeOutlet: OutletId;
   onOpenTarget: (target: ActionTarget) => void;
   theme: ThemeMode;
 }) {
@@ -885,9 +830,6 @@ function Sidebar({
 
         <div className="grid gap-1">
           {WORKSPACE_TOOLS.map((tool) => {
-            const outlet = toolTargetToOutlet(tool.target);
-            const active = outlet ? activeOutlet === outlet : false;
-
             if (tool.target.type === "route") {
               return (
                 <Link
@@ -917,13 +859,11 @@ function Sidebar({
                 type="button"
                 onClick={() => onOpenTarget(tool.target)}
                 className={cx(
-                  "group flex items-center gap-2.5 rounded-2xl border px-2.5 py-1.5 text-left transition",
-                  active
-                    ? cx("shadow-lg", toneClasses(tool.tone, theme))
-                    : cx("border-transparent hover:border-red-400/30", isLightTheme(theme) ? "hover:bg-red-50/80" : "hover:bg-red-500/[0.08]"),
+                  "group flex items-center gap-2.5 rounded-2xl border border-transparent px-2.5 py-1.5 text-left transition hover:border-red-400/30",
+                  isLightTheme(theme) ? "hover:bg-red-50/80" : "hover:bg-red-500/[0.08]",
                 )}
               >
-                <span className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-base", active ? "border-white/20 bg-black/25" : toneClasses(tool.tone, theme))}>
+                <span className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-base", toneClasses(tool.tone, theme))}>
                   <Icon name={tool.icon} />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1271,7 +1211,7 @@ function TeamInvitePanel({
 function PulseQueue({ theme }: { theme: ThemeMode }) {
   const items = [
     ["Client updates", "3 unread portal updates", "purple"],
-    ["Watchlist coverage", "4 active alert conditions", "cyan"],
+    ["Watchlist coverage", "Open the dedicated Watchlists route", "cyan"],
     ["Market scan", "High-priority intelligence ready", "red"],
     ["Team workflow", "Firm invite flow available", "green"],
   ] as const;
@@ -1464,139 +1404,6 @@ function DashboardOverview({
         <TeamInvitePanel theme={theme} invites={invites} setInvites={setInvites} />
         <PulseQueue theme={theme} />
       </div>
-    </div>
-  );
-}
-
-function WatchlistsOutlet({
-  items,
-  setItems,
-  theme,
-}: {
-  items: WatchItem[];
-  setItems: Dispatch<SetStateAction<WatchItem[]>>;
-  theme: ThemeMode;
-}) {
-  const [symbol, setSymbol] = useState("");
-  const [constraint, setConstraint] = useState("Notify above");
-  const [targetValue, setTargetValue] = useState("");
-  const [note, setNote] = useState("");
-
-  function addItem() {
-    const cleanSymbol = symbol.trim().toUpperCase();
-    if (!cleanSymbol) return;
-
-    const nextItem: WatchItem = {
-      id: `watch-${cleanSymbol}-${Date.now()}`,
-      symbol: cleanSymbol,
-      name: cleanSymbol,
-      constraint,
-      targetValue: targetValue.trim() || "Set target",
-      note: note.trim() || "Advisor-defined watch condition",
-      source: "Manual",
-    };
-
-    setItems((current) => {
-      const next = [nextItem, ...current.filter((item) => item.symbol !== cleanSymbol)];
-      saveWatchlist(next);
-      return next;
-    });
-
-    setSymbol("");
-    setTargetValue("");
-    setNote("");
-  }
-
-  function removeItem(id: string) {
-    setItems((current) => {
-      const next = current.filter((item) => item.id !== id);
-      saveWatchlist(next);
-      return next;
-    });
-  }
-
-  return (
-    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[390px_minmax(0,1fr)]">
-      <Card className="p-5" theme={theme}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">Watchlists</div>
-            <h1 className={cx("mt-2 text-3xl font-black", textStrong(theme))}>Constraint-based monitoring</h1>
-            <p className={cx("mt-2 text-sm font-semibold leading-6", textMuted(theme))}>
-              Add symbols with advisor-defined constraints. Intelligence reads the same watchlist.
-            </p>
-          </div>
-          <Pill tone="amber" theme={theme}>{items.length} watched</Pill>
-        </div>
-
-        <div className="mt-5 grid gap-3">
-          <input value={symbol} onChange={(event) => setSymbol(event.target.value)} placeholder="Symbol, e.g. AAPL" className={cx("rounded-2xl border px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500", inputSurface(theme))} />
-          <select value={constraint} onChange={(event) => setConstraint(event.target.value)} className={cx("rounded-2xl border px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500", inputSurface(theme))}>
-            <option>Notify above</option>
-            <option>Notify below</option>
-            <option>Notify move</option>
-            <option>Watch volume spike</option>
-            <option>Review weekly</option>
-          </select>
-          <input value={targetValue} onChange={(event) => setTargetValue(event.target.value)} placeholder="Constraint target, e.g. 195 or ±4%" className={cx("rounded-2xl border px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500", inputSurface(theme))} />
-          <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Advisor note" rows={3} className={cx("resize-none rounded-2xl border px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-red-500", inputSurface(theme))} />
-          <ActionButton onClick={addItem} tone="amber" theme={theme}>Add Watch Item</ActionButton>
-          <LinkButton href="/workspace/intelligence" tone="red" variant="soft" theme={theme}>Open Intelligence</LinkButton>
-        </div>
-      </Card>
-
-      <Card className="min-h-0 p-5" theme={theme}>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">Active watch items</div>
-            <h2 className={cx("mt-2 text-2xl font-black", textStrong(theme))}>Advisor monitoring queue</h2>
-          </div>
-          <Pill tone="green" theme={theme}>Shared with Intelligence</Pill>
-        </div>
-
-        <div className="mt-5 grid max-h-[calc(100vh-245px)] gap-3 overflow-y-auto pr-1">
-          {items.map((item) => (
-            <div key={item.id} className={cx("rounded-3xl border p-4", blackGlass(theme))}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className={cx("text-2xl font-black", textStrong(theme))}>{item.symbol}</div>
-                  <div className={cx("text-sm font-semibold", textFaint(theme))}>{item.name}</div>
-                </div>
-                <Pill tone={item.source === "Custom Board" ? "cyan" : "amber"} theme={theme}>{item.source}</Pill>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className={cx("rounded-2xl border p-3", blackGlass(theme))}>
-                  <div className={cx("text-[10px] font-black uppercase tracking-[0.12em]", textFaint(theme))}>Constraint</div>
-                  <div className={cx("mt-1 text-sm font-black", textStrong(theme))}>{item.constraint}</div>
-                </div>
-                <div className={cx("rounded-2xl border p-3", blackGlass(theme))}>
-                  <div className={cx("text-[10px] font-black uppercase tracking-[0.12em]", textFaint(theme))}>Target</div>
-                  <div className={cx("mt-1 text-sm font-black", textStrong(theme))}>{item.targetValue}</div>
-                </div>
-                <div className={cx("rounded-2xl border p-3", blackGlass(theme))}>
-                  <div className={cx("text-[10px] font-black uppercase tracking-[0.12em]", textFaint(theme))}>Status</div>
-                  <div className={cx("mt-1 text-sm font-black", textStrong(theme))}>Watching</div>
-                </div>
-              </div>
-
-              <p className={cx("mt-3 text-sm font-semibold leading-6", textMuted(theme))}>{item.note}</p>
-
-              <div className="mt-4 flex gap-2">
-                <LinkButton href={`/workspace/custom-board?symbol=${encodeURIComponent(item.symbol)}`} tone="cyan" variant="soft" theme={theme}>Analyze</LinkButton>
-                <LinkButton href={`/workspace/intelligence?symbol=${encodeURIComponent(item.symbol)}`} tone="red" variant="soft" theme={theme}>Intel</LinkButton>
-                <button
-                  type="button"
-                  onClick={() => removeItem(item.id)}
-                  className={cx("rounded-2xl border px-4 py-3 text-sm font-black transition hover:bg-red-500/10 hover:text-red-100", isLightTheme(theme) ? "border-slate-200 bg-white text-slate-600" : "border-white/10 bg-white/[0.04] text-slate-300")}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }
@@ -2043,14 +1850,13 @@ function AmbientPlasmaBlob() {
 }
 
 export default function WorkspacePage() {
-  const [activeOutlet, setActiveOutlet] = useState<OutletId>("overview");
+  const activeOutlet: OutletId = "overview";
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [mode, setMode] = useState<WorkspaceMode>("guided");
   const [role, setRole] = useState<AdvisorRole>("Founder");
   const [commandText, setCommandText] = useState("");
   const [commandOpen, setCommandOpen] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
-  const [watchItems, setWatchItems] = useState<WatchItem[]>(DEFAULT_WATCHLIST);
   const [invites, setInvites] = useState<TeamInvite[]>([]);
   const [userName, setUserName] = useState("Advisor");
 
@@ -2110,71 +1916,26 @@ export default function WorkspacePage() {
       const tab = params.get("tab");
       const addSymbol = params.get("addSymbol") ?? params.get("symbol");
 
-      if (tab === "watchlists") setActiveOutlet(tab);
-
-      const savedOutlet = window.localStorage.getItem(OUTLET_KEY) as OutletId | null;
-      const savedWatchlist = window.localStorage.getItem(WATCHLIST_KEY);
-      const savedInvites = loadJson<TeamInvite[]>(TEAM_INVITES_KEY, []);
-
-      setInvites(savedInvites);
-
-      if (!tab && savedOutlet && ["overview", "watchlists"].includes(savedOutlet)) {
-        setActiveOutlet(savedOutlet);
+      if (tab === "watchlists" || addSymbol) {
+        const watchlistsUrl = new URL("/workspace/watchlists", window.location.origin);
+        if (addSymbol) watchlistsUrl.searchParams.set("symbol", addSymbol);
+        window.location.replace(watchlistsUrl.toString());
+        return;
       }
 
-      if (savedWatchlist) {
-        const parsed = JSON.parse(savedWatchlist);
-        if (Array.isArray(parsed)) setWatchItems(parsed);
-      }
-
-      if (addSymbol) {
-        const cleanSymbol = addSymbol.trim().toUpperCase();
-        const nextItem: WatchItem = {
-          id: `watch-${cleanSymbol}-${Date.now()}`,
-          symbol: cleanSymbol,
-          name: cleanSymbol,
-          constraint: "Review from Custom Board",
-          targetValue: "Advisor set",
-          note: "Added from Custom Board route handoff.",
-          source: "Custom Board",
-        };
-
-        setWatchItems((current) => {
-          const next = [nextItem, ...current.filter((item) => item.symbol !== cleanSymbol)];
-          saveWatchlist(next);
-          return next;
-        });
-
-        setActiveOutlet("watchlists");
-      }
+      setInvites(loadJson<TeamInvite[]>(TEAM_INVITES_KEY, []));
     } catch {
-      setActiveOutlet("overview");
+      setInvites([]);
     }
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(OUTLET_KEY, activeOutlet);
-  }, [activeOutlet]);
 
   useEffect(() => {
     setSelectedSuggestionIndex(0);
   }, [commandText]);
 
-  function setOutlet(outlet: OutletId) {
-    setActiveOutlet(outlet);
-    const url = new URL(window.location.href);
-    url.searchParams.set("tab", outlet);
-    window.history.pushState({ outlet }, "", url.toString());
-  }
-
   function openTarget(target: ActionTarget) {
     if (target.type === "route") {
       window.location.href = target.href;
-      return;
-    }
-
-    if (target.type === "outlet") {
-      setOutlet(target.outlet);
       return;
     }
 
@@ -2226,7 +1987,7 @@ export default function WorkspacePage() {
       </div>
 
       <div className="relative grid h-screen min-h-0 grid-cols-1 lg:grid-cols-[268px_minmax(0,1fr)]">
-        <Sidebar activeOutlet={activeOutlet} onOpenTarget={openTarget} theme={theme} />
+        <Sidebar onOpenTarget={openTarget} theme={theme} />
 
         <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 p-3">
           <header className={cx("rounded-[1.65rem] border p-3 shadow-2xl backdrop-blur-xl", surface(theme))}>
@@ -2269,13 +2030,7 @@ export default function WorkspacePage() {
           </header>
 
           <div className="min-h-0 overflow-hidden">
-            {activeOutlet === "overview" ? (
-              <DashboardOverview theme={theme} invites={invites} setInvites={setInvites} userName={userName} />
-            ) : null}
-
-            {activeOutlet === "watchlists" ? (
-              <WatchlistsOutlet items={watchItems} setItems={setWatchItems} theme={theme} />
-            ) : null}
+            <DashboardOverview theme={theme} invites={invites} setInvites={setInvites} userName={userName} />
           </div>
         </section>
       </div>
