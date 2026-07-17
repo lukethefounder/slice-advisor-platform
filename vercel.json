@@ -13,8 +13,12 @@
       "schedule": "0 * * * *"
     },
     {
-      "path": "/api/cron/firm-reminders?limit=150",
-      "schedule": "*/10 * * * *"
+    "path": "/api/cron/firm-reminders?limit=150",
+    "schedule": "*/10 * * * *"
+    },
+    {
+    "path": "/api/cron/intelligence-forecast-settlement?limit=25",
+    "schedule": "*/10 * * * *"
     }
   ]
 }
