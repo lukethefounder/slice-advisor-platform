@@ -13,12 +13,52 @@
       "schedule": "0 * * * *"
     },
     {
-    "path": "/api/cron/firm-reminders?limit=150",
-    "schedule": "*/10 * * * *"
+      "path": "/api/cron/firm-reminders?limit=150",
+      "schedule": "*/10 * * * *"
     },
     {
-    "path": "/api/cron/intelligence-forecast-settlement?limit=25",
-    "schedule": "*/10 * * * *"
+      "path": "/api/cron/intelligence-forecast-settlement?limit=25",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-forecast-drift?window=40",
+      "schedule": "15 2 * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-forecast-warehouse?users=50&runs=20",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-forecast-graph?users=50&runs=20",
+      "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-horizon-model-training?users=25&minimum=25",
+      "schedule": "45 3 * * 0"
+    },
+    {
+      "path": "/api/cron/intelligence-agent-simulation?users=10&paths=100",
+      "schedule": "35 4 * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-ensemble?action=generate&users=25&runs=5",
+      "schedule": "50 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-ensemble?action=train&users=25&minimum=40",
+      "schedule": "15 5 * * 0"
+    },
+    {
+      "path": "/api/cron/intelligence-advisor-brief?users=50",
+      "schedule": "5 15 * * 1-5"
+    },
+    {
+      "path": "/api/cron/intelligence-production-health?users=50",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/intelligence-launch-readiness?users=50&target=Production",
+      "schedule": "30 */6 * * *"
     }
   ]
 }

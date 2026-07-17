@@ -8,56 +8,51 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-
-  sessions                         Session[]
-  watchAssets                      WatchAsset[]
-  ventureProjects                  VentureProject[]
-  alertRules                       AlertRule[]
-  clientProfiles                   ClientProfile[]
-  advisorNotes                     AdvisorNote[]
-  meetingTasks                     MeetingTask[]
-  documentVaultItems               DocumentVaultItem[]
-  investorGoals                    InvestorGoal[]
-  researchNotes                    ResearchNote[]
-  alertEvents                      AlertEvent[]
-  investorInsights                 InvestorInsight[]
-  intelligenceRuns                 IntelligenceRun[]
-  intelligenceForecastRuns         IntelligenceForecastRun[]
-  headlineDecisions                HeadlineDecision[]
-  newsSourceConfigs                NewsSourceConfig[]
-  intelligenceRetentionPolicy      IntelligenceRetentionPolicy?
-  notificationPreferences          NotificationPreference[]
-  notificationDeliveries           NotificationDelivery[]
-  digestReports                    DigestReport[]
-  briefingReports                  BriefingReport[]
-  investorAccounts                 InvestorAccount[]
-  investorHoldings                 InvestorHolding[]
-  allocationModels                 AllocationModel[]
-  rebalanceReports                 RebalanceReport[]
-  scenarioReports                  ScenarioReport[]
-  auditLogs                        AuditLog[]
-  disclosureAcceptances            DisclosureAcceptance[]
-  securitySetting                  UserSecuritySetting?
-  createdFirms                     Firm[]                            @relation("FirmCreatedBy")
-  firmMemberships                  FirmMembership[]
-  firmInvitesSent                  FirmInvite[]                      @relation("FirmInviteSentBy")
-  agendaComments                   AgendaComment[]
-  opportunitySignals               OpportunitySignal[]
-  alternativeVenturesCreated       AlternativeVenture[]              @relation("AlternativeVentureCreatedBy")
-  alternativePennyStocksCreated    AlternativePennyStock[]           @relation("AlternativePennyStockCreatedBy")
-  namedWatchlists                  NamedWatchlist[]
-  namedWatchlistItems              NamedWatchlistItem[]
-  platformStatus                   String                            @default("Active")
-  governanceReason                 String?
-  governedAt                       DateTime?
-  intelligenceForecastModels       IntelligenceForecastModel[]
-  intelligenceForecastBacktestRuns IntelligenceForecastBacktestRun[]
-  intelligenceForecastDriftAlerts  IntelligenceForecastDriftAlert[]
+  id                            String                       @id @default(cuid())
+  name                          String
+  email                         String                       @unique
+  passwordHash                  String
+  createdAt                     DateTime                     @default(now())
+  platformStatus                String                       @default("Active")
+  governanceReason              String?
+  governedAt                    DateTime?
+  advisorNotes                  AdvisorNote[]
+  agendaComments                AgendaComment[]
+  alertEvents                   AlertEvent[]
+  alertRules                    AlertRule[]
+  allocationModels              AllocationModel[]
+  alternativePennyStocksCreated AlternativePennyStock[]      @relation("AlternativePennyStockCreatedBy")
+  alternativeVenturesCreated    AlternativeVenture[]         @relation("AlternativeVentureCreatedBy")
+  auditLogs                     AuditLog[]
+  briefingReports               BriefingReport[]
+  clientProfiles                ClientProfile[]
+  digestReports                 DigestReport[]
+  disclosureAcceptances         DisclosureAcceptance[]
+  documentVaultItems            DocumentVaultItem[]
+  createdFirms                  Firm[]                       @relation("FirmCreatedBy")
+  firmInvitesSent               FirmInvite[]                 @relation("FirmInviteSentBy")
+  firmMemberships               FirmMembership[]
+  headlineDecisions             HeadlineDecision[]
+  intelligenceRetentionPolicy   IntelligenceRetentionPolicy?
+  intelligenceRuns              IntelligenceRun[]
+  investorAccounts              InvestorAccount[]
+  investorGoals                 InvestorGoal[]
+  investorHoldings              InvestorHolding[]
+  investorInsights              InvestorInsight[]
+  meetingTasks                  MeetingTask[]
+  namedWatchlists               NamedWatchlist[]
+  namedWatchlistItems           NamedWatchlistItem[]
+  newsSourceConfigs             NewsSourceConfig[]
+  notificationDeliveries        NotificationDelivery[]
+  notificationPreferences       NotificationPreference[]
+  opportunitySignals            OpportunitySignal[]
+  rebalanceReports              RebalanceReport[]
+  researchNotes                 ResearchNote[]
+  scenarioReports               ScenarioReport[]
+  sessions                      Session[]
+  securitySetting               UserSecuritySetting?
+  ventureProjects               VentureProject[]
+  watchAssets                   WatchAsset[]
 
   @@index([email])
 }
@@ -68,8 +63,7 @@ model Session {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -89,8 +83,7 @@ model WatchAsset {
   signal    String?
   notes     String?
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, ticker])
   @@index([userId])
@@ -98,43 +91,41 @@ model WatchAsset {
 }
 
 model NamedWatchlist {
-  id          String   @id @default(cuid())
+  id          String               @id @default(cuid())
   userId      String
   name        String
   description String?
-  focus       String   @default("General")
-  riskLevel   String   @default("Mixed")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items NamedWatchlistItem[]
+  focus       String               @default("General")
+  riskLevel   String               @default("Mixed")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       NamedWatchlistItem[]
 
   @@unique([userId, name])
   @@index([userId])
 }
 
 model NamedWatchlistItem {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   userId        String
   watchlistId   String
   symbol        String
   assetName     String
-  assetType     String   @default("Stock")
-  sourceType    String   @default("Manual")
+  assetType     String         @default("Stock")
+  sourceType    String         @default("Manual")
   sourceId      String?
   sourceTitle   String?
   sourceUrl     String?
   originalScore Int?
   thesis        String?
   riskNotes     String?
-  status        String   @default("Watching")
-  priority      String   @default("Medium")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  watchlist NamedWatchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  status        String         @default("Watching")
+  priority      String         @default("Medium")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchlist     NamedWatchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
 
   @@unique([watchlistId, symbol])
   @@index([userId])
@@ -154,8 +145,7 @@ model VentureProject {
   thesis       String
   risk         String
   createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -168,88 +158,83 @@ model AlertRule {
   trigger   String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model ClientProfile {
-  id              String           @id @default(cuid())
+  id              String              @id @default(cuid())
   userId          String
   fullName        String
   email           String?
   householdName   String?
-  clientType      String           @default("Private Client")
-  riskProfile     String           @default("Balanced")
-  liquidityNeeds  String           @default("Moderate")
-  timeHorizon     String           @default("5-10 years")
-  objective       String           @default("Long-term wealth growth")
+  clientType      String              @default("Private Client")
+  riskProfile     String              @default("Balanced")
+  liquidityNeeds  String              @default("Moderate")
+  timeHorizon     String              @default("5-10 years")
+  objective       String              @default("Long-term wealth growth")
   portfolioValue  String?
-  status          String           @default("Active")
+  status          String              @default("Active")
   notes           String?
-  createdAt       DateTime         @default(now())
+  createdAt       DateTime            @default(now())
+  notesList       AdvisorNote[]
   briefingReports BriefingReport[]
-
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  holdings  PortfolioHolding[]
-  notesList AdvisorNote[]
-  tasks     MeetingTask[]
-  reviews   RiskReview[]
-  documents DocumentVaultItem[]
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       DocumentVaultItem[]
+  tasks           MeetingTask[]
+  holdings        PortfolioHolding[]
+  reviews         RiskReview[]
 
   @@index([userId])
   @@index([fullName])
 }
 
 model PortfolioHolding {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   clientId      String
   symbol        String
   assetName     String
-  assetClass    String   @default("Stock")
+  assetClass    String        @default("Stock")
   value         String?
   allocationPct String?
   costBasis     String?
-  riskLevel     String   @default("Medium")
+  riskLevel     String        @default("Medium")
   thesis        String?
-  createdAt     DateTime @default(now())
-
-  client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+  client        ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([symbol])
 }
 
 model AdvisorNote {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   userId    String
   clientId  String?
   title     String
   body      String
-  noteType  String   @default("General")
-  createdAt DateTime @default(now())
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  noteType  String         @default("General")
+  createdAt DateTime       @default(now())
+  client    ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([clientId])
 }
 
 model MeetingTask {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   userId      String
   clientId    String?
   title       String
   description String?
   dueDate     DateTime?
-  priority    String    @default("Medium")
-  status      String    @default("Open")
-  createdAt   DateTime  @default(now())
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  priority    String         @default("Medium")
+  status      String         @default("Open")
+  createdAt   DateTime       @default(now())
+  client      ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([clientId])
@@ -257,31 +242,29 @@ model MeetingTask {
 }
 
 model RiskReview {
-  id                String   @id @default(cuid())
+  id                String        @id @default(cuid())
   clientId          String
   score             Int
   suitabilityStatus String
   summary           String
-  flagsJson         String   @default("[]")
-  createdAt         DateTime @default(now())
-
-  client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  flagsJson         String        @default("[]")
+  createdAt         DateTime      @default(now())
+  client            ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
 }
 
 model DocumentVaultItem {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   userId       String
   clientId     String?
   fileName     String
-  documentType String   @default("General")
-  status       String   @default("Needs Review")
+  documentType String         @default("General")
+  status       String         @default("Needs Review")
   notes        String?
-  createdAt    DateTime @default(now())
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  client       ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([clientId])
@@ -300,8 +283,7 @@ model InvestorGoal {
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -318,30 +300,28 @@ model ResearchNote {
   sourceLinks String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([ticker])
 }
 
 model AlertEvent {
-  id         String    @id @default(cuid())
+  id         String                 @id @default(cuid())
   userId     String
   dedupeKey  String
   title      String
   body       String
   source     String
   ticker     String?
-  urgency    String    @default("Medium")
-  score      Int       @default(50)
-  channel    String    @default("Dashboard")
-  status     String    @default("Unread")
-  createdAt  DateTime  @default(now())
+  urgency    String                 @default("Medium")
+  score      Int                    @default(50)
+  channel    String                 @default("Dashboard")
+  status     String                 @default("Unread")
+  createdAt  DateTime               @default(now())
   readAt     DateTime?
   sourceUrl  String?
   aiBriefing String?
-
   user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
@@ -362,8 +342,7 @@ model InvestorInsight {
   summary      String
   actionStatus String   @default("Open")
   createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -391,15 +370,14 @@ model IntelligenceRun {
   discardedCount Int      @default(0)
   durationMs     Int      @default(0)
   createdAt      DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
 }
 
 model HeadlineDecision {
-  id                 String   @id @default(cuid())
+  id                 String              @id @default(cuid())
   userId             String
   dedupeKey          String
   title              String
@@ -416,13 +394,12 @@ model HeadlineDecision {
   materialityScore   Int
   relevanceScore     Int
   trustScore         Int
-  matchedTickersJson String   @default("[]")
-  matchedAreasJson   String   @default("[]")
-  reasonsJson        String   @default("[]")
-  channelsJson       String   @default("[]")
+  matchedTickersJson String              @default("[]")
+  matchedAreasJson   String              @default("[]")
+  reasonsJson        String              @default("[]")
+  channelsJson       String              @default("[]")
   expiresAt          DateTime
-  createdAt          DateTime @default(now())
-
+  createdAt          DateTime            @default(now())
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   opportunitySignals OpportunitySignal[]
 
@@ -463,8 +440,7 @@ model NewsSourceConfig {
   lastRunAt        DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sourceId])
   @@index([userId])
@@ -486,8 +462,7 @@ model IntelligenceRetentionPolicy {
   readAlertRetentionDays Int      @default(30)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model NotificationPreference {
@@ -503,31 +478,29 @@ model NotificationPreference {
   cooldownMinutes Int      @default(30)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, channel])
   @@index([userId])
 }
 
 model NotificationDelivery {
-  id           String    @id @default(cuid())
+  id           String      @id @default(cuid())
   userId       String
   alertEventId String?
   channel      String
   destination  String?
-  status       String    @default("Queued")
+  status       String      @default("Queued")
   urgency      String
   score        Int
   title        String
   body         String
   reason       String?
-  simulated    Boolean   @default(true)
-  createdAt    DateTime  @default(now())
+  simulated    Boolean     @default(true)
+  createdAt    DateTime    @default(now())
   deliveredAt  DateTime?
-
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  alertEvent AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: Cascade)
+  alertEvent   AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([alertEventId])
@@ -545,33 +518,31 @@ model DigestReport {
   itemsJson      String   @default("[]")
   status         String   @default("Generated")
   createdAt      DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
 }
 
 model BriefingReport {
-  id                 String   @id @default(cuid())
+  id                 String         @id @default(cuid())
   userId             String
   clientId           String?
   title              String
-  audience           String   @default("Investor")
-  briefType          String   @default("Daily")
+  audience           String         @default("Investor")
+  briefType          String         @default("Daily")
   executiveSummary   String
   marketSummary      String
   alertSummary       String
   portfolioSummary   String
   alternativeSummary String
   riskSummary        String
-  actionItemsJson    String   @default("[]")
-  sourceItemsJson    String   @default("[]")
-  status             String   @default("Generated")
-  createdAt          DateTime @default(now())
-
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  actionItemsJson    String         @default("[]")
+  sourceItemsJson    String         @default("[]")
+  status             String         @default("Generated")
+  createdAt          DateTime       @default(now())
+  client             ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([clientId])
@@ -579,37 +550,35 @@ model BriefingReport {
 }
 
 model InvestorAccount {
-  id          String   @id @default(cuid())
+  id          String            @id @default(cuid())
   userId      String
   name        String
-  accountType String   @default("Taxable Brokerage")
+  accountType String            @default("Taxable Brokerage")
   custodian   String?
   notes       String?
-  createdAt   DateTime @default(now())
-
-  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  holdings InvestorHolding[]
+  createdAt   DateTime          @default(now())
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings    InvestorHolding[]
 
   @@index([userId])
 }
 
 model InvestorHolding {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
   accountId   String?
   symbol      String
   assetName   String
-  assetClass  String   @default("Stock")
-  valueNumber Float    @default(0)
+  assetClass  String           @default("Stock")
+  valueNumber Float            @default(0)
   costBasis   Float?
-  targetRole  String   @default("Core")
-  riskLevel   String   @default("Medium")
+  targetRole  String           @default("Core")
+  riskLevel   String           @default("Medium")
   thesis      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account InvestorAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  account     InvestorAccount? @relation(fields: [accountId], references: [id])
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([accountId])
@@ -617,51 +586,48 @@ model InvestorHolding {
 }
 
 model AllocationModel {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   userId      String
   name        String
   description String?
-  riskLevel   String   @default("Balanced")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  targets AllocationTarget[]
-  reports RebalanceReport[]
+  riskLevel   String             @default("Balanced")
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targets     AllocationTarget[]
+  reports     RebalanceReport[]
 
   @@index([userId])
 }
 
 model AllocationTarget {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   modelId    String
   assetClass String
   targetPct  Float
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  model AllocationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  model      AllocationModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@unique([modelId, assetClass])
   @@index([modelId])
 }
 
 model RebalanceReport {
-  id                     String   @id @default(cuid())
+  id                     String           @id @default(cuid())
   userId                 String
   modelId                String?
   title                  String
   summary                String
-  totalValue             Float    @default(0)
-  currentAllocationsJson String   @default("[]")
-  targetAllocationsJson  String   @default("[]")
-  driftJson              String   @default("[]")
-  recommendationsJson    String   @default("[]")
-  status                 String   @default("Generated")
-  createdAt              DateTime @default(now())
-
-  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  model AllocationModel? @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  totalValue             Float            @default(0)
+  currentAllocationsJson String           @default("[]")
+  targetAllocationsJson  String           @default("[]")
+  driftJson              String           @default("[]")
+  recommendationsJson    String           @default("[]")
+  status                 String           @default("Generated")
+  createdAt              DateTime         @default(now())
+  model                  AllocationModel? @relation(fields: [modelId], references: [id])
+  user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([modelId])
@@ -683,8 +649,7 @@ model ScenarioReport {
   summary      String
   actionsJson  String   @default("[]")
   createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
@@ -702,8 +667,7 @@ model AuditLog {
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([severity])
@@ -720,8 +684,7 @@ model DisclosureAcceptance {
   acceptedByName  String
   acceptedByEmail String
   contentSnapshot String
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, disclosureKey, version])
   @@index([userId])
@@ -738,32 +701,29 @@ model UserSecuritySetting {
   lastSecurityReviewAt             DateTime?
   createdAt                        DateTime  @default(now())
   updatedAt                        DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Firm {
-  id               String    @id @default(cuid())
-  name             String
-  firmEmail        String?
-  firmCode         String    @unique
-  createdByUserId  String
-  platformStatus   String    @default("Active")
-  governanceReason String?
-  governedAt       DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  createdBy User @relation("FirmCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
-
-  memberships            FirmMembership[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  firmEmail              String?
+  firmCode               String                  @unique
+  createdByUserId        String
+  platformStatus         String                  @default("Active")
+  governanceReason       String?
+  governedAt             DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  alternativePennyStocks AlternativePennyStock[]
+  alternativeVentures    AlternativeVenture[]
+  createdBy              User                    @relation("FirmCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  agendaTasks            FirmAgendaTask[]
   invites                FirmInvite[]
+  memberships            FirmMembership[]
+  posts                  FirmPost[]
   projects               FirmProject[]
   weeklyAgendas          WeeklyAgenda[]
-  agendaTasks            FirmAgendaTask[]
-  posts                  FirmPost[]
-  alternativeVentures    AlternativeVenture[]
-  alternativePennyStocks AlternativePennyStock[]
 
   @@index([createdByUserId])
 }
@@ -791,9 +751,8 @@ model AlternativeVenture {
   notes              String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-
-  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  createdBy User @relation("AlternativeVentureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  createdBy          User     @relation("AlternativeVentureCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  firm               Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
 
   @@index([firmId])
   @@index([createdByUserId])
@@ -818,9 +777,8 @@ model AlternativePennyStock {
   notes           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  firm      Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  createdBy User @relation("AlternativePennyStockCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  createdBy       User     @relation("AlternativePennyStockCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  firm            Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
 
   @@index([firmId])
   @@index([createdByUserId])
@@ -829,25 +787,23 @@ model AlternativePennyStock {
 }
 
 model FirmMembership {
-  id                  String   @id @default(cuid())
+  id                  String                  @id @default(cuid())
   firmId              String
   userId              String
-  role                String   @default("Member")
-  status              String   @default("Active")
-  canAccessPortfolios Boolean  @default(true)
-  canManageProjects   Boolean  @default(false)
-  canInviteMembers    Boolean  @default(false)
-  canManageFirm       Boolean  @default(false)
-  calendarColor       String   @default("#ef4444")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  projectAssignments FirmProjectAssignment[]
-  weeklyAgendas      WeeklyAgenda[]
-  posts              FirmPost[]
+  role                String                  @default("Member")
+  status              String                  @default("Active")
+  canAccessPortfolios Boolean                 @default(true)
+  canManageProjects   Boolean                 @default(false)
+  canInviteMembers    Boolean                 @default(false)
+  canManageFirm       Boolean                 @default(false)
+  calendarColor       String                  @default("#ef4444")
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  firm                Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts               FirmPost[]
+  projectAssignments  FirmProjectAssignment[]
+  weeklyAgendas       WeeklyAgenda[]
 
   @@unique([firmId, userId])
   @@index([userId])
@@ -865,64 +821,59 @@ model FirmInvite {
   sentByUserId String
   acceptedAt   DateTime?
   createdAt    DateTime  @default(now())
-
-  firm   Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  sentBy User @relation("FirmInviteSentBy", fields: [sentByUserId], references: [id], onDelete: Cascade)
+  firm         Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  sentBy       User      @relation("FirmInviteSentBy", fields: [sentByUserId], references: [id], onDelete: Cascade)
 
   @@index([firmId])
   @@index([email])
 }
 
 model FirmProject {
-  id          String   @id @default(cuid())
+  id          String                  @id @default(cuid())
   firmId      String
   title       String
   description String?
-  status      String   @default("Active")
-  priority    String   @default("Medium")
+  status      String                  @default("Active")
+  priority    String                  @default("Medium")
   dueDate     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  firm        Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  assignments FirmProjectAssignment[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
   agendaTasks FirmAgendaTask[]
   posts       FirmPost[]
+  firm        Firm                    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  assignments FirmProjectAssignment[]
 
   @@index([firmId])
 }
 
 model FirmProjectAssignment {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   projectId    String
   membershipId String
-  projectRole  String   @default("Contributor")
-  createdAt    DateTime @default(now())
-
-  project    FirmProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  membership FirmMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  projectRole  String         @default("Contributor")
+  createdAt    DateTime       @default(now())
+  membership   FirmMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  project      FirmProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, membershipId])
   @@index([membershipId])
 }
 
 model WeeklyAgenda {
-  id           String   @id @default(cuid())
+  id           String           @id @default(cuid())
   firmId       String
   membershipId String
   weekStart    String
   title        String
   focus        String?
   blockers     String?
-  status       String   @default("Open")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  firm       Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  membership FirmMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-
-  tasks    FirmAgendaTask[]
-  comments AgendaComment[]
+  status       String           @default("Open")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  comments     AgendaComment[]
+  tasks        FirmAgendaTask[]
+  firm         Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  membership   FirmMembership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
 
   @@index([firmId])
   @@index([membershipId])
@@ -930,26 +881,24 @@ model WeeklyAgenda {
 }
 
 model FirmAgendaTask {
-  id          String    @id @default(cuid())
+  id          String          @id @default(cuid())
   firmId      String
   agendaId    String
   projectId   String?
   title       String
   detail      String?
-  status      String    @default("Open")
-  priority    String    @default("Medium")
+  status      String          @default("Open")
+  priority    String          @default("Medium")
   dueDate     String?
   delayReason String?
   inquiry     String?
   completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  firm    Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  agenda  WeeklyAgenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
-  project FirmProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-
-  comments AgendaComment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  comments    AgendaComment[]
+  agenda      WeeklyAgenda    @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  firm        Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  project     FirmProject?    @relation(fields: [projectId], references: [id])
 
   @@index([firmId])
   @@index([agendaId])
@@ -958,17 +907,16 @@ model FirmAgendaTask {
 }
 
 model AgendaComment {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   agendaId    String?
   taskId      String?
   userId      String
   body        String
-  commentType String   @default("Comment")
-  createdAt   DateTime @default(now())
-
-  agenda WeeklyAgenda?   @relation(fields: [agendaId], references: [id], onDelete: Cascade)
-  task   FirmAgendaTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commentType String          @default("Comment")
+  createdAt   DateTime        @default(now())
+  agenda      WeeklyAgenda?   @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  task        FirmAgendaTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([agendaId])
   @@index([taskId])
@@ -976,18 +924,17 @@ model AgendaComment {
 }
 
 model FirmPost {
-  id                 String   @id @default(cuid())
+  id                 String          @id @default(cuid())
   firmId             String
   projectId          String?
   authorMembershipId String?
   title              String
   body               String
-  postType           String   @default("Update")
-  createdAt          DateTime @default(now())
-
-  firm             Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  project          FirmProject?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  authorMembership FirmMembership? @relation(fields: [authorMembershipId], references: [id], onDelete: SetNull)
+  postType           String          @default("Update")
+  createdAt          DateTime        @default(now())
+  authorMembership   FirmMembership? @relation(fields: [authorMembershipId], references: [id])
+  firm               Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  project            FirmProject?    @relation(fields: [projectId], references: [id])
 
   @@index([firmId])
   @@index([projectId])
@@ -996,7 +943,7 @@ model FirmPost {
 }
 
 model OpportunitySignal {
-  id                      String   @id @default(cuid())
+  id                      String            @id @default(cuid())
   userId                  String
   headlineDecisionId      String?
   title                   String
@@ -1004,23 +951,22 @@ model OpportunitySignal {
   sourceName              String
   signalType              String
   priorityTier            String
-  portfolioRelevanceScore Int      @default(0)
-  opportunityScore        Int      @default(0)
-  riskScore               Int      @default(0)
-  confidenceScore         Int      @default(0)
-  actionabilityScore      Int      @default(0)
-  compositeScore          Int      @default(0)
-  tickersJson             String   @default("[]")
-  categoriesJson          String   @default("[]")
-  evidenceJson            String   @default("[]")
+  portfolioRelevanceScore Int               @default(0)
+  opportunityScore        Int               @default(0)
+  riskScore               Int               @default(0)
+  confidenceScore         Int               @default(0)
+  actionabilityScore      Int               @default(0)
+  compositeScore          Int               @default(0)
+  tickersJson             String            @default("[]")
+  categoriesJson          String            @default("[]")
+  evidenceJson            String            @default("[]")
   suggestedAction         String
   advisorNotes            String?
-  status                  String   @default("Open")
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  headlineDecision HeadlineDecision? @relation(fields: [headlineDecisionId], references: [id], onDelete: SetNull)
+  status                  String            @default("Open")
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  headlineDecision        HeadlineDecision? @relation(fields: [headlineDecisionId], references: [id])
+  user                    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([headlineDecisionId])
@@ -2506,228 +2452,4 @@ model RealtimeInvestorNotification {
   @@index([createdAt])
 }
 
-model IntelligenceForecastRun {
-  id                     String   @id @default(cuid())
-  userId                 String
-  requestId              String
-  symbol                 String
-  asOfAt                 DateTime
-  generatedAt            DateTime
-  engineVersion          String
-  modelVersion           String
-  calibrationVersion     String
-  marketRegime           String
-  sliceSentimentScore    Float
-  dataQualityScore       Float
-  sourceCount            Int      @default(0)
-  independentSourceCount Int      @default(0)
-  duplicateCount         Int      @default(0)
-  staleDataWarning       String?
-  simulationPaths        Int      @default(0)
-  simulationSeed         Int      @default(0)
-  camelStatus            String   @default("disabled")
-  camelWorkforceMode     String   @default("DISABLED")
-  inputJson              String
-  outputJson             String
-  status                 String   @default("Generated")
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
 
-  user     User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  horizons IntelligenceForecastHorizon[]
-
-  @@unique([userId, requestId])
-  @@index([userId])
-  @@index([symbol])
-  @@index([asOfAt])
-  @@index([generatedAt])
-  @@index([modelVersion])
-  @@index([marketRegime])
-  @@index([camelStatus])
-  @@index([status])
-}
-
-model IntelligenceForecastHorizon {
-  id                        String   @id @default(cuid())
-  forecastRunId             String
-  userId                    String
-  symbol                    String
-  horizon                   String
-  label                     String
-  targetAt                  DateTime
-  initialPrice              Float
-  direction                 String
-  positiveReturnProbability Float
-  expectedReturnPercent     Float
-  expectedPrice             Float
-  rangeLowPercent           Float
-  rangeHighPercent          Float
-  priceRangeLow             Float
-  priceRangeHigh            Float
-  volatilityPercent         Float
-  confidence                Float
-  modelAgreement            String
-  simulationAgreement       String
-  dataQuality               String
-  modelDisagreement         Float
-  primaryUncertainty        String
-  contributionsJson         String   @default("[]")
-  status                    String   @default("Pending")
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-
-  forecastRun IntelligenceForecastRun      @relation(fields: [forecastRunId], references: [id], onDelete: Cascade)
-  outcome     IntelligenceForecastOutcome?
-
-  @@unique([forecastRunId, horizon])
-  @@index([forecastRunId])
-  @@index([userId])
-  @@index([symbol])
-  @@index([horizon])
-  @@index([targetAt])
-  @@index([status])
-}
-
-model IntelligenceForecastOutcome {
-  id                    String    @id @default(cuid())
-  forecastHorizonId     String    @unique
-  userId                String
-  symbol                String
-  horizon               String
-  observedAt            DateTime
-  providerTimestamp     DateTime?
-  initialPrice          Float
-  observedPrice         Float
-  realizedReturnPercent Float
-  positiveOutcome       Boolean
-  brierScore            Float
-  logLoss               Float
-  intervalCovered       Boolean
-  directionalCorrect    Boolean
-  absoluteReturnError   Float
-  priceProvider         String
-  rawJson               String    @default("{}")
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  forecastHorizon IntelligenceForecastHorizon @relation(fields: [forecastHorizonId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([symbol])
-  @@index([horizon])
-  @@index([observedAt])
-  @@index([priceProvider])
-  @@index([directionalCorrect])
-  @@index([intervalCovered])
-}
-
-model IntelligenceForecastModel {
-  id                 String    @id @default(cuid())
-  userId             String
-  modelKey           String
-  displayName        String
-  description        String?
-  engineVersion      String
-  modelVersion       String
-  calibrationVersion String
-  status             String    @default("Shadow")
-  configurationJson  String    @default("{}")
-  promotionGatesJson String    @default("{}")
-  metadataJson       String    @default("{}")
-  promotedAt         DateTime?
-  disabledAt         DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user         User                              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  backtestRuns IntelligenceForecastBacktestRun[]
-  driftAlerts  IntelligenceForecastDriftAlert[]
-
-  @@unique([userId, modelKey])
-  @@unique([userId, modelVersion])
-  @@index([userId])
-  @@index([status])
-  @@index([modelVersion])
-  @@index([createdAt])
-}
-
-model IntelligenceForecastBacktestRun {
-  id                     String    @id @default(cuid())
-  userId                 String
-  modelId                String
-  modelVersion           String
-  comparisonModelVersion String?
-  status                 String    @default("Running")
-  evaluationMode         String    @default("Prospective point-in-time")
-  requestedAt            DateTime  @default(now())
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  evaluationStartAt      DateTime?
-  evaluationEndAt        DateTime?
-  totalSampleCount       Int       @default(0)
-  eligibleSampleCount    Int       @default(0)
-  holdoutSampleCount     Int       @default(0)
-  excludedSampleCount    Int       @default(0)
-  holdoutFraction        Float     @default(0.30)
-  pointInTimeSafe        Boolean   @default(false)
-  lookaheadDetected      Boolean   @default(false)
-  overallMetricsJson     String    @default("{}")
-  horizonMetricsJson     String    @default("[]")
-  regimeMetricsJson      String    @default("[]")
-  comparisonJson         String    @default("{}")
-  exclusionsJson         String    @default("[]")
-  gatesJson              String    @default("{}")
-  recommendation         String    @default("Keep in shadow")
-  failureDetail          String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  user  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  model IntelligenceForecastModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([modelId])
-  @@index([modelVersion])
-  @@index([status])
-  @@index([completedAt])
-  @@index([createdAt])
-}
-
-model IntelligenceForecastDriftAlert {
-  id                        String    @id @default(cuid())
-  userId                    String
-  modelId                   String
-  dedupeKey                 String
-  modelVersion              String
-  horizon                   String
-  regime                    String    @default("All")
-  severity                  String    @default("Warning")
-  status                    String    @default("Open")
-  reason                    String
-  baselineWindowStartAt     DateTime?
-  baselineWindowEndAt       DateTime?
-  currentWindowStartAt      DateTime?
-  currentWindowEndAt        DateTime?
-  baselineSampleCount       Int       @default(0)
-  currentSampleCount        Int       @default(0)
-  brierScoreChange          Float     @default(0)
-  directionalAccuracyChange Float     @default(0)
-  intervalCoverageChange    Float     @default(0)
-  meanAbsoluteErrorChange   Float     @default(0)
-  evidenceJson              String    @default("{}")
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  resolvedAt                DateTime?
-
-  user  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  model IntelligenceForecastModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dedupeKey])
-  @@index([userId])
-  @@index([modelId])
-  @@index([modelVersion])
-  @@index([horizon])
-  @@index([severity])
-  @@index([status])
-  @@index([createdAt])
-}

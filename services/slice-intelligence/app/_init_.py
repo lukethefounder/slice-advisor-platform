@@ -1,0 +1,1 @@
+"""Slice restricted CAMEL-AI intelligence service."""

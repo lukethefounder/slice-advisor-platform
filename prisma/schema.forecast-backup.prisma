@@ -14,50 +14,47 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  sessions                         Session[]
-  watchAssets                      WatchAsset[]
-  ventureProjects                  VentureProject[]
-  alertRules                       AlertRule[]
-  clientProfiles                   ClientProfile[]
-  advisorNotes                     AdvisorNote[]
-  meetingTasks                     MeetingTask[]
-  documentVaultItems               DocumentVaultItem[]
-  investorGoals                    InvestorGoal[]
-  researchNotes                    ResearchNote[]
-  alertEvents                      AlertEvent[]
-  investorInsights                 InvestorInsight[]
-  intelligenceRuns                 IntelligenceRun[]
-  intelligenceForecastRuns         IntelligenceForecastRun[]
-  headlineDecisions                HeadlineDecision[]
-  newsSourceConfigs                NewsSourceConfig[]
-  intelligenceRetentionPolicy      IntelligenceRetentionPolicy?
-  notificationPreferences          NotificationPreference[]
-  notificationDeliveries           NotificationDelivery[]
-  digestReports                    DigestReport[]
-  briefingReports                  BriefingReport[]
-  investorAccounts                 InvestorAccount[]
-  investorHoldings                 InvestorHolding[]
-  allocationModels                 AllocationModel[]
-  rebalanceReports                 RebalanceReport[]
-  scenarioReports                  ScenarioReport[]
-  auditLogs                        AuditLog[]
-  disclosureAcceptances            DisclosureAcceptance[]
-  securitySetting                  UserSecuritySetting?
-  createdFirms                     Firm[]                            @relation("FirmCreatedBy")
-  firmMemberships                  FirmMembership[]
-  firmInvitesSent                  FirmInvite[]                      @relation("FirmInviteSentBy")
-  agendaComments                   AgendaComment[]
-  opportunitySignals               OpportunitySignal[]
-  alternativeVenturesCreated       AlternativeVenture[]              @relation("AlternativeVentureCreatedBy")
-  alternativePennyStocksCreated    AlternativePennyStock[]           @relation("AlternativePennyStockCreatedBy")
-  namedWatchlists                  NamedWatchlist[]
-  namedWatchlistItems              NamedWatchlistItem[]
-  platformStatus                   String                            @default("Active")
-  governanceReason                 String?
-  governedAt                       DateTime?
-  intelligenceForecastModels       IntelligenceForecastModel[]
-  intelligenceForecastBacktestRuns IntelligenceForecastBacktestRun[]
-  intelligenceForecastDriftAlerts  IntelligenceForecastDriftAlert[]
+  sessions                      Session[]
+  watchAssets                   WatchAsset[]
+  ventureProjects               VentureProject[]
+  alertRules                    AlertRule[]
+  clientProfiles                ClientProfile[]
+  advisorNotes                  AdvisorNote[]
+  meetingTasks                  MeetingTask[]
+  documentVaultItems            DocumentVaultItem[]
+  investorGoals                 InvestorGoal[]
+  researchNotes                 ResearchNote[]
+  alertEvents                   AlertEvent[]
+  investorInsights              InvestorInsight[]
+  intelligenceRuns              IntelligenceRun[]
+  intelligenceForecastRuns      IntelligenceForecastRun[]
+  headlineDecisions             HeadlineDecision[]
+  newsSourceConfigs             NewsSourceConfig[]
+  intelligenceRetentionPolicy   IntelligenceRetentionPolicy?
+  notificationPreferences       NotificationPreference[]
+  notificationDeliveries        NotificationDelivery[]
+  digestReports                 DigestReport[]
+  briefingReports               BriefingReport[]
+  investorAccounts              InvestorAccount[]
+  investorHoldings              InvestorHolding[]
+  allocationModels              AllocationModel[]
+  rebalanceReports              RebalanceReport[]
+  scenarioReports               ScenarioReport[]
+  auditLogs                     AuditLog[]
+  disclosureAcceptances         DisclosureAcceptance[]
+  securitySetting               UserSecuritySetting?
+  createdFirms                  Firm[]                       @relation("FirmCreatedBy")
+  firmMemberships               FirmMembership[]
+  firmInvitesSent               FirmInvite[]                 @relation("FirmInviteSentBy")
+  agendaComments                AgendaComment[]
+  opportunitySignals            OpportunitySignal[]
+  alternativeVenturesCreated    AlternativeVenture[]         @relation("AlternativeVentureCreatedBy")
+  alternativePennyStocksCreated AlternativePennyStock[]      @relation("AlternativePennyStockCreatedBy")
+  namedWatchlists               NamedWatchlist[]
+  namedWatchlistItems           NamedWatchlistItem[]
+  platformStatus                String                       @default("Active")
+  governanceReason              String?
+  governedAt                    DateTime?
 
   @@index([email])
 }
@@ -2619,115 +2616,4 @@ model IntelligenceForecastOutcome {
   @@index([priceProvider])
   @@index([directionalCorrect])
   @@index([intervalCovered])
-}
-
-model IntelligenceForecastModel {
-  id                 String    @id @default(cuid())
-  userId             String
-  modelKey           String
-  displayName        String
-  description        String?
-  engineVersion      String
-  modelVersion       String
-  calibrationVersion String
-  status             String    @default("Shadow")
-  configurationJson  String    @default("{}")
-  promotionGatesJson String    @default("{}")
-  metadataJson       String    @default("{}")
-  promotedAt         DateTime?
-  disabledAt         DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user         User                              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  backtestRuns IntelligenceForecastBacktestRun[]
-  driftAlerts  IntelligenceForecastDriftAlert[]
-
-  @@unique([userId, modelKey])
-  @@unique([userId, modelVersion])
-  @@index([userId])
-  @@index([status])
-  @@index([modelVersion])
-  @@index([createdAt])
-}
-
-model IntelligenceForecastBacktestRun {
-  id                     String    @id @default(cuid())
-  userId                 String
-  modelId                String
-  modelVersion           String
-  comparisonModelVersion String?
-  status                 String    @default("Running")
-  evaluationMode         String    @default("Prospective point-in-time")
-  requestedAt            DateTime  @default(now())
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  evaluationStartAt      DateTime?
-  evaluationEndAt        DateTime?
-  totalSampleCount       Int       @default(0)
-  eligibleSampleCount    Int       @default(0)
-  holdoutSampleCount     Int       @default(0)
-  excludedSampleCount    Int       @default(0)
-  holdoutFraction        Float     @default(0.30)
-  pointInTimeSafe        Boolean   @default(false)
-  lookaheadDetected      Boolean   @default(false)
-  overallMetricsJson     String    @default("{}")
-  horizonMetricsJson     String    @default("[]")
-  regimeMetricsJson      String    @default("[]")
-  comparisonJson         String    @default("{}")
-  exclusionsJson         String    @default("[]")
-  gatesJson              String    @default("{}")
-  recommendation         String    @default("Keep in shadow")
-  failureDetail          String?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  user  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  model IntelligenceForecastModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([modelId])
-  @@index([modelVersion])
-  @@index([status])
-  @@index([completedAt])
-  @@index([createdAt])
-}
-
-model IntelligenceForecastDriftAlert {
-  id                        String    @id @default(cuid())
-  userId                    String
-  modelId                   String
-  dedupeKey                 String
-  modelVersion              String
-  horizon                   String
-  regime                    String    @default("All")
-  severity                  String    @default("Warning")
-  status                    String    @default("Open")
-  reason                    String
-  baselineWindowStartAt     DateTime?
-  baselineWindowEndAt       DateTime?
-  currentWindowStartAt      DateTime?
-  currentWindowEndAt        DateTime?
-  baselineSampleCount       Int       @default(0)
-  currentSampleCount        Int       @default(0)
-  brierScoreChange          Float     @default(0)
-  directionalAccuracyChange Float     @default(0)
-  intervalCoverageChange    Float     @default(0)
-  meanAbsoluteErrorChange   Float     @default(0)
-  evidenceJson              String    @default("{}")
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-  resolvedAt                DateTime?
-
-  user  User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  model IntelligenceForecastModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dedupeKey])
-  @@index([userId])
-  @@index([modelId])
-  @@index([modelVersion])
-  @@index([horizon])
-  @@index([severity])
-  @@index([status])
-  @@index([createdAt])
 }

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "slice-intelligence-final-validation-1.0.0",
+  "generatedAt": "2026-07-17T11:40:25.307Z",
+  "root": "C:\\Users\\luker\\Slice-Restart-2\\slice-platform",
+  "skipAudit": false,
+  "passed": false,
+  "resultCount": 10,
+  "passedCount": 8,
+  "failedCount": 2,
+  "results": [
+    {
+      "checkedAt": "2026-07-17T11:38:58.123Z",
+      "name": "Required intelligence files",
+      "category": "static",
+      "passed": true,
+      "missing": []
+    },
+    {
+      "checkedAt": "2026-07-17T11:38:58.124Z",
+      "name": "Vercel cron configuration",
+      "category": "static",
+      "passed": true,
+      "cronCount": 15,
+      "duplicatePaths": [],
+      "missingScheduleCount": 0
+    },
+    {
+      "checkedAt": "2026-07-17T11:38:58.186Z",
+      "name": "Tracked environment-secret files",
+      "category": "security",
+      "passed": true,
+      "tracked": []
+    },
+    {
+      "checkedAt": "2026-07-17T11:38:58.752Z",
+      "name": "Public secret-name scan",
+      "category": "security",
+      "passed": true,
+      "findings": []
+    },
+    {
+      "checkedAt": "2026-07-17T11:38:58.752Z",
+      "name": "Environment variable presence",
+      "category": "configuration",
+      "passed": false,
+      "missingRequired": [
+        "DATABASE_URL",
+        "CRON_SECRET",
+        "CAMEL_AI_SERVICE_URL",
+        "CAMEL_AI_SERVICE_TOKEN",
+        "INTELLIGENCE_LOG_SALT"
+      ],
+      "configuredOptional": [],
+      "valuesExposed": false
+    },
+    {
+      "checkedAt": "2026-07-17T11:39:04.088Z",
+      "name": "Prisma schema validation",
+      "category": "command",
+      "passed": true,
+      "durationMs": 5336,
+      "command": "npx prisma validate",
+      "exitCode": 0,
+      "stdout": "The schema at prisma\\schema.prisma is valid 🚀\n",
+      "stderr": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+    },
+    {
+      "checkedAt": "2026-07-17T11:39:09.088Z",
+      "name": "Prisma client generation",
+      "category": "command",
+      "passed": true,
+      "durationMs": 4998,
+      "command": "npx prisma generate",
+      "exitCode": 0,
+      "stdout": "\n✔ Generated Prisma Client (7.8.0) to .\\src\\generated\\prisma in 826ms\n\n",
+      "stderr": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+    },
+    {
+      "checkedAt": "2026-07-17T11:39:32.474Z",
+      "name": "TypeScript validation",
+      "category": "command",
+      "passed": true,
+      "durationMs": 23386,
+      "command": "npx tsc --noEmit",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "checkedAt": "2026-07-17T11:40:19.925Z",
+      "name": "Production build",
+      "category": "command",
+      "passed": true,
+      "durationMs": 47451,
+      "command": "npm run build",
+      "exitCode": 0,
+      "stdout": "\n> slice-platform@0.1.0 build\n> prisma generate && next build\n\n\n✔ Generated Prisma Client (7.8.0) to .\\src\\generated\\prisma in 908ms\n\n▲ Next.js 16.2.4 (Turbopack)\n- Environments: .env.local, .env\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 8.9s\n  Running TypeScript ...\n  Finished TypeScript in 25.4s ...\n  Collecting page data using 11 workers ...\n  Generating static pages using 11 workers (0/108) ...\n  Generating static pages using 11 workers (27/108) \r\n  Generating static pages using 11 workers (54/108) \r\n  Generating static pages using 11 workers (81/108) \r\n✓ Generating static pages using 11 workers (108/108) in 1132ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ○ /advisor-command-center\n├ ○ /advisor-login\n├ ○ /advisor-os\n├ ○ /advisor-signup\n├ ○ /alternative-investments\n├ ○ /alternative-ventures\n├ ƒ /api/account-settings\n├ ƒ /api/advisor-feed\n├ ƒ /api/advisor-os\n├ ƒ /api/advisor-sources\n├ ƒ /api/advisor-sources/[id]\n├ ƒ /api/alerts\n├ ƒ /api/alerts/[id]\n├ ƒ /api/alternative-investments\n├ ƒ /api/auth/invite-register\n├ ƒ /api/auth/login\n├ ƒ /api/auth/logout\n├ ƒ /api/auth/me\n├ ƒ /api/auth/register\n├ ƒ /api/auth/temporary-logins\n├ ƒ /api/backend-kernel\n├ ƒ /api/backend-readiness\n├ ƒ /api/briefings\n├ ƒ /api/briefings/[id]\n├ ƒ /api/client-briefings\n├ ƒ /api/client-emails\n├ ƒ /api/clients\n├ ƒ /api/clients/[id]\n├ ƒ /api/clients/[id]/holdings\n├ ƒ /api/clients/[id]/notes\n├ ƒ /api/clients/ai-import\n├ ƒ /api/clients/delete\n├ ƒ /api/clients/notify-change\n├ ƒ /api/command/overview\n├ ƒ /api/compliance/review\n├ ƒ /api/cron/backend\n├ ƒ /api/cron/firm-reminders\n├ ƒ /api/cron/intelligence-advisor-brief\n├ ƒ /api/cron/intelligence-agent-simulation\n├ ƒ /api/cron/intelligence-ensemble\n├ ƒ /api/cron/intelligence-forecast-drift\n├ ƒ /api/cron/intelligence-forecast-graph\n├ ƒ /api/cron/intelligence-forecast-settlement\n├ ƒ /api/cron/intelligence-forecast-warehouse\n├ ƒ /api/cron/intelligence-horizon-model-training\n├ ƒ /api/cron/intelligence-launch-readiness\n├ ƒ /api/cron/intelligence-production-health\n├ ƒ /api/cron/triage\n├ ƒ /api/custom-board/openai-market\n├ ƒ /api/firm-planning\n├ ƒ /api/firm-workspace\n├ ƒ /api/firm-workspace/access\n├ ƒ /api/firm-workspace/anonymous-ideas\n├ ƒ /api/firm-workspace/team-board\n├ ƒ /api/founder-bootstrap\n├ ƒ /api/founder-portal\n├ ƒ /api/integrations/status\n├ ƒ /api/intelligence/advisor-bot\n├ ƒ /api/intelligence/alpha-vantage\n├ ƒ /api/intelligence/cleanup\n├ ƒ /api/intelligence/email-alerts\n├ ƒ /api/intelligence/forecast\n├ ƒ /api/intelligence/forecast/agent-simulation\n├ ƒ /api/intelligence/forecast/backtest\n├ ƒ /api/intelligence/forecast/calibration\n├ ƒ /api/intelligence/forecast/ensemble\n├ ƒ /api/intelligence/forecast/graph\n├ ƒ /api/intelligence/forecast/historical-price\n├ ƒ /api/intelligence/forecast/history\n├ ƒ /api/intelligence/forecast/horizon-models\n├ ƒ /api/intelligence/forecast/models\n├ ƒ /api/intelligence/forecast/outcomes\n├ ƒ /api/intelligence/forecast/settlement-health\n├ ƒ /api/intelligence/forecast/warehouse\n├ ƒ /api/intelligence/launch-readiness\n├ ƒ /api/intelligence/production-controls\n├ ƒ /api/intelligence/pulse\n├ ƒ /api/intelligence/scan\n├ ƒ /api/intelligence/settings\n├ ƒ /api/intelligence/source-health\n├ ƒ /api/intelligence/triage\n├ ƒ /api/intelligence/triage/run\n├ ƒ /api/investment-comparison\n├ ƒ /api/investor/alerts\n├ ƒ /api/investor/alerts/[id]\n├ ƒ /api/investor/goals\n├ ƒ /api/investor/goals/[id]\n├ ƒ /api/investor/insights\n├ ƒ /api/investor/research\n├ ƒ /api/investor/research/[id]\n├ ƒ /api/investor/run-scan\n├ ƒ /api/market-visuals\n├ ƒ /api/market/realtime\n├ ƒ /api/notifications\n├ ƒ /api/opportunities\n├ ƒ /api/personal-bot\n├ ƒ /api/personal-bot/fast-command\n├ ƒ /api/personal-bot/pdf-report\n├ ƒ /api/personal-bot/report-view\n├ ƒ /api/personal-bot/voice\n├ ƒ /api/portfolio/lab\n├ ƒ /api/risk-reviews\n├ ƒ /api/security/disclosures\n├ ƒ /api/security/overview\n├ ƒ /api/security/review\n├ ƒ /api/security/settings\n├ ƒ /api/slice-ai-command-center\n├ ƒ /api/system/health\n├ ƒ /api/system/readiness\n├ ƒ /api/system/reset\n├ ƒ /api/system/seed\n├ ƒ /api/tasks\n├ ƒ /api/tasks/[id]\n├ ƒ /api/team-invites/send\n├ ƒ /api/ventures\n├ ƒ /api/ventures/[id]\n├ ƒ /api/watchlist\n├ ƒ /api/watchlist-price-alerts\n├ ƒ /api/watchlist/[id]\n├ ƒ /api/watchlists\n├ ƒ /api/workspace/watchlists/check\n├ ○ /backend-kernel\n├ ○ /backend-readiness\n├ ○ /bot-onboarding\n├ ○ /briefings\n├ ○ /client-login\n├ ○ /client-portal\n├ ○ /client-profiles\n├ ○ /client-signup\n├ ○ /command\n├ ƒ /cron/firm-reminders\n├ ○ /crypto-markets\n├ ○ /firm\n├ ○ /firm-planning\n├ ○ /founder-bootstrap\n├ ○ /founder-login\n├ ○ /founder-portal\n├ ○ /intelligence\n├ ○ /intelligence-settings\n├ ○ /investment-comparison\n├ ○ /investor\n├ ○ /investor-login\n├ ○ /market-visuals\n├ ○ /notifications\n├ ○ /opportunity-radar\n├ ○ /penny-stocks\n├ ○ /personal-bot\n├ ○ /portal\n├ ○ /portfolio-lab\n├ ○ /security\n├ ○ /system\n├ ○ /triage\n├ ○ /venture-monitor\n├ ○ /watchlist-alerts\n├ ○ /watchlists\n├ ○ /wealth\n├ ○ /workspace\n├ ○ /workspace/client-briefings\n├ ○ /workspace/client-emails\n├ ○ /workspace/client-portal-inbox\n├ ○ /workspace/clients\n├ ○ /workspace/custom-board\n├ ○ /workspace/firm-command-center\n├ ○ /workspace/intelligence\n├ ○ /workspace/intelligence/advisor-bot\n├ ○ /workspace/intelligence/agent-simulation\n├ ○ /workspace/intelligence/data-warehouse\n├ ○ /workspace/intelligence/ensemble-lab\n├ ○ /workspace/intelligence/forecast-history\n├ ○ /workspace/intelligence/forecast-lab\n├ ○ /workspace/intelligence/horizon-models\n├ ○ /workspace/intelligence/knowledge-graph\n├ ○ /workspace/intelligence/launch-readiness\n├ ○ /workspace/intelligence/model-governance\n├ ○ /workspace/intelligence/production-controls\n├ ○ /workspace/personal-bot\n├ ○ /workspace/personal-bot/reports\n├ ○ /workspace/settings\n├ ○ /workspace/team-board\n├ ○ /workspace/team-invite\n└ ○ /workspace/watchlists\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n",
+      "stderr": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n⚠ Warning: Next.js inferred your workspace root, but it may not be correct.\n We detected multiple lockfiles and selected the directory of C:\\Users\\luker\\package-lock.json as the root directory.\n To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.\n   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.\n Detected additional lockfiles: \n   * C:\\Users\\luker\\Slice-Restart-2\\slice-platform\\package-lock.json\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\nThe width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.\nThe width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.\nThe width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.\nThe width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width.\n"
+    },
+    {
+      "checkedAt": "2026-07-17T11:40:25.303Z",
+      "name": "Production dependency audit",
+      "category": "command",
+      "passed": false,
+      "durationMs": 5377,
+      "command": "npm audit --omit=dev --audit-level=high",
+      "exitCode": 1,
+      "stdout": "# npm audit report\n\n@hono/node-server  <1.19.13\nSeverity: moderate\n@hono/node-server: Middleware bypass via repeated slashes in serveStatic - https://github.com/advisories/GHSA-92pp-h63x-v22m\nfix available via `npm audit fix --force`\nWill install prisma@6.19.3, which is a breaking change\nnode_modules/@hono/node-server\n  @prisma/dev  <=0.24.8\n  Depends on vulnerable versions of @hono/node-server\n  node_modules/@prisma/dev\n    prisma  6.20.0-dev.1 - 7.9.0-dev.7\n    Depends on vulnerable versions of @prisma/dev\n    node_modules/prisma\n\nfast-uri  <=3.1.1\nSeverity: high\nfast-uri vulnerable to path traversal via percent-encoded dot segments - https://github.com/advisories/GHSA-q3j6-qgpj-74h6\nfast-uri vulnerable to host confusion via percent-encoded authority delimiters - https://github.com/advisories/GHSA-v39h-62p7-jpjc\nfix available via `npm audit fix`\nnode_modules/fast-uri\n\nhono  <=4.12.24\nSeverity: high\nHono has CSS Declaration Injection via Style Object Values in JSX SSR - https://github.com/advisories/GHSA-qp7p-654g-cw7p\nHono has improper validation of NumericDate claims (exp, nbf, iat) in JWT verify() - https://github.com/advisories/GHSA-hm8q-7f3q-5f36\nHono's Cache Middleware ignores Vary: Authorization / Vary: Cookie leading to cross-user cache leakage - https://github.com/advisories/GHSA-p77w-8qqv-26rm\nHono: IP Restriction bypasses static deny rules for non-canonical IPv6  - https://github.com/advisories/GHSA-xrhx-7g5j-rcj5\nHono: Cookie helper does not sanitize sameSite and priority, allowing Set-Cookie injection - https://github.com/advisories/GHSA-3hrh-pfw6-9m5x\nHono: JWT middleware accepts any Authorization scheme, not only Bearer - https://github.com/advisories/GHSA-f577-qrjj-4474\nHono: app.mount() strips mount prefix using undecoded path, causing incorrect routing for percent-encoded paths - https://github.com/advisories/GHSA-2gcr-mfcq-wcc3\nhono: Path traversal in `serve-static` on Windows via encoded backslash (`%5C`) - https://github.com/advisories/GHSA-wwfh-h76j-fc44\nhono: AWS Lambda adapter merges multiple `Set-Cookie` headers into one value, dropping cookies on ALB single-header and Lattice - https://github.com/advisories/GHSA-j6c9-x7qj-28xf\nhono: CORS Middleware reflects any Origin with credentials when `origin` defaults to the wildcard - https://github.com/advisories/GHSA-88fw-hqm2-52qc\nhono: Body Limit Middleware can be bypassed on AWS Lambda by understating `Content-Length` - https://github.com/advisories/GHSA-rv63-4mwf-qqc2\nhono: Lambda@Edge adapter keeps only the last value of a repeated request header, dropping the rest - https://github.com/advisories/GHSA-wgpf-jwqj-8h8p\nfix available via `npm audit fix`\nnode_modules/hono\n\nnext  9.3.4-canary.0 - 16.3.0-canary.5\nSeverity: high\nNext.js Vulnerable to Denial of Service with Server Components - https://github.com/advisories/GHSA-8h8q-6873-q5fj\nNext.js has a Middleware / Proxy bypass in App Router applications via segment-prefetch routes - Incomplete Fix Follow-Up - https://github.com/advisories/GHSA-26hh-7cqf-hhc6\nNext.js's Middleware / Proxy redirects can be cache-poisoned - https://github.com/advisories/GHSA-3g8h-86w9-wvmq\nNext.js vulnerable to cross-site scripting in App Router applications using CSP nonces - https://github.com/advisories/GHSA-ffhc-5mcf-pf4q\nNext.js vulnerable to cache poisoning via collisions in React Server Component cache-busting - https://github.com/advisories/GHSA-vfv6-92ff-j949\nNext.js has cross-site scripting in beforeInteractive scripts with untrusted input - https://github.com/advisories/GHSA-gx5p-jg67-6x7h\nNext.js vulnerable to Denial of Service via connection exhaustion in applications using Cache Components - https://github.com/advisories/GHSA-mg66-mrh9-m8jx\nNext.js has a Denial of Service in the Image Optimization API - https://github.com/advisories/GHSA-h64f-5h5j-jqjh\nNext.js vulnerable to server-side request forgery in applications using WebSocket upgrades - https://github.com/advisories/GHSA-c4j6-fc7j-m34r\nNext.js has a Middleware / Proxy bypass through dynamic route parameter injection - https://github.com/advisories/GHSA-492v-c6pp-mqqv\nNext.js vulnerable to cache poisoning in React Server Component responses - https://github.com/advisories/GHSA-wfc6-r584-vfw7\nNext.js has a Middleware / Proxy bypass in App Router applications via segment-prefetch routes - https://github.com/advisories/GHSA-267c-6grr-h53f\nNext.js has a Middleware / Proxy bypass in Pages Router applications using i18n - https://github.com/advisories/GHSA-36qx-fr4f-26g5\nDepends on vulnerable versions of postcss\nfix available via `npm audit fix --force`\nWill install next@16.2.10, which is outside the stated dependency range\nnode_modules/next\n\npostcss  <8.5.10\nSeverity: moderate\nPostCSS has XSS via Unescaped </style> in its CSS Stringify Output - https://github.com/advisories/GHSA-qx2v-qp2m-jg93\nfix available via `npm audit fix --force`\nWill install next@16.2.10, which is outside the stated dependency range\nnode_modules/next/node_modules/postcss\n\nundici  <=6.26.0\nSeverity: high\nundici vulnerable to HTTP header injection via Set-Cookie percent-decoding - https://github.com/advisories/GHSA-p88m-4jfj-68fv\nundici WebSocket client vulnerable to denial of service via fragment count bypass - https://github.com/advisories/GHSA-vxpw-j846-p89q\nundici vulnerable to HTTP response queue poisoning via keep-alive socket reuse - https://github.com/advisories/GHSA-35p6-xmwp-9g52\nundici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching - https://github.com/advisories/GHSA-g8m3-5g58-fq7m\nfix available via `npm audit fix`\nnode_modules/undici\n\n8 vulnerabilities (4 moderate, 4 high)\n\nTo address issues that do not require attention, run:\n  npm audit fix\n\nTo address all issues (including breaking changes), run:\n  npm audit fix --force\n",
+      "stderr": ""
+    }
+  ],
+  "safeguards": {
+    "secretsIncluded": false,
+    "autonomousTradingEnabled": false,
+    "moneyMovementEnabled": false
+  }
+}

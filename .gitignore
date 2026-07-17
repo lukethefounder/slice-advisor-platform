@@ -44,3 +44,13 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+@"
+
+# Slice Python intelligence service
+services/slice-intelligence/.venv/
+services/slice-intelligence/.env
+services/slice-intelligence/**/__pycache__/
+services/slice-intelligence/.pytest_cache/
+services/slice-intelligence/.ruff_cache/
+"@ | Add-Content .\.gitignore

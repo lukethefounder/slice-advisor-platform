@@ -1,0 +1,60 @@
+name: Slice Intelligence Production Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slice-intelligence-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate intelligence release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      NODE_ENV: test
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      DATABASE_URL: postgresql://slice_ci:slice_ci@127.0.0.1:5432/slice_ci
+      CRON_SECRET: ci-cron-secret-not-used-outside-this-workflow
+      CAMEL_AI_SERVICE_URL: http://127.0.0.1:8100
+      CAMEL_AI_SERVICE_TOKEN: ci-camel-token-not-used-outside-this-workflow
+      INTELLIGENCE_LOG_SALT: ci-log-salt-not-used-outside-this-workflow
+
+      NEO4J_ENABLED: "false"
+      SLICE_ADVISOR_AI_ENABLED: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run final production gate
+        run: node scripts/intelligence-final-validation.mjs
+
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slice-intelligence-final-validation
+          path: artifacts/intelligence-final-validation.json
+          if-no-files-found: error
+          retention-days: 30

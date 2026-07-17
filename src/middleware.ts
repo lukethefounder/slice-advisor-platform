@@ -92,8 +92,23 @@ function isPublicPage(pathname: string) {
   );
 }
 
-function isPublicApi(pathname: string) {
-  return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+function isPublicApi(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  /*
+   * Expose only the lightweight forecast contract/health check.
+   * POST forecast generation remains protected by the Slice session.
+   */
+  if (
+    request.method === "GET" &&
+    pathname === "/api/intelligence/forecast"
+  ) {
+    return true;
+  }
+
+  return PUBLIC_API_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix)
+  );
 }
 
 function isSensitiveAppRoute(pathname: string) {
@@ -243,7 +258,7 @@ export function middleware(request: NextRequest) {
   const sessionPresent = hasSessionCookie(request);
 
   if (pathname.startsWith("/api")) {
-    if (!isPublicApi(pathname) && !sessionPresent) {
+    if (!isPublicApi(request) && !sessionPresent) {
       return unauthorizedApi(request);
     }
 
