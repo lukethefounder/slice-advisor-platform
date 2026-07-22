@@ -1,6 +1,41 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowLeft,
+  BarChart3,
+  BellRing,
+  Check,
+  CircleDollarSign,
+  Clock3,
+  Eye,
+  FolderPlus,
+  Gauge,
+  Layers3,
+  Loader2,
+  Plus,
+  Radar,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  WalletCards,
+} from "lucide-react";
+import {
+  useRealtimeMarket,
+  type RealtimeAssetSnapshot,
+} from "@/hooks/useRealtimeMarket";
 
 type WatchlistItem = {
   id: string;
@@ -103,107 +138,165 @@ type WatchlistResponse = {
 };
 
 type View = "watchlists" | "alerts" | "scans" | "portfolio";
+type Tone = "red" | "green" | "amber" | "cyan" | "purple" | "slate";
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
+const INPUT =
+  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
+
+const PRIMARY =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:opacity-40";
+
+const SOFT =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
+
+function cx(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(" ");
 }
 
-function money(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
+function normalizeSymbol(value: string | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/^\$/, "");
+}
+
+function money(value: number | null | undefined, maximumFractionDigits = 2) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return "—";
   }
 
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    maximumFractionDigits,
   }).format(value);
 }
 
-function shortDate(value: string | null | undefined) {
-  if (!value) return "—";
+function compactNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
 
-  return new Date(value).toLocaleDateString("en-US", {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function percent(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function shortDate(value: string | null | undefined) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-function statusTone(status: string): "red" | "green" | "amber" | "slate" | "purple" {
-  if (["Watching", "Active", "Complete", "Reviewed"].includes(status)) return "green";
-  if (["Critical", "Banned", "Removed"].includes(status)) return "red";
-  if (["High", "Pending", "Action Needed"].includes(status)) return "amber";
-  if (["Medium", "Crypto"].includes(status)) return "purple";
+function shortDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function statusTone(value: string | number): Tone {
+  const text = String(value).toLowerCase();
+  const numeric = typeof value === "number" ? value : Number.NaN;
+
+  if (
+    text.includes("live") ||
+    text.includes("active") ||
+    text.includes("watching") ||
+    text.includes("complete") ||
+    (!Number.isNaN(numeric) && numeric >= 80)
+  ) {
+    return "green";
+  }
+
+  if (
+    text.includes("stale") ||
+    text.includes("critical") ||
+    text.includes("removed") ||
+    (!Number.isNaN(numeric) && numeric < 45)
+  ) {
+    return "red";
+  }
+
+  if (
+    text.includes("delayed") ||
+    text.includes("closed") ||
+    text.includes("pending") ||
+    text.includes("high") ||
+    (!Number.isNaN(numeric) && numeric >= 45 && numeric < 65)
+  ) {
+    return "amber";
+  }
+
+  if (text.includes("scan") || text.includes("ai") || text.includes("crypto")) {
+    return "purple";
+  }
+
+  if (text.includes("alpha") || text.includes("provider") || text.includes("medium")) {
+    return "cyan";
+  }
+
   return "slate";
 }
 
-function scoreTone(score: number): "red" | "green" | "amber" | "slate" | "purple" {
-  if (score >= 90) return "red";
-  if (score >= 80) return "amber";
-  if (score >= 70) return "purple";
-  if (score >= 60) return "green";
-  return "slate";
-}
-
-function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cx(
-        "overflow-hidden rounded-[1.75rem] border border-white/10 bg-zinc-950/72 shadow-xl shadow-red-950/20 backdrop-blur-xl",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function SoftCard({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cx(
-        "overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function Pill({
-  children,
-  tone = "red",
-}: {
-  children: ReactNode;
-  tone?: "red" | "green" | "amber" | "slate" | "purple";
-}) {
-  const tones = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
-    green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-    amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
-    slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
-    purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
+function toneClass(tone: Tone) {
+  const classes: Record<Tone, string> = {
+    red: "border-red-400/25 bg-red-400/10 text-red-100",
+    green: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+    amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
+    cyan: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
+    purple: "border-violet-400/25 bg-violet-400/10 text-violet-100",
+    slate: "border-white/10 bg-white/[0.055] text-slate-300",
   };
 
+  return classes[tone];
+}
+
+function Badge({
+  children,
+  tone = "slate",
+}: {
+  children: ReactNode;
+  tone?: Tone;
+}) {
   return (
     <span
       className={cx(
-        "inline-flex max-w-full items-center rounded-full px-3 py-1 text-[11px] font-black ring-1",
-        tones[tone]
+        "inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+        toneClass(tone)
       )}
     >
       <span className="truncate">{children}</span>
@@ -211,79 +304,128 @@ function Pill({
   );
 }
 
-function Logo() {
+function Panel({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
-        <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
-          S
-        </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
-      </div>
-
-      <div className="min-w-0">
-        <div className="truncate text-2xl font-black tracking-tight text-white">
-          Slice
-        </div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
-          Named Watchlists
-        </div>
-      </div>
-    </div>
+    <section
+      className={cx(
+        "min-w-0 overflow-hidden rounded-[1.8rem] border border-white/10 bg-zinc-950/82 shadow-2xl shadow-black/30 backdrop-blur-xl",
+        className
+      )}
+    >
+      {children}
+    </section>
   );
 }
 
-function MetricBubble({
+function Metric({
   label,
   value,
   helper,
-  tone = "slate",
+  icon,
 }: {
   label: string;
   value: string | number;
-  helper?: string;
-  tone?: "red" | "green" | "amber" | "slate" | "purple";
+  helper: string;
+  icon: ReactNode;
 }) {
-  const glows = {
-    red: "from-red-500/18 to-transparent",
-    green: "from-emerald-500/18 to-transparent",
-    amber: "from-amber-500/18 to-transparent",
-    slate: "from-slate-400/10 to-transparent",
-    purple: "from-purple-500/18 to-transparent",
-  };
-
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
-      <div
-        className={cx(
-          "pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b",
-          glows[tone]
-        )}
-      />
-      <div className="relative">
-        <div className="truncate text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-          {label}
-        </div>
-        <div className="mt-2 truncate text-2xl font-black text-white">
-          {value}
-        </div>
-        {helper ? (
+    <div className="relative min-w-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </div>
+          <div className="mt-2 truncate text-3xl font-black">{value}</div>
           <div className="mt-1 truncate text-xs font-semibold text-slate-500">
             {helper}
           </div>
-        ) : null}
+        </div>
+
+        <div className="shrink-0 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+          {icon}
+        </div>
       </div>
     </div>
   );
 }
 
-const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2";
+function LiveSnapshot({
+  snapshot,
+  compact = false,
+}: {
+  snapshot: RealtimeAssetSnapshot | null;
+  compact?: boolean;
+}) {
+  if (!snapshot) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-3 text-xs font-bold text-slate-600">
+        Alpha Vantage quote unavailable
+      </div>
+    );
+  }
 
-const selectClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition focus:ring-2";
+  const positive = (snapshot.changePercent ?? 0) >= 0;
+
+  return (
+    <div className="min-w-0 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={cx("font-black text-white", compact ? "text-xl" : "text-2xl")}>
+            {money(snapshot.price, snapshot.price < 10 ? 6 : 2)}
+          </div>
+          <div
+            className={cx(
+              "mt-1 text-xs font-black",
+              positive ? "text-emerald-300" : "text-red-300"
+            )}
+          >
+            {percent(snapshot.changePercent)}
+          </div>
+        </div>
+
+        <div className="grid justify-items-end gap-1.5">
+          <Badge tone={statusTone(snapshot.marketState)}>{snapshot.marketState}</Badge>
+          <Badge tone="cyan">Alpha Vantage</Badge>
+        </div>
+      </div>
+
+      {!compact ? (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl bg-black/25 p-2.5">
+              <div className="font-black uppercase text-slate-600">Volume</div>
+              <div className="mt-1 font-black text-slate-200">
+                {compactNumber(snapshot.volume)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-black/25 p-2.5">
+              <div className="font-black uppercase text-slate-600">Quality</div>
+              <div className="mt-1 font-black text-slate-200">
+                {snapshot.qualityScore}/100
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 text-[11px] font-semibold leading-5 text-cyan-50/65">
+            {snapshot.technicals.technicalSummary}
+          </div>
+        </>
+      ) : null}
+
+      <div className="mt-2 truncate text-[10px] font-bold text-slate-600">
+        As of {shortDateTime(snapshot.providerTimestamp ?? snapshot.receivedAt)}
+      </div>
+    </div>
+  );
+}
 
 export default function WatchlistsPage() {
   const [data, setData] = useState<WatchlistResponse | null>(null);
@@ -292,6 +434,7 @@ export default function WatchlistsPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [search, setSearch] = useState("");
 
   const [watchlistForm, setWatchlistForm] = useState({
     name: "",
@@ -309,26 +452,101 @@ export default function WatchlistsPage() {
     priority: "Medium",
   });
 
-  const selectedWatchlist = useMemo(() => {
-    return data?.watchlists.find((list) => list.id === selectedWatchlistId) ?? null;
-  }, [data?.watchlists, selectedWatchlistId]);
+  const watchlists = data?.watchlists ?? [];
+  const alerts = data?.alerts ?? [];
+  const decisions = data?.decisions ?? [];
+  const holdings = data?.holdings ?? [];
 
-  async function loadData() {
-    const response = await fetch("/api/watchlists", {
-      cache: "no-store",
-    });
+  const selectedWatchlist = useMemo(
+    () =>
+      watchlists.find((watchlist) => watchlist.id === selectedWatchlistId) ??
+      watchlists[0] ??
+      null,
+    [watchlists, selectedWatchlistId]
+  );
 
-    const payload = await response.json();
+  const marketSymbols = useMemo(() => {
+    return Array.from(
+      new Set(
+        [
+          ...watchlists.flatMap((watchlist) => watchlist.items.map((item) => item.symbol)),
+          ...holdings.map((holding) => holding.symbol),
+          ...alerts.map((alert) => alert.suggestedSymbol || alert.ticker || ""),
+          ...decisions.map((decision) => decision.suggestedSymbol || ""),
+        ]
+          .map(normalizeSymbol)
+          .filter(Boolean)
+      )
+    ).slice(0, 100);
+  }, [watchlists, alerts, decisions, holdings]);
 
-    if (!response.ok) {
-      setMessage(payload.error ?? "Unable to load watchlists.");
-      return;
+  const market = useRealtimeMarket(marketSymbols, {
+    provider: "alphavantage",
+    strictProvider: true,
+    persist: true,
+    intervalMs: 30_000,
+    enabled: marketSymbols.length > 0,
+  });
+
+  const snapshotMap = useMemo(
+    () => new Map(market.snapshots.map((snapshot) => [snapshot.symbol, snapshot])),
+    [market.snapshots]
+  );
+
+  const liveCoverage = marketSymbols.length
+    ? Math.round((market.snapshots.length / marketSymbols.length) * 100)
+    : 0;
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const items = selectedWatchlist?.items ?? [];
+
+    return items.filter(
+      (item) =>
+        !query ||
+        [
+          item.symbol,
+          item.assetName,
+          item.assetType,
+          item.sourceType,
+          item.thesis,
+          item.riskNotes,
+          item.status,
+          item.priority,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+    );
+  }, [selectedWatchlist, search]);
+
+  async function loadData(silent = false) {
+    if (!silent) {
+      setLoading(true);
     }
 
-    setData(payload);
+    try {
+      const response = await fetch("/api/watchlists", {
+        cache: "no-store",
+      });
+      const payload = await response.json();
 
-    if (!selectedWatchlistId && payload.watchlists?.[0]?.id) {
-      setSelectedWatchlistId(payload.watchlists[0].id);
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to load watchlists.");
+      }
+
+      setData(payload);
+
+      if (!selectedWatchlistId && payload.watchlists?.[0]?.id) {
+        setSelectedWatchlistId(payload.watchlists[0].id);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load watchlists.");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -341,15 +559,14 @@ export default function WatchlistsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-slice-sensitive-action": String(body.action ?? "watchlist-action"),
         },
         body: JSON.stringify(body),
       });
-
       const payload = await response.json();
 
       if (!response.ok) {
-        setMessage(payload.error ?? "Watchlist action failed.");
-        return null;
+        throw new Error(payload.error ?? payload.detail ?? "Watchlist action failed.");
       }
 
       setData(payload);
@@ -358,7 +575,10 @@ export default function WatchlistsPage() {
         setSelectedWatchlistId(payload.watchlists[0].id);
       }
 
-      return payload;
+      return payload as WatchlistResponse;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Watchlist action failed.");
+      return null;
     } finally {
       setWorking(false);
     }
@@ -367,6 +587,11 @@ export default function WatchlistsPage() {
   async function createWatchlist(event: FormEvent) {
     event.preventDefault();
 
+    if (!watchlistForm.name.trim()) {
+      setMessage("Watchlist name is required.");
+      return;
+    }
+
     const payload = await postAction({
       action: "createWatchlist",
       ...watchlistForm,
@@ -374,7 +599,7 @@ export default function WatchlistsPage() {
 
     if (payload) {
       const created = payload.watchlists.find(
-        (list: Watchlist) => list.name === watchlistForm.name
+        (watchlist) => watchlist.name === watchlistForm.name.trim()
       );
 
       if (created) {
@@ -387,7 +612,6 @@ export default function WatchlistsPage() {
         focus: "General",
         riskLevel: "Mixed",
       });
-
       setMessage("Watchlist created.");
     }
   }
@@ -395,9 +619,14 @@ export default function WatchlistsPage() {
   async function saveManual(event: FormEvent) {
     event.preventDefault();
 
+    if (!manualForm.symbol.trim()) {
+      setMessage("Symbol is required.");
+      return;
+    }
+
     const payload = await postAction({
       action: "saveManualItem",
-      watchlistId: selectedWatchlistId,
+      watchlistId: selectedWatchlist?.id,
       ...manualForm,
     });
 
@@ -410,52 +639,53 @@ export default function WatchlistsPage() {
         riskNotes: "",
         priority: "Medium",
       });
-      setMessage("Item saved to watchlist.");
+      setMessage("Item saved. Alpha Vantage polling will include it automatically.");
     }
   }
 
-  async function saveAlert(alert: Alert, symbolOverride?: string) {
+  async function saveAlert(alert: Alert) {
     const symbol =
-      symbolOverride ||
       alert.suggestedSymbol ||
-      window.prompt("Enter symbol to save from this alert:", alert.ticker ?? "") ||
+      normalizeSymbol(alert.ticker) ||
+      window.prompt("Enter a symbol for this alert:", "") ||
       "";
 
-    if (!symbol.trim()) return;
+    if (!symbol.trim()) {
+      return;
+    }
 
     const payload = await postAction({
       action: "saveFromAlert",
-      watchlistId: selectedWatchlistId,
+      watchlistId: selectedWatchlist?.id,
       alertId: alert.id,
       symbol,
     });
 
     if (payload) {
-      setMessage(`${symbol.toUpperCase()} saved from alert.`);
+      setMessage(`${normalizeSymbol(symbol)} saved from alert.`);
     }
   }
 
-  async function saveDecision(decision: Decision, symbolOverride?: string) {
+  async function saveDecision(decision: Decision) {
     const symbol =
-      symbolOverride ||
       decision.suggestedSymbol ||
-      window.prompt(
-        "Enter symbol to save from this scan result:",
-        decision.matchedTickers?.[0] ?? ""
-      ) ||
+      decision.matchedTickers?.[0] ||
+      window.prompt("Enter a symbol for this scan result:", "") ||
       "";
 
-    if (!symbol.trim()) return;
+    if (!symbol.trim()) {
+      return;
+    }
 
     const payload = await postAction({
       action: "saveFromDecision",
-      watchlistId: selectedWatchlistId,
+      watchlistId: selectedWatchlist?.id,
       decisionId: decision.id,
       symbol,
     });
 
     if (payload) {
-      setMessage(`${symbol.toUpperCase()} saved from scan result.`);
+      setMessage(`${normalizeSymbol(symbol)} saved from scan result.`);
     }
   }
 
@@ -472,9 +702,9 @@ export default function WatchlistsPage() {
   }
 
   async function deleteItem(itemId: string) {
-    const confirmed = window.confirm("Remove this item from the watchlist?");
-
-    if (!confirmed) return;
+    if (!window.confirm("Remove this item from the watchlist?")) {
+      return;
+    }
 
     const payload = await postAction({
       action: "deleteItem",
@@ -487,170 +717,221 @@ export default function WatchlistsPage() {
   }
 
   useEffect(() => {
-    async function run() {
-      try {
-        await loadData();
-      } finally {
-        setLoading(false);
-      }
-    }
+    void loadData();
 
-    void run();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadData(true);
+      }
+    }, 120_000);
+
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (
+      watchlists.length &&
+      !watchlists.some((watchlist) => watchlist.id === selectedWatchlistId)
+    ) {
+      setSelectedWatchlistId(watchlists[0].id);
+    }
+  }, [watchlists, selectedWatchlistId]);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
-        <div className="mx-auto max-w-[1500px]">
-          <Logo />
-          <div className="mt-8 text-sm font-semibold text-slate-400">
-            Loading named watchlists...
-          </div>
+      <main className="grid min-h-screen place-items-center bg-[#050505] text-white">
+        <div className="flex items-center gap-3 text-sm font-black uppercase tracking-[0.18em] text-slate-400">
+          <Loader2 className="h-5 w-5 animate-spin text-red-400" />
+          Loading Alpha Vantage watchlists
         </div>
       </main>
     );
   }
 
-  const aggregate = data?.aggregate;
-  const watchlists = data?.watchlists ?? [];
-  const alerts = data?.alerts ?? [];
-  const decisions = data?.decisions ?? [];
-  const holdings = data?.holdings ?? [];
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
-      <div className="mx-auto max-w-[1500px]">
-        <header className="sticky top-4 z-40 rounded-[1.75rem] border border-white/10 bg-black/70 p-4 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <Logo />
+    <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(153,27,27,0.46),transparent_30%),radial-gradient(circle_at_86%_8%,rgba(6,182,212,0.12),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="relative mx-auto grid max-w-[1900px] gap-5">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+                <Radar className="h-4 w-4" />
+                SLICE Alpha Watchlists
+              </div>
+
+              <h1 className="mt-3 break-words text-4xl font-black tracking-tight md:text-6xl">
+                Watch every idea against the live market.
+              </h1>
+
+              <p className="mt-3 max-w-4xl text-sm font-medium leading-7 text-slate-400 md:text-base">
+                Saved ideas, alerts, scans, and portfolio holdings continuously refresh through
+                the paid Alpha Vantage key. No alternate provider or demo price is accepted in
+                this workspace.
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void market.refresh()}
+                disabled={market.loading || !marketSymbols.length}
+                className={SOFT}
+              >
+                <RefreshCw className={cx("h-4 w-4", market.loading && "animate-spin")} />
+                Refresh prices
+              </button>
+
               <a
                 href="/workspace"
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
               >
-                Workspace
+                <ArrowLeft className="h-4 w-4" />
+                Back to workspace
               </a>
-
-              <a
-                href="/triage"
-                className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/20"
-              >
-                Triage
-              </a>
-
-              <a
-                href="/opportunity-radar"
-                className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/20"
-              >
-                Opportunity Radar
-              </a>
-
-              <button
-                onClick={() => void loadData()}
-                disabled={working}
-                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
-              >
-                Refresh
-              </button>
             </div>
-          </div>
-
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {[
-              ["watchlists", "Watchlists"],
-              ["alerts", "Save Alerts"],
-              ["scans", "Save Scan Results"],
-              ["portfolio", "Portfolio Emphasis"],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveView(id as View)}
-                className={cx(
-                  "shrink-0 rounded-full px-4 py-2 text-sm font-black transition",
-                  activeView === id
-                    ? "bg-gradient-to-r from-red-600 to-red-950 text-white shadow-lg shadow-red-950/40"
-                    : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                {label}
-              </button>
-            ))}
           </div>
         </header>
 
         {message ? (
-          <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">
-            {message}
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm font-bold text-red-100">
+            <span>{message}</span>
+            <button type="button" onClick={() => setMessage("")}>
+              ×
+            </button>
           </div>
         ) : null}
 
-        <section className="mt-5 grid gap-5">
-          <Card className="relative p-5 md:p-6">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-red-600/18 to-transparent" />
-
-            <div className="relative">
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                Named watchlist intelligence
-              </div>
-              <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">
-                Save good alerts and scans into watchlists you control.
-              </h1>
-              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-                Create named watchlists for stocks or crypto you want to watch
-                closely. Once saved, those symbols receive additional emphasis in
-                future triage scoring alongside actual portfolio holdings.
-              </p>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <MetricBubble
-                  label="Watchlists"
-                  value={aggregate?.watchlistCount ?? 0}
-                  helper="Named lists"
-                  tone="purple"
-                />
-                <MetricBubble
-                  label="Items"
-                  value={aggregate?.itemCount ?? 0}
-                  helper="Saved symbols"
-                  tone="green"
-                />
-                <MetricBubble
-                  label="From Alerts"
-                  value={aggregate?.savedFromAlerts ?? 0}
-                  helper="Saved signal"
-                  tone="red"
-                />
-                <MetricBubble
-                  label="Portfolio Overlap"
-                  value={aggregate?.portfolioOverlapCount ?? 0}
-                  helper="Extra emphasis"
-                  tone="amber"
-                />
-              </div>
+        {market.error ? (
+          <div className="rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm font-bold leading-6 text-red-100">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Alpha Vantage refresh failed
             </div>
-          </Card>
+            <div className="mt-2 text-red-100/75">{market.error}</div>
+          </div>
+        ) : null}
 
-          <section className="grid gap-5 xl:grid-cols-[0.72fr_1.28fr]">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                Watchlist controls
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric
+            label="Tracked symbols"
+            value={marketSymbols.length}
+            helper="Across all watch sources"
+            icon={<Eye className="h-5 w-5" />}
+          />
+          <Metric
+            label="Live coverage"
+            value={`${liveCoverage}%`}
+            helper={`${market.snapshots.length}/${marketSymbols.length || 0} returned`}
+            icon={<Activity className="h-5 w-5" />}
+          />
+          <Metric
+            label="Live now"
+            value={market.data?.realtimeCount ?? 0}
+            helper="Current market session"
+            icon={<TrendingUp className="h-5 w-5" />}
+          />
+          <Metric
+            label="Stale"
+            value={market.data?.staleCount ?? 0}
+            helper="Provider timestamp warning"
+            icon={<Clock3 className="h-5 w-5" />}
+          />
+          <Metric
+            label="Provider"
+            value="Alpha Vantage"
+            helper={
+              market.lastUpdatedAt
+                ? `Updated ${shortDateTime(market.lastUpdatedAt.toISOString())}`
+                : "Waiting for first refresh"
+            }
+            icon={<ShieldCheck className="h-5 w-5" />}
+          />
+        </section>
+
+        <nav className="grid gap-2 rounded-[1.6rem] border border-white/10 bg-black/55 p-2 md:grid-cols-4">
+          {(
+            [
+              ["watchlists", "Watchlists", `${data?.aggregate.itemCount ?? 0} saved`, Layers3],
+              ["alerts", "Alerts", `${alerts.length} ranked`, BellRing],
+              ["scans", "Scans", `${decisions.length} decisions`, Sparkles],
+              ["portfolio", "Portfolio", `${holdings.length} holdings`, WalletCards],
+            ] as const
+          ).map(([key, label, helper, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveView(key)}
+              className={cx(
+                "rounded-2xl px-4 py-3 text-left transition",
+                activeView === key
+                  ? "bg-white text-zinc-950"
+                  : "text-slate-300 hover:bg-white/[0.06]"
+              )}
+            >
+              <div className="flex items-center gap-2 text-sm font-black">
+                <Icon className="h-4 w-4" />
+                {label}
+              </div>
+              <div className={cx("mt-1 text-xs", activeView === key ? "text-slate-600" : "text-slate-500")}>
+                {helper}
+              </div>
+            </button>
+          ))}
+        </nav>
+
+        {activeView === "watchlists" ? (
+          <div className="grid gap-5 2xl:grid-cols-[320px_minmax(0,1fr)_390px]">
+            <Panel className="h-fit 2xl:sticky 2xl:top-5">
+              <div className="border-b border-white/10 p-5">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                  Named lists
+                </div>
+                <h2 className="mt-2 text-2xl font-black">Select a watchlist</h2>
               </div>
 
-              <form onSubmit={createWatchlist} className="mt-5 space-y-3">
+              <div className="max-h-[430px] space-y-2 overflow-y-auto p-3">
+                {watchlists.map((watchlist) => (
+                  <button
+                    key={watchlist.id}
+                    type="button"
+                    onClick={() => setSelectedWatchlistId(watchlist.id)}
+                    className={cx(
+                      "w-full rounded-2xl border p-4 text-left",
+                      selectedWatchlist?.id === watchlist.id
+                        ? "border-red-400/40 bg-red-500/10"
+                        : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black">{watchlist.name}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {watchlist.focus} · {watchlist.items.length} items
+                        </div>
+                      </div>
+                      <Badge tone={statusTone(watchlist.riskLevel)}>{watchlist.riskLevel}</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={createWatchlist} className="grid gap-3 border-t border-white/10 p-4">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-300">
+                  <FolderPlus className="h-4 w-4" />
+                  New watchlist
+                </div>
                 <input
                   value={watchlistForm.name}
                   onChange={(event) =>
-                    setWatchlistForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
+                    setWatchlistForm((current) => ({ ...current, name: event.target.value }))
                   }
-                  className={inputClass}
-                  placeholder="New watchlist name"
+                  placeholder="Name"
+                  className={INPUT}
                 />
-
                 <textarea
                   value={watchlistForm.description}
                   onChange={(event) =>
@@ -659,31 +940,18 @@ export default function WatchlistsPage() {
                       description: event.target.value,
                     }))
                   }
-                  className={cx(inputClass, "min-h-20")}
-                  placeholder="Description or strategy"
+                  placeholder="Description"
+                  className={cx(INPUT, "min-h-[76px]")}
                 />
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <select
+                <div className="grid grid-cols-2 gap-2">
+                  <input
                     value={watchlistForm.focus}
                     onChange={(event) =>
-                      setWatchlistForm((current) => ({
-                        ...current,
-                        focus: event.target.value,
-                      }))
+                      setWatchlistForm((current) => ({ ...current, focus: event.target.value }))
                     }
-                    className={selectClass}
-                  >
-                    <option>General</option>
-                    <option>Growth Stocks</option>
-                    <option>Dividend Watch</option>
-                    <option>Crypto Momentum</option>
-                    <option>AI / Technology</option>
-                    <option>Turnaround Ideas</option>
-                    <option>Client Review</option>
-                    <option>High-Risk</option>
-                  </select>
-
+                    placeholder="Focus"
+                    className={INPUT}
+                  />
                   <select
                     value={watchlistForm.riskLevel}
                     onChange={(event) =>
@@ -692,61 +960,145 @@ export default function WatchlistsPage() {
                         riskLevel: event.target.value,
                       }))
                     }
-                    className={selectClass}
+                    className={INPUT}
                   >
                     <option>Conservative</option>
-                    <option>Balanced</option>
-                    <option>Growth</option>
-                    <option>High</option>
-                    <option>Extreme</option>
+                    <option>Moderate</option>
+                    <option>Aggressive</option>
                     <option>Mixed</option>
                   </select>
                 </div>
-
-                <button
-                  disabled={working}
-                  className="w-full rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
-                >
-                  Create Watchlist
+                <button disabled={working} className={PRIMARY}>
+                  {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Create list
                 </button>
               </form>
+            </Panel>
 
-              <div className="mt-5">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                  Active watchlist
+            <Panel>
+              <div className="border-b border-white/10 p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400">
+                      Live Alpha Vantage board
+                    </div>
+                    <h2 className="mt-2 truncate text-3xl font-black">
+                      {selectedWatchlist?.name ?? "No watchlist"}
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      {selectedWatchlist?.description || "Save symbols to begin continuous market monitoring."}
+                    </p>
+                  </div>
+
+                  <div className="relative w-full max-w-sm">
+                    <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-600" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search this watchlist"
+                      className={cx(INPUT, "pl-10")}
+                    />
+                  </div>
                 </div>
-
-                <select
-                  value={selectedWatchlistId}
-                  onChange={(event) => setSelectedWatchlistId(event.target.value)}
-                  className={cx(selectClass, "mt-3")}
-                >
-                  {watchlists.map((watchlist) => (
-                    <option key={watchlist.id} value={watchlist.id}>
-                      {watchlist.name}
-                    </option>
-                  ))}
-                </select>
               </div>
 
-              <form onSubmit={saveManual} className="mt-5 space-y-3">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">
-                  Add manual item
-                </div>
+              <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+                {filteredItems.map((item) => {
+                  const symbol = normalizeSymbol(item.symbol);
+                  const snapshot = snapshotMap.get(symbol) ?? null;
 
-                <div className="grid gap-3 md:grid-cols-2">
+                  return (
+                    <article
+                      key={item.id}
+                      className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-2xl font-black">{symbol}</div>
+                          <div className="mt-1 truncate text-xs text-slate-500">
+                            {item.assetName} · {item.assetType}
+                          </div>
+                        </div>
+                        <Badge tone={statusTone(item.priority)}>{item.priority}</Badge>
+                      </div>
+
+                      <div className="mt-4">
+                        <LiveSnapshot snapshot={snapshot} />
+                      </div>
+
+                      {item.thesis ? (
+                        <p className="mt-4 line-clamp-3 text-xs leading-5 text-slate-400">
+                          {item.thesis}
+                        </p>
+                      ) : null}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                        <Badge tone={statusTone(item.sourceType)}>{item.sourceType}</Badge>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <select
+                          value={item.status}
+                          onChange={(event) =>
+                            void updateItemStatus(item.id, event.target.value)
+                          }
+                          disabled={working}
+                          className={INPUT}
+                        >
+                          <option>Watching</option>
+                          <option>Action Needed</option>
+                          <option>Reviewed</option>
+                          <option>Complete</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => void deleteItem(item.id)}
+                          disabled={working}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-3 text-xs font-black text-red-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+
+                {!filteredItems.length ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm font-bold text-slate-500 md:col-span-2 xl:col-span-3">
+                    No symbols match this watchlist view.
+                  </div>
+                ) : null}
+              </div>
+            </Panel>
+
+            <Panel className="h-fit 2xl:sticky 2xl:top-5">
+              <div className="border-b border-white/10 p-5">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add symbol
+                </div>
+                <h2 className="mt-2 text-2xl font-black">Start live monitoring</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  New symbols enter the next Alpha Vantage refresh automatically.
+                </p>
+              </div>
+
+              <form onSubmit={saveManual} className="grid gap-3 p-5">
+                <div className="grid grid-cols-2 gap-3">
                   <input
                     value={manualForm.symbol}
                     onChange={(event) =>
                       setManualForm((current) => ({
                         ...current,
-                        symbol: event.target.value,
+                        symbol: event.target.value.toUpperCase(),
                       }))
                     }
-                    className={inputClass}
-                    placeholder="Symbol"
+                    placeholder="Ticker"
+                    className={INPUT}
                   />
-
                   <select
                     value={manualForm.assetType}
                     onChange={(event) =>
@@ -755,15 +1107,13 @@ export default function WatchlistsPage() {
                         assetType: event.target.value,
                       }))
                     }
-                    className={selectClass}
+                    className={INPUT}
                   >
                     <option>Stock</option>
-                    <option>Crypto</option>
                     <option>ETF</option>
-                    <option>Fund</option>
+                    <option>Crypto</option>
                   </select>
                 </div>
-
                 <input
                   value={manualForm.assetName}
                   onChange={(event) =>
@@ -772,22 +1122,17 @@ export default function WatchlistsPage() {
                       assetName: event.target.value,
                     }))
                   }
-                  className={inputClass}
                   placeholder="Asset name"
+                  className={INPUT}
                 />
-
                 <textarea
                   value={manualForm.thesis}
                   onChange={(event) =>
-                    setManualForm((current) => ({
-                      ...current,
-                      thesis: event.target.value,
-                    }))
+                    setManualForm((current) => ({ ...current, thesis: event.target.value }))
                   }
-                  className={cx(inputClass, "min-h-20")}
-                  placeholder="Why are you watching this?"
+                  placeholder="Investment or monitoring thesis"
+                  className={cx(INPUT, "min-h-[90px]")}
                 />
-
                 <textarea
                   value={manualForm.riskNotes}
                   onChange={(event) =>
@@ -796,10 +1141,9 @@ export default function WatchlistsPage() {
                       riskNotes: event.target.value,
                     }))
                   }
-                  className={cx(inputClass, "min-h-20")}
                   placeholder="Risk notes"
+                  className={cx(INPUT, "min-h-[76px]")}
                 />
-
                 <select
                   value={manualForm.priority}
                   onChange={(event) =>
@@ -808,379 +1152,217 @@ export default function WatchlistsPage() {
                       priority: event.target.value,
                     }))
                   }
-                  className={selectClass}
+                  className={INPUT}
                 >
-                  <option>Critical</option>
-                  <option>High</option>
-                  <option>Medium</option>
                   <option>Low</option>
+                  <option>Medium</option>
+                  <option>High</option>
+                  <option>Critical</option>
                 </select>
-
-                <button
-                  disabled={working}
-                  className="w-full rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
-                >
-                  Save Manual Item
+                <button disabled={working || !selectedWatchlist} className={PRIMARY}>
+                  {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+                  Save and monitor
                 </button>
               </form>
-            </Card>
+            </Panel>
+          </div>
+        ) : null}
 
-            {activeView === "watchlists" ? (
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                  Saved watchlist items
-                </div>
-                <h2 className="mt-2 text-3xl font-black">
-                  {selectedWatchlist?.name ?? "No watchlist selected"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  {selectedWatchlist?.description ||
-                    "Saved alerts, scan results, and manual stock/crypto ideas appear here."}
-                </p>
+        {activeView === "alerts" ? (
+          <Panel>
+            <div className="border-b border-white/10 p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                Alert intelligence
+              </div>
+              <h2 className="mt-2 text-3xl font-black">Ranked alerts with live market context</h2>
+            </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  {selectedWatchlist?.items.length ? (
-                    selectedWatchlist.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-2xl font-black">
-                              {item.symbol}
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-slate-400">
-                              {item.assetName}
-                            </div>
-                          </div>
+            <div className="grid gap-4 p-5 lg:grid-cols-2 2xl:grid-cols-3">
+              {alerts.map((alert) => {
+                const symbol = normalizeSymbol(alert.suggestedSymbol || alert.ticker);
+                const snapshot = symbol ? snapshotMap.get(symbol) ?? null : null;
 
-                          <div className="flex flex-col gap-2 text-right">
-                            <Pill tone={statusTone(item.assetType)}>
-                              {item.assetType}
-                            </Pill>
-                            <Pill tone={statusTone(item.priority)}>
-                              {item.priority}
-                            </Pill>
-                          </div>
+                return (
+                  <article key={alert.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone={statusTone(alert.urgency)}>{alert.urgency}</Badge>
+                          {symbol ? <Badge tone="cyan">{symbol}</Badge> : null}
                         </div>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Pill tone="slate">{item.sourceType}</Pill>
-                          <Pill tone={statusTone(item.status)}>
-                            {item.status}
-                          </Pill>
-                          {item.originalScore !== null ? (
-                            <Pill tone={scoreTone(item.originalScore)}>
-                              Score {item.originalScore}
-                            </Pill>
-                          ) : null}
-                        </div>
-
-                        {item.sourceTitle ? (
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 text-sm font-bold text-slate-300">
-                            {item.sourceTitle}
-                          </div>
-                        ) : null}
-
-                        {item.thesis ? (
-                          <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">
-                            {item.thesis}
-                          </p>
-                        ) : null}
-
-                        {item.riskNotes ? (
-                          <div className="mt-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-xs leading-5 text-red-100">
-                            {item.riskNotes}
-                          </div>
-                        ) : null}
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            onClick={() => updateItemStatus(item.id, "Watching")}
-                            disabled={working}
-                            className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/20 disabled:opacity-60"
-                          >
-                            Watching
-                          </button>
-
-                          <button
-                            onClick={() =>
-                              updateItemStatus(item.id, "High Interest")
-                            }
-                            disabled={working}
-                            className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-200 ring-1 ring-amber-500/30 disabled:opacity-60"
-                          >
-                            High Interest
-                          </button>
-
-                          <button
-                            onClick={() => updateItemStatus(item.id, "Reviewed")}
-                            disabled={working}
-                            className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-200 ring-1 ring-emerald-500/30 disabled:opacity-60"
-                          >
-                            Reviewed
-                          </button>
-
-                          <button
-                            onClick={() => deleteItem(item.id)}
-                            disabled={working}
-                            className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-200 ring-1 ring-red-500/30 disabled:opacity-60"
-                          >
-                            Remove
-                          </button>
-                        </div>
-
-                        {item.sourceUrl ? (
-                          <a
-                            href={item.sourceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-4 inline-flex rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-950"
-                          >
-                            Open Source
-                          </a>
-                        ) : null}
+                        <h3 className="mt-3 line-clamp-2 text-lg font-black">{alert.title}</h3>
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No saved items yet.
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-red-400/25 bg-red-400/10 text-lg font-black">
+                        {alert.score}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Card>
-            ) : null}
 
-            {activeView === "alerts" ? (
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                  Save from alerts
-                </div>
-                <h2 className="mt-2 text-3xl font-black">
-                  Alert inbox to watchlist
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Save stock or crypto alerts into the selected named watchlist.
-                </p>
+                    {symbol ? (
+                      <div className="mt-4">
+                        <LiveSnapshot snapshot={snapshot} compact />
+                      </div>
+                    ) : null}
 
-                <div className="mt-5 grid gap-4">
-                  {alerts.length ? (
-                    alerts.map((alert) => (
-                      <div
-                        key={alert.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4"
+                    <p className="mt-4 line-clamp-4 text-sm leading-6 text-slate-400">
+                      {alert.aiBriefing || alert.body}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveAlert(alert)}
+                        disabled={working || alert.alreadySaved}
+                        className={PRIMARY}
                       >
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap gap-2">
-                              <Pill tone={statusTone(alert.urgency)}>
-                                {alert.urgency}
-                              </Pill>
-                              <Pill tone={scoreTone(alert.score)}>
-                                Score {alert.score}
-                              </Pill>
-                              {alert.inPortfolio ? (
-                                <Pill tone="green">In Portfolio</Pill>
-                              ) : null}
-                              {alert.alreadySaved ? (
-                                <Pill tone="purple">Already Saved</Pill>
-                              ) : null}
-                            </div>
+                        {alert.alreadySaved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {alert.alreadySaved ? "Saved" : "Save to watchlist"}
+                      </button>
+                      {alert.sourceUrl ? (
+                        <a href={alert.sourceUrl} target="_blank" rel="noreferrer" className={SOFT}>
+                          Open source
+                        </a>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Panel>
+        ) : null}
 
-                            <h3 className="mt-3 text-lg font-black">
-                              {alert.title}
-                            </h3>
+        {activeView === "scans" ? (
+          <Panel>
+            <div className="border-b border-white/10 p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">
+                Ranked scan decisions
+              </div>
+              <h2 className="mt-2 text-3xl font-black">Research signals verified against live prices</h2>
+            </div>
 
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                              {alert.aiBriefing || alert.body}
-                            </p>
+            <div className="grid gap-4 p-5 lg:grid-cols-2 2xl:grid-cols-3">
+              {decisions.map((decision) => {
+                const symbol = normalizeSymbol(
+                  decision.suggestedSymbol || decision.matchedTickers?.[0]
+                );
+                const snapshot = symbol ? snapshotMap.get(symbol) ?? null : null;
 
-                            <div className="mt-2 text-xs text-slate-500">
-                              {alert.source} · {shortDate(alert.createdAt)}
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 flex-col gap-2">
-                            <button
-                              onClick={() => saveAlert(alert)}
-                              disabled={working}
-                              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
-                            >
-                              Save to Watchlist
-                            </button>
-
-                            {alert.sourceUrl ? (
-                              <a
-                                href={alert.sourceUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="rounded-2xl bg-white/10 px-4 py-3 text-center text-sm font-black text-white hover:bg-white/20"
-                              >
-                                Source
-                              </a>
-                            ) : null}
-                          </div>
+                return (
+                  <article key={decision.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone={statusTone(decision.urgency)}>{decision.urgency}</Badge>
+                          {symbol ? <Badge tone="cyan">{symbol}</Badge> : null}
+                        </div>
+                        <h3 className="mt-3 line-clamp-2 text-lg font-black">{decision.title}</h3>
+                        <div className="mt-1 text-xs font-semibold text-slate-600">
+                          {decision.sourceName} · {decision.category}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No alerts found.
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-violet-400/25 bg-violet-400/10 text-lg font-black">
+                        {decision.score}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Card>
-            ) : null}
 
-            {activeView === "scans" ? (
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                  Save from scan results
-                </div>
-                <h2 className="mt-2 text-3xl font-black">
-                  Triage decisions to watchlist
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Save promising ranked scan results directly into a named
-                  watchlist.
-                </p>
+                    {symbol ? (
+                      <div className="mt-4">
+                        <LiveSnapshot snapshot={snapshot} compact />
+                      </div>
+                    ) : null}
 
-                <div className="mt-5 grid gap-4">
-                  {decisions.length ? (
-                    decisions.map((decision) => (
-                      <div
-                        key={decision.id}
-                        className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4"
+                    <p className="mt-4 line-clamp-4 text-sm leading-6 text-slate-400">
+                      {decision.summary || "No scan summary supplied."}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                      {[
+                        ["Materiality", decision.materialityScore],
+                        ["Relevance", decision.relevanceScore],
+                        ["Trust", decision.trustScore],
+                      ].map(([label, value]) => (
+                        <div key={String(label)} className="rounded-xl bg-black/25 p-2.5">
+                          <div className="text-[9px] font-black uppercase text-slate-600">{label}</div>
+                          <div className="mt-1 font-black">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveDecision(decision)}
+                        disabled={working || decision.alreadySaved}
+                        className={PRIMARY}
                       >
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap gap-2">
-                              <Pill tone={statusTone(decision.urgency)}>
-                                {decision.urgency}
-                              </Pill>
-                              <Pill tone={scoreTone(decision.score)}>
-                                Score {decision.score}
-                              </Pill>
-                              <Pill tone="purple">{decision.category}</Pill>
-                              {decision.inPortfolio ? (
-                                <Pill tone="green">In Portfolio</Pill>
-                              ) : null}
-                              {decision.alreadySaved ? (
-                                <Pill tone="purple">Already Saved</Pill>
-                              ) : null}
-                            </div>
+                        {decision.alreadySaved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {decision.alreadySaved ? "Saved" : "Save to watchlist"}
+                      </button>
+                      {decision.url ? (
+                        <a href={decision.url} target="_blank" rel="noreferrer" className={SOFT}>
+                          Open source
+                        </a>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Panel>
+        ) : null}
 
-                            <h3 className="mt-3 text-lg font-black">
-                              {decision.title}
-                            </h3>
+        {activeView === "portfolio" ? (
+          <Panel>
+            <div className="border-b border-white/10 p-5">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                Portfolio overlap
+              </div>
+              <h2 className="mt-2 text-3xl font-black">Holdings with continuous Alpha Vantage pricing</h2>
+            </div>
 
-                            <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                              {decision.summary || "No summary stored."}
-                            </p>
+            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {holdings.map((holding) => {
+                const symbol = normalizeSymbol(holding.symbol);
+                const snapshot = snapshotMap.get(symbol) ?? null;
 
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {decision.matchedTickers.map((ticker) => (
-                                <Pill key={ticker} tone="red">
-                                  {ticker}
-                                </Pill>
-                              ))}
-                            </div>
-
-                            <div className="mt-2 text-xs text-slate-500">
-                              {decision.sourceName} · {shortDate(decision.createdAt)}
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 flex-col gap-2">
-                            <button
-                              onClick={() => saveDecision(decision)}
-                              disabled={working}
-                              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
-                            >
-                              Save to Watchlist
-                            </button>
-
-                            {decision.url ? (
-                              <a
-                                href={decision.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="rounded-2xl bg-white/10 px-4 py-3 text-center text-sm font-black text-white hover:bg-white/20"
-                              >
-                                Source
-                              </a>
-                            ) : null}
-                          </div>
+                return (
+                  <article key={holding.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-2xl font-black">{symbol}</div>
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {holding.assetName} · {holding.assetClass}
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No scan results found.
+                      <Badge tone={statusTone(holding.riskLevel)}>{holding.riskLevel}</Badge>
                     </div>
-                  )}
-                </div>
-              </Card>
-            ) : null}
 
-            {activeView === "portfolio" ? (
-              <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-                  Portfolio + watchlist emphasis
-                </div>
-                <h2 className="mt-2 text-3xl font-black">
-                  These symbols get extra algorithm weight.
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Future scans now place stronger emphasis on securities in your
-                  portfolio and in your named watchlists. Portfolio holdings get
-                  the highest boost, named watchlists get the next strongest
-                  boost, and normal watchlist assets continue to receive a
-                  baseline boost.
-                </p>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  {holdings.length ? (
-                    holdings.map((holding) => (
-                      <SoftCard key={holding.id}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-xl font-black">
-                              {holding.symbol}
-                            </div>
-                            <div className="mt-1 text-sm text-slate-400">
-                              {holding.assetName}
-                            </div>
-                          </div>
-                          <Pill tone="green">Portfolio Boost</Pill>
-                        </div>
-
-                        <div className="mt-3 grid gap-2 md:grid-cols-2">
-                          <div className="rounded-2xl bg-black/30 p-3">
-                            <div className="text-xs text-slate-500">Value</div>
-                            <div className="font-black">
-                              {money(holding.valueNumber)}
-                            </div>
-                          </div>
-
-                          <div className="rounded-2xl bg-black/30 p-3">
-                            <div className="text-xs text-slate-500">Risk</div>
-                            <div className="font-black">{holding.riskLevel}</div>
-                          </div>
-                        </div>
-                      </SoftCard>
-                    ))
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                      No portfolio holdings found.
+                    <div className="mt-4">
+                      <LiveSnapshot snapshot={snapshot} />
                     </div>
-                  )}
-                </div>
-              </Card>
-            ) : null}
-          </section>
-        </section>
+
+                    <div className="mt-4 rounded-xl bg-black/25 p-3">
+                      <div className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-600">
+                        Recorded holding value
+                      </div>
+                      <div className="mt-1 text-xl font-black">{money(holding.valueNumber, 0)}</div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Panel>
+        ) : null}
+
+        <footer className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-xs font-semibold text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Prices refresh every 30 seconds while this tab is visible. The provider route rejects
+            non-Alpha Vantage snapshots in strict mode.
+          </span>
+          <div className="flex items-center gap-2">
+            <Gauge className="h-3.5 w-3.5" />
+            {market.data?.warnings?.[0] || "Alpha Vantage strict mode active"}
+          </div>
+        </footer>
       </div>
     </main>
   );

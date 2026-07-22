@@ -1,15 +1,44 @@
 "use client";
 
 import {
-  ChangeEvent,
-  ClipboardEvent,
-  FormEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type FormEvent,
   type ReactNode,
 } from "react";
+import {
+  AlarmClock,
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  BellRing,
+  BookOpenText,
+  Check,
+  CheckCircle2,
+  CircleAlert,
+  Clock3,
+  FilePlus2,
+  FileText,
+  FolderKanban,
+  LayoutList,
+  Loader2,
+  MailCheck,
+  Pin,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Sparkles,
+  Star,
+  Target,
+  Trash2,
+  UserRoundCheck,
+  Users,
+  WandSparkles,
+  X,
+} from "lucide-react";
 
 type User = {
   id: string;
@@ -21,7 +50,6 @@ type Firm = {
   id: string;
   name: string;
   firmEmail: string | null;
-  firmCode: string;
 };
 
 type Membership = {
@@ -31,9 +59,7 @@ type Membership = {
   role: string;
   status: string;
   calendarColor: string;
-  canAccessPortfolios: boolean;
   canManageProjects: boolean;
-  canInviteMembers: boolean;
   canManageFirm: boolean;
   user?: User;
   firm?: Firm;
@@ -42,15 +68,17 @@ type Membership = {
 type Project = {
   id: string;
   title: string;
-  description: string | null;
   status: string;
   priority: string;
   dueDate: string | null;
-  assignments?: Array<{
-    id: string;
-    projectRole: string;
-    membership: Membership;
-  }>;
+};
+
+type TaskComment = {
+  id: string;
+  body: string;
+  commentType: string;
+  createdAt: string;
+  user: User;
 };
 
 type Task = {
@@ -61,98 +89,24 @@ type Task = {
   status: string;
   priority: string;
   dueDate: string | null;
+  completedAt?: string | null;
   delayReason: string | null;
   inquiry: string | null;
   ownerName?: string;
   ownerColor?: string;
   ownerId?: string;
   ownerUserId?: string;
-  weekStart?: string;
-  agendaTitle?: string;
   project?: Project | null;
-  comments?: Array<{
-    id: string;
-    body: string;
-    commentType: string;
-    createdAt: string;
-    user: User;
-  }>;
-};
-
-type FirmPost = {
-  id: string;
-  title: string;
-  body: string;
-  postType: string;
-  createdAt: string;
-  project: Project | null;
-  authorMembership: Membership | null;
-  fileLinks?: string[];
-  mentions?: string[];
-  ideaStatus?: string;
-  votes?: number;
+  comments?: TaskComment[];
 };
 
 type FirmWorkspacePayload = {
-  firms: Array<Firm & { membership: Membership }>;
   firm: Firm | null;
   membership: Membership | null;
   members: Membership[];
-  invites: Array<{
-    id: string;
-    email: string;
-    role: string;
-    inviteCode: string;
-    status: string;
-    expiresAt: string | null;
-    createdAt: string;
-    sentBy: User;
-  }>;
   projects: Project[];
-  agendas: Array<{
-    id: string;
-    weekStart: string;
-    title: string;
-    focus: string | null;
-    blockers: string | null;
-    status: string;
-    membership: Membership;
-    tasks: Task[];
-  }>;
-  posts: FirmPost[];
   operations?: {
-    scrumStatuses: string[];
     allTasks: Task[];
-    calendarTasks: Task[];
-    unifiedMessages: FirmPost[];
-    ideaBoard: FirmPost[];
-    projectDeadlines: Array<
-      Project & {
-        dueStatus: string;
-        assignedNames: string[];
-      }
-    >;
-    timedReminders: Array<{
-      id: string;
-      body: string;
-      commentType: string;
-      createdAt: string;
-      taskId: string;
-      taskTitle: string;
-      ownerName?: string;
-      dueDate?: string | null;
-    }>;
-    openNotifications: Array<{
-      id: string;
-      title: string;
-      body: string;
-      urgency: string;
-      score: number;
-      status: string;
-      createdAt: string;
-      channel?: string;
-      destination?: string | null;
-    }>;
     sprintMetrics: {
       total: number;
       open: number;
@@ -161,36 +115,29 @@ type FirmWorkspacePayload = {
       blocked: number;
       complete: number;
       overdue: number;
-      ideas: number;
-      deadlines: number;
-      timedReminders: number;
     };
   };
-  emailResult?: {
-    status: string;
-    reason: string;
-    simulated: boolean;
-  };
 };
 
-type InternalView =
-  | "delegate"
-  | "calendar"
-  | "ideas"
-  | "workspace"
-  | "my-work"
-  | "docs";
-
-type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "slate";
-
-type LocalAttachment = {
+type PersonalTodo = {
   id: string;
-  name: string;
-  type: string;
-  size: number;
-  dataUrl: string;
+  ownerUserId: string;
+  title: string;
+  detail: string;
+  category: string;
+  priority: string;
+  dueDate: string;
+  done: boolean;
   createdAt: string;
+  updatedAt: string;
 };
+
+type WorkPreference = {
+  pinned?: boolean;
+  manualRank?: number;
+};
+
+type WorkPreferenceMap = Record<string, WorkPreference>;
 
 type LocalDoc = {
   id: string;
@@ -199,43 +146,52 @@ type LocalDoc = {
   category: string;
   labels: string[];
   body: string;
-  fontSize: string;
-  fontFamily: string;
-  favorite?: boolean;
-  template?: string;
-  attachments: LocalAttachment[];
-  updatedAt: string;
+  favorite: boolean;
+  template: string;
   createdAt: string;
+  updatedAt: string;
 };
 
-type LocalTodo = {
-  id: string;
-  ownerUserId: string;
-  title: string;
-  date: string;
+type DocTemplate = {
+  name: string;
   category: string;
-  done: boolean;
-  createdAt: string;
+  labels: string[];
+  description: string;
+  body: string;
+};
+
+type Notice = {
+  tone: "success" | "error" | "info";
+  text: string;
+} | null;
+
+type ActiveView = "delegate" | "my-work" | "docs";
+type WorkSort = "smart" | "manual" | "due" | "priority";
+type DocSort = "updated" | "title" | "category" | "favorite";
+
+type RankedWorkItem = {
+  key: string;
+  source: "team" | "personal";
+  title: string;
+  detail: string;
+  category: string;
+  priority: string;
+  dueDate: string | null;
+  status: string;
+  score: number;
+  pinned: boolean;
+  manualRank: number;
+  task?: Task;
+  todo?: PersonalTodo;
 };
 
 const EMPTY: FirmWorkspacePayload = {
-  firms: [],
   firm: null,
   membership: null,
   members: [],
-  invites: [],
   projects: [],
-  agendas: [],
-  posts: [],
   operations: {
-    scrumStatuses: ["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"],
     allTasks: [],
-    calendarTasks: [],
-    unifiedMessages: [],
-    ideaBoard: [],
-    projectDeadlines: [],
-    timedReminders: [],
-    openNotifications: [],
     sprintMetrics: {
       total: 0,
       open: 0,
@@ -244,99 +200,245 @@ const EMPTY: FirmWorkspacePayload = {
       blocked: 0,
       complete: 0,
       overdue: 0,
-      ideas: 0,
-      deadlines: 0,
-      timedReminders: 0,
     },
   },
 };
 
-const inputClass =
-  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+const INPUT =
+  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
 
-const viewTabs: Array<[InternalView, string, string, Tone]> = [
-  ["delegate", "Delegate", "Assign work", "red"],
-  ["calendar", "Calendar", "Click reminders", "purple"],
-  ["ideas", "Brainstorm", "Bubble chart", "purple"],
-  ["workspace", "Universal", "Shared room", "cyan"],
-  ["my-work", "My Work", "Personal day", "green"],
-  ["docs", "Docs", "Individual notes", "amber"],
-];
+const PRIMARY =
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:opacity-40";
 
-const docTemplates = [
+const SOFT =
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
+
+const TASK_STARTERS = [
   {
-    name: "Daily Notes",
-    category: "Daily Notes",
-    labels: ["daily", "execution"],
-    body:
-      "Daily Focus\n\nTop Objectives:\n1. \n2. \n3. \n\nNotes:\n\nFollow-ups:\n",
+    label: "Client follow-up",
+    title: "Complete client follow-up",
+    detail:
+      "Review the client request, document the recommended response, complete the follow-up, and confirm the outcome in SLICE.",
+    priority: "High",
   },
   {
-    name: "Client Prep",
-    category: "Client Prep",
-    labels: ["client", "meeting"],
-    body:
-      "Client Meeting Prep\n\nClient:\nDate:\nObjective:\n\nKey Talking Points:\n- \n- \n\nQuestions to Ask:\n- \n\nFollow-up Items:\n- ",
+    label: "Portfolio review",
+    title: "Prepare portfolio review",
+    detail:
+      "Review holdings, risk alignment, performance context, open planning items, and the decisions required for the next client meeting.",
+    priority: "High",
   },
   {
-    name: "Research Memo",
+    label: "Document request",
+    title: "Collect and review requested documents",
+    detail:
+      "Contact the appropriate person, collect the required documents, verify completeness, and store the final status in the client workflow.",
+    priority: "Medium",
+  },
+  {
+    label: "Compliance check",
+    title: "Complete communication compliance review",
+    detail:
+      "Review the communication for accuracy, suitability, required disclosures, and prohibited language before approval.",
+    priority: "Critical",
+  },
+] as const;
+
+const DOC_TEMPLATES: DocTemplate[] = [
+  {
+    name: "Daily Advisor Plan",
+    category: "Planning",
+    labels: ["daily", "priorities", "execution"],
+    description:
+      "Rank the day, protect focus time, and capture follow-ups.",
+    body:
+      "Daily Advisor Plan\n\nDate:\n\nTop Three Outcomes\n1. \n2. \n3. \n\nClient Commitments\n- \n\nTeam Follow-ups\n- \n\nDeep Work Block\n- Time:\n- Objective:\n\nDecisions Needed\n- \n\nEnd-of-Day Review\n- Completed:\n- Carry forward:\n- Delegate:\n",
+  },
+  {
+    name: "Client Meeting Prep",
+    category: "Client",
+    labels: ["client", "meeting", "prep"],
+    description:
+      "Prepare goals, portfolio context, talking points, and next steps.",
+    body:
+      "Client Meeting Preparation\n\nClient / Household:\nMeeting Date:\nMeeting Objective:\n\nRelationship Context\n- Recent changes:\n- Current concerns:\n- Important preferences:\n\nFinancial Plan Review\n- Goals:\n- Cash flow / liquidity:\n- Tax considerations:\n- Estate considerations:\n- Insurance considerations:\n\nPortfolio Review\n- Allocation observations:\n- Risk alignment:\n- Concentrations:\n- Performance context:\n- Potential actions:\n\nQuestions to Ask\n1. \n2. \n3. \n\nRecommended Next Steps\n- \n\nFollow-up Owners and Dates\n- \n",
+  },
+  {
+    name: "Client Call Notes",
+    category: "Client",
+    labels: ["client", "call", "notes"],
+    description:
+      "Capture a call, decisions, commitments, and delegated follow-ups.",
+    body:
+      "Client Call Notes\n\nClient:\nDate / Time:\nParticipants:\n\nReason for Call\n\nDiscussion Summary\n\nClient Questions or Concerns\n- \n\nAdvice / Information Provided\n- \n\nDecisions Made\n- \n\nTasks Created\n- Task:\n  Owner:\n  Due:\n\nCompliance / Documentation Notes\n\nNext Contact\n",
+  },
+  {
+    name: "Portfolio Review Memo",
+    category: "Investment",
+    labels: ["portfolio", "review", "investment"],
+    description:
+      "Document allocation, risks, concentrations, and proposed actions.",
+    body:
+      "Portfolio Review Memo\n\nClient / Household:\nReview Date:\nTime Horizon:\nRisk Profile:\n\nCurrent Allocation\n\nConcentration Review\n- Security / sector concentrations:\n- Employer stock exposure:\n- Liquidity concentration:\n\nRisk Review\n- Volatility exposure:\n- Drawdown sensitivity:\n- Income needs:\n- Tax constraints:\n\nMarket and Economic Context\n\nRecommended Actions\n1. \n2. \n3. \n\nReasons to Maintain Current Positioning\n\nRisks and Tradeoffs\n\nClient Communication Plan\n",
+  },
+  {
+    name: "Investment Research Memo",
     category: "Research",
-    labels: ["research", "memo"],
+    labels: ["research", "security", "memo"],
+    description:
+      "Record thesis, evidence, risks, valuation, and client relevance.",
     body:
-      "Research Memo\n\nTopic:\nSource Links:\n\nThesis:\n\nEvidence:\n\nRisks:\n\nAdvisor Notes:\n\nAction Items:\n",
+      "Investment Research Memo\n\nSecurity / Topic:\nTicker:\nDate:\nAnalyst:\n\nExecutive Summary\n\nInvestment Thesis\n\nBusiness / Asset Overview\n\nKey Drivers\n1. \n2. \n3. \n\nFinancial and Valuation Evidence\n\nTechnical / Market Evidence\n\nBull Case\n\nBase Case\n\nBear Case\n\nPrimary Risks\n\nCatalysts\n\nClient Suitability and Relevance\n\nDecision / Watch Conditions\n",
   },
   {
-    name: "Investment Note",
-    category: "Investment Notes",
-    labels: ["investment", "analysis"],
+    name: "Risk Review",
+    category: "Risk",
+    labels: ["risk", "portfolio", "review"],
+    description:
+      "Evaluate portfolio, planning, behavioral, and operational risk.",
     body:
-      "Investment Note\n\nSecurity / Topic:\nReason for Review:\n\nBull Case:\n\nBear Case:\n\nKey Data:\n\nClient Relevance:\n\nNext Action:\n",
+      "Client Risk Review\n\nClient / Household:\nReview Date:\n\nRisk Capacity\n\nRisk Tolerance\n\nRisk Required to Meet Goals\n\nPortfolio Risk Observations\n- Concentration:\n- Volatility:\n- Liquidity:\n- Credit:\n- Duration:\n- Currency:\n\nPlanning Risks\n- Retirement:\n- Tax:\n- Estate:\n- Insurance:\n\nBehavioral Risks\n\nRecommended Mitigations\n1. \n2. \n3. \n\nMonitoring Triggers\n",
+  },
+  {
+    name: "Compliance Review",
+    category: "Compliance",
+    labels: ["compliance", "review", "communication"],
+    description:
+      "Review communications or recommendations before approval.",
+    body:
+      "Compliance Review\n\nItem Reviewed:\nOwner:\nDate:\nAudience:\n\nPurpose of Communication\n\nFactual Claims Verified\n- \n\nPerformance Language Review\n- \n\nSuitability / Client Context\n- \n\nRequired Disclosures\n- \n\nPotentially Misleading Language\n- \n\nEdits Required\n1. \n2. \n\nFinal Decision\n- Approved / Revise / Escalate:\n- Reviewer:\n- Date:\n",
+  },
+  {
+    name: "Tax Planning Review",
+    category: "Planning",
+    labels: ["tax", "planning", "client"],
+    description:
+      "Coordinate tax opportunities, constraints, and owners.",
+    body:
+      "Tax Planning Review\n\nClient / Household:\nTax Year:\nCPA / Tax Professional:\n\nIncome Changes\n\nCapital Gains and Losses\n\nTax-Loss Harvesting Opportunities\n\nCharitable Planning\n\nRetirement Contributions / Distributions\n\nRoth Conversion Analysis\n\nEstimated Tax / Withholding Review\n\nRequired Documents\n- \n\nQuestions for Tax Professional\n- \n\nAction Items, Owners, and Dates\n- \n",
+  },
+  {
+    name: "Estate Planning Review",
+    category: "Planning",
+    labels: ["estate", "planning", "client"],
+    description:
+      "Review documents, beneficiaries, ownership, and coordination needs.",
+    body:
+      "Estate Planning Review\n\nClient / Household:\nAttorney:\nLast Document Review Date:\n\nDocuments on File\n- Will:\n- Trust:\n- Power of Attorney:\n- Healthcare Directive:\n\nBeneficiary Review\n\nAccount Ownership Review\n\nTrust Funding Review\n\nInsurance and Liquidity Needs\n\nFamily / Legacy Goals\n\nOpen Questions for Attorney\n- \n\nAction Items, Owners, and Dates\n- \n",
+  },
+  {
+    name: "Decision Memo",
+    category: "Operations",
+    labels: ["decision", "operations", "leadership"],
+    description:
+      "Frame a decision, alternatives, tradeoffs, and accountability.",
+    body:
+      "Decision Memo\n\nDecision Required:\nDecision Owner:\nDecision Deadline:\n\nContext\n\nDesired Outcome\n\nOptions Considered\n1. \n2. \n3. \n\nEvaluation Criteria\n- \n\nTradeoffs and Risks\n\nRecommendation\n\nDecision\n\nImplementation Owner and Milestones\n- \n\nReview Date\n",
+  },
+  {
+    name: "Standard Operating Procedure",
+    category: "Operations",
+    labels: ["sop", "process", "operations"],
+    description:
+      "Document a repeatable workflow with controls and ownership.",
+    body:
+      "Standard Operating Procedure\n\nProcess Name:\nOwner:\nVersion:\nEffective Date:\n\nPurpose\n\nScope\n\nRequired Inputs\n- \n\nProcedure\n1. \n2. \n3. \n\nQuality Checks\n- \n\nCompliance / Security Controls\n- \n\nExceptions and Escalation\n\nRecords Retained\n\nReview Frequency\n",
+  },
+  {
+    name: "Quarterly Team Review",
+    category: "Team",
+    labels: ["team", "quarterly", "review"],
+    description:
+      "Review execution, client service, capacity, and next-quarter priorities.",
+    body:
+      "Quarterly Team Review\n\nQuarter:\nParticipants:\n\nWins\n- \n\nClient Service Metrics\n\nOperational Metrics\n\nTasks and Projects Completed\n\nBottlenecks\n\nCapacity and Workload\n\nProcess Improvements\n\nNext-Quarter Priorities\n1. \n2. \n3. \n\nOwners and Milestones\n- \n",
   },
 ];
 
-function cx(...classes: Array<string | false | null | undefined>) {
+const DOC_PROMPTS = [
+  [
+    "Executive summary",
+    "\n\nExecutive Summary\n- Situation:\n- Key finding:\n- Recommendation:\n- Immediate next action:\n",
+  ],
+  [
+    "Action register",
+    "\n\nAction Register\n- Action:\n  Owner:\n  Due date:\n  Status:\n",
+  ],
+  [
+    "Risk section",
+    "\n\nRisks and Mitigations\n- Risk:\n  Likelihood:\n  Impact:\n  Mitigation:\n  Owner:\n",
+  ],
+  [
+    "Client questions",
+    "\n\nQuestions for the Client\n1. \n2. \n3. \n",
+  ],
+  [
+    "Decision log",
+    "\n\nDecision Log\n- Decision:\n  Rationale:\n  Decision maker:\n  Date:\n  Review trigger:\n",
+  ],
+  [
+    "Meeting agenda",
+    "\n\nMeeting Agenda\n1. Opening and objectives\n2. Updates\n3. Decisions required\n4. Action items\n5. Confirm next meeting\n",
+  ],
+  [
+    "Follow-up email",
+    "\n\nFollow-up Email Outline\n- Thank the client / team\n- Summarize decisions\n- Confirm responsibilities\n- Confirm deadlines\n- State next meeting or contact\n",
+  ],
+  [
+    "Source register",
+    "\n\nSources and Evidence\n- Source:\n  Date accessed:\n  Key evidence:\n  Reliability note:\n",
+  ],
+  [
+    "Suitability notes",
+    "\n\nSuitability Notes\n- Client objective:\n- Time horizon:\n- Liquidity need:\n- Risk tolerance:\n- Relevant constraints:\n",
+  ],
+  [
+    "Compliance checklist",
+    "\n\nCompliance Checklist\n- Facts verified:\n- Disclosures included:\n- Performance language reviewed:\n- Recommendation context documented:\n- Reviewer:\n",
+  ],
+  [
+    "Delegation plan",
+    "\n\nDelegation Plan\n- Task:\n  Owner:\n  Due date:\n  Reminder cadence:\n  Definition of done:\n",
+  ],
+  [
+    "Next-meeting plan",
+    "\n\nNext Meeting Plan\n- Proposed date:\n- Objective:\n- Required documents:\n- Decisions expected:\n- Preparation owners:\n",
+  ],
+] as const;
+
+function cx(
+  ...classes: Array<string | false | null | undefined>
+) {
   return classes.filter(Boolean).join(" ");
 }
 
-function ymd(date: Date) {
-  return date.toISOString().slice(0, 10);
+function localYmd(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
-function toDate(dateString: string) {
-  return new Date(`${dateString}T00:00:00`);
-}
+function addDays(days: number) {
+  const date = new Date();
 
-function addDays(dateString: string, days: number) {
-  const date = toDate(dateString);
+  date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + days);
-  return ymd(date);
+
+  return localYmd(date);
 }
 
-function startOfWeek(dateString: string) {
-  const date = toDate(dateString);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return ymd(date);
-}
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "No due date";
+  }
 
-function monthStart(dateString: string) {
-  const date = toDate(dateString);
-  date.setDate(1);
-  return ymd(date);
-}
+  const date = new Date(`${value}T12:00:00`);
 
-function calendarMonthDays(anchorDate: string) {
-  const start = toDate(monthStart(anchorDate));
-  const firstGridDay = startOfWeek(ymd(start));
-  return Array.from({ length: 42 }).map((_, index) => addDays(firstGridDay, index));
-}
-
-function shortDate(value: string | null | undefined) {
-  if (!value) return "No date";
-
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
 
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -344,30 +446,16 @@ function shortDate(value: string | null | undefined) {
   });
 }
 
-function monthTitle(dateString: string) {
-  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function dayNumber(dateString: string) {
-  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
-    day: "numeric",
-  });
-}
-
-function weekdayShort(dateString: string) {
-  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-US", {
-    weekday: "short",
-  });
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
 
   return date.toLocaleString("en-US", {
     month: "short",
@@ -377,64 +465,12 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function toneFor(value: string | number | null | undefined): Tone {
-  const lower = String(value ?? "").toLowerCase();
-  const numeric = typeof value === "number" ? value : Number.NaN;
-
-  if (
-    lower.includes("blocked") ||
-    lower.includes("failed") ||
-    lower.includes("overdue") ||
-    lower.includes("critical") ||
-    lower.includes("high") ||
-    (!Number.isNaN(numeric) && numeric < 35)
-  ) {
-    return "red";
-  }
-
-  if (
-    lower.includes("complete") ||
-    lower.includes("done") ||
-    lower.includes("active") ||
-    lower.includes("approved") ||
-    lower.includes("delivered") ||
-    (!Number.isNaN(numeric) && numeric >= 75)
-  ) {
-    return "green";
-  }
-
-  if (
-    lower.includes("review") ||
-    lower.includes("pending") ||
-    lower.includes("progress") ||
-    lower.includes("medium") ||
-    lower.includes("soon") ||
-    lower.includes("today") ||
-    lower.includes("to do") ||
-    lower.includes("skipped") ||
-    (!Number.isNaN(numeric) && numeric >= 35 && numeric < 75)
-  ) {
-    return "amber";
-  }
-
-  if (lower.includes("idea") || lower.includes("project") || lower.includes("sprint")) {
-    return "purple";
-  }
-
-  if (lower.includes("chat") || lower.includes("file") || lower.includes("message") || lower.includes("email")) {
-    return "cyan";
-  }
-
-  return "slate";
+function memberName(member?: Membership | null) {
+  return member?.user?.name || member?.user?.email || "Team member";
 }
 
-function memberName(member: Membership | null | undefined) {
-  if (!member) return "Anonymous Contributor";
-  return member.user?.name || member.user?.email || "Team member";
-}
-
-function initials(name: string) {
-  return name
+function initials(value: string) {
+  return value
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -442,188 +478,177 @@ function initials(name: string) {
     .join("");
 }
 
-function isLeader(member: Membership | null | undefined) {
-  if (!member) return false;
-
-  return (
-    member.role === "Owner" ||
-    member.role === "Admin" ||
-    member.canManageFirm ||
-    member.canManageProjects
-  );
+function isComplete(status: string) {
+  return status === "Complete" || status === "Done";
 }
 
-function isOwner(member: Membership | null | undefined) {
-  return Boolean(member?.role === "Owner" || member?.canManageFirm);
+function priorityWeight(priority: string) {
+  const value = priority.toLowerCase();
+
+  if (value === "critical") {
+    return 90;
+  }
+
+  if (value === "high") {
+    return 65;
+  }
+
+  if (value === "medium") {
+    return 40;
+  }
+
+  return 20;
 }
 
-function ideaAuthor(post: FirmPost) {
-  if (!post.authorMembership) return "Anonymous Contributor";
-  return memberName(post.authorMembership);
+function daysUntil(value?: string | null) {
+  if (!value) {
+    return 999;
+  }
+
+  const due = new Date(`${value}T12:00:00`).getTime();
+  const today = new Date(`${localYmd()}T12:00:00`).getTime();
+
+  return Math.round((due - today) / 86_400_000);
 }
 
-function fileSizeLabel(size: number) {
-  if (size > 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
-  if (size > 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${size} B`;
+function smartScore(input: {
+  priority: string;
+  dueDate?: string | null;
+  status: string;
+  pinned: boolean;
+  manualRank: number;
+}) {
+  let score = priorityWeight(input.priority);
+  const remaining = daysUntil(input.dueDate);
+
+  if (remaining < 0) {
+    score += 70 + Math.min(30, Math.abs(remaining) * 3);
+  } else if (remaining === 0) {
+    score += 55;
+  } else if (remaining === 1) {
+    score += 38;
+  } else if (remaining <= 3) {
+    score += 22;
+  } else if (remaining <= 7) {
+    score += 10;
+  }
+
+  if (input.status === "In Progress") {
+    score += 16;
+  }
+
+  if (input.status === "Blocked") {
+    score += 24;
+  }
+
+  if (input.status === "Review") {
+    score += 10;
+  }
+
+  if (input.pinned) {
+    score += 1000;
+  }
+
+  score += Math.max(0, 6 - input.manualRank) * 5;
+
+  return score;
 }
 
-function ideaCategory(idea: FirmPost) {
-  const match = idea.body.match(/Category:\s*(.+)/i);
-  return match?.[1]?.split("\n")[0]?.trim() || "Uncategorized";
-}
-
-function ideaImpact(idea: FirmPost) {
-  const match = idea.body.match(/Expected impact:\s*(.+)/i);
-  return match?.[1]?.split("\n")[0]?.trim() || "Medium";
-}
-
-function ideaEffort(idea: FirmPost) {
-  const match = idea.body.match(/Estimated effort:\s*(.+)/i);
-  return match?.[1]?.split("\n")[0]?.trim() || "Medium";
-}
-
-function ideaVoteCount(idea: FirmPost) {
-  const privateVotes = (idea.body.match(/\[SLICE_PRIVATE_VOTE\]/g) ?? []).length;
-  const legacyVotes = (idea.body.match(/#vote/g) ?? []).length;
-  return Math.max(privateVotes, legacyVotes);
-}
-
-function ideaNotes(idea: FirmPost) {
-  const chunks = idea.body.split("[SLICE_IDEA_NOTE]").slice(1);
-
-  return chunks
-    .map((chunk) => {
-      const author = chunk.match(/Author:\s*(.+)/)?.[1]?.split("\n")[0]?.trim() || "Contributor";
-      const timestamp = chunk.match(/Timestamp:\s*(.+)/)?.[1]?.split("\n")[0]?.trim() || "";
-      const note = chunk.match(/Note:\s*([\s\S]+)/)?.[1]?.trim() || "";
-      return { author, timestamp, note };
-    })
-    .filter((item) => item.note);
-}
-
-function ideaIsRemoved(idea: FirmPost) {
-  const status = String(idea.ideaStatus ?? idea.postType ?? "").toLowerCase();
-  return (
-    status.includes("removed") ||
-    status.includes("archived") ||
-    status.includes("deleted")
-  );
-}
-
-function cleanIdeaBodyForDisplay(body: string) {
-  return body
-    .split("\n")
-    .filter((line) => {
-      const lower = line.toLowerCase();
-      return (
-        !line.includes("[SLICE_PRIVATE_VOTE]") &&
-        !line.includes("[SLICE_IDEA_NOTE]") &&
-        !line.includes("[SLICE_STATUS_UPDATE]") &&
-        !lower.includes("#vote") &&
-        !lower.startsWith("timestamp:") &&
-        !lower.startsWith("anonymous:") &&
-        !lower.startsWith("visibleto:") &&
-        !lower.startsWith("voting is anonymous") &&
-        !lower.startsWith("voting:")
-      );
-    })
-    .join("\n")
-    .replace(/\n{4,}/g, "\n\n")
-    .trim();
-}
-
-function taskReminderSummary(task: Task | null | undefined) {
-  const reminder = task?.comments?.find((comment) =>
-    comment.commentType.toLowerCase().includes("reminder")
+function taskReminder(task: Task) {
+  const comment = task.comments?.find((item) =>
+    item.commentType.toLowerCase().includes("reminder")
   );
 
-  if (!reminder) return null;
+  if (!comment) {
+    return null;
+  }
 
-  const repeat = reminder.body.match(/Repeat interval:\s*(.+)/i)?.[1]?.split("\n")[0]?.trim();
-  const when = reminder.body.match(/Reminder:\s*(.+)/i)?.[1]?.split("\n")[0]?.trim();
+  const at =
+    comment.body
+      .match(/firstReminderAt=(.+)/i)?.[1]
+      ?.split("\n")[0]
+      ?.trim() ||
+    comment.body
+      .match(/Reminder:\s*(.+)/i)?.[1]
+      ?.split("\n")[0]
+      ?.trim() ||
+    "Reminder scheduled";
+
+  const cadence =
+    comment.body
+      .match(/cadence=(.+)/i)?.[1]
+      ?.split("\n")[0]
+      ?.trim() ||
+    comment.body
+      .match(/Repeat interval:\s*(.+)/i)?.[1]
+      ?.split("\n")[0]
+      ?.trim() ||
+    "Until complete";
 
   return {
-    when: when || "Reminder set",
-    repeat: repeat || "Once",
-    body: reminder.body,
+    at,
+    cadence,
   };
 }
 
-function priorityScore(priority: string) {
+function statusStyle(status: string) {
+  const lower = status.toLowerCase();
+
+  if (
+    lower.includes("complete") ||
+    lower.includes("done")
+  ) {
+    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
+  }
+
+  if (lower.includes("blocked")) {
+    return "border-red-400/25 bg-red-400/10 text-red-200";
+  }
+
+  if (
+    lower.includes("progress") ||
+    lower.includes("review")
+  ) {
+    return "border-amber-400/25 bg-amber-400/10 text-amber-200";
+  }
+
+  return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200";
+}
+
+function priorityStyle(priority: string) {
   const lower = priority.toLowerCase();
-  if (lower === "critical") return 100;
-  if (lower === "high") return 78;
-  if (lower === "medium") return 52;
-  return 28;
+
+  if (lower === "critical") {
+    return "border-red-400/30 bg-red-500/15 text-red-100";
+  }
+
+  if (lower === "high") {
+    return "border-orange-400/25 bg-orange-400/10 text-orange-100";
+  }
+
+  if (lower === "medium") {
+    return "border-amber-400/25 bg-amber-400/10 text-amber-100";
+  }
+
+  return "border-white/10 bg-white/[0.055] text-slate-300";
 }
 
-function completionPct(items: Array<{ done?: boolean; status?: string }>) {
-  if (!items.length) return 0;
-
-  const complete = items.filter((item) => item.done || item.status === "Complete" || item.status === "Done").length;
-  return Math.round((complete / items.length) * 100);
-}
-
-function Pill({
+function Badge({
   children,
-  tone = "slate",
+  className = "",
 }: {
   children: ReactNode;
-  tone?: Tone;
+  className?: string;
 }) {
-  const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
-    green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-    amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
-    purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
-    cyan: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/30",
-    slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
-  };
-
   return (
     <span
       className={cx(
-        "inline-flex max-w-full rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ring-1",
-        tones[tone]
+        "inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+        className
       )}
     >
       <span className="truncate">{children}</span>
     </span>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  tone = "slate",
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  tone?: Tone;
-  helper?: string;
-}) {
-  const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
-    green: "from-emerald-500/18",
-    amber: "from-amber-500/18",
-    purple: "from-purple-500/18",
-    cyan: "from-cyan-500/18",
-    slate: "from-slate-400/10",
-  };
-
-  return (
-    <div className="relative overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-4">
-      <div className={cx("absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent", glows[tone])} />
-      <div className="relative">
-        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-          {label}
-        </div>
-        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
-      </div>
-    </div>
   );
 }
 
@@ -635,2755 +660,3280 @@ function Panel({
   className?: string;
 }) {
   return (
-    <div className={cx("rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-4 shadow-xl shadow-black/10", className)}>
-      {children}
-    </div>
-  );
-}
-
-function ProgressBar({
-  value,
-  tone = "green",
-}: {
-  value: number;
-  tone?: Tone;
-}) {
-  const colors: Record<Tone, string> = {
-    red: "from-red-500 to-red-800",
-    green: "from-emerald-400 to-emerald-700",
-    amber: "from-amber-400 to-amber-700",
-    purple: "from-purple-400 to-purple-800",
-    cyan: "from-cyan-400 to-cyan-700",
-    slate: "from-slate-400 to-slate-700",
-  };
-
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-white/10">
-      <div
-        className={cx("h-full rounded-full bg-gradient-to-r transition-all", colors[tone])}
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
-      />
-    </div>
-  );
-}
-
-function AttachmentCard({
-  attachment,
-  onRemove,
-}: {
-  attachment: LocalAttachment;
-  onRemove?: () => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/35 p-3">
-      {attachment.type.startsWith("image/") ? (
-        <img
-          src={attachment.dataUrl}
-          alt={attachment.name}
-          className="h-36 w-full rounded-xl object-cover"
-        />
-      ) : (
-        <div className="flex h-36 items-center justify-center rounded-xl border border-dashed border-white/10 text-center text-xs font-black text-slate-500">
-          {attachment.type || "File"}
-        </div>
+    <section
+      className={cx(
+        "min-w-0 overflow-hidden rounded-[1.8rem] border border-white/10 bg-zinc-950/82 shadow-2xl shadow-black/30 backdrop-blur-xl",
+        className
       )}
+    >
+      {children}
+    </section>
+  );
+}
 
-      <div className="mt-3 flex items-start justify-between gap-2">
+function Metric({
+  label,
+  value,
+  helper,
+  icon,
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="relative min-w-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-xs font-black text-white">{attachment.name}</div>
-          <div className="mt-1 text-[10px] font-bold text-slate-500">
-            {fileSizeLabel(attachment.size)}
+          <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </div>
+
+          <div className="mt-2 text-3xl font-black">
+            {value}
+          </div>
+
+          <div className="mt-1 truncate text-xs font-semibold text-slate-500">
+            {helper}
           </div>
         </div>
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-100"
-          >
-            Remove
-          </button>
-        ) : null}
+
+        <div className="shrink-0 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+          {icon}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function NoticeBar({
+  notice,
+  close,
+}: {
+  notice: Notice;
+  close: () => void;
+}) {
+  if (!notice) {
+    return null;
+  }
+
+  const styles =
+    notice.tone === "success"
+      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
+      : notice.tone === "error"
+        ? "border-red-400/25 bg-red-400/10 text-red-100"
+        : "border-cyan-400/25 bg-cyan-400/10 text-cyan-100";
+
+  return (
+    <div
+      className={cx(
+        "flex min-w-0 items-start justify-between gap-3 rounded-2xl border p-4",
+        styles
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-3 text-sm font-bold leading-6">
+        {notice.tone === "success" ? (
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+        ) : (
+          <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+        )}
+
+        <span className="min-w-0 break-words">
+          {notice.text}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={close}
+        className="shrink-0 rounded-lg p-1 hover:bg-white/10"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 }
 
 export default function TeamBoardEmbedded() {
-  const [workspace, setWorkspace] = useState<FirmWorkspacePayload>(EMPTY);
-  const [activeView, setActiveView] = useState<InternalView>("delegate");
-  const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState(ymd(new Date()));
-  const [calendarAnchor, setCalendarAnchor] = useState(ymd(new Date()));
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [workspace, setWorkspace] =
+    useState<FirmWorkspacePayload>(EMPTY);
+
+  const [activeView, setActiveView] =
+    useState<ActiveView>("delegate");
+
+  const [loading, setLoading] = useState(true);
+
+  const [notice, setNotice] =
+    useState<Notice>(null);
+
+  const [
+    selectedMemberId,
+    setSelectedMemberId,
+  ] = useState("");
 
   const [taskForm, setTaskForm] = useState({
     title: "",
     detail: "",
-    priority: "Medium",
-    status: "To Do",
-    dueDate: ymd(new Date()),
-    reminderAt: "",
-    reminderInterval: "Once",
-    reminderNote: "",
+    priority: "High",
+    dueDate: addDays(1),
     projectId: "",
-    notifyEmail: true,
+    reminderDate: addDays(1),
+    reminderTime: "09:00",
+    reminderCadence: "Daily",
+    reminderNote:
+      "Please review this task and update its status in SLICE.",
   });
 
-  const [calendarQuickForm, setCalendarQuickForm] = useState({
-    title: "",
-    note: "",
-    time: "09:00",
-    interval: "Once",
-  });
+  const [
+    personalTodos,
+    setPersonalTodos,
+  ] = useState<PersonalTodo[]>([]);
 
-  const [workspaceMessage, setWorkspaceMessage] = useState({
-    title: "",
-    body: "",
-    postType: "Chat",
-    fileLinks: "",
-    projectId: "",
-  });
-  const [workspaceFilter, setWorkspaceFilter] = useState("All");
+  const [
+    workPreferences,
+    setWorkPreferences,
+  ] = useState<WorkPreferenceMap>({});
 
-  const [ideaForm, setIdeaForm] = useState({
-    title: "",
-    body: "",
-    category: "Growth",
-    impact: "Medium",
-    effort: "Medium",
-    ownerHint: "",
-    projectId: "",
-    fileLinks: "",
-    anonymous: true,
-  });
+  const [workSort, setWorkSort] =
+    useState<WorkSort>("smart");
 
-  const [selectedIdeaCategory, setSelectedIdeaCategory] = useState("All");
-  const [selectedIdeaId, setSelectedIdeaId] = useState("");
-  const [ideaNote, setIdeaNote] = useState("");
-  const [ideaNoteAnonymous, setIdeaNoteAnonymous] = useState(true);
-  const [ideaAssigneeId, setIdeaAssigneeId] = useState("");
+  const [workSearch, setWorkSearch] =
+    useState("");
 
-  const [todoTitle, setTodoTitle] = useState("");
-  const [todoCategory, setTodoCategory] = useState("Execution");
-  const [todoDate, setTodoDate] = useState(ymd(new Date()));
-  const [todos, setTodos] = useState<LocalTodo[]>([]);
+  const [
+    workStatusFilter,
+    setWorkStatusFilter,
+  ] = useState("Open work");
 
-  const [docs, setDocs] = useState<LocalDoc[]>([]);
-  const [activeDocId, setActiveDocId] = useState("");
-  const [docSearch, setDocSearch] = useState("");
-  const [docFullScreen, setDocFullScreen] = useState(false);
-  const [docPreview, setDocPreview] = useState(true);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [
+    workCategoryFilter,
+    setWorkCategoryFilter,
+  ] = useState("All categories");
+
+  const [
+    selectedWorkKey,
+    setSelectedWorkKey,
+  ] = useState("");
+
+  const [personalForm, setPersonalForm] =
+    useState({
+      title: "",
+      detail: "",
+      category: "Advisor follow-up",
+      priority: "Medium",
+      dueDate: localYmd(),
+    });
+
+  const [docs, setDocs] =
+    useState<LocalDoc[]>([]);
+
+  const [activeDocId, setActiveDocId] =
+    useState("");
+
+  const [docSearch, setDocSearch] =
+    useState("");
+
+  const [docSort, setDocSort] =
+    useState<DocSort>("updated");
+
+  const [
+    docCategoryFilter,
+    setDocCategoryFilter,
+  ] = useState("All categories");
+
+  const [
+    docLabelFilter,
+    setDocLabelFilter,
+  ] = useState("All labels");
+
+  const [
+    templateSearch,
+    setTemplateSearch,
+  ] = useState("");
+
+  const docEditorRef =
+    useRef<HTMLTextAreaElement | null>(null);
 
   const firm = workspace.firm;
   const membership = workspace.membership;
   const members = workspace.members;
   const projects = workspace.projects;
-  const operations = workspace.operations ?? EMPTY.operations!;
-  const allTasks = operations.allTasks;
-  const selectedTask = allTasks.find((item) => item.id === selectedTaskId) ?? allTasks[0] ?? null;
-  const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null;
-  const activeDoc = docs.find((doc) => doc.id === activeDocId) ?? docs[0] ?? null;
-  const ownerMode = isOwner(membership);
 
-  const visibleIdeaBoard = useMemo(() => {
-    return operations.ideaBoard.filter((idea) => !ideaIsRemoved(idea));
-  }, [operations.ideaBoard]);
+  const allTasks = (
+    workspace.operations ??
+    EMPTY.operations!
+  ).allTasks;
 
-  const myTasks = useMemo(() => {
-    if (!membership) return [];
-    return allTasks.filter((task) => task.ownerUserId === membership.userId);
-  }, [allTasks, membership]);
+  const selectedMember =
+    members.find(
+      (member) =>
+        member.id === selectedMemberId
+    ) ??
+    members[0] ??
+    null;
 
-  const completedFirmTasks = useMemo(() => {
-    return allTasks
-      .filter((task) => task.status === "Complete" || task.status === "Done")
-      .sort((a, b) => String(b.dueDate ?? "").localeCompare(String(a.dueDate ?? "")));
-  }, [allTasks]);
+  const myTasks = useMemo(
+    () =>
+      membership
+        ? allTasks.filter(
+            (task) =>
+              task.ownerUserId ===
+              membership.userId
+          )
+        : [],
+    [allTasks, membership]
+  );
 
-  const myTodos = useMemo(() => {
-    if (!membership) return [];
-    return todos
-      .filter((todo) => todo.ownerUserId === membership.userId && todo.date === todoDate)
-      .sort((a, b) => Number(a.done) - Number(b.done));
-  }, [todos, membership, todoDate]);
+  const activeDocs = useMemo(
+    () =>
+      membership
+        ? docs.filter(
+            (doc) =>
+              doc.ownerUserId ===
+              membership.userId
+          )
+        : [],
+    [docs, membership]
+  );
 
-  const myTodoCompletion = completionPct(myTodos);
-  const myFirmTaskCompletion = completionPct(myTasks);
+  const activeDoc =
+    activeDocs.find(
+      (doc) => doc.id === activeDocId
+    ) ??
+    activeDocs[0] ??
+    null;
 
-  const taskColumns = useMemo(() => {
-    const statuses = operations.scrumStatuses.length
-      ? operations.scrumStatuses
-      : ["Backlog", "To Do", "In Progress", "Review", "Blocked", "Complete"];
+  const memberWorkload = useMemo(
+    () =>
+      members.map((member) => {
+        const tasks = allTasks.filter(
+          (task) =>
+            task.ownerId === member.id &&
+            !isComplete(task.status)
+        );
 
-    return statuses.map((status) => ({
-      status,
-      tasks: allTasks.filter((task) => {
-        if (status === "To Do") return task.status === "To Do" || task.status === "Open";
-        if (status === "Complete") return task.status === "Complete" || task.status === "Done";
-        return task.status === status;
+        const urgent = tasks.filter(
+          (task) =>
+            task.priority === "Critical" ||
+            task.priority === "High"
+        ).length;
+
+        return {
+          member,
+          open: tasks.length,
+          urgent,
+          capacity: Math.max(
+            0,
+            100 -
+              tasks.length * 10 -
+              urgent * 8
+          ),
+        };
       }),
-    }));
-  }, [allTasks, operations.scrumStatuses]);
+    [allTasks, members]
+  );
 
-  const calendarDays = useMemo(() => calendarMonthDays(calendarAnchor), [calendarAnchor]);
+  const selectedMemberTasks = useMemo(
+    () =>
+      allTasks
+        .filter(
+          (task) =>
+            task.ownerId ===
+              selectedMember?.id &&
+            !isComplete(task.status)
+        )
+        .sort((a, b) => {
+          const priority =
+            priorityWeight(b.priority) -
+            priorityWeight(a.priority);
 
-  const tasksByCalendarDate = useMemo(() => {
-    return operations.calendarTasks.reduce<Record<string, Task[]>>((map, task) => {
-      if (!task.dueDate) return map;
-      map[task.dueDate] = [...(map[task.dueDate] ?? []), task];
-      return map;
-    }, {});
-  }, [operations.calendarTasks]);
+          return (
+            priority ||
+            String(
+              a.dueDate ?? "9999"
+            ).localeCompare(
+              String(
+                b.dueDate ?? "9999"
+              )
+            )
+          );
+        }),
+    [allTasks, selectedMember]
+  );
 
-  const selectedDateTasks = tasksByCalendarDate[selectedCalendarDate] ?? [];
+  const rankedWork =
+    useMemo<RankedWorkItem[]>(() => {
+      if (!membership) {
+        return [];
+      }
 
-  const filteredIdeas = useMemo(() => {
-    return visibleIdeaBoard.filter((idea) => {
-      if (selectedIdeaCategory === "All") return true;
-      return ideaCategory(idea) === selectedIdeaCategory;
-    });
-  }, [visibleIdeaBoard, selectedIdeaCategory]);
+      const teamItems: RankedWorkItem[] =
+        myTasks.map((task) => {
+          const preference =
+            workPreferences[
+              `task:${task.id}`
+            ] ?? {};
 
-  const selectedIdea = visibleIdeaBoard.find((idea) => idea.id === selectedIdeaId) ?? visibleIdeaBoard[0] ?? null;
+          const pinned =
+            preference.pinned === true;
 
-  const ideaCategories = useMemo(() => {
-    return ["All", ...Array.from(new Set(visibleIdeaBoard.map(ideaCategory))).sort()];
-  }, [visibleIdeaBoard]);
+          const manualRank =
+            preference.manualRank ?? 3;
 
-  const ideaCategoryGroups = useMemo(() => {
-    return Array.from(
-      visibleIdeaBoard.reduce<Map<string, FirmPost[]>>((map, idea) => {
-        const category = ideaCategory(idea);
-        map.set(category, [...(map.get(category) ?? []), idea]);
-        return map;
-      }, new Map())
-    );
-  }, [visibleIdeaBoard]);
+          return {
+            key: `task:${task.id}`,
+            source: "team",
+            title: task.title,
+            detail:
+              task.detail ??
+              "No task detail supplied.",
+            category:
+              task.project?.title ||
+              "Team assignment",
+            priority: task.priority,
+            dueDate: task.dueDate,
+            status: task.status,
+            score: smartScore({
+              priority: task.priority,
+              dueDate: task.dueDate,
+              status: task.status,
+              pinned,
+              manualRank,
+            }),
+            pinned,
+            manualRank,
+            task,
+          };
+        });
 
-  const workspaceMessages = useMemo(() => {
-    if (workspaceFilter === "All") return operations.unifiedMessages;
-    return operations.unifiedMessages.filter((post) => post.postType === workspaceFilter);
-  }, [operations.unifiedMessages, workspaceFilter]);
+      const personalItems: RankedWorkItem[] =
+        personalTodos
+          .filter(
+            (todo) =>
+              todo.ownerUserId ===
+              membership.userId
+          )
+          .map((todo) => {
+            const preference =
+              workPreferences[
+                `todo:${todo.id}`
+              ] ?? {};
 
-  const workspaceTypes = useMemo(() => {
-    return ["All", ...Array.from(new Set(operations.unifiedMessages.map((post) => post.postType))).sort()];
-  }, [operations.unifiedMessages]);
+            const pinned =
+              preference.pinned === true;
+
+            const manualRank =
+              preference.manualRank ?? 3;
+
+            const status = todo.done
+              ? "Complete"
+              : "To Do";
+
+            return {
+              key: `todo:${todo.id}`,
+              source: "personal",
+              title: todo.title,
+              detail:
+                todo.detail ||
+                "Personal advisor work item.",
+              category: todo.category,
+              priority: todo.priority,
+              dueDate: todo.dueDate,
+              status,
+              score: smartScore({
+                priority: todo.priority,
+                dueDate: todo.dueDate,
+                status,
+                pinned,
+                manualRank,
+              }),
+              pinned,
+              manualRank,
+              todo,
+            };
+          });
+
+      const query = workSearch
+        .trim()
+        .toLowerCase();
+
+      return [
+        ...teamItems,
+        ...personalItems,
+      ]
+        .filter((item) => {
+          if (
+            workStatusFilter ===
+              "Open work" &&
+            isComplete(item.status)
+          ) {
+            return false;
+          }
+
+          if (
+            workStatusFilter ===
+              "Completed" &&
+            !isComplete(item.status)
+          ) {
+            return false;
+          }
+
+          if (
+            workCategoryFilter !==
+              "All categories" &&
+            item.category !==
+              workCategoryFilter
+          ) {
+            return false;
+          }
+
+          return (
+            !query ||
+            [
+              item.title,
+              item.detail,
+              item.category,
+              item.priority,
+              item.status,
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(query)
+          );
+        })
+        .sort((a, b) => {
+          if (a.pinned !== b.pinned) {
+            return (
+              Number(b.pinned) -
+              Number(a.pinned)
+            );
+          }
+
+          if (
+            workSort === "manual" &&
+            a.manualRank !== b.manualRank
+          ) {
+            return (
+              a.manualRank -
+              b.manualRank
+            );
+          }
+
+          if (workSort === "due") {
+            const due = String(
+              a.dueDate ?? "9999"
+            ).localeCompare(
+              String(
+                b.dueDate ?? "9999"
+              )
+            );
+
+            if (due) {
+              return due;
+            }
+          }
+
+          if (workSort === "priority") {
+            const priority =
+              priorityWeight(b.priority) -
+              priorityWeight(a.priority);
+
+            if (priority) {
+              return priority;
+            }
+          }
+
+          return b.score - a.score;
+        });
+    }, [
+      membership,
+      myTasks,
+      personalTodos,
+      workPreferences,
+      workSearch,
+      workSort,
+      workStatusFilter,
+      workCategoryFilter,
+    ]);
+
+  const selectedWork =
+    rankedWork.find(
+      (item) =>
+        item.key === selectedWorkKey
+    ) ??
+    rankedWork[0] ??
+    null;
+
+  const workCategories = useMemo(
+    () => [
+      "All categories",
+      ...Array.from(
+        new Set([
+          ...myTasks.map(
+            (task) =>
+              task.project?.title ||
+              "Team assignment"
+          ),
+          ...personalTodos
+            .filter(
+              (todo) =>
+                todo.ownerUserId ===
+                membership?.userId
+            )
+            .map(
+              (todo) => todo.category
+            ),
+        ])
+      ).sort(),
+    ],
+    [membership, myTasks, personalTodos]
+  );
+
+  const docCategories = useMemo(
+    () => [
+      "All categories",
+      ...Array.from(
+        new Set(
+          activeDocs.map(
+            (doc) => doc.category
+          )
+        )
+      ).sort(),
+    ],
+    [activeDocs]
+  );
+
+  const docLabels = useMemo(
+    () => [
+      "All labels",
+      ...Array.from(
+        new Set(
+          activeDocs.flatMap(
+            (doc) => doc.labels
+          )
+        )
+      ).sort(),
+    ],
+    [activeDocs]
+  );
 
   const filteredDocs = useMemo(() => {
-    if (!membership) return [];
+    const query = docSearch
+      .trim()
+      .toLowerCase();
 
-    const query = docSearch.toLowerCase().trim();
-
-    return docs
-      .filter((doc) => doc.ownerUserId === membership.userId)
+    return activeDocs
       .filter((doc) => {
-        if (!query) return true;
+        if (
+          docCategoryFilter !==
+            "All categories" &&
+          doc.category !==
+            docCategoryFilter
+        ) {
+          return false;
+        }
+
+        if (
+          docLabelFilter !==
+            "All labels" &&
+          !doc.labels.includes(
+            docLabelFilter
+          )
+        ) {
+          return false;
+        }
 
         return (
-          doc.title.toLowerCase().includes(query) ||
-          doc.category.toLowerCase().includes(query) ||
-          doc.labels.join(" ").toLowerCase().includes(query) ||
-          doc.body.toLowerCase().includes(query)
+          !query ||
+          [
+            doc.title,
+            doc.category,
+            doc.labels.join(" "),
+            doc.body,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(query)
         );
       })
       .sort((a, b) => {
-        if (a.favorite && !b.favorite) return -1;
-        if (!a.favorite && b.favorite) return 1;
-        return b.updatedAt.localeCompare(a.updatedAt);
-      });
-  }, [docs, membership, docSearch]);
+        if (
+          docSort === "favorite" &&
+          a.favorite !== b.favorite
+        ) {
+          return (
+            Number(b.favorite) -
+            Number(a.favorite)
+          );
+        }
 
-  const docCategories = useMemo(() => {
-    return Array.from(new Set(filteredDocs.map((doc) => doc.category))).sort();
-  }, [filteredDocs]);
+        if (docSort === "title") {
+          return a.title.localeCompare(
+            b.title
+          );
+        }
+
+        if (docSort === "category") {
+          return (
+            a.category.localeCompare(
+              b.category
+            ) ||
+            a.title.localeCompare(
+              b.title
+            )
+          );
+        }
+
+        return b.updatedAt.localeCompare(
+          a.updatedAt
+        );
+      });
+  }, [
+    activeDocs,
+    docCategoryFilter,
+    docLabelFilter,
+    docSearch,
+    docSort,
+  ]);
+
+  const filteredTemplates = useMemo(() => {
+    const query = templateSearch
+      .trim()
+      .toLowerCase();
+
+    return DOC_TEMPLATES.filter(
+      (template) =>
+        !query ||
+        [
+          template.name,
+          template.category,
+          template.labels.join(" "),
+          template.description,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(query)
+    );
+  }, [templateSearch]);
 
   async function loadWorkspace() {
     setLoading(true);
-    setMessage("");
 
     try {
-      const response = await fetch("/api/firm-workspace", {
-        cache: "no-store",
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Unable to load team board.");
-        return;
-      }
-
-      const activeIdeas = (payload.operations?.ideaBoard ?? []).filter(
-        (idea: FirmPost) => !ideaIsRemoved(idea)
+      const response = await fetch(
+        "/api/firm-workspace",
+        {
+          cache: "no-store",
+        }
       );
 
-      setWorkspace(payload);
+      const data =
+        (await response.json()) as
+          FirmWorkspacePayload & {
+            error?: string;
+          };
 
-      if (!selectedMemberId && payload.members?.[0]) {
-        setSelectedMemberId(payload.members[0].id);
+      if (!response.ok) {
+        throw new Error(
+          data.error ??
+            "Unable to load Team Board."
+        );
       }
 
-      if (!ideaAssigneeId && payload.members?.[0]) {
-        setIdeaAssigneeId(payload.members[0].id);
-      }
+      setWorkspace(data);
 
-      if (!selectedTaskId && payload.operations?.allTasks?.[0]) {
-        setSelectedTaskId(payload.operations.allTasks[0].id);
-      }
-
-      if (!selectedIdeaId && activeIdeas[0]) {
-        setSelectedIdeaId(activeIdeas[0].id);
+      if (
+        !selectedMemberId &&
+        data.members?.[0]
+      ) {
+        setSelectedMemberId(
+          data.members[0].id
+        );
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load team board.");
+      setNotice({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Unable to load Team Board.",
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  async function postFirmAction(body: Record<string, unknown>) {
+  async function postTaskAction(
+    body: Record<string, unknown>
+  ) {
     if (!firm?.id) {
-      setMessage("Create or connect to a firm first.");
+      setNotice({
+        tone: "error",
+        text:
+          "Connect this account to a firm first.",
+      });
+
       return null;
     }
 
     setLoading(true);
-    setMessage("");
 
     try {
-      const response = await fetch("/api/firm-workspace", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-slice-sensitive-action": String(body.action ?? "firm-workspace"),
-        },
-        body: JSON.stringify({
-          firmId: firm.id,
-          ...body,
-        }),
-      });
+      const response = await fetch(
+        "/api/firm-workspace/team-board",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            "x-slice-sensitive-action":
+              String(
+                body.action ??
+                  "team-board"
+              ),
+          },
+          body: JSON.stringify({
+            firmId: firm.id,
+            ...body,
+          }),
+        }
+      );
 
-      const payload = await response.json();
+      const data = await response
+        .json()
+        .catch(() => ({}));
 
       if (!response.ok) {
-        setMessage(payload.error ?? "Action failed.");
-        return null;
+        throw new Error(
+          data.error ??
+            data.detail ??
+            "Team Board action failed."
+        );
       }
 
-      setWorkspace(payload);
-      return payload as FirmWorkspacePayload;
+      await loadWorkspace();
+
+      return data;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Action failed.");
+      setNotice({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Team Board action failed.",
+      });
+
       return null;
     } finally {
       setLoading(false);
     }
   }
 
-  async function createDelegatedTask(event: FormEvent) {
+  function localKeys(
+    userId = membership?.userId
+  ) {
+    return {
+      todos: userId
+        ? `slice-team-board-personal-work-v3:${userId}`
+        : "",
+      preferences: userId
+        ? `slice-team-board-rank-preferences-v3:${userId}`
+        : "",
+      docs: userId
+        ? `slice-team-board-docs-v3:${userId}`
+        : "",
+    };
+  }
+
+  function loadLocalData(userId: string) {
+    const keys = localKeys(userId);
+
+    try {
+      const todos = JSON.parse(
+        localStorage.getItem(
+          keys.todos
+        ) || "[]"
+      ) as PersonalTodo[];
+
+      const preferences = JSON.parse(
+        localStorage.getItem(
+          keys.preferences
+        ) || "{}"
+      ) as WorkPreferenceMap;
+
+      const loadedDocs = JSON.parse(
+        localStorage.getItem(
+          keys.docs
+        ) || "[]"
+      ) as LocalDoc[];
+
+      setPersonalTodos(
+        Array.isArray(todos)
+          ? todos
+          : []
+      );
+
+      setWorkPreferences(
+        preferences &&
+          typeof preferences ===
+            "object"
+          ? preferences
+          : {}
+      );
+
+      setDocs(
+        Array.isArray(loadedDocs)
+          ? loadedDocs
+          : []
+      );
+
+      setActiveDocId(
+        Array.isArray(loadedDocs)
+          ? loadedDocs[0]?.id ?? ""
+          : ""
+      );
+    } catch {
+      setPersonalTodos([]);
+      setWorkPreferences({});
+      setDocs([]);
+      setActiveDocId("");
+    }
+  }
+
+  function saveTodos(
+    next: PersonalTodo[]
+  ) {
+    setPersonalTodos(next);
+
+    const key = localKeys().todos;
+
+    if (key) {
+      localStorage.setItem(
+        key,
+        JSON.stringify(next)
+      );
+    }
+  }
+
+  function savePreferences(
+    next: WorkPreferenceMap
+  ) {
+    setWorkPreferences(next);
+
+    const key =
+      localKeys().preferences;
+
+    if (key) {
+      localStorage.setItem(
+        key,
+        JSON.stringify(next)
+      );
+    }
+  }
+
+  function saveDocs(next: LocalDoc[]) {
+    setDocs(next);
+
+    const key = localKeys().docs;
+
+    if (key) {
+      localStorage.setItem(
+        key,
+        JSON.stringify(next)
+      );
+    }
+  }
+
+  async function createDelegatedTask(
+    event: FormEvent
+  ) {
     event.preventDefault();
 
-    if (!taskForm.title.trim()) {
-      setMessage("Task title is required.");
+    if (!selectedMember) {
+      setNotice({
+        tone: "error",
+        text: "Choose an assignee first.",
+      });
+
       return;
     }
 
-    const intervalLine =
-      taskForm.reminderInterval && taskForm.reminderInterval !== "Once"
-        ? `Repeat interval: ${taskForm.reminderInterval}`
-        : "Repeat interval: Once";
+    if (!taskForm.title.trim()) {
+      setNotice({
+        tone: "error",
+        text: "Task title is required.",
+      });
 
-    const reminderNote = [intervalLine, taskForm.reminderNote]
-      .filter(Boolean)
-      .join("\n");
+      return;
+    }
 
-    const result = await postFirmAction({
-      action: "createDelegatedTask",
-      targetMembershipId: selectedMemberId || members[0]?.id,
-      title: taskForm.title,
-      detail: taskForm.detail,
-      priority: taskForm.priority,
-      status: taskForm.status,
-      dueDate: taskForm.dueDate,
-      reminderAt: taskForm.reminderAt,
-      reminderNote,
-      projectId: taskForm.projectId || null,
-      notifyEmail: taskForm.notifyEmail,
-    });
+    const firstReminderAt = new Date(
+      `${taskForm.reminderDate}T${taskForm.reminderTime}:00`
+    ).toISOString();
+
+    const result =
+      await postTaskAction({
+        action:
+          "createDelegatedTask",
+        targetMembershipId:
+          selectedMember.id,
+        title: taskForm.title,
+        detail: taskForm.detail,
+        priority: taskForm.priority,
+        status: "To Do",
+        dueDate: taskForm.dueDate,
+        projectId:
+          taskForm.projectId ||
+          null,
+        reminderAt:
+          firstReminderAt,
+        reminderCadence:
+          taskForm.reminderCadence,
+        reminderNote:
+          taskForm.reminderNote,
+        notifyEmail: true,
+        notifyOnCompletion: true,
+        notifyAtReminders: true,
+      });
 
     if (result) {
-      const emailStatus = result.emailResult
-        ? ` Email: ${result.emailResult.status}.`
-        : "";
-
       setTaskForm((current) => ({
         ...current,
         title: "",
         detail: "",
-        reminderAt: "",
-        reminderNote: "",
+        reminderNote:
+          "Please review this task and update its status in SLICE.",
       }));
 
-      setMessage(`Task delegated. The assigned person was notified in Slice.${emailStatus}`);
+      setNotice({
+        tone: "success",
+        text: `Task delegated to ${memberName(
+          selectedMember
+        )}. Creation email sent or safely simulated; reminders continue until completion.`,
+      });
     }
   }
 
-  async function moveTask(task: Task, status: string) {
-    const result = await postFirmAction({
-      action: "moveTask",
-      taskId: task.id,
-      status,
-    });
+  async function updateTask(
+    task: Task,
+    status: string
+  ) {
+    const result =
+      await postTaskAction({
+        action: "updateTask",
+        taskId: task.id,
+        status,
+      });
 
     if (result) {
-      setSelectedTaskId(task.id);
-      setMessage(`Task moved to ${status}.`);
+      setNotice({
+        tone: "success",
+        text:
+          status === "Complete"
+            ? "Task completed. The assigner and assignee were notified."
+            : `Task moved to ${status}.`,
+      });
     }
   }
 
-  async function createTimedReminder(event?: FormEvent) {
-    event?.preventDefault();
-
-    if (!selectedTask) {
-      setMessage("Select a task first.");
-      return;
-    }
-
-    const intervalLine =
-      taskForm.reminderInterval && taskForm.reminderInterval !== "Once"
-        ? `Repeat interval: ${taskForm.reminderInterval}`
-        : "Repeat interval: Once";
-
-    const result = await postFirmAction({
-      action: "createTimedReminder",
-      taskId: selectedTask.id,
-      targetMembershipId: selectedTask.ownerId || selectedMemberId,
-      reminderAt:
-        taskForm.reminderAt ||
-        `${selectedCalendarDate}${calendarQuickForm.time ? ` ${calendarQuickForm.time}` : ""}`,
-      reminderNote:
-        [intervalLine, taskForm.reminderNote || calendarQuickForm.note || "Please review this task and update the project workspace."]
-          .filter(Boolean)
-          .join("\n"),
-    });
-
-    if (result) {
-      setTaskForm((current) => ({
-        ...current,
-        reminderAt: "",
-        reminderNote: "",
-      }));
-      setCalendarQuickForm((current) => ({ ...current, note: "" }));
-      setMessage("Reminder created and interval saved to the task.");
-    }
-  }
-
-  async function createCalendarQuickTask(event: FormEvent) {
+  function addPersonalTodo(
+    event: FormEvent
+  ) {
     event.preventDefault();
 
-    const title = calendarQuickForm.title.trim();
-
-    if (!title) {
-      setMessage("Add a quick reminder title first.");
+    if (
+      !membership ||
+      !personalForm.title.trim()
+    ) {
       return;
     }
 
-    const result = await postFirmAction({
-      action: "createDelegatedTask",
-      targetMembershipId: selectedMemberId || membership?.id,
-      title,
-      detail: calendarQuickForm.note,
-      priority: "Medium",
-      status: "To Do",
-      dueDate: selectedCalendarDate,
-      reminderAt: `${selectedCalendarDate}${calendarQuickForm.time ? ` ${calendarQuickForm.time}` : ""}`,
-      reminderNote: [
-        `Repeat interval: ${calendarQuickForm.interval}`,
-        calendarQuickForm.note || title,
-      ].join("\n"),
-      projectId: null,
-      notifyEmail: true,
-    });
+    const now =
+      new Date().toISOString();
 
-    if (result) {
-      setCalendarQuickForm({
-        title: "",
-        note: "",
-        time: "09:00",
-        interval: "Once",
-      });
-      setMessage("Calendar reminder added and notification sent.");
-    }
-  }
-
-  async function createUniversalMessage(event: FormEvent) {
-    event.preventDefault();
-
-    if (!workspaceMessage.body.trim()) {
-      setMessage("Message body is required.");
-      return;
-    }
-
-    const fileLinks = workspaceMessage.fileLinks
-      .split(/\n|,/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const result = await postFirmAction({
-      action: "createWorkspaceMessage",
-      title: workspaceMessage.title,
-      body: workspaceMessage.body,
-      postType: workspaceMessage.postType,
-      projectId: workspaceMessage.projectId || null,
-      fileLinks,
-    });
-
-    if (result) {
-      setWorkspaceMessage({
-        title: "",
-        body: "",
-        postType: "Chat",
-        fileLinks: "",
-        projectId: "",
-      });
-      setMessage("Workspace message posted. Tagged users were notified.");
-    }
-  }
-
-  async function createIdea(event: FormEvent) {
-    event.preventDefault();
-
-    if (!firm?.id) {
-      setMessage("Create or connect to a firm first.");
-      return;
-    }
-
-    if (!ideaForm.title.trim()) {
-      setMessage("Idea title is required.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/firm-workspace/anonymous-ideas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-slice-sensitive-action": "create-firm-idea",
-        },
-        body: JSON.stringify({
-          action: "createIdea",
-          firmId: firm.id,
-          ...ideaForm,
-          fileLinks: ideaForm.fileLinks
-            .split(/\n|,/)
-            .map((item) => item.trim())
-            .filter(Boolean),
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Unable to submit idea.");
-        return;
-      }
-
-      setIdeaForm({
-        title: "",
-        body: "",
-        category: "Growth",
-        impact: "Medium",
-        effort: "Medium",
-        ownerHint: "",
-        projectId: "",
-        fileLinks: "",
-        anonymous: true,
-      });
-
-      await loadWorkspace();
-      setSelectedIdeaId(payload.createdIdeaId || "");
-      setMessage("Idea submitted to the brainstorm board.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to submit idea.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function voteIdea(ideaId: string) {
-    if (!firm?.id) return;
-
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/firm-workspace/anonymous-ideas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-slice-sensitive-action": "vote-firm-idea",
-        },
-        body: JSON.stringify({
-          action: "voteIdea",
-          firmId: firm.id,
-          ideaId,
-          anonymous: true,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Unable to vote.");
-        return;
-      }
-
-      await loadWorkspace();
-      setMessage(ownerMode ? "Anonymous vote recorded." : "Anonymous vote recorded. Vote totals are visible to the firm owner.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to vote.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function addIdeaNote(event: FormEvent) {
-    event.preventDefault();
-
-    if (!firm?.id || !selectedIdea || !ideaNote.trim()) {
-      setMessage("Select an idea and add a note first.");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/firm-workspace/anonymous-ideas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-slice-sensitive-action": "note-firm-idea",
-        },
-        body: JSON.stringify({
-          action: "addIdeaNote",
-          firmId: firm.id,
-          ideaId: selectedIdea.id,
-          note: ideaNote,
-          anonymous: ideaNoteAnonymous,
-        }),
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok) {
-        setMessage(payload.error ?? "Unable to add note.");
-        return;
-      }
-
-      setIdeaNote("");
-      await loadWorkspace();
-      setMessage("Note added to brainstorm bubble.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to add note.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function updateIdeaStatus(ideaId: string, status: string) {
-    const result = await postFirmAction({
-      action: "updateIdeaStatus",
-      ideaId,
-      status,
-      note: `Moved to ${status}.`,
-    });
-
-    if (result) setMessage(`Idea moved to ${status}.`);
-  }
-
-  async function removeIdeaBubble(ideaId: string) {
-    if (!isLeader(membership)) {
-      setMessage("Only firm leaders can remove brainstorm bubbles.");
-      return;
-    }
-
-    const result = await postFirmAction({
-      action: "updateIdeaStatus",
-      ideaId,
-      status: "Removed",
-      note: "Removed from active brainstorm chart.",
-    });
-
-    if (result) {
-      const remainingIdeas = (result.operations?.ideaBoard ?? []).filter(
-        (idea) => !ideaIsRemoved(idea)
-      );
-      setSelectedIdeaId(remainingIdeas[0]?.id ?? "");
-      setMessage("Bubble removed from the active brainstorm chart.");
-    }
-  }
-
-  async function createTaskFromIdea(idea: FirmPost) {
-    const result = await postFirmAction({
-      action: "createDelegatedTask",
-      targetMembershipId: ideaAssigneeId || selectedMemberId || members[0]?.id,
-      title: `Explore idea: ${idea.title}`,
-      detail: cleanIdeaBodyForDisplay(idea.body),
-      priority: ideaImpact(idea) === "Critical" || ideaImpact(idea) === "High" ? "High" : "Medium",
-      status: "To Do",
-      dueDate: ymd(new Date()),
-      reminderAt: "",
-      reminderNote: `Repeat interval: Weekly\nFollow up on brainstorm idea.`,
-      projectId: idea.project?.id ?? null,
-      notifyEmail: true,
-    });
-
-    if (result) {
-      setMessage("Task created from brainstorm bubble and assignee was notified.");
-    }
-  }
-
-  function loadLocalWork() {
-    if (!membership) return;
-
-    try {
-      const docRaw = localStorage.getItem(`slice-team-docs:${membership.userId}`);
-      const todoRaw = localStorage.getItem(`slice-team-todos:${membership.userId}`);
-
-      const loadedDocs = docRaw ? (JSON.parse(docRaw) as LocalDoc[]) : [];
-      const loadedTodos = todoRaw ? (JSON.parse(todoRaw) as LocalTodo[]) : [];
-
-      setDocs(loadedDocs);
-      setTodos(loadedTodos);
-
-      if (!activeDocId && loadedDocs[0]) setActiveDocId(loadedDocs[0].id);
-    } catch {
-      setDocs([]);
-      setTodos([]);
-    }
-  }
-
-  function saveLocalWork(nextDocs = docs, nextTodos = todos) {
-    if (!membership) return;
-
-    try {
-      localStorage.setItem(`slice-team-docs:${membership.userId}`, JSON.stringify(nextDocs));
-      localStorage.setItem(`slice-team-todos:${membership.userId}`, JSON.stringify(nextTodos));
-    } catch {
-      setMessage("Local save failed. Try removing very large pasted files.");
-    }
-  }
-
-  function createDoc(templateName?: string) {
-    if (!membership) return;
-
-    const template =
-      docTemplates.find((item) => item.name === templateName) ?? docTemplates[0];
-
-    const now = new Date().toISOString();
-
-    const doc: LocalDoc = {
-      id: `doc-${Date.now()}`,
-      ownerUserId: membership.userId,
-      title: templateName ? `${template.name} - ${shortDate(ymd(new Date()))}` : "Untitled Work Doc",
-      category: template.category,
-      labels: template.labels,
-      body: templateName ? template.body : "",
-      fontSize: "16px",
-      fontFamily: "Inter",
-      favorite: false,
-      template: template.name,
-      attachments: [],
+    const todo: PersonalTodo = {
+      id: `personal-${Date.now()}`,
+      ownerUserId:
+        membership.userId,
+      title:
+        personalForm.title.trim(),
+      detail:
+        personalForm.detail.trim(),
+      category:
+        personalForm.category.trim() ||
+        "General",
+      priority:
+        personalForm.priority,
+      dueDate:
+        personalForm.dueDate,
+      done: false,
       createdAt: now,
       updatedAt: now,
     };
 
-    const nextDocs = [doc, ...docs];
-    setDocs(nextDocs);
-    setActiveDocId(doc.id);
-    saveLocalWork(nextDocs, todos);
-  }
+    saveTodos([
+      todo,
+      ...personalTodos,
+    ]);
 
-  function updateActiveDoc(patch: Partial<LocalDoc>) {
-    if (!activeDoc) return;
+    setPersonalForm((current) => ({
+      ...current,
+      title: "",
+      detail: "",
+    }));
 
-    const nextDocs = docs.map((doc) =>
-      doc.id === activeDoc.id
-        ? {
-            ...doc,
-            ...patch,
-            updatedAt: new Date().toISOString(),
-          }
-        : doc
+    setSelectedWorkKey(
+      `todo:${todo.id}`
     );
-
-    setDocs(nextDocs);
-    saveLocalWork(nextDocs, todos);
   }
 
-  function deleteDoc(docId: string) {
-    const nextDocs = docs.filter((doc) => doc.id !== docId);
-    setDocs(nextDocs);
-    setActiveDocId(nextDocs[0]?.id ?? "");
-    saveLocalWork(nextDocs, todos);
+  function togglePersonalTodo(
+    todo: PersonalTodo
+  ) {
+    saveTodos(
+      personalTodos.map((item) =>
+        item.id === todo.id
+          ? {
+              ...item,
+              done: !item.done,
+              updatedAt:
+                new Date().toISOString(),
+            }
+          : item
+      )
+    );
   }
 
-  function exportDoc() {
-    if (!activeDoc) return;
-
-    const blob = new Blob([activeDoc.body], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${activeDoc.title.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "slice-doc"}.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  function deletePersonalTodo(
+    todoId: string
+  ) {
+    saveTodos(
+      personalTodos.filter(
+        (todo) =>
+          todo.id !== todoId
+      )
+    );
   }
 
-  function addTodo(event: FormEvent) {
-    event.preventDefault();
+  function updatePreference(
+    key: string,
+    patch: WorkPreference
+  ) {
+    savePreferences({
+      ...workPreferences,
+      [key]: {
+        ...(workPreferences[key] ??
+          {}),
+        ...patch,
+      },
+    });
+  }
 
-    if (!membership || !todoTitle.trim()) return;
+  function adjustManualRank(
+    item: RankedWorkItem,
+    direction: -1 | 1
+  ) {
+    updatePreference(item.key, {
+      manualRank: Math.min(
+        5,
+        Math.max(
+          1,
+          item.manualRank +
+            direction
+        )
+      ),
+    });
+  }
 
-    const todo: LocalTodo = {
-      id: `todo-${Date.now()}`,
-      ownerUserId: membership.userId,
-      title: todoTitle.trim(),
-      category: todoCategory,
-      date: todoDate,
-      done: false,
-      createdAt: new Date().toISOString(),
+  function createDoc(
+    template?: DocTemplate
+  ) {
+    if (!membership) {
+      return;
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const doc: LocalDoc = {
+      id: `doc-${Date.now()}`,
+      ownerUserId:
+        membership.userId,
+      title: template
+        ? `${template.name} — ${formatDate(
+            localYmd()
+          )}`
+        : "Untitled Advisor Doc",
+      category:
+        template?.category ??
+        "General",
+      labels:
+        template?.labels ?? [
+          "advisor",
+        ],
+      body: template?.body ?? "",
+      favorite: false,
+      template:
+        template?.name ?? "Blank",
+      createdAt: now,
+      updatedAt: now,
     };
 
-    const nextTodos = [todo, ...todos];
-    setTodos(nextTodos);
-    setTodoTitle("");
-    saveLocalWork(docs, nextTodos);
+    saveDocs([doc, ...docs]);
+    setActiveDocId(doc.id);
   }
 
-  function toggleTodo(todoId: string) {
-    const nextTodos = todos.map((todo) =>
-      todo.id === todoId ? { ...todo, done: !todo.done } : todo
+  function updateActiveDoc(
+    patch: Partial<LocalDoc>
+  ) {
+    if (!activeDoc) {
+      return;
+    }
+
+    saveDocs(
+      docs.map((doc) =>
+        doc.id === activeDoc.id
+          ? {
+              ...doc,
+              ...patch,
+              updatedAt:
+                new Date().toISOString(),
+            }
+          : doc
+      )
+    );
+  }
+
+  function deleteActiveDoc() {
+    if (!activeDoc) {
+      return;
+    }
+
+    const next = docs.filter(
+      (doc) =>
+        doc.id !== activeDoc.id
     );
 
-    setTodos(nextTodos);
-    saveLocalWork(docs, nextTodos);
+    saveDocs(next);
+
+    setActiveDocId(
+      next.find(
+        (doc) =>
+          doc.ownerUserId ===
+          membership?.userId
+      )?.id ?? ""
+    );
   }
 
-  function deleteTodo(todoId: string) {
-    const nextTodos = todos.filter((todo) => todo.id !== todoId);
-    setTodos(nextTodos);
-    saveLocalWork(docs, nextTodos);
-  }
-
-  function readFileAsAttachment(file: File) {
-    return new Promise<LocalAttachment>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        resolve({
-          id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          name: file.name,
-          type: file.type || "application/octet-stream",
-          size: file.size,
-          dataUrl: String(reader.result ?? ""),
-          createdAt: new Date().toISOString(),
-        });
-      };
-
-      reader.onerror = () => reject(new Error("Unable to read file."));
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function addFilesToDoc(files: FileList | File[]) {
-    if (!activeDoc) return;
-
-    const safeFiles = Array.from(files).slice(0, 8);
-    const attachments: LocalAttachment[] = [];
-
-    for (const file of safeFiles) {
-      if (file.size > 3 * 1024 * 1024) {
-        setMessage(`${file.name} is too large for local doc storage. Use a link instead.`);
-        continue;
-      }
-
-      attachments.push(await readFileAsAttachment(file));
+  function appendDocPrompt(
+    text: string
+  ) {
+    if (!activeDoc) {
+      return;
     }
 
-    if (!attachments.length) return;
+    const textarea =
+      docEditorRef.current;
+
+    const start =
+      textarea?.selectionStart ??
+      activeDoc.body.length;
+
+    const end =
+      textarea?.selectionEnd ??
+      activeDoc.body.length;
+
+    const nextBody = `${activeDoc.body.slice(
+      0,
+      start
+    )}${text}${activeDoc.body.slice(
+      end
+    )}`;
 
     updateActiveDoc({
-      attachments: [...attachments, ...activeDoc.attachments],
+      body: nextBody,
     });
 
-    setMessage(`${attachments.length} file(s) added to the doc.`);
-  }
+    requestAnimationFrame(() => {
+      textarea?.focus();
 
-  async function handleDocFileInput(event: ChangeEvent<HTMLInputElement>) {
-    if (!event.target.files) return;
-    await addFilesToDoc(event.target.files);
-    event.target.value = "";
-  }
+      const position =
+        start + text.length;
 
-  async function handleDocPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const files = Array.from(event.clipboardData.files ?? []);
-
-    if (files.length) {
-      await addFilesToDoc(files);
-    }
-  }
-
-  function removeDocAttachment(attachmentId: string) {
-    if (!activeDoc) return;
-
-    updateActiveDoc({
-      attachments: activeDoc.attachments.filter((item) => item.id !== attachmentId),
+      textarea?.setSelectionRange(
+        position,
+        position
+      );
     });
   }
 
   useEffect(() => {
     void loadWorkspace();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    loadLocalWork();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [membership?.userId]);
-
-  if (!firm) {
-    return (
-      <section className="grid gap-5">
-        <div className="rounded-[2rem] border border-amber-500/25 bg-amber-500/10 p-6">
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
-            Team Board
-          </div>
-          <h2 className="mt-2 text-3xl font-black text-white">
-            Connect this account to a firm workspace first.
-          </h2>
-          <p className="mt-3 text-sm leading-7 text-amber-100/80">
-            Once a firm is created or the user accepts an invite, this tab becomes the shared operating workspace for delegation, brainstorm charts, reminders, docs, personal work, and team collaboration.
-          </p>
-          <a
-            href="/workspace/firm-command-center"
-            className="mt-4 inline-flex rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-          >
-            Open Firm Command Center
-          </a>
-        </div>
-      </section>
-    );
-  }
-
-  const renderDocsEditor = () => {
-    if (!activeDoc) {
-      return (
-        <Panel className="flex min-h-[560px] items-center justify-center text-center">
-          <div>
-            <h3 className="text-2xl font-black text-white">Create your first doc</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              Docs are personal to each user and support templates, categories, labels, fullscreen mode, pasted images, and file attachments.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {docTemplates.map((template) => (
-                <button
-                  key={template.name}
-                  type="button"
-                  onClick={() => createDoc(template.name)}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-                >
-                  {template.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </Panel>
+    if (membership?.userId) {
+      loadLocalData(
+        membership.userId
       );
     }
+  }, [membership?.userId]);
 
-    return (
-      <Panel className={docFullScreen ? "fixed inset-4 z-[100] overflow-y-auto bg-zinc-950 p-5 shadow-2xl" : ""}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-              Personal Doc Editor
-            </div>
-            <h3 className="mt-1 text-2xl font-black text-white">{activeDoc.title}</h3>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => updateActiveDoc({ favorite: !activeDoc.favorite })}
-              className={cx(
-                "rounded-2xl px-4 py-2 text-xs font-black",
-                activeDoc.favorite
-                  ? "bg-amber-500 text-slate-950"
-                  : "border border-amber-500/30 bg-amber-500/10 text-amber-100"
-              )}
-            >
-              {activeDoc.favorite ? "★ Favorite" : "☆ Favorite"}
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-xs font-black text-cyan-100"
-            >
-              Add Image/File
-            </button>
-            <button
-              type="button"
-              onClick={() => setDocPreview((current) => !current)}
-              className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-black text-white"
-            >
-              {docPreview ? "Hide Preview" : "Preview"}
-            </button>
-            <button
-              type="button"
-              onClick={exportDoc}
-              className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100"
-            >
-              Export
-            </button>
-            <button
-              type="button"
-              onClick={() => setDocFullScreen((current) => !current)}
-              className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-            >
-              {docFullScreen ? "Exit Full Screen" : "Full Screen"}
-            </button>
-            <button
-              type="button"
-              onClick={() => deleteDoc(activeDoc.id)}
-              className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          onChange={handleDocFileInput}
-          className="hidden"
-        />
-
-        <div className="mt-5 grid gap-3 md:grid-cols-[1fr_180px_180px]">
-          <input
-            value={activeDoc.title}
-            onChange={(event) => updateActiveDoc({ title: event.target.value })}
-            className={inputClass}
-            placeholder="Document title"
-          />
-          <input
-            value={activeDoc.category}
-            onChange={(event) => updateActiveDoc({ category: event.target.value })}
-            className={inputClass}
-            placeholder="Category"
-          />
-          <input
-            value={activeDoc.labels.join(", ")}
-            onChange={(event) =>
-              updateActiveDoc({
-                labels: event.target.value
-                  .split(",")
-                  .map((item) => item.trim())
-                  .filter(Boolean),
-              })
-            }
-            className={inputClass}
-            placeholder="Labels"
-          />
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-[180px_180px_1fr]">
-          <select
-            value={activeDoc.fontSize}
-            onChange={(event) => updateActiveDoc({ fontSize: event.target.value })}
-            className={inputClass}
-          >
-            <option value="14px">Small</option>
-            <option value="16px">Normal</option>
-            <option value="18px">Large</option>
-            <option value="22px">Presentation</option>
-          </select>
-
-          <select
-            value={activeDoc.fontFamily}
-            onChange={(event) => updateActiveDoc({ fontFamily: event.target.value })}
-            className={inputClass}
-          >
-            <option value="Inter">Inter</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Arial">Arial</option>
-            <option value="ui-monospace">Monospace</option>
-          </select>
-
-          <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs font-bold text-slate-500">
-            Paste images directly into the editor or use Add Image/File. Files are stored locally in this browser.
-          </div>
-        </div>
-
-        <div className={cx("mt-4 grid gap-4", docPreview ? "xl:grid-cols-2" : "")}>
-          <textarea
-            value={activeDoc.body}
-            onPaste={handleDocPaste}
-            onChange={(event) => updateActiveDoc({ body: event.target.value })}
-            placeholder="Start typing. This can be a personal note, client prep document, report outline, research memo, or daily work doc."
-            className="min-h-[620px] w-full rounded-[1.5rem] border border-white/10 bg-black/45 px-5 py-5 leading-8 text-white outline-none placeholder:text-slate-600"
-            style={{
-              fontSize: activeDoc.fontSize,
-              fontFamily: activeDoc.fontFamily,
-            }}
-          />
-
-          {docPreview ? (
-            <div className="min-h-[620px] rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-5">
-              <div className="mb-4 flex flex-wrap gap-2">
-                <Pill tone="cyan">{activeDoc.category}</Pill>
-                {activeDoc.labels.map((label) => (
-                  <Pill key={label} tone="slate">{label}</Pill>
-                ))}
-              </div>
-              <div
-                className="whitespace-pre-wrap leading-8 text-slate-200"
-                style={{
-                  fontSize: activeDoc.fontSize,
-                  fontFamily: activeDoc.fontFamily,
-                }}
-              >
-                {activeDoc.body || "Preview will appear here as you type."}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {activeDoc.attachments.length ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {activeDoc.attachments.map((attachment) => (
-              <AttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                onRemove={() => removeDocAttachment(attachment.id)}
-              />
-            ))}
-          </div>
-        ) : null}
-      </Panel>
-    );
-  };
+  useEffect(() => {
+    if (
+      rankedWork.length &&
+      !rankedWork.some(
+        (item) =>
+          item.key ===
+          selectedWorkKey
+      )
+    ) {
+      setSelectedWorkKey(
+        rankedWork[0].key
+      );
+    }
+  }, [rankedWork, selectedWorkKey]);
 
   return (
-    <section className="grid gap-5">
-      <div className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-zinc-950/80 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-red-600/18 via-purple-500/8 to-transparent" />
+    <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_9%_0%,rgba(153,27,27,0.46),transparent_30%),radial-gradient(circle_at_84%_8%,rgba(239,68,68,0.13),transparent_25%),radial-gradient(circle_at_60%_100%,rgba(6,182,212,0.07),transparent_28%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
 
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
-              Team Board · Firm Operating Workspace
-            </div>
-            <h2 className="mt-2 text-4xl font-black tracking-tight text-white md:text-5xl">
-              A cleaner operating room for delegation, ideas, docs, and execution.
-            </h2>
-            <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
-              Assign work with reminders and email alerts, click calendar days to schedule follow-ups, open brainstorm bubbles, vote anonymously, remove bubbles when needed, assign ideas as tasks, monitor completed work, and keep richer personal docs.
-            </p>
-          </div>
+      <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/workspace/firm-command-center"
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-            >
-              Full Command Center
-            </a>
-            <button
-              type="button"
-              onClick={() => void loadWorkspace()}
-              className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="relative mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
-          <Metric label="Total Tasks" value={operations.sprintMetrics.total} tone="cyan" />
-          <Metric label="Open" value={operations.sprintMetrics.open} tone="amber" />
-          <Metric label="Progress" value={operations.sprintMetrics.inProgress} tone="purple" />
-          <Metric label="Blocked" value={operations.sprintMetrics.blocked} tone={operations.sprintMetrics.blocked ? "red" : "green"} />
-          <Metric label="Complete" value={operations.sprintMetrics.complete} tone="green" />
-          <Metric label="Ideas" value={visibleIdeaBoard.length} tone="purple" />
-          <Metric label="My To-Dos" value={`${myTodoCompletion}%`} tone="green" helper="Daily done" />
-          <Metric label="Docs" value={filteredDocs.length} tone="amber" />
-        </div>
-      </div>
-
-      {message ? (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
-          {message}
-        </div>
-      ) : null}
-
-      <div className="grid gap-2 rounded-[1.5rem] border border-white/10 bg-black/45 p-2 md:grid-cols-3 xl:grid-cols-6">
-        {viewTabs.map(([key, label, helper, tone]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setActiveView(key)}
-            className={cx(
-              "rounded-2xl px-4 py-3 text-left transition",
-              activeView === key
-                ? "bg-white text-slate-950 shadow-lg shadow-black/20"
-                : "bg-white/5 text-white hover:bg-white/10"
-            )}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-black">{label}</div>
-              <span
-                className={cx(
-                  "h-2 w-2 rounded-full",
-                  tone === "red"
-                    ? "bg-red-400"
-                    : tone === "green"
-                      ? "bg-emerald-400"
-                      : tone === "amber"
-                        ? "bg-amber-400"
-                        : tone === "purple"
-                          ? "bg-purple-400"
-                          : tone === "cyan"
-                            ? "bg-cyan-400"
-                            : "bg-slate-400"
-                )}
-              />
-            </div>
-            <div className={cx("mt-1 text-[10px] font-bold", activeView === key ? "text-slate-500" : "text-slate-500")}>
-              {helper}
-            </div>
-          </button>
-        ))}
-      </div>
-
-      {activeView === "delegate" ? (
-        <div className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-red-500/12 to-transparent" />
-
-            <div className="relative">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
-                Delegation Cockpit
+      <div className="relative mx-auto grid max-w-[1900px] gap-5">
+        <header className="min-w-0 rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+          <div className="flex min-w-0 flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+                <FolderKanban className="h-4 w-4" />
+                Slice Team Board OS
               </div>
-              <h3 className="mt-2 text-2xl font-black text-white">
-                Assign fast with priority and reminder intervals
-              </h3>
 
-              <form onSubmit={createDelegatedTask} className="mt-5 grid gap-3">
-                <select
-                  value={selectedMemberId}
-                  onChange={(event) => setSelectedMemberId(event.target.value)}
-                  className={inputClass}
-                >
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {memberName(member)} · {member.role}
-                    </option>
-                  ))}
-                </select>
+              <h1 className="mt-3 break-words text-4xl font-black tracking-tight md:text-6xl">
+                Delegate clearly. Rank intelligently. Document everything.
+              </h1>
 
-                {selectedMember ? (
-                  <div className="rounded-[1.5rem] border border-white/10 bg-black/35 p-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-sm font-black text-white shadow-lg"
-                        style={{ backgroundColor: selectedMember.calendarColor }}
-                      >
-                        {initials(memberName(selectedMember))}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-lg font-black text-white">
-                          {memberName(selectedMember)}
+              <p className="mt-3 max-w-4xl text-sm font-medium leading-7 text-slate-400 md:text-base">
+                A focused advisor execution system for assignment, recurring
+                accountability, personal priorities, and organized working
+                documents.
+              </p>
+            </div>
+
+            <a
+              href="/workspace"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to workspace
+            </a>
+          </div>
+        </header>
+
+        <NoticeBar
+          notice={notice}
+          close={() =>
+            setNotice(null)
+          }
+        />
+
+        {loading && !firm ? (
+          <Panel className="grid min-h-[520px] place-items-center p-8 text-center">
+            <div>
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-red-300" />
+
+              <h2 className="mt-4 text-2xl font-black">
+                Loading firm workspace
+              </h2>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Retrieving team assignments and permissions.
+              </p>
+            </div>
+          </Panel>
+        ) : !firm || !membership ? (
+          <Panel className="p-8 text-center">
+            <Users className="mx-auto h-10 w-10 text-amber-300" />
+
+            <h2 className="mt-4 text-3xl font-black">
+              Connect this user to a firm workspace.
+            </h2>
+
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">
+              Create or join a firm from the main workspace, then return here
+              to delegate work, rank priorities, and manage advisor documents.
+            </p>
+          </Panel>
+        ) : (
+          <>
+            <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric
+                label="My open work"
+                value={
+                  myTasks.filter(
+                    (task) =>
+                      !isComplete(
+                        task.status
+                      )
+                  ).length +
+                  personalTodos.filter(
+                    (todo) =>
+                      todo.ownerUserId ===
+                        membership.userId &&
+                      !todo.done
+                  ).length
+                }
+                helper="Ranked advisor priorities"
+                icon={
+                  <LayoutList className="h-5 w-5" />
+                }
+              />
+
+              <Metric
+                label="Team open tasks"
+                value={
+                  allTasks.filter(
+                    (task) =>
+                      !isComplete(
+                        task.status
+                      )
+                  ).length
+                }
+                helper="Across active assignees"
+                icon={
+                  <Users className="h-5 w-5" />
+                }
+              />
+
+              <Metric
+                label="Overdue"
+                value={
+                  allTasks.filter(
+                    (task) =>
+                      !isComplete(
+                        task.status
+                      ) &&
+                      daysUntil(
+                        task.dueDate
+                      ) < 0
+                  ).length
+                }
+                helper="Needs immediate attention"
+                icon={
+                  <CircleAlert className="h-5 w-5" />
+                }
+              />
+
+              <Metric
+                label="My docs"
+                value={activeDocs.length}
+                helper="Labeled working library"
+                icon={
+                  <BookOpenText className="h-5 w-5" />
+                }
+              />
+            </section>
+
+            <nav className="grid min-w-0 gap-2 rounded-[1.6rem] border border-white/10 bg-black/55 p-2 md:grid-cols-3">
+              {(
+                [
+                  [
+                    "delegate",
+                    "Delegate",
+                    "Assign, remind, and track",
+                    Send,
+                  ],
+                  [
+                    "my-work",
+                    "My Work",
+                    "Custom ranked to-do list",
+                    Target,
+                  ],
+                  [
+                    "docs",
+                    "Docs",
+                    "Prompted, labeled, and sorted",
+                    FileText,
+                  ],
+                ] as const
+              ).map(
+                ([
+                  key,
+                  label,
+                  helper,
+                  Icon,
+                ]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() =>
+                      setActiveView(
+                        key
+                      )
+                    }
+                    className={cx(
+                      "min-w-0 rounded-2xl px-4 py-3 text-left transition",
+                      activeView === key
+                        ? "bg-white text-zinc-950"
+                        : "text-slate-300 hover:bg-white/[0.06]"
+                    )}
+                  >
+                    <div className="flex min-w-0 items-center gap-2 text-sm font-black">
+                      <Icon className="h-4 w-4 shrink-0" />
+
+                      <span className="truncate">
+                        {label}
+                      </span>
+                    </div>
+
+                    <div
+                      className={cx(
+                        "mt-1 truncate text-xs",
+                        activeView ===
+                          key
+                          ? "text-slate-600"
+                          : "text-slate-500"
+                      )}
+                    >
+                      {helper}
+                    </div>
+                  </button>
+                )
+              )}
+            </nav>
+
+            {activeView ===
+            "delegate" ? (
+              <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1fr)_430px]">
+                <div className="grid min-w-0 gap-5">
+                  <Panel>
+                    <div className="border-b border-white/10 bg-gradient-to-r from-red-950/50 via-zinc-950 to-zinc-950 p-5 md:p-6">
+                      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                            Assignee intelligence
+                          </div>
+
+                          <h2 className="mt-2 break-words text-3xl font-black">
+                            Choose the right person before assigning the work
+                          </h2>
+
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                            Compare active workload, urgent assignments, and
+                            capacity before delegating.
+                          </p>
                         </div>
-                        <div className="truncate text-xs text-slate-500">
-                          {selectedMember.user?.email} · {selectedMember.role}
+
+                        <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-100">
+                          Creation, reminder, and completion email enabled
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid min-w-0 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3">
+                      {memberWorkload.map(
+                        ({
+                          member,
+                          open,
+                          urgent,
+                          capacity,
+                        }) => {
+                          const selected =
+                            selectedMember?.id ===
+                            member.id;
+
+                          return (
+                            <button
+                              key={
+                                member.id
+                              }
+                              type="button"
+                              onClick={() =>
+                                setSelectedMemberId(
+                                  member.id
+                                )
+                              }
+                              className={cx(
+                                "min-w-0 overflow-hidden rounded-2xl border p-4 text-left transition",
+                                selected
+                                  ? "border-red-400/45 bg-red-500/10"
+                                  : "border-white/10 bg-white/[0.035] hover:bg-white/[0.065]"
+                              )}
+                            >
+                              <div className="flex min-w-0 items-center gap-3">
+                                <div
+                                  className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xs font-black text-white"
+                                  style={{
+                                    backgroundColor:
+                                      member.calendarColor ||
+                                      "#64748b",
+                                  }}
+                                >
+                                  {initials(
+                                    memberName(
+                                      member
+                                    )
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-sm font-black">
+                                    {memberName(
+                                      member
+                                    )}
+                                  </div>
+
+                                  <div className="mt-1 truncate text-xs text-slate-500">
+                                    {
+                                      member.role
+                                    }{" "}
+                                    · {open} open
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={cx(
+                                    "grid h-6 w-6 shrink-0 place-items-center rounded-full border",
+                                    selected
+                                      ? "border-red-300 bg-red-500 text-white"
+                                      : "border-white/15 text-transparent"
+                                  )}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-2 gap-2">
+                                <div className="rounded-xl bg-black/30 p-2.5">
+                                  <div className="text-[9px] font-black uppercase text-slate-600">
+                                    Urgent
+                                  </div>
+
+                                  <div className="mt-1 text-lg font-black">
+                                    {urgent}
+                                  </div>
+                                </div>
+
+                                <div className="rounded-xl bg-black/30 p-2.5">
+                                  <div className="text-[9px] font-black uppercase text-slate-600">
+                                    Capacity
+                                  </div>
+
+                                  <div className="mt-1 text-lg font-black">
+                                    {
+                                      capacity
+                                    }
+                                    %
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+                  </Panel>
+
+                  <Panel>
+                    <div className="border-b border-white/10 p-5">
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-400">
+                            Active assignments
+                          </div>
+
+                          <h3 className="mt-2 truncate text-2xl font-black">
+                            {memberName(
+                              selectedMember
+                            )}
+                          </h3>
+                        </div>
+
+                        <Badge className="border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
+                          {
+                            selectedMemberTasks.length
+                          }{" "}
+                          open
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid min-w-0 gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+                      {selectedMemberTasks.map(
+                        (task) => {
+                          const reminder =
+                            taskReminder(
+                              task
+                            );
+
+                          return (
+                            <article
+                              key={
+                                task.id
+                              }
+                              className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+                            >
+                              <div className="flex min-w-0 items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <h4 className="break-words text-sm font-black">
+                                    {
+                                      task.title
+                                    }
+                                  </h4>
+
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    Due{" "}
+                                    {formatDate(
+                                      task.dueDate
+                                    )}
+                                  </div>
+                                </div>
+
+                                <Badge
+                                  className={priorityStyle(
+                                    task.priority
+                                  )}
+                                >
+                                  {
+                                    task.priority
+                                  }
+                                </Badge>
+                              </div>
+
+                              <p className="mt-3 line-clamp-3 break-words text-xs leading-5 text-slate-400">
+                                {task.detail ||
+                                  "No details supplied."}
+                              </p>
+
+                              <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                                <Badge
+                                  className={statusStyle(
+                                    task.status
+                                  )}
+                                >
+                                  {
+                                    task.status
+                                  }
+                                </Badge>
+
+                                {reminder ? (
+                                  <Badge className="border-amber-400/20 bg-amber-400/10 text-amber-100">
+                                    {
+                                      reminder.cadence
+                                    }
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </article>
+                          );
+                        }
+                      )}
+
+                      {!selectedMemberTasks.length ? (
+                        <div className="rounded-2xl border border-dashed border-white/10 p-7 text-center text-sm font-bold text-slate-500 md:col-span-2 xl:col-span-3">
+                          This team member has no open assignments.
+                        </div>
+                      ) : null}
+                    </div>
+                  </Panel>
+                </div>
+
+                <Panel className="h-fit 2xl:sticky 2xl:top-5">
+                  <div className="border-b border-white/10 p-5">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                      <Send className="h-3.5 w-3.5" />
+                      Fast delegation
+                    </div>
+
+                    <h2 className="mt-2 break-words text-2xl font-black">
+                      Assign with automatic accountability
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      The assignee receives an email now, at every reminder
+                      interval, and when the task is completed. The assigner is
+                      also notified on completion.
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={
+                      createDelegatedTask
+                    }
+                    className="grid min-w-0 gap-4 p-5"
+                  >
+                    <div>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        Quick task starter
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {TASK_STARTERS.map(
+                          (starter) => (
+                            <button
+                              key={
+                                starter.label
+                              }
+                              type="button"
+                              onClick={() =>
+                                setTaskForm(
+                                  (
+                                    current
+                                  ) => ({
+                                    ...current,
+                                    title:
+                                      starter.title,
+                                    detail:
+                                      starter.detail,
+                                    priority:
+                                      starter.priority,
+                                  })
+                                )
+                              }
+                              className="min-w-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-left text-[11px] font-black transition hover:border-red-400/30 hover:bg-red-500/10"
+                            >
+                              <span className="block truncate">
+                                {
+                                  starter.label
+                                }
+                              </span>
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedMember ? (
+                      <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-3">
+                        <div
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xs font-black"
+                          style={{
+                            backgroundColor:
+                              selectedMember.calendarColor ||
+                              "#64748b",
+                          }}
+                        >
+                          {initials(
+                            memberName(
+                              selectedMember
+                            )
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black">
+                            {memberName(
+                              selectedMember
+                            )}
+                          </div>
+
+                          <div className="mt-1 truncate text-xs text-red-100/60">
+                            {
+                              selectedMember
+                                .user?.email
+                            }
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : null}
 
-                    <div className="mt-4 grid gap-3">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-400">
-                        <span>Current workload</span>
-                        <span>{allTasks.filter((task) => task.ownerId === selectedMember.id && task.status !== "Complete" && task.status !== "Done").length} open tasks</span>
-                      </div>
-                      <ProgressBar
-                        value={100 - Math.min(100, allTasks.filter((task) => task.ownerId === selectedMember.id && task.status !== "Complete" && task.status !== "Done").length * 12)}
-                        tone="cyan"
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                <input
-                  value={taskForm.title}
-                  onChange={(event) =>
-                    setTaskForm((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="Task title"
-                  className={inputClass}
-                />
-
-                <textarea
-                  value={taskForm.detail}
-                  onChange={(event) =>
-                    setTaskForm((current) => ({ ...current, detail: event.target.value }))
-                  }
-                  placeholder="Task detail. Add expected outcome, source links, and success criteria."
-                  className={cx(inputClass, "min-h-28")}
-                />
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  <select
-                    value={taskForm.priority}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, priority: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-
-                  <select
-                    value={taskForm.status}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, status: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    {operations.scrumStatuses.map((status) => (
-                      <option key={status}>{status}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Priority weight
-                    </div>
-                    <Pill tone={toneFor(taskForm.priority)}>{taskForm.priority}</Pill>
-                  </div>
-                  <ProgressBar value={priorityScore(taskForm.priority)} tone={toneFor(taskForm.priority)} />
-                </div>
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    type="date"
-                    value={taskForm.dueDate}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, dueDate: event.target.value }))
-                    }
-                    className={inputClass}
-                  />
-
-                  <select
-                    value={taskForm.projectId}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, projectId: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
-                    Reminder cadence
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
                     <input
-                      value={taskForm.reminderAt}
+                      value={taskForm.title}
                       onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, reminderAt: event.target.value }))
+                        setTaskForm(
+                          (current) => ({
+                            ...current,
+                            title:
+                              event.target
+                                .value,
+                          })
+                        )
                       }
-                      placeholder="tomorrow 9am"
-                      className={inputClass}
+                      placeholder="Task title"
+                      className={INPUT}
                     />
 
-                    <select
-                      value={taskForm.reminderInterval}
+                    <textarea
+                      value={taskForm.detail}
                       onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, reminderInterval: event.target.value }))
+                        setTaskForm(
+                          (current) => ({
+                            ...current,
+                            detail:
+                              event.target
+                                .value,
+                          })
+                        )
                       }
-                      className={inputClass}
+                      placeholder="Expected outcome, success criteria, context, and source links"
+                      className={cx(
+                        INPUT,
+                        "min-h-[115px] resize-y leading-6"
+                      )}
+                    />
+
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                      <select
+                        value={
+                          taskForm.priority
+                        }
+                        onChange={(event) =>
+                          setTaskForm(
+                            (current) => ({
+                              ...current,
+                              priority:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        className={INPUT}
+                      >
+                        <option>Low</option>
+                        <option>
+                          Medium
+                        </option>
+                        <option>High</option>
+                        <option>
+                          Critical
+                        </option>
+                      </select>
+
+                      <input
+                        type="date"
+                        value={
+                          taskForm.dueDate
+                        }
+                        onChange={(event) =>
+                          setTaskForm(
+                            (current) => ({
+                              ...current,
+                              dueDate:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        className={INPUT}
+                      />
+                    </div>
+
+                    <select
+                      value={
+                        taskForm.projectId
+                      }
+                      onChange={(event) =>
+                        setTaskForm(
+                          (current) => ({
+                            ...current,
+                            projectId:
+                              event.target
+                                .value,
+                          })
+                        )
+                      }
+                      className={INPUT}
                     >
-                      <option>Once</option>
-                      <option>Daily</option>
-                      <option>Every 2 Days</option>
-                      <option>Weekly</option>
-                      <option>Biweekly</option>
-                      <option>Monthly</option>
-                      <option>Until Complete</option>
+                      <option value="">
+                        No project
+                      </option>
+
+                      {projects.map(
+                        (project) => (
+                          <option
+                            key={
+                              project.id
+                            }
+                            value={
+                              project.id
+                            }
+                          >
+                            {
+                              project.title
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <div className="min-w-0 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.15em] text-amber-200">
+                        <BellRing className="h-4 w-4" />
+                        Reminder until complete
+                      </div>
+
+                      <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+                        <input
+                          type="date"
+                          value={
+                            taskForm.reminderDate
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setTaskForm(
+                              (
+                                current
+                              ) => ({
+                                ...current,
+                                reminderDate:
+                                  event
+                                    .target
+                                    .value,
+                              })
+                            )
+                          }
+                          className={INPUT}
+                        />
+
+                        <input
+                          type="time"
+                          value={
+                            taskForm.reminderTime
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setTaskForm(
+                              (
+                                current
+                              ) => ({
+                                ...current,
+                                reminderTime:
+                                  event
+                                    .target
+                                    .value,
+                              })
+                            )
+                          }
+                          className={INPUT}
+                        />
+                      </div>
+
+                      <select
+                        value={
+                          taskForm.reminderCadence
+                        }
+                        onChange={(event) =>
+                          setTaskForm(
+                            (current) => ({
+                              ...current,
+                              reminderCadence:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        className={cx(
+                          INPUT,
+                          "mt-3"
+                        )}
+                      >
+                        <option>Daily</option>
+                        <option>
+                          Every 2 Days
+                        </option>
+                        <option>
+                          Weekly
+                        </option>
+                        <option>
+                          Biweekly
+                        </option>
+                        <option>
+                          Monthly
+                        </option>
+                      </select>
+
+                      <textarea
+                        value={
+                          taskForm.reminderNote
+                        }
+                        onChange={(event) =>
+                          setTaskForm(
+                            (current) => ({
+                              ...current,
+                              reminderNote:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Reminder message"
+                        className={cx(
+                          INPUT,
+                          "mt-3 min-h-[78px]"
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      {[
+                        "Email assignee when task is created",
+                        "Email assignee at every reminder interval",
+                        "Email assigner and assignee when completed",
+                      ].map((label) => (
+                        <div
+                          key={label}
+                          className="flex min-w-0 items-center gap-3 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.07] px-3 py-2.5 text-xs font-bold text-emerald-100"
+                        >
+                          <MailCheck className="h-4 w-4 shrink-0" />
+
+                          <span className="min-w-0 break-words">
+                            {label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      disabled={loading}
+                      className={cx(
+                        PRIMARY,
+                        "py-4 text-sm"
+                      )}
+                    >
+                      {loading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserRoundCheck className="h-4 w-4" />
+                      )}
+
+                      Delegate and activate reminders
+                    </button>
+                  </form>
+                </Panel>
+              </div>
+            ) : null}
+
+            {activeView ===
+            "my-work" ? (
+              <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1fr)_420px]">
+                <Panel>
+                  <div className="border-b border-white/10 bg-gradient-to-r from-emerald-950/35 via-zinc-950 to-zinc-950 p-5 md:p-6">
+                    <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                          Personal priority engine
+                        </div>
+
+                        <h2 className="mt-2 break-words text-3xl font-black">
+                          A ranked to-do list that adapts to the advisor
+                        </h2>
+
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                          Team assignments and private work are combined,
+                          ranked, pinnable, and individually adjustable.
+                        </p>
+                      </div>
+
+                      <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-100">
+                        {
+                          rankedWork.filter(
+                            (item) =>
+                              !isComplete(
+                                item.status
+                              )
+                          ).length
+                        }{" "}
+                        active priorities
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="grid min-w-0 gap-3 border-b border-white/10 p-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="relative min-w-0">
+                      <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-600" />
+
+                      <input
+                        value={workSearch}
+                        onChange={(event) =>
+                          setWorkSearch(
+                            event.target
+                              .value
+                          )
+                        }
+                        placeholder="Search my work"
+                        className={cx(
+                          INPUT,
+                          "pl-10"
+                        )}
+                      />
+                    </div>
+
+                    <select
+                      value={workSort}
+                      onChange={(event) =>
+                        setWorkSort(
+                          event.target
+                            .value as WorkSort
+                        )
+                      }
+                      className={INPUT}
+                    >
+                      <option value="smart">
+                        Smart rank
+                      </option>
+                      <option value="manual">
+                        My manual rank
+                      </option>
+                      <option value="due">
+                        Due date
+                      </option>
+                      <option value="priority">
+                        Priority
+                      </option>
+                    </select>
+
+                    <select
+                      value={
+                        workStatusFilter
+                      }
+                      onChange={(event) =>
+                        setWorkStatusFilter(
+                          event.target
+                            .value
+                        )
+                      }
+                      className={INPUT}
+                    >
+                      <option>
+                        Open work
+                      </option>
+                      <option>
+                        Completed
+                      </option>
+                      <option>
+                        All work
+                      </option>
+                    </select>
+
+                    <select
+                      value={
+                        workCategoryFilter
+                      }
+                      onChange={(event) =>
+                        setWorkCategoryFilter(
+                          event.target
+                            .value
+                        )
+                      }
+                      className={INPUT}
+                    >
+                      {workCategories.map(
+                        (category) => (
+                          <option
+                            key={
+                              category
+                            }
+                          >
+                            {category}
+                          </option>
+                        )
+                      )}
                     </select>
                   </div>
 
-                  <textarea
-                    value={taskForm.reminderNote}
-                    onChange={(event) =>
-                      setTaskForm((current) => ({ ...current, reminderNote: event.target.value }))
-                    }
-                    placeholder="Reminder note"
-                    className={cx(inputClass, "mt-2 min-h-20 w-full")}
-                  />
+                  <div className="grid min-w-0 gap-3 p-4">
+                    {rankedWork.map(
+                      (item, index) => {
+                        const selected =
+                          selectedWork?.key ===
+                          item.key;
 
-                  <label className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
-                    Send Resend email notification
-                    <input
-                      type="checkbox"
-                      checked={taskForm.notifyEmail}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({
-                          ...current,
-                          notifyEmail: event.target.checked,
-                        }))
+                        const overdue =
+                          !isComplete(
+                            item.status
+                          ) &&
+                          daysUntil(
+                            item.dueDate
+                          ) < 0;
+
+                        return (
+                          <article
+                            key={
+                              item.key
+                            }
+                            className={cx(
+                              "grid min-w-0 gap-3 rounded-2xl border p-4 transition lg:grid-cols-[46px_minmax(0,1fr)_auto] lg:items-center",
+                              selected
+                                ? "border-emerald-400/35 bg-emerald-400/[0.08]"
+                                : "border-white/10 bg-white/[0.03] hover:bg-white/[0.055]"
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedWorkKey(
+                                  item.key
+                                )
+                              }
+                              className={cx(
+                                "grid h-11 w-11 place-items-center rounded-2xl border text-sm font-black",
+                                item.pinned
+                                  ? "border-amber-300/30 bg-amber-300/15 text-amber-100"
+                                  : "border-white/10 bg-black/30 text-slate-300"
+                              )}
+                            >
+                              {item.pinned ? (
+                                <Pin className="h-4 w-4" />
+                              ) : (
+                                index + 1
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedWorkKey(
+                                  item.key
+                                )
+                              }
+                              className="min-w-0 text-left"
+                            >
+                              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                <h3 className="min-w-0 break-words text-sm font-black">
+                                  {
+                                    item.title
+                                  }
+                                </h3>
+
+                                <Badge
+                                  className={
+                                    item.source ===
+                                    "team"
+                                      ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-100"
+                                      : "border-violet-400/20 bg-violet-400/10 text-violet-100"
+                                  }
+                                >
+                                  {item.source ===
+                                  "team"
+                                    ? "Team"
+                                    : "Personal"}
+                                </Badge>
+                              </div>
+
+                              <p className="mt-1 line-clamp-2 break-words text-xs leading-5 text-slate-500">
+                                {
+                                  item.detail
+                                }
+                              </p>
+
+                              <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                                <Badge
+                                  className={priorityStyle(
+                                    item.priority
+                                  )}
+                                >
+                                  {
+                                    item.priority
+                                  }
+                                </Badge>
+
+                                <Badge
+                                  className={statusStyle(
+                                    item.status
+                                  )}
+                                >
+                                  {
+                                    item.status
+                                  }
+                                </Badge>
+
+                                <Badge
+                                  className={
+                                    overdue
+                                      ? "border-red-400/25 bg-red-400/10 text-red-100"
+                                      : "border-white/10 bg-white/[0.04] text-slate-400"
+                                  }
+                                >
+                                  {overdue
+                                    ? "Overdue"
+                                    : formatDate(
+                                        item.dueDate
+                                      )}
+                                </Badge>
+
+                                <Badge className="border-white/10 bg-white/[0.04] text-slate-400">
+                                  {
+                                    item.category
+                                  }
+                                </Badge>
+                              </div>
+                            </button>
+
+                            <div className="flex min-w-0 flex-wrap gap-2 lg:justify-end">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updatePreference(
+                                    item.key,
+                                    {
+                                      pinned:
+                                        !item.pinned,
+                                    }
+                                  )
+                                }
+                                className={cx(
+                                  "grid h-9 w-9 place-items-center rounded-xl border",
+                                  item.pinned
+                                    ? "border-amber-300/30 bg-amber-300/15 text-amber-100"
+                                    : "border-white/10 bg-black/30 text-slate-400"
+                                )}
+                                title="Pin priority"
+                              >
+                                <Pin className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  adjustManualRank(
+                                    item,
+                                    -1
+                                  )
+                                }
+                                className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-black/30 text-slate-400"
+                                title="Move up in my rank"
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  adjustManualRank(
+                                    item,
+                                    1
+                                  )
+                                }
+                                className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-black/30 text-slate-400"
+                                title="Move down in my rank"
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                              </button>
+
+                              {item.task ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void updateTask(
+                                      item.task!,
+                                      "Complete"
+                                    )
+                                  }
+                                  disabled={
+                                    isComplete(
+                                      item.status
+                                    ) ||
+                                    loading
+                                  }
+                                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-[10px] font-black text-emerald-100 disabled:opacity-40"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  Complete
+                                </button>
+                              ) : item.todo ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    togglePersonalTodo(
+                                      item.todo!
+                                    )
+                                  }
+                                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-[10px] font-black text-emerald-100"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+
+                                  {item.todo.done
+                                    ? "Reopen"
+                                    : "Complete"}
+                                </button>
+                              ) : null}
+                            </div>
+                          </article>
+                        );
                       }
-                    />
-                  </label>
-                </div>
+                    )}
 
-                <button
-                  disabled={loading}
-                  className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:opacity-50"
-                >
-                  Delegate + Notify
-                </button>
-              </form>
-            </div>
-          </Panel>
+                    {!rankedWork.length ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-sm font-bold text-slate-500">
+                        No work matches these filters.
+                      </div>
+                    ) : null}
+                  </div>
+                </Panel>
 
-          <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-6">
-            {taskColumns.map((column) => (
-              <Panel key={column.status} className="p-3">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="text-sm font-black text-white">{column.status}</div>
-                  <Pill tone={toneFor(column.status)}>{column.tasks.length}</Pill>
-                </div>
+                <div className="grid min-w-0 content-start gap-5 2xl:sticky 2xl:top-5">
+                  <Panel>
+                    <div className="border-b border-white/10 p-5">
+                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">
+                        <Plus className="h-3.5 w-3.5" />
+                        Personal work item
+                      </div>
 
-                <div className="grid max-h-[780px] gap-3 overflow-y-auto pr-1">
-                  {column.tasks.map((task) => {
-                    const reminder = taskReminderSummary(task);
+                      <h2 className="mt-2 text-2xl font-black">
+                        Add to my private list
+                      </h2>
+                    </div>
 
-                    return (
-                      <button
-                        key={task.id}
-                        type="button"
-                        onClick={() => setSelectedTaskId(task.id)}
+                    <form
+                      onSubmit={
+                        addPersonalTodo
+                      }
+                      className="grid min-w-0 gap-3 p-5"
+                    >
+                      <input
+                        value={
+                          personalForm.title
+                        }
+                        onChange={(event) =>
+                          setPersonalForm(
+                            (current) => ({
+                              ...current,
+                              title:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Personal task"
+                        className={INPUT}
+                      />
+
+                      <textarea
+                        value={
+                          personalForm.detail
+                        }
+                        onChange={(event) =>
+                          setPersonalForm(
+                            (current) => ({
+                              ...current,
+                              detail:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Notes or desired outcome"
                         className={cx(
-                          "rounded-2xl border p-4 text-left transition hover:bg-white/[0.08]",
-                          selectedTask?.id === task.id
-                            ? "border-cyan-400/50 bg-cyan-500/10"
-                            : "border-white/10 bg-black/35"
+                          INPUT,
+                          "min-h-[82px]"
                         )}
+                      />
+
+                      <input
+                        value={
+                          personalForm.category
+                        }
+                        onChange={(event) =>
+                          setPersonalForm(
+                            (current) => ({
+                              ...current,
+                              category:
+                                event.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Category"
+                        className={INPUT}
+                      />
+
+                      <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+                        <select
+                          value={
+                            personalForm.priority
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setPersonalForm(
+                              (
+                                current
+                              ) => ({
+                                ...current,
+                                priority:
+                                  event
+                                    .target
+                                    .value,
+                              })
+                            )
+                          }
+                          className={INPUT}
+                        >
+                          <option>
+                            Low
+                          </option>
+                          <option>
+                            Medium
+                          </option>
+                          <option>
+                            High
+                          </option>
+                          <option>
+                            Critical
+                          </option>
+                        </select>
+
+                        <input
+                          type="date"
+                          value={
+                            personalForm.dueDate
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setPersonalForm(
+                              (
+                                current
+                              ) => ({
+                                ...current,
+                                dueDate:
+                                  event
+                                    .target
+                                    .value,
+                              })
+                            )
+                          }
+                          className={INPUT}
+                        />
+                      </div>
+
+                      <button
+                        className={PRIMARY}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="text-sm font-black text-white">{task.title}</div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {task.ownerName} · {shortDate(task.dueDate)}
+                        <Plus className="h-4 w-4" />
+                        Add and rank
+                      </button>
+                    </form>
+                  </Panel>
+
+                  <Panel>
+                    <div className="border-b border-white/10 p-5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                        Selected priority
+                      </div>
+
+                      <h2 className="mt-2 break-words text-2xl font-black">
+                        {selectedWork?.title ||
+                          "Choose an item"}
+                      </h2>
+                    </div>
+
+                    {selectedWork ? (
+                      <div className="grid min-w-0 gap-4 p-5">
+                        <p className="break-words text-sm leading-7 text-slate-400">
+                          {
+                            selectedWork.detail
+                          }
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <div className="text-[9px] font-black uppercase text-slate-600">
+                              Smart score
+                            </div>
+
+                            <div className="mt-1 text-2xl font-black">
+                              {
+                                selectedWork.score
+                              }
                             </div>
                           </div>
-                          <span
-                            className="mt-1 h-3 w-3 shrink-0 rounded-full"
-                            style={{ backgroundColor: task.ownerColor ?? "#64748b" }}
+
+                          <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
+                            <div className="text-[9px] font-black uppercase text-slate-600">
+                              My rank
+                            </div>
+
+                            <div className="mt-1 text-2xl font-black">
+                              {
+                                selectedWork.manualRank
+                              }
+                            </div>
+                          </div>
+                        </div>
+
+                        {selectedWork.task ? (
+                          <>
+                            {taskReminder(
+                              selectedWork.task
+                            ) ? (
+                              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
+                                <div className="flex items-center gap-2 text-xs font-black text-amber-100">
+                                  <AlarmClock className="h-4 w-4" />
+
+                                  {
+                                    taskReminder(
+                                      selectedWork.task
+                                    )?.cadence
+                                  }
+                                </div>
+
+                                <div className="mt-2 break-words text-xs leading-5 text-amber-50/70">
+                                  First
+                                  reminder:{" "}
+                                  {
+                                    taskReminder(
+                                      selectedWork.task
+                                    )?.at
+                                  }
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="grid gap-2 sm:grid-cols-3 2xl:grid-cols-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateTask(
+                                    selectedWork.task!,
+                                    "In Progress"
+                                  )
+                                }
+                                className={SOFT}
+                              >
+                                <Clock3 className="h-4 w-4" />
+                                Start
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateTask(
+                                    selectedWork.task!,
+                                    "Blocked"
+                                  )
+                                }
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                              >
+                                <CircleAlert className="h-4 w-4" />
+                                Blocked
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void updateTask(
+                                    selectedWork.task!,
+                                    "Complete"
+                                  )
+                                }
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-100"
+                              >
+                                <Check className="h-4 w-4" />
+                                Complete
+                              </button>
+                            </div>
+                          </>
+                        ) : selectedWork.todo ? (
+                          <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                togglePersonalTodo(
+                                  selectedWork.todo!
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-100"
+                            >
+                              <Check className="h-4 w-4" />
+
+                              {selectedWork.todo
+                                .done
+                                ? "Reopen"
+                                : "Complete"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deletePersonalTodo(
+                                  selectedWork.todo!
+                                    .id
+                                )
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-sm font-bold text-slate-500">
+                        Select a work item to review it.
+                      </div>
+                    )}
+                  </Panel>
+                </div>
+              </div>
+            ) : null}
+
+            {activeView ===
+            "docs" ? (
+              <div className="grid min-w-0 gap-5 2xl:grid-cols-[320px_minmax(0,1fr)_390px]">
+                <Panel className="h-fit 2xl:sticky 2xl:top-5">
+                  <div className="border-b border-white/10 p-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        createDoc()
+                      }
+                      className={cx(
+                        PRIMARY,
+                        "w-full py-3.5 text-sm"
+                      )}
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                      New blank doc
+                    </button>
+
+                    <div className="relative mt-3">
+                      <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-600" />
+
+                      <input
+                        value={docSearch}
+                        onChange={(event) =>
+                          setDocSearch(
+                            event.target
+                              .value
+                          )
+                        }
+                        placeholder="Search documents"
+                        className={cx(
+                          INPUT,
+                          "pl-10"
+                        )}
+                      />
+                    </div>
+
+                    <div className="mt-3 grid min-w-0 gap-2">
+                      <select
+                        value={docSort}
+                        onChange={(event) =>
+                          setDocSort(
+                            event.target
+                              .value as DocSort
+                          )
+                        }
+                        className={INPUT}
+                      >
+                        <option value="updated">
+                          Recently updated
+                        </option>
+                        <option value="favorite">
+                          Favorites first
+                        </option>
+                        <option value="title">
+                          Title A–Z
+                        </option>
+                        <option value="category">
+                          Category A–Z
+                        </option>
+                      </select>
+
+                      <select
+                        value={
+                          docCategoryFilter
+                        }
+                        onChange={(event) =>
+                          setDocCategoryFilter(
+                            event.target
+                              .value
+                          )
+                        }
+                        className={INPUT}
+                      >
+                        {docCategories.map(
+                          (category) => (
+                            <option
+                              key={
+                                category
+                              }
+                            >
+                              {category}
+                            </option>
+                          )
+                        )}
+                      </select>
+
+                      <select
+                        value={
+                          docLabelFilter
+                        }
+                        onChange={(event) =>
+                          setDocLabelFilter(
+                            event.target
+                              .value
+                          )
+                        }
+                        className={INPUT}
+                      >
+                        {docLabels.map(
+                          (label) => (
+                            <option
+                              key={label}
+                            >
+                              {label}
+                            </option>
+                          )
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[650px] space-y-2 overflow-y-auto p-3">
+                    {filteredDocs.map(
+                      (doc) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          onClick={() =>
+                            setActiveDocId(
+                              doc.id
+                            )
+                          }
+                          className={cx(
+                            "w-full min-w-0 overflow-hidden rounded-2xl border p-4 text-left",
+                            activeDoc?.id ===
+                              doc.id
+                              ? "border-amber-400/35 bg-amber-400/10"
+                              : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
+                          )}
+                        >
+                          <div className="flex min-w-0 items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black">
+                                {
+                                  doc.title
+                                }
+                              </div>
+
+                              <div className="mt-1 truncate text-xs text-slate-500">
+                                {
+                                  doc.category
+                                }{" "}
+                                ·{" "}
+                                {formatDateTime(
+                                  doc.updatedAt
+                                )}
+                              </div>
+                            </div>
+
+                            {doc.favorite ? (
+                              <Star className="h-4 w-4 shrink-0 fill-amber-300 text-amber-300" />
+                            ) : null}
+                          </div>
+
+                          <div className="mt-3 flex min-w-0 flex-wrap gap-1.5">
+                            {doc.labels
+                              .slice(
+                                0,
+                                4
+                              )
+                              .map(
+                                (
+                                  label
+                                ) => (
+                                  <span
+                                    key={
+                                      label
+                                    }
+                                    className="max-w-full truncate rounded-md bg-white/[0.055] px-1.5 py-0.5 text-[9px] font-black text-slate-400"
+                                  >
+                                    {
+                                      label
+                                    }
+                                  </span>
+                                )
+                              )}
+                          </div>
+                        </button>
+                      )
+                    )}
+
+                    {!filteredDocs.length ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 p-7 text-center text-sm font-bold text-slate-500">
+                        No documents match these specifications.
+                      </div>
+                    ) : null}
+                  </div>
+                </Panel>
+
+                <Panel>
+                  {activeDoc ? (
+                    <>
+                      <div className="flex min-w-0 flex-col gap-4 border-b border-white/10 p-5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">
+                            Focus document editor
+                          </div>
+
+                          <h2 className="mt-2 truncate text-2xl font-black">
+                            {
+                              activeDoc.title
+                            }
+                          </h2>
+                        </div>
+
+                        <div className="flex min-w-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActiveDoc(
+                                {
+                                  favorite:
+                                    !activeDoc.favorite,
+                                }
+                              )
+                            }
+                            className={cx(
+                              SOFT,
+                              activeDoc.favorite &&
+                                "border-amber-300/30 bg-amber-300/15 text-amber-100"
+                            )}
+                          >
+                            <Star
+                              className={cx(
+                                "h-4 w-4",
+                                activeDoc.favorite &&
+                                  "fill-current"
+                              )}
+                            />
+                            Favorite
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={
+                              deleteActiveDoc
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid min-w-0 gap-4 p-5">
+                        <input
+                          value={
+                            activeDoc.title
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateActiveDoc(
+                              {
+                                title:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                          placeholder="Document title"
+                          className={INPUT}
+                        />
+
+                        <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                          <input
+                            value={
+                              activeDoc.category
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              updateActiveDoc(
+                                {
+                                  category:
+                                    event
+                                      .target
+                                      .value,
+                                }
+                              )
+                            }
+                            placeholder="Category"
+                            className={INPUT}
+                          />
+
+                          <input
+                            value={activeDoc.labels.join(
+                              ", "
+                            )}
+                            onChange={(
+                              event
+                            ) =>
+                              updateActiveDoc(
+                                {
+                                  labels:
+                                    Array.from(
+                                      new Set(
+                                        event.target.value
+                                          .split(
+                                            ","
+                                          )
+                                          .map(
+                                            (
+                                              label
+                                            ) =>
+                                              label
+                                                .trim()
+                                                .toLowerCase()
+                                          )
+                                          .filter(
+                                            Boolean
+                                          )
+                                      )
+                                    ),
+                                }
+                              )
+                            }
+                            placeholder="Labels separated by commas"
+                            className={INPUT}
                           />
                         </div>
 
-                        <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-400">
-                          {task.detail || "No task detail."}
+                        <textarea
+                          ref={
+                            docEditorRef
+                          }
+                          value={
+                            activeDoc.body
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            updateActiveDoc(
+                              {
+                                body:
+                                  event
+                                    .target
+                                    .value,
+                              }
+                            )
+                          }
+                          placeholder="Write the document..."
+                          className={cx(
+                            INPUT,
+                            "min-h-[650px] resize-y whitespace-pre-wrap font-[Inter] leading-7"
+                          )}
+                        />
+
+                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                          <span className="min-w-0 truncate">
+                            Template:{" "}
+                            {
+                              activeDoc.template
+                            }{" "}
+                            · Updated{" "}
+                            {formatDateTime(
+                              activeDoc.updatedAt
+                            )}
+                          </span>
+
+                          <span>
+                            {activeDoc.body.trim()
+                              ? activeDoc.body
+                                  .trim()
+                                  .split(
+                                    /\s+/
+                                  ).length
+                              : 0}{" "}
+                            words
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid min-h-[760px] place-items-center p-8 text-center">
+                      <div>
+                        <BookOpenText className="mx-auto h-10 w-10 text-amber-300" />
+
+                        <h2 className="mt-4 text-3xl font-black">
+                          Create a document from a prompt
+                        </h2>
+
+                        <p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-slate-500">
+                          Select a template or create a blank document. The
+                          editor stays focused; there is no mirrored notes panel
+                          beside it.
                         </p>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Pill tone={toneFor(task.priority)}>{task.priority}</Pill>
-                          {task.project ? <Pill tone="purple">{task.project.title}</Pill> : null}
-                          {reminder ? <Pill tone="amber">{reminder.repeat}</Pill> : null}
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {!column.tasks.length ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
-                      Empty
-                    </div>
-                  ) : null}
-                </div>
-              </Panel>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {activeView === "calendar" ? (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <Panel className="relative overflow-hidden p-5">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-purple-500/16 via-cyan-500/8 to-transparent" />
-
-            <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
-                  Calendar Reminder Board
-                </div>
-                <h3 className="mt-2 text-3xl font-black text-white">
-                  Click a day. Add a reminder. Keep the firm moving.
-                </h3>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCalendarAnchor(addDays(calendarAnchor, -30))}
-                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-black text-white"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalendarAnchor(ymd(new Date()))}
-                  className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalendarAnchor(addDays(calendarAnchor, 30))}
-                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-black text-white"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-
-            <div className="relative mt-6 rounded-[1.5rem] border border-white/10 bg-black/30 p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-black text-white">{monthTitle(calendarAnchor)}</div>
-                <Pill tone="purple">{operations.calendarTasks.length} scheduled</Pill>
-              </div>
-
-              <div className="mt-4 grid grid-cols-7 gap-2">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                  <div key={day} className="text-center text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    {day}
-                  </div>
-                ))}
-
-                {calendarDays.map((day) => {
-                  const tasks = tasksByCalendarDate[day] ?? [];
-                  const isSelected = day === selectedCalendarDate;
-                  const isToday = day === ymd(new Date());
-                  const isCurrentMonth =
-                    new Date(`${day}T00:00:00`).getMonth() ===
-                    new Date(`${calendarAnchor}T00:00:00`).getMonth();
-
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCalendarDate(day);
-                        setTaskForm((current) => ({ ...current, dueDate: day }));
-                      }}
-                      className={cx(
-                        "min-h-[122px] rounded-[1.25rem] border p-3 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]",
-                        isSelected
-                          ? "border-cyan-400/50 bg-cyan-500/15 shadow-lg shadow-cyan-950/20"
-                          : "border-white/10 bg-white/[0.035]",
-                        isToday && !isSelected ? "ring-1 ring-red-400/40" : "",
-                        !isCurrentMonth ? "opacity-45" : ""
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                          {weekdayShort(day)}
-                        </span>
-                        <span className="text-lg font-black text-white">{dayNumber(day)}</span>
-                      </div>
-
-                      <div className="mt-3 grid gap-1">
-                        {tasks.slice(0, 3).map((task) => (
-                          <div
-                            key={task.id}
-                            className="truncate rounded-lg border border-white/10 bg-black/35 px-2 py-1 text-[10px] font-bold text-slate-300"
-                            style={{ borderLeftColor: task.ownerColor ?? "#64748b", borderLeftWidth: 4 }}
-                          >
-                            {task.title}
-                          </div>
-                        ))}
-                      </div>
-
-                      {tasks.length > 3 ? (
-                        <div className="mt-2 text-[10px] font-black text-cyan-300">
-                          +{tasks.length - 3} more
-                        </div>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Panel>
-
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-amber-500/12 to-transparent" />
-
-            <div className="relative">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">
-                Selected Day
-              </div>
-              <h3 className="mt-2 text-3xl font-black text-white">{shortDate(selectedCalendarDate)}</h3>
-
-              <form onSubmit={createCalendarQuickTask} className="mt-5 grid gap-3">
-                <select
-                  value={selectedMemberId}
-                  onChange={(event) => setSelectedMemberId(event.target.value)}
-                  className={inputClass}
-                >
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {memberName(member)} · {member.role}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  value={calendarQuickForm.title}
-                  onChange={(event) =>
-                    setCalendarQuickForm((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="Quick reminder or task"
-                  className={inputClass}
-                />
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  <input
-                    type="time"
-                    value={calendarQuickForm.time}
-                    onChange={(event) =>
-                      setCalendarQuickForm((current) => ({ ...current, time: event.target.value }))
-                    }
-                    className={inputClass}
-                  />
-
-                  <select
-                    value={calendarQuickForm.interval}
-                    onChange={(event) =>
-                      setCalendarQuickForm((current) => ({ ...current, interval: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option>Once</option>
-                    <option>Daily</option>
-                    <option>Every 2 Days</option>
-                    <option>Weekly</option>
-                    <option>Biweekly</option>
-                    <option>Monthly</option>
-                    <option>Until Complete</option>
-                  </select>
-                </div>
-
-                <textarea
-                  value={calendarQuickForm.note}
-                  onChange={(event) =>
-                    setCalendarQuickForm((current) => ({ ...current, note: event.target.value }))
-                  }
-                  placeholder="Reminder note"
-                  className={cx(inputClass, "min-h-24")}
-                />
-
-                <button
-                  disabled={loading}
-                  className="rounded-2xl bg-gradient-to-r from-purple-600 to-cyan-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-purple-950/30 disabled:opacity-50"
-                >
-                  Add Calendar Reminder
-                </button>
-              </form>
-
-              <div className="mt-6 grid gap-3">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                  Tasks on this day
-                </div>
-                {selectedDateTasks.map((task) => (
-                  <button
-                    key={task.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTaskId(task.id);
-                      setActiveView("my-work");
-                    }}
-                    className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left hover:bg-white/[0.06]"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-black text-white">{task.title}</div>
-                      <Pill tone={toneFor(task.priority)}>{task.priority}</Pill>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">{task.ownerName}</div>
-                  </button>
-                ))}
-
-                {!selectedDateTasks.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm font-bold text-slate-500">
-                    No tasks yet. Add one above.
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-
-      {activeView === "ideas" ? (
-        <div className="grid gap-5">
-          <div className="grid gap-5 xl:grid-cols-[400px_minmax(0,1fr)_390px]">
-            <Panel>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
-                Brainstorm Input
-              </div>
-              <h3 className="mt-2 text-2xl font-black text-white">
-                Add a new bubble
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Submit ideas as bubbles. Click a bubble to add notes, vote anonymously, assign it as a task, or remove it from the active chart.
-              </p>
-
-              <form onSubmit={createIdea} className="mt-5 grid gap-3">
-                <input
-                  value={ideaForm.title}
-                  onChange={(event) =>
-                    setIdeaForm((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="Idea title"
-                  className={inputClass}
-                />
-
-                <textarea
-                  value={ideaForm.body}
-                  onChange={(event) =>
-                    setIdeaForm((current) => ({ ...current, body: event.target.value }))
-                  }
-                  placeholder="Describe the idea. Use @Name if you want to tag a reviewer."
-                  className={cx(inputClass, "min-h-28")}
-                />
-
-                <div className="grid gap-2 md:grid-cols-3">
-                  <input
-                    value={ideaForm.category}
-                    onChange={(event) =>
-                      setIdeaForm((current) => ({ ...current, category: event.target.value }))
-                    }
-                    placeholder="Category"
-                    className={inputClass}
-                  />
-
-                  <select
-                    value={ideaForm.impact}
-                    onChange={(event) =>
-                      setIdeaForm((current) => ({ ...current, impact: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-
-                  <select
-                    value={ideaForm.effort}
-                    onChange={(event) =>
-                      setIdeaForm((current) => ({ ...current, effort: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                  </select>
-                </div>
-
-                <input
-                  value={ideaForm.ownerHint}
-                  onChange={(event) =>
-                    setIdeaForm((current) => ({ ...current, ownerHint: event.target.value }))
-                  }
-                  placeholder="Suggested owner/reviewer"
-                  className={inputClass}
-                />
-
-                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-bold text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={ideaForm.anonymous}
-                    onChange={(event) =>
-                      setIdeaForm((current) => ({ ...current, anonymous: event.target.checked }))
-                    }
-                  />
-                  Submit anonymously
-                </label>
-
-                <button
-                  disabled={loading}
-                  className="rounded-2xl bg-purple-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
-                >
-                  Add Bubble
-                </button>
-              </form>
-            </Panel>
-
-            <Panel className="relative min-h-[700px] overflow-hidden">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(168,85,247,0.18),_transparent_32%),radial-gradient(circle_at_20%_20%,_rgba(239,68,68,0.14),_transparent_24%),radial-gradient(circle_at_80%_80%,_rgba(6,182,212,0.14),_transparent_24%)]" />
-
-              <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
-                    Live Brainstorm Chart
-                  </div>
-                  <h3 className="mt-2 text-2xl font-black text-white">
-                    Click bubbles to open details
-                  </h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {ideaCategories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setSelectedIdeaCategory(category)}
-                      className={cx(
-                        "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
-                        selectedIdeaCategory === category
-                          ? "bg-white text-slate-950"
-                          : "border border-white/10 bg-white/[0.045] text-white"
-                      )}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="relative mt-8 min-h-[560px]">
-                <svg className="absolute inset-0 h-full w-full opacity-70">
-                  {ideaCategoryGroups.map(([category], categoryIndex) => {
-                    const angle = (categoryIndex / Math.max(ideaCategoryGroups.length, 1)) * Math.PI * 2 - Math.PI / 2;
-                    const x = 50 + Math.cos(angle) * 31;
-                    const y = 50 + Math.sin(angle) * 29;
-
-                    return (
-                      <line
-                        key={category}
-                        x1="50%"
-                        y1="50%"
-                        x2={`${x}%`}
-                        y2={`${y}%`}
-                        stroke="rgba(255,255,255,0.18)"
-                        strokeWidth="2"
-                      />
-                    );
-                  })}
-
-                  {ideaCategoryGroups.flatMap(([category, ideas], categoryIndex) => {
-                    const categoryAngle = (categoryIndex / Math.max(ideaCategoryGroups.length, 1)) * Math.PI * 2 - Math.PI / 2;
-                    const categoryX = 50 + Math.cos(categoryAngle) * 31;
-                    const categoryY = 50 + Math.sin(categoryAngle) * 29;
-
-                    return ideas.slice(0, 10).map((idea, ideaIndex) => {
-                      const childAngle =
-                        categoryAngle +
-                        ((ideaIndex - (ideas.length - 1) / 2) * Math.PI) / 13;
-                      const childX = categoryX + Math.cos(childAngle) * 13;
-                      const childY = categoryY + Math.sin(childAngle) * 10;
-
-                      return (
-                        <line
-                          key={`${category}-${idea.id}`}
-                          x1={`${categoryX}%`}
-                          y1={`${categoryY}%`}
-                          x2={`${childX}%`}
-                          y2={`${childY}%`}
-                          stroke="rgba(255,255,255,0.12)"
-                          strokeWidth="1.5"
-                        />
-                      );
-                    });
-                  })}
-                </svg>
-
-                <div className="absolute left-1/2 top-1/2 z-10 flex h-36 w-36 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-red-500/30 bg-gradient-to-br from-red-600 via-red-800 to-zinc-950 p-4 text-center shadow-2xl shadow-red-950/40">
-                  <div>
-                    <div className="text-2xl font-black text-white">Slice</div>
-                    <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100/80">
-                      Brainstorm
-                    </div>
-                  </div>
-                </div>
-
-                {ideaCategoryGroups.map(([category, ideas], categoryIndex) => {
-                  const angle = (categoryIndex / Math.max(ideaCategoryGroups.length, 1)) * Math.PI * 2 - Math.PI / 2;
-                  const x = 50 + Math.cos(angle) * 31;
-                  const y = 50 + Math.sin(angle) * 29;
-
-                  return (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setSelectedIdeaCategory(category)}
-                      className="absolute z-20 flex h-24 w-24 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-purple-500/30 bg-purple-500/15 p-3 text-center shadow-xl shadow-purple-950/25 backdrop-blur transition hover:scale-105"
-                      style={{ left: `${x}%`, top: `${y}%` }}
-                    >
-                      <div>
-                        <div className="line-clamp-2 text-xs font-black text-white">{category}</div>
-                        <div className="mt-1 text-[10px] font-bold text-purple-200">
-                          {ideas.length} ideas
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {ideaCategoryGroups.flatMap(([category, ideas], categoryIndex) => {
-                  const categoryAngle = (categoryIndex / Math.max(ideaCategoryGroups.length, 1)) * Math.PI * 2 - Math.PI / 2;
-                  const categoryX = 50 + Math.cos(categoryAngle) * 31;
-                  const categoryY = 50 + Math.sin(categoryAngle) * 29;
-
-                  return ideas.slice(0, 10).map((idea, ideaIndex) => {
-                    if (selectedIdeaCategory !== "All" && ideaCategory(idea) !== selectedIdeaCategory) return null;
-
-                    const childAngle =
-                      categoryAngle +
-                      ((ideaIndex - (ideas.length - 1) / 2) * Math.PI) / 13;
-                    const childX = categoryX + Math.cos(childAngle) * 13;
-                    const childY = categoryY + Math.sin(childAngle) * 10;
-                    const impact = ideaImpact(idea);
-                    const size = impact === "Critical" ? 94 : impact === "High" ? 84 : 72;
-                    const selected = selectedIdea?.id === idea.id;
-
-                    return (
-                      <button
-                        key={idea.id}
-                        type="button"
-                        onClick={() => setSelectedIdeaId(idea.id)}
-                        className={cx(
-                          "absolute z-30 -translate-x-1/2 -translate-y-1/2 rounded-full border p-3 text-center shadow-xl backdrop-blur transition hover:scale-105",
-                          selected
-                            ? "border-white bg-white text-slate-950 shadow-white/20"
-                            : impact === "Critical" || impact === "High"
-                              ? "border-red-500/40 bg-red-500/20 text-white shadow-red-950/30"
-                              : "border-cyan-500/30 bg-cyan-500/15 text-white shadow-cyan-950/20"
-                        )}
-                        style={{
-                          left: `${childX}%`,
-                          top: `${childY}%`,
-                          width: size,
-                          height: size,
-                        }}
-                        title="Click to open bubble details"
-                      >
-                        <div className="line-clamp-3 text-[10px] font-black leading-4">
-                          {idea.title}
-                        </div>
-                      </button>
-                    );
-                  });
-                })}
-              </div>
-            </Panel>
-
-            <Panel className="relative overflow-hidden">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-cyan-500/12 to-transparent" />
-              <div className="relative">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                  Bubble Detail
-                </div>
-
-                {selectedIdea ? (
-                  <div className="mt-4 grid gap-4">
-                    <div>
-                      <h3 className="text-2xl font-black text-white">{selectedIdea.title}</h3>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Pill tone="purple">{ideaCategory(selectedIdea)}</Pill>
-                        <Pill tone={toneFor(ideaImpact(selectedIdea))}>{ideaImpact(selectedIdea)} impact</Pill>
-                        <Pill tone="amber">{ideaEffort(selectedIdea)} effort</Pill>
-                        {ownerMode ? <Pill tone="green">{ideaVoteCount(selectedIdea)} votes</Pill> : <Pill tone="slate">Votes private</Pill>}
                       </div>
                     </div>
+                  )}
+                </Panel>
 
-                    <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">
-                        {cleanIdeaBodyForDisplay(selectedIdea.body)}
-                      </p>
-                    </div>
-
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={() => voteIdea(selectedIdea.id)}
-                        className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-950"
-                      >
-                        Anonymous Vote
-                      </button>
-
-                      {isLeader(membership) ? (
-                        <button
-                          type="button"
-                          onClick={() => removeIdeaBubble(selectedIdea.id)}
-                          className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100"
-                        >
-                          Remove Bubble
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setMessage("Only firm leaders can remove brainstorm bubbles.")}
-                          className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-xs font-black text-white"
-                        >
-                          Remove Locked
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">
-                        Assign Bubble As Task
+                <div className="grid min-w-0 content-start gap-5 2xl:sticky 2xl:top-5">
+                  <Panel>
+                    <div className="border-b border-white/10 p-5">
+                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                        <WandSparkles className="h-3.5 w-3.5" />
+                        Prompt library
                       </div>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        Choose who should own this idea, then create a delegated follow-up task with email notification.
-                      </p>
 
-                      <select
-                        value={ideaAssigneeId}
-                        onChange={(event) => setIdeaAssigneeId(event.target.value)}
-                        className={cx(inputClass, "mt-3 w-full")}
-                      >
-                        {members.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            Assign task to {memberName(member)}
-                          </option>
-                        ))}
-                      </select>
+                      <h2 className="mt-2 text-2xl font-black">
+                        Start with more structure
+                      </h2>
 
-                      <button
-                        type="button"
-                        onClick={() => createTaskFromIdea(selectedIdea)}
-                        className="mt-3 w-full rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100"
-                      >
-                        Create Assigned Task
-                      </button>
-                    </div>
+                      <div className="relative mt-4">
+                        <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-600" />
 
-                    <form onSubmit={addIdeaNote} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                        Add bubble note
-                      </div>
-                      <textarea
-                        value={ideaNote}
-                        onChange={(event) => setIdeaNote(event.target.value)}
-                        placeholder="Add context, refinement, objection, or next step..."
-                        className={cx(inputClass, "min-h-24")}
-                      />
-                      <label className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm font-bold text-slate-300">
-                        Add note anonymously
                         <input
-                          type="checkbox"
-                          checked={ideaNoteAnonymous}
-                          onChange={(event) => setIdeaNoteAnonymous(event.target.checked)}
+                          value={
+                            templateSearch
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setTemplateSearch(
+                              event
+                                .target
+                                .value
+                            )
+                          }
+                          placeholder="Find a template"
+                          className={cx(
+                            INPUT,
+                            "pl-10"
+                          )}
                         />
-                      </label>
-                      <button
-                        disabled={loading}
-                        className="rounded-2xl bg-cyan-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50"
-                      >
-                        Add Note
-                      </button>
-                    </form>
-
-                    <div className="grid gap-2">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                        Notes
                       </div>
-                      {ideaNotes(selectedIdea).map((note, index) => (
-                        <div key={`${note.timestamp}-${index}`} className="rounded-2xl border border-white/10 bg-black/35 p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-xs font-black text-white">{note.author}</div>
-                            <div className="text-[10px] text-slate-500">{formatDateTime(note.timestamp)}</div>
-                          </div>
-                          <p className="mt-2 text-sm leading-6 text-slate-300">{note.note}</p>
-                        </div>
-                      ))}
-                      {!ideaNotes(selectedIdea).length ? (
-                        <div className="rounded-2xl border border-dashed border-white/10 p-4 text-center text-xs font-bold text-slate-500">
-                          No notes yet.
-                        </div>
-                      ) : null}
                     </div>
 
-                    {isLeader(membership) ? (
-                      <div className="flex flex-wrap gap-2">
-                        {["Review", "Approved", "Backlog", "Rejected"].map((status) => (
+                    <div className="max-h-[460px] space-y-2 overflow-y-auto p-3">
+                      {filteredTemplates.map(
+                        (template) => (
                           <button
-                            key={status}
+                            key={
+                              template.name
+                            }
                             type="button"
-                            onClick={() => updateIdeaStatus(selectedIdea.id, status)}
-                            className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white hover:bg-white/10"
+                            onClick={() =>
+                              createDoc(
+                                template
+                              )
+                            }
+                            className="w-full min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-left transition hover:border-cyan-400/30 hover:bg-cyan-400/[0.07]"
                           >
-                            {status}
+                            <div className="truncate text-sm font-black">
+                              {
+                                template.name
+                              }
+                            </div>
+
+                            <p className="mt-1 line-clamp-2 break-words text-xs leading-5 text-slate-500">
+                              {
+                                template.description
+                              }
+                            </p>
+
+                            <div className="mt-3 flex min-w-0 flex-wrap gap-1.5">
+                              <Badge className="border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
+                                {
+                                  template.category
+                                }
+                              </Badge>
+
+                              {template.labels
+                                .slice(
+                                  0,
+                                  2
+                                )
+                                .map(
+                                  (
+                                    label
+                                  ) => (
+                                    <Badge
+                                      key={
+                                        label
+                                      }
+                                      className="border-white/10 bg-white/[0.04] text-slate-400"
+                                    >
+                                      {
+                                        label
+                                      }
+                                    </Badge>
+                                  )
+                                )}
+                            </div>
                           </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    Select a bubble to open notes and actions.
-                  </div>
-                )}
-              </div>
-            </Panel>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredIdeas.map((idea) => (
-              <Panel key={idea.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedIdeaId(idea.id)}
-                      className="text-left font-black text-white hover:text-cyan-200"
-                    >
-                      {idea.title}
-                    </button>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {ideaAuthor(idea)} · {formatDateTime(idea.createdAt)}
-                    </div>
-                  </div>
-                  <Pill tone={toneFor(idea.ideaStatus)}>{idea.ideaStatus ?? "Proposed"}</Pill>
-                </div>
-
-                <p className="mt-3 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-slate-300">
-                  {cleanIdeaBodyForDisplay(idea.body)}
-                </p>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Pill tone="purple">{ideaCategory(idea)}</Pill>
-                  <Pill tone={toneFor(ideaImpact(idea))}>{ideaImpact(idea)} impact</Pill>
-                  {ownerMode ? <Pill tone="green">{ideaVoteCount(idea)} votes</Pill> : <Pill tone="slate">Votes private</Pill>}
-                  <Pill tone="cyan">{ideaNotes(idea).length} notes</Pill>
-                  <button
-                    type="button"
-                    onClick={() => voteIdea(idea.id)}
-                    className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white hover:bg-white/10"
-                  >
-                    Vote
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedIdeaId(idea.id);
-                      setIdeaAssigneeId(ideaAssigneeId || selectedMemberId || members[0]?.id || "");
-                    }}
-                    className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 hover:bg-cyan-500/20"
-                  >
-                    Assign
-                  </button>
-                  {isLeader(membership) ? (
-                    <button
-                      type="button"
-                      onClick={() => removeIdeaBubble(idea.id)}
-                      className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 hover:bg-red-500/20"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-              </Panel>
-            ))}
-
-            {!filteredIdeas.length ? (
-              <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                No ideas in this category yet.
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {activeView === "workspace" ? (
-        <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-cyan-500/12 to-transparent" />
-            <div className="relative">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                Universal Workspace
-              </div>
-              <h3 className="mt-2 text-2xl font-black text-white">
-                Shared firm operating room
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                Post decisions, updates, file links, requests, and team notes. Use @Name to notify specific people.
-              </p>
-
-              <form onSubmit={createUniversalMessage} className="mt-5 grid gap-3">
-                <input
-                  value={workspaceMessage.title}
-                  onChange={(event) =>
-                    setWorkspaceMessage((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="Optional title"
-                  className={inputClass}
-                />
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  <select
-                    value={workspaceMessage.postType}
-                    onChange={(event) =>
-                      setWorkspaceMessage((current) => ({ ...current, postType: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option>Chat</option>
-                    <option>Announcement</option>
-                    <option>File</option>
-                    <option>Decision</option>
-                    <option>Update</option>
-                    <option>Client Work</option>
-                    <option>Research</option>
-                  </select>
-
-                  <select
-                    value={workspaceMessage.projectId}
-                    onChange={(event) =>
-                      setWorkspaceMessage((current) => ({ ...current, projectId: event.target.value }))
-                    }
-                    className={inputClass}
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid gap-2 md:grid-cols-2">
-                  {["Decision", "Client Work", "Research", "Update"].map((template) => (
-                    <button
-                      key={template}
-                      type="button"
-                      onClick={() =>
-                        setWorkspaceMessage((current) => ({
-                          ...current,
-                          postType: template,
-                          title: current.title || `${template}: `,
-                          body:
-                            current.body ||
-                            `${template}\n\nContext:\n\nDecision / Update:\n\nOwner:\n\nNext Step:\n`,
-                        }))
-                      }
-                      className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black text-white hover:bg-white/10"
-                    >
-                      {template} Template
-                    </button>
-                  ))}
-                </div>
-
-                <textarea
-                  value={workspaceMessage.body}
-                  onChange={(event) =>
-                    setWorkspaceMessage((current) => ({ ...current, body: event.target.value }))
-                  }
-                  placeholder="Message body. Tag people with @Name."
-                  className={cx(inputClass, "min-h-32")}
-                />
-
-                <textarea
-                  value={workspaceMessage.fileLinks}
-                  onChange={(event) =>
-                    setWorkspaceMessage((current) => ({ ...current, fileLinks: event.target.value }))
-                  }
-                  placeholder="File links, one per line"
-                  className={cx(inputClass, "min-h-20")}
-                />
-
-                <button
-                  disabled={loading}
-                  className="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-black text-white disabled:opacity-50"
-                >
-                  Post + Notify Mentions
-                </button>
-              </form>
-            </div>
-          </Panel>
-
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-cyan-500/12 to-transparent" />
-            <div className="relative">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                    Shared Feed
-                  </div>
-                  <h3 className="mt-2 text-2xl font-black text-white">Firm activity stream</h3>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {workspaceTypes.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setWorkspaceFilter(type)}
-                      className={cx(
-                        "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
-                        workspaceFilter === type
-                          ? "bg-white text-slate-950"
-                          : "border border-white/10 bg-white/[0.045] text-white"
+                        )
                       )}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    </div>
+                  </Panel>
 
-              <div className="mt-5 grid max-h-[900px] gap-3 overflow-y-auto pr-2">
-                {workspaceMessages.map((post) => (
-                  <Panel key={post.id} className="bg-black/35">
-                    <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="font-black text-white">{post.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {post.authorMembership ? memberName(post.authorMembership) : "Anonymous Contributor"} · {formatDateTime(post.createdAt)}
-                        </div>
+                  <Panel>
+                    <div className="border-b border-white/10 p-5">
+                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-violet-300">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Insert sections
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Pill tone={toneFor(post.postType)}>{post.postType}</Pill>
-                        {post.project ? <Pill tone="purple">{post.project.title}</Pill> : null}
-                      </div>
+
+                      <h2 className="mt-2 text-xl font-black">
+                        Expand the active doc
+                      </h2>
                     </div>
 
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{post.body}</p>
-
-                    {post.fileLinks?.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {post.fileLinks.map((link) => (
-                          <a
-                            key={link}
-                            href={link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-black text-cyan-100"
+                    <div className="grid grid-cols-2 gap-2 p-4">
+                      {DOC_PROMPTS.map(
+                        ([
+                          label,
+                          text,
+                        ]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() =>
+                              appendDocPrompt(
+                                text
+                              )
+                            }
+                            disabled={
+                              !activeDoc
+                            }
+                            className="min-w-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-left text-[11px] font-black text-slate-300 transition hover:bg-violet-400/10 disabled:opacity-35"
                           >
-                            Open file
-                          </a>
-                        ))}
-                      </div>
-                    ) : null}
-                  </Panel>
-                ))}
-
-                {!workspaceMessages.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    No workspace posts in this filter.
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </Panel>
-        </div>
-      ) : null}
-
-      {activeView === "my-work" ? (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/12 to-transparent" />
-
-            <div className="relative">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-green-400">
-                My Work
-              </div>
-              <h3 className="mt-2 text-3xl font-black text-white">
-                Personal objectives and assigned work
-              </h3>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
-                <Metric label="Daily Objectives" value={`${myTodoCompletion}%`} tone="green" helper={`${myTodos.filter((todo) => todo.done).length}/${myTodos.length} complete`} />
-                <Metric label="Firm Work" value={`${myFirmTaskCompletion}%`} tone="cyan" helper={`${myTasks.filter((task) => task.status === "Complete" || task.status === "Done").length}/${myTasks.length} complete`} />
-              </div>
-
-              <form onSubmit={addTodo} className="mt-5 grid gap-3 md:grid-cols-[1fr_150px_150px_auto]">
-                <input
-                  value={todoTitle}
-                  onChange={(event) => setTodoTitle(event.target.value)}
-                  placeholder="Add personal objective"
-                  className={inputClass}
-                />
-                <input
-                  type="date"
-                  value={todoDate}
-                  onChange={(event) => setTodoDate(event.target.value)}
-                  className={inputClass}
-                />
-                <input
-                  value={todoCategory}
-                  onChange={(event) => setTodoCategory(event.target.value)}
-                  placeholder="Category"
-                  className={inputClass}
-                />
-                <button className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950">
-                  Add
-                </button>
-              </form>
-
-              <div className="mt-5 grid gap-3">
-                {myTodos.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className={cx(
-                      "group flex items-center justify-between gap-3 rounded-2xl border p-4 transition",
-                      todo.done ? "border-emerald-500/20 bg-emerald-500/10" : "border-white/10 bg-black/35 hover:bg-white/[0.06]"
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleTodo(todo.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <span
-                        className={cx(
-                          "grid h-9 w-9 shrink-0 place-items-center rounded-2xl border text-sm font-black transition group-hover:scale-105",
-                          todo.done
-                            ? "border-emerald-400 bg-emerald-500 text-white shadow-lg shadow-emerald-950/30"
-                            : "border-white/20 bg-white/[0.045] text-slate-500"
-                        )}
-                      >
-                        {todo.done ? "✓" : ""}
-                      </span>
-                      <span className="min-w-0">
-                        <span className={cx("block truncate text-sm font-black", todo.done ? "text-emerald-100 line-through" : "text-white")}>
-                          {todo.title}
-                        </span>
-                        <span className="text-xs text-slate-500">{todo.category}</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTodo(todo.id)}
-                      className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] font-black text-red-100"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
-
-                {!myTodos.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    No personal objectives for this day.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-8 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                Firm-assigned work
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {myTasks.map((task) => (
-                  <Panel key={task.id} className={task.status === "Complete" || task.status === "Done" ? "border-emerald-500/25 bg-emerald-500/10" : "bg-black/35"}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-black text-white">{task.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          Due {shortDate(task.dueDate)}
-                        </div>
-                      </div>
-                      <Pill tone={toneFor(task.status)}>{task.status}</Pill>
-                    </div>
-
-                    <p className="mt-3 text-sm leading-6 text-slate-400">
-                      {task.detail || "No detail provided."}
-                    </p>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => moveTask(task, "In Progress")}
-                        className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-black text-white hover:bg-white/10"
-                      >
-                        Start
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveTask(task, "Complete")}
-                        className="rounded-2xl bg-white px-3 py-2 text-xs font-black text-slate-950"
-                      >
-                        Complete
-                      </button>
+                            <span className="block break-words">
+                              {label}
+                            </span>
+                          </button>
+                        )
+                      )}
                     </div>
                   </Panel>
-                ))}
-
-                {!myTasks.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm font-bold text-slate-500">
-                    No assigned firm work yet.
-                  </div>
-                ) : null}
+                </div>
               </div>
-            </div>
-          </Panel>
-
-          <div className="grid gap-5">
-            <Panel>
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">
-                Selected Task
-              </div>
-
-              {selectedTask ? (
-                <div className="mt-4 grid gap-4">
-                  <div>
-                    <h3 className="text-2xl font-black text-white">{selectedTask.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedTask.detail || "No detail provided."}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <Pill tone={toneFor(selectedTask.status)}>{selectedTask.status}</Pill>
-                    <Pill tone={toneFor(selectedTask.priority)}>{selectedTask.priority}</Pill>
-                    <Pill tone="cyan">{selectedTask.ownerName}</Pill>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {operations.scrumStatuses.map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => moveTask(selectedTask, status)}
-                        className={cx(
-                          "rounded-2xl border px-3 py-3 text-xs font-black",
-                          selectedTask.status === status
-                            ? "border-cyan-400/50 bg-cyan-500/15 text-cyan-100"
-                            : "border-white/10 bg-white/[0.045] text-white hover:bg-white/10"
-                        )}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-
-                  <form onSubmit={createTimedReminder} className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">
-                      Reminder Until Complete
-                    </div>
-                    <input
-                      value={taskForm.reminderAt}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, reminderAt: event.target.value }))
-                      }
-                      placeholder="today, tomorrow 9am, Friday 2pm, or exact date"
-                      className={inputClass}
-                    />
-                    <select
-                      value={taskForm.reminderInterval}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, reminderInterval: event.target.value }))
-                      }
-                      className={inputClass}
-                    >
-                      <option>Once</option>
-                      <option>Daily</option>
-                      <option>Every 2 Days</option>
-                      <option>Weekly</option>
-                      <option>Biweekly</option>
-                      <option>Monthly</option>
-                      <option>Until Complete</option>
-                    </select>
-                    <textarea
-                      value={taskForm.reminderNote}
-                      onChange={(event) =>
-                        setTaskForm((current) => ({ ...current, reminderNote: event.target.value }))
-                      }
-                      placeholder="Reminder note"
-                      className={cx(inputClass, "min-h-20")}
-                    />
-                    <button
-                      disabled={loading}
-                      className="rounded-2xl bg-amber-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50"
-                    >
-                      Add Reminder
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-slate-500">Select a task to view details.</p>
-              )}
-            </Panel>
-
-            {ownerMode ? (
-              <Panel>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
-                  Owner Completion Feed
-                </div>
-                <h3 className="mt-2 text-xl font-black text-white">
-                  Completed firm-assigned work
-                </h3>
-
-                <div className="mt-4 grid max-h-[360px] gap-3 overflow-y-auto pr-2">
-                  {completedFirmTasks.slice(0, 20).map((task) => (
-                    <div key={task.id} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-black text-white">{task.title}</div>
-                        <Pill tone="green">Done</Pill>
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        Completed by {task.ownerName} · Due {shortDate(task.dueDate)}
-                      </div>
-                    </div>
-                  ))}
-
-                  {!completedFirmTasks.length ? (
-                    <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-sm font-bold text-slate-500">
-                      No completed firm tasks yet.
-                    </div>
-                  ) : null}
-                </div>
-              </Panel>
             ) : null}
-          </div>
-        </div>
-      ) : null}
+          </>
+        )}
 
-      {activeView === "docs" ? (
-        <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-          <Panel className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-amber-500/12 to-transparent" />
+        <footer className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-xs font-semibold text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <span className="min-w-0 break-words">
+            Team tasks and notifications are firm-backed. Personal rankings,
+            private work, and personal docs are saved per user in this browser.
+          </span>
 
-            <div className="relative">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">
-                    My Docs
-                  </div>
-                  <h3 className="mt-2 text-2xl font-black text-white">Personal knowledge vault</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => createDoc()}
-                  className="rounded-2xl bg-white px-4 py-2 text-xs font-black text-slate-950"
-                >
-                  New
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-2">
-                {docTemplates.map((template) => (
-                  <button
-                    key={template.name}
-                    type="button"
-                    onClick={() => createDoc(template.name)}
-                    className="rounded-2xl border border-white/10 bg-black/35 p-3 text-left text-xs font-black text-white hover:bg-white/[0.06]"
-                  >
-                    <div>{template.name}</div>
-                    <div className="mt-1 text-[10px] font-bold text-slate-500">{template.category}</div>
-                  </button>
-                ))}
-              </div>
-
-              <input
-                value={docSearch}
-                onChange={(event) => setDocSearch(event.target.value)}
-                placeholder="Search docs, category, labels..."
-                className={cx(inputClass, "mt-4 w-full")}
-              />
-
-              {docCategories.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {docCategories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setDocSearch(category)}
-                      className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white hover:bg-white/10"
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="mt-5 grid max-h-[720px] gap-3 overflow-y-auto pr-2">
-                {filteredDocs.map((doc) => (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => setActiveDocId(doc.id)}
-                    className={cx(
-                      "rounded-2xl border p-4 text-left transition hover:bg-white/[0.06]",
-                      activeDoc?.id === doc.id
-                        ? "border-cyan-400/50 bg-cyan-500/10"
-                        : "border-white/10 bg-black/35"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate font-black text-white">
-                          {doc.favorite ? "★ " : ""}
-                          {doc.title}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {doc.category} · {formatDateTime(doc.updatedAt)}
-                        </div>
-                      </div>
-                      {doc.attachments.length ? <Pill tone="amber">{doc.attachments.length}</Pill> : null}
-                    </div>
-                    <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-400">
-                      {doc.body || "Blank document."}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {doc.labels.slice(0, 3).map((label) => (
-                        <Pill key={label} tone="cyan">{label}</Pill>
-                      ))}
-                    </div>
-                  </button>
-                ))}
-
-                {!filteredDocs.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                    No docs yet.
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </Panel>
-
-          {renderDocsEditor()}
-        </div>
-      ) : null}
-    </section>
+          <button
+            type="button"
+            onClick={() =>
+              void loadWorkspace()
+            }
+            className="inline-flex shrink-0 items-center gap-2 font-black text-slate-400 hover:text-white"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh Team Board
+          </button>
+        </footer>
+      </div>
+    </main>
   );
 }

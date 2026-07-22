@@ -296,7 +296,12 @@ export default function IntelligenceScannerPage() {
     [symbolsInput]
   );
 
-  const market = useRealtimeMarket(symbols, { persist: true });
+  const market = useRealtimeMarket(symbols, {
+    persist: true,
+    provider: "alphavantage",
+    strictProvider: true,
+    intervalMs: 30_000,
+  });
 
   const [loadingScan, setLoadingScan] = useState(false);
   const [scan, setScan] = useState<ScanResponse | null>(null);

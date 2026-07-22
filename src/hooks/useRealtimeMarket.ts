@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export type RealtimeAssetSnapshot = {
   symbol: string;
@@ -43,36 +49,58 @@ export type RealtimeMarketResponse = {
   staleCount: number;
   warnings: string[];
   snapshots: RealtimeAssetSnapshot[];
+  providerMode?: "alphavantage" | "auto";
+  strictProvider?: boolean;
+  authenticated?: boolean;
 };
 
 type UseRealtimeMarketOptions = {
   intervalMs?: number;
   enabled?: boolean;
   persist?: boolean;
+  provider?: "alphavantage" | "auto";
+  strictProvider?: boolean;
 };
 
 function normalizeSymbols(symbols: string[]) {
   return Array.from(
     new Set(
       symbols
-        .map((symbol) => symbol.trim().toUpperCase())
+        .map((symbol) =>
+          symbol
+            .trim()
+            .toUpperCase()
+            .replace(/^\$/, "")
+        )
         .filter(Boolean)
     )
-  );
+  ).slice(0, 100);
+}
+
+function configuredInterval() {
+  const value = Number(process.env.NEXT_PUBLIC_SLICE_REALTIME_POLL_MS);
+
+  return Number.isFinite(value) ? value : 30_000;
 }
 
 export function useRealtimeMarket(
   symbols: string[],
   options: UseRealtimeMarketOptions = {}
 ) {
-  const normalizedSymbols = useMemo(() => normalizeSymbols(symbols), [symbols.join(",")]);
-  const intervalMs =
-    options.intervalMs ??
-    Number(process.env.NEXT_PUBLIC_SLICE_REALTIME_POLL_MS) ??
-    15_000;
+  const normalizedSymbols = useMemo(
+    () => normalizeSymbols(symbols),
+    [symbols.join(",")]
+  );
+
+  const intervalMs = Math.max(
+    15_000,
+    options.intervalMs ?? configuredInterval()
+  );
 
   const enabled = options.enabled ?? true;
   const persist = options.persist ?? true;
+  const provider = options.provider ?? "alphavantage";
+  const strictProvider = options.strictProvider ?? provider === "alphavantage";
 
   const [data, setData] = useState<RealtimeMarketResponse | null>(null);
   const [error, setError] = useState("");
@@ -80,9 +108,12 @@ export function useRealtimeMarket(
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
-    if (!enabled || normalizedSymbols.length === 0) return;
+    if (!enabled || normalizedSymbols.length === 0) {
+      return;
+    }
 
     abortRef.current?.abort();
 
@@ -96,6 +127,8 @@ export function useRealtimeMarket(
       const params = new URLSearchParams({
         symbols: normalizedSymbols.join(","),
         persist: String(persist),
+        provider,
+        strict: String(strictProvider),
       });
 
       const response = await fetch(`/api/market/realtime?${params.toString()}`, {
@@ -103,49 +136,99 @@ export function useRealtimeMarket(
         signal: controller.signal,
       });
 
+      const payload = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(`Real-time market request failed with HTTP ${response.status}.`);
+        throw new Error(
+          payload.detail ||
+            payload.error ||
+            `Real-time market request failed with HTTP ${response.status}.`
+        );
       }
 
-      const payload = (await response.json()) as RealtimeMarketResponse;
+      const result = payload as RealtimeMarketResponse;
 
-      setData(payload);
-      setLastUpdatedAt(new Date());
+      if (strictProvider && provider === "alphavantage") {
+        const nonAlpha = result.snapshots.filter(
+          (snapshot) => snapshot.provider !== "Alpha Vantage"
+        );
+
+        if (nonAlpha.length) {
+          throw new Error(
+            `Strict Alpha Vantage mode received another provider for ${nonAlpha
+              .map((snapshot) => snapshot.symbol)
+              .join(", ")}.`
+          );
+        }
+      }
+
+      if (mountedRef.current) {
+        setData(result);
+        setLastUpdatedAt(new Date());
+      }
     } catch (fetchError) {
-      if (fetchError instanceof DOMException && fetchError.name === "AbortError") return;
+      if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
+        return;
+      }
 
-      setError(fetchError instanceof Error ? fetchError.message : "Market refresh failed.");
+      if (mountedRef.current) {
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Alpha Vantage market refresh failed."
+        );
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
-  }, [enabled, normalizedSymbols.join(","), persist]);
+  }, [
+    enabled,
+    normalizedSymbols.join(","),
+    persist,
+    provider,
+    strictProvider,
+  ]);
 
   useEffect(() => {
-    refresh();
+    mountedRef.current = true;
+    void refresh();
 
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
 
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        refresh();
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void refresh();
       }
-    }, Math.max(5_000, intervalMs));
+    }, intervalMs);
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void refresh();
+      }
+    };
+
+    const onOnline = () => {
+      void refresh();
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("online", onOnline);
 
     return () => {
+      mountedRef.current = false;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", onOnline);
       abortRef.current?.abort();
     };
   }, [enabled, intervalMs, refresh]);
 
   const isStale = lastUpdatedAt
-    ? Date.now() - lastUpdatedAt.getTime() > Math.max(intervalMs * 3, 45_000)
+    ? Date.now() - lastUpdatedAt.getTime() > Math.max(intervalMs * 3, 90_000)
     : false;
 
   return {
@@ -156,5 +239,7 @@ export function useRealtimeMarket(
     isStale,
     lastUpdatedAt,
     refresh,
+    provider,
+    strictProvider,
   };
 }
