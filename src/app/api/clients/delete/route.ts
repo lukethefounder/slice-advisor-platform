@@ -1,4 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
+import {
+  canManageClientRouting,
+  ensureAdvisorFirmContext,
+} from "@/lib/client-access";
 import { prisma } from "@/lib/prisma";
 import {
   cleanText,
@@ -53,11 +57,30 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const body = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+
     const clientId = cleanText(body.clientId);
 
     if (!clientId) {
-      return noStoreJson({ error: "Client ID is required." }, { status: 400 });
+      return noStoreJson(
+        { error: "Client ID is required." },
+        { status: 400 },
+      );
+    }
+
+    const membership = await ensureAdvisorFirmContext(user.id);
+
+    if (!canManageClientRouting(membership)) {
+      return noStoreJson(
+        {
+          error:
+            "Lead-advisor or firm-management access is required to delete a client profile.",
+        },
+        { status: 403 },
+      );
     }
 
     const access = await requireClientAccess({
@@ -74,7 +97,6 @@ export async function POST(request: Request) {
     const client = await prisma.clientProfile.findFirst({
       where: {
         id: clientId,
-        userId: user.id,
       },
       select: {
         id: true,
@@ -93,7 +115,8 @@ export async function POST(request: Request) {
       clientId,
       action: "delete",
       title: "Client profile deleted",
-      detail: "A client profile and related client records were deleted through the protected client-data API.",
+      detail:
+        "A client profile and related client records were deleted through the protected client-data API.",
       metadata: {
         fullName: client.fullName,
       },
@@ -128,7 +151,6 @@ export async function POST(request: Request) {
       prisma.clientProfile.deleteMany({
         where: {
           id: clientId,
-          userId: user.id,
         },
       }),
     ]);
@@ -142,7 +164,10 @@ export async function POST(request: Request) {
     return noStoreJson(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Client deletion failed.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Client deletion failed.",
       },
       { status: 500 },
     );

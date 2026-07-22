@@ -175,21 +175,33 @@ model AlertRule {
 }
 
 model ClientProfile {
-  id              String           @id @default(cuid())
-  userId          String
-  fullName        String
-  email           String?
-  householdName   String?
-  clientType      String           @default("Private Client")
-  riskProfile     String           @default("Balanced")
-  liquidityNeeds  String           @default("Moderate")
-  timeHorizon     String           @default("5-10 years")
-  objective       String           @default("Long-term wealth growth")
-  portfolioValue  String?
-  status          String           @default("Active")
-  notes           String?
-  createdAt       DateTime         @default(now())
-  briefingReports BriefingReport[]
+  id                          String           @id @default(cuid())
+  userId                      String
+  firmId                      String?
+  assignedAdvisorMembershipId String?
+  assignedAdvisorAt           DateTime?
+  assignedByUserId            String?
+  fullName                    String
+  email                       String?
+  phone                       String?
+  householdName               String?
+  preferredContactMethod      String           @default("Portal + email")
+  clientType                  String           @default("Private Client")
+  riskProfile                 String           @default("Balanced")
+  liquidityNeeds              String           @default("Moderate")
+  timeHorizon                 String           @default("5-10 years")
+  objective                   String           @default("Long-term wealth growth")
+  portfolioValue              String?
+  status                      String           @default("Active")
+  notes                       String?
+  portalEnabled               Boolean          @default(false)
+  portalInviteCodeHash        String?
+  portalInviteExpiresAt       DateTime?
+  portalOnboardingStatus      String           @default("Not Invited")
+  portalLastLoginAt           DateTime?
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @updatedAt
+  briefingReports             BriefingReport[]
 
   user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   holdings  PortfolioHolding[]
@@ -199,6 +211,9 @@ model ClientProfile {
   documents DocumentVaultItem[]
 
   @@index([userId])
+  @@index([firmId])
+  @@index([assignedAdvisorMembershipId])
+  @@index([portalInviteCodeHash])
   @@index([fullName])
 }
 
@@ -839,6 +854,9 @@ model FirmMembership {
   canInviteMembers    Boolean  @default(false)
   canManageFirm       Boolean  @default(false)
   calendarColor       String   @default("#ef4444")
+  calendlyUrl         String?
+  calendlyLabel       String   @default("Schedule a meeting")
+  calendlyEnabled     Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -2730,4 +2748,71 @@ model IntelligenceForecastDriftAlert {
   @@index([severity])
   @@index([status])
   @@index([createdAt])
+}
+
+model AdvisorClientInboxItem {
+  id                          String   @id @default(cuid())
+  firmId                      String
+  clientId                    String
+  assignedAdvisorMembershipId String
+  kind                        String   @default("Message")
+  title                       String
+  body                        String
+  status                      String   @default("Unread")
+  priority                    String   @default("Medium")
+  sourceEventId               String
+  senderName                  String?
+  senderEmail                 String?
+  metadataJson                String   @default("{}")
+  readAt                      DateTime?
+  resolvedAt                  DateTime?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@unique([firmId, sourceEventId])
+  @@index([firmId])
+  @@index([clientId])
+  @@index([assignedAdvisorMembershipId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AdvisorClientInboxReply {
+  id                  String   @id @default(cuid())
+  inboxItemId         String
+  advisorMembershipId String
+  authorUserId        String
+  body                String
+  createdAt           DateTime @default(now())
+
+  @@index([inboxItemId])
+  @@index([advisorMembershipId])
+  @@index([createdAt])
+}
+
+model ClientAdvisorAssignmentAudit {
+  id                          String   @id @default(cuid())
+  firmId                      String
+  clientId                    String
+  previousAdvisorMembershipId String?
+  nextAdvisorMembershipId     String
+  changedByUserId             String
+  reason                      String?
+  createdAt                   DateTime @default(now())
+
+  @@index([firmId])
+  @@index([clientId])
+  @@index([nextAdvisorMembershipId])
+  @@index([createdAt])
+}
+
+model ClientPortalSession {
+  id        String   @id @default(cuid())
+  clientId  String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([expiresAt])
 }

@@ -1,4 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
+import {
+  canManageClientRouting,
+  ensureAdvisorFirmContext,
+} from "@/lib/client-access";
 import { prisma } from "@/lib/prisma";
 import {
   cleanEmail,
@@ -21,7 +25,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function protectedRouteResponse(
-  protection: Awaited<ReturnType<typeof protectClientDataRoute>>
+  protection: Awaited<ReturnType<typeof protectClientDataRoute>>,
 ) {
   return (
     protection.response ??
@@ -29,13 +33,13 @@ function protectedRouteResponse(
       {
         error: "Security policy blocked this client request.",
       },
-      { status: 403 }
+      { status: 403 },
     )
   );
 }
 
 function clientAccessResponse(
-  access: Awaited<ReturnType<typeof requireClientAccess>>
+  access: Awaited<ReturnType<typeof requireClientAccess>>,
 ) {
   return (
     access.response ??
@@ -43,14 +47,14 @@ function clientAccessResponse(
       {
         error: "Client access denied.",
       },
-      { status: 404 }
+      { status: 404 },
     )
   );
 }
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await getCurrentUser();
 
@@ -92,7 +96,6 @@ export async function GET(
     const rawClient = await prisma.clientProfile.findFirst({
       where: {
         id,
-        userId: user.id,
       },
       include: {
         holdings: true,
@@ -131,14 +134,14 @@ export async function GET(
             ? error.message
             : "Unable to load client profile.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await getCurrentUser();
 
@@ -187,7 +190,7 @@ export async function PATCH(
       if (body.email.trim() && !email) {
         return noStoreJson(
           { error: "Client email is invalid." },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -195,7 +198,6 @@ export async function PATCH(
     await prisma.clientProfile.updateMany({
       where: {
         id,
-        userId: user.id,
       },
       data: {
         fullName:
@@ -235,7 +237,9 @@ export async function PATCH(
             ? encryptSensitiveText(cleanNullableText(body.portfolioValue))
             : undefined,
         status:
-          typeof body.status === "string" ? cleanText(body.status) : undefined,
+          typeof body.status === "string"
+            ? cleanText(body.status)
+            : undefined,
         notes:
           typeof body.notes === "string"
             ? encryptSensitiveText(cleanNullableText(body.notes))
@@ -246,7 +250,6 @@ export async function PATCH(
     const rawClient = await prisma.clientProfile.findFirst({
       where: {
         id,
-        userId: user.id,
       },
     });
 
@@ -260,7 +263,7 @@ export async function PATCH(
         "A client profile was updated through the protected client-data API.",
       metadata: {
         changedFields: Object.keys(body).filter(
-          (key) => typeof body[key] !== "undefined"
+          (key) => typeof body[key] !== "undefined",
         ),
         vault: vaultStatus(),
       },
@@ -278,14 +281,14 @@ export async function PATCH(
             ? error.message
             : "Unable to update client profile.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   const user = await getCurrentUser();
 
@@ -309,6 +312,17 @@ export async function DELETE(
 
   try {
     const { id } = await context.params;
+    const membership = await ensureAdvisorFirmContext(user.id);
+
+    if (!canManageClientRouting(membership)) {
+      return noStoreJson(
+        {
+          error:
+            "Lead-advisor or firm-management access is required to delete a client profile.",
+        },
+        { status: 403 },
+      );
+    }
 
     const access = await requireClientAccess({
       user,
@@ -337,14 +351,13 @@ export async function DELETE(
           error:
             "Sensitive action confirmation is required. Send x-slice-sensitive-action: confirm-delete-client.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     await prisma.clientProfile.deleteMany({
       where: {
         id,
-        userId: user.id,
       },
     });
 
@@ -367,7 +380,7 @@ export async function DELETE(
             ? error.message
             : "Unable to delete client profile.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

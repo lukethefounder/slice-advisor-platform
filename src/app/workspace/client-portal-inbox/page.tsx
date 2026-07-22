@@ -5,363 +5,81 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "blue" | "slate";
+type InboxStatus =
+  | "Unread"
+  | "Needs Review"
+  | "In Progress"
+  | "Waiting on Client"
+  | "Resolved"
+  | "Archived";
 
-type InboxType =
-  | "Message"
-  | "Request"
-  | "Document"
-  | "Risk Update"
-  | "Holding Update"
-  | "Meeting"
-  | "Approval"
-  | "Profile Update";
-
-type Priority = "Critical" | "High" | "Medium" | "Low";
-type Status = "Unread" | "Needs Review" | "Assigned" | "In Progress" | "Resolved";
-
-type Holding = {
+type AdvisorMember = {
   id: string;
-  symbol: string;
   name: string;
-  assetClass: string;
-  allocationPct: number;
-  value: string;
-  riskLevel: string;
-  note: string;
+  email: string;
+  role: string;
+  calendlyUrl: string | null;
+  calendlyLabel: string;
+  calendlyEnabled: boolean;
 };
 
-type ClientProfile = {
+type RoutingClient = {
   id: string;
   fullName: string;
-  householdName: string;
-  email: string;
-  phone: string;
+  email: string | null;
+  householdName: string | null;
   clientType: string;
-  tier: string;
-  status: string;
-  hasPortalAccount: boolean;
-  riskScore: number;
   riskProfile: string;
-  liquidityNeeds: string;
-  timeHorizon: string;
-  objective: string;
-  portfolioValue: string;
-  notes: string;
-  holdings: Holding[];
-  updatedAt: string;
+  status: string;
+  portalEnabled: boolean;
+  portalOnboardingStatus: string;
+  assignedAdvisorMembershipId: string | null;
+  assignedAdvisor: AdvisorMember | null;
 };
 
-type ClientInboxItem = {
+type InboxReply = {
   id: string;
-  clientId: string;
-  type: InboxType;
-  title: string;
   body: string;
-  submittedAt: string;
-  priority: Priority;
-  status: Status;
-  assignedTo?: string;
-  relatedSymbol?: string;
-  source: "Client Portal" | "Client Account" | "Profile Update" | "Account Update" | "Document Upload" | "Advisor Routing";
+  advisorMembershipId: string;
+  authorUserId: string;
+  createdAt: string;
 };
 
-type DelegatedTask = {
+type InboxItem = {
   id: string;
-  title: string;
+  firmId: string;
   clientId: string;
   clientName: string;
-  owner: string;
-  ownerRole: string;
-  status: "Open" | "In Progress" | "Waiting" | "Done";
-  priority: Priority;
-  due: string;
-  source: "Client Portal Inbox";
-  sourceItemId: string;
-  createdAt: string;
-  detail: string;
-};
-
-type CommunicationRecord = {
-  id: string;
-  clientId: string;
-  type: "Client Message" | "Advisor Note" | "Assignment" | "Email Draft" | "Profile Change";
+  assignedAdvisorMembershipId: string;
+  assignedAdvisor: AdvisorMember | null;
+  kind: string;
   title: string;
   body: string;
+  status: InboxStatus;
+  priority: "Critical" | "High" | "Medium" | "Low";
+  sourceEventId: string;
+  senderName: string | null;
+  senderEmail: string | null;
+  metadata: Record<string, unknown>;
   createdAt: string;
-  owner: string;
-  source: string;
+  updatedAt: string;
+  replies: InboxReply[];
 };
 
-const CLIENTS_KEY = "slice-client-profiles-v2";
-const INBOX_KEY = "slice-client-portal-inbox-v2";
-const TEAM_DELEGATIONS_KEY = "slice-team-board-delegations-v1";
-const COMMUNICATIONS_KEY = "slice-client-communications-v1";
-
-const TEAM = [
-  { id: "founder", name: "Founder", role: "Founder / Principal", email: "founder@slice.ai" },
-  { id: "lead-advisor", name: "Lead Advisor", role: "Advisor", email: "advisor@slice.ai" },
-  { id: "service-advisor", name: "Service Advisor", role: "Client Service", email: "service@slice.ai" },
-  { id: "ops", name: "Ops", role: "Operations", email: "ops@slice.ai" },
-];
-
-const DEFAULT_CLIENTS: ClientProfile[] = [
-  {
-    id: "c-royal",
-    fullName: "Royal Family Trust",
-    householdName: "Royal Household",
-    email: "royal.client@example.com",
-    phone: "(480) 555-0138",
-    clientType: "Trust",
-    tier: "Premier",
-    status: "Active",
-    hasPortalAccount: true,
-    riskScore: 72,
-    riskProfile: "Moderate Growth",
-    liquidityNeeds: "Medium",
-    timeHorizon: "10+ years",
-    objective: "Long-term growth with tax-aware concentration management.",
-    portfolioValue: "$2.8M",
-    notes: "Client is sensitive to taxable gains and concentrated AAPL exposure.",
-    updatedAt: "Today",
-    holdings: [
-      {
-        id: "h-spy",
-        symbol: "SPY",
-        name: "S&P 500 ETF",
-        assetClass: "ETF",
-        allocationPct: 24,
-        value: "$672,000",
-        riskLevel: "Medium",
-        note: "Core equity exposure",
-      },
-      {
-        id: "h-aapl",
-        symbol: "AAPL",
-        name: "Apple",
-        assetClass: "Stock",
-        allocationPct: 8,
-        value: "$224,000",
-        riskLevel: "High",
-        note: "Concentrated taxable position",
-      },
-      {
-        id: "h-tlt",
-        symbol: "TLT",
-        name: "20+ Year Treasury ETF",
-        assetClass: "ETF",
-        allocationPct: 11,
-        value: "$308,000",
-        riskLevel: "Medium",
-        note: "Rate-sensitive allocation",
-      },
-      {
-        id: "h-cash",
-        symbol: "CASH",
-        name: "Cash Reserve",
-        assetClass: "Cash",
-        allocationPct: 7,
-        value: "$196,000",
-        riskLevel: "Low",
-        note: "Liquidity reserve",
-      },
-    ],
-  },
-  {
-    id: "c-desert",
-    fullName: "Desert Capital LLC",
-    householdName: "Desert Capital",
-    email: "desert@example.com",
-    phone: "(602) 555-0144",
-    clientType: "Business Owner",
-    tier: "Business Owner",
-    status: "Active",
-    hasPortalAccount: true,
-    riskScore: 84,
-    riskProfile: "Growth",
-    liquidityNeeds: "Low",
-    timeHorizon: "15+ years",
-    objective: "Growth-focused allocation with liquidity event planning.",
-    portfolioValue: "$4.1M",
-    notes: "Client wants more structured AI exposure review.",
-    updatedAt: "Yesterday",
-    holdings: [
-      {
-        id: "h-qqq",
-        symbol: "QQQ",
-        name: "Nasdaq 100 ETF",
-        assetClass: "ETF",
-        allocationPct: 18,
-        value: "$738,000",
-        riskLevel: "High",
-        note: "Growth tilt",
-      },
-      {
-        id: "h-nvda",
-        symbol: "NVDA",
-        name: "NVIDIA",
-        assetClass: "Stock",
-        allocationPct: 6,
-        value: "$246,000",
-        riskLevel: "High",
-        note: "AI exposure request",
-      },
-      {
-        id: "h-bnd",
-        symbol: "BND",
-        name: "Total Bond Market ETF",
-        assetClass: "ETF",
-        allocationPct: 9,
-        value: "$369,000",
-        riskLevel: "Low",
-        note: "Stability sleeve",
-      },
-    ],
-  },
-  {
-    id: "c-saguaro",
-    fullName: "Saguaro Retirement Plan",
-    householdName: "Saguaro Family",
-    email: "saguaro@example.com",
-    phone: "(520) 555-0199",
-    clientType: "Retirement",
-    tier: "Retirement",
-    status: "Active",
-    hasPortalAccount: true,
-    riskScore: 48,
-    riskProfile: "Balanced Income",
-    liquidityNeeds: "High",
-    timeHorizon: "5–7 years",
-    objective: "Retirement income stability with controlled drawdown risk.",
-    portfolioValue: "$1.2M",
-    notes: "Client is focused on income confidence and downside control.",
-    updatedAt: "3 days ago",
-    holdings: [
-      {
-        id: "h-schd",
-        symbol: "SCHD",
-        name: "Dividend Equity ETF",
-        assetClass: "ETF",
-        allocationPct: 20,
-        value: "$240,000",
-        riskLevel: "Medium",
-        note: "Income equity sleeve",
-      },
-      {
-        id: "h-agg",
-        symbol: "AGG",
-        name: "Aggregate Bond ETF",
-        assetClass: "ETF",
-        allocationPct: 22,
-        value: "$264,000",
-        riskLevel: "Low",
-        note: "Core fixed income",
-      },
-      {
-        id: "h-gld",
-        symbol: "GLD",
-        name: "Gold ETF",
-        assetClass: "ETF",
-        allocationPct: 4,
-        value: "$48,000",
-        riskLevel: "Medium",
-        note: "Diversifier",
-      },
-    ],
-  },
-];
-
-const DEFAULT_INBOX: ClientInboxItem[] = [
-  {
-    id: "i-1",
-    clientId: "c-royal",
-    type: "Risk Update",
-    title: "Risk profile update submitted",
-    body:
-      "Client updated risk tolerance from Moderate to Moderate Growth and added a note about wanting more upside while avoiding overconcentration.",
-    submittedAt: "8 minutes ago",
-    priority: "High",
-    status: "Unread",
-    assignedTo: "lead-advisor",
-    source: "Client Account",
-  },
-  {
-    id: "i-2",
-    clientId: "c-royal",
-    type: "Holding Update",
-    title: "Question about AAPL concentration",
-    body:
-      "Client asked whether they should reduce Apple exposure after seeing the position as a large part of taxable holdings.",
-    submittedAt: "22 minutes ago",
-    priority: "High",
-    status: "Needs Review",
-    relatedSymbol: "AAPL",
-    assignedTo: "founder",
-    source: "Client Portal",
-  },
-  {
-    id: "i-3",
-    clientId: "c-desert",
-    type: "Request",
-    title: "Discuss AI exposure",
-    body:
-      "Client wants to discuss NVDA and whether current AI exposure is appropriate for their business-owner portfolio.",
-    submittedAt: "1 hour ago",
-    priority: "Medium",
-    status: "Assigned",
-    relatedSymbol: "NVDA",
-    assignedTo: "lead-advisor",
-    source: "Client Portal",
-  },
-  {
-    id: "i-4",
-    clientId: "c-saguaro",
-    type: "Meeting",
-    title: "Income planning meeting request",
-    body:
-      "Client requested a meeting to review expected retirement income, bond allocation, and liquidity needs for the next 12 months.",
-    submittedAt: "2 hours ago",
-    priority: "Medium",
-    status: "Needs Review",
-    assignedTo: "service-advisor",
-    source: "Client Portal",
-  },
-  {
-    id: "i-5",
-    clientId: "c-royal",
-    type: "Document",
-    title: "Trust document uploaded",
-    body:
-      "Client uploaded an updated trust document and requested confirmation that beneficiary notes are reflected in planning records.",
-    submittedAt: "Today",
-    priority: "Critical",
-    status: "Unread",
-    assignedTo: "ops",
-    source: "Document Upload",
-  },
-];
-
-const DEFAULT_COMMUNICATIONS: CommunicationRecord[] = [
-  {
-    id: "comm-1",
-    clientId: "c-royal",
-    type: "Client Message",
-    title: "AAPL concentration question",
-    body: "Client asked whether their AAPL position is too concentrated.",
-    createdAt: "22 minutes ago",
-    owner: "Client",
-    source: "Client Portal",
-  },
-  {
-    id: "comm-2",
-    clientId: "c-desert",
-    type: "Advisor Note",
-    title: "AI exposure review",
-    body: "Prepare talking points for NVDA and QQQ exposure.",
-    createdAt: "1 hour ago",
-    owner: "Lead Advisor",
-    source: "Advisor Note",
-  },
-];
+type InboxPayload = {
+  ok: boolean;
+  firm: { id: string; name: string; firmEmail: string | null };
+  membership: AdvisorMember;
+  permissions: {
+    canManageAssignments: boolean;
+    canCreatePortalInvites: boolean;
+    canViewFirmOversight: boolean;
+    inboxScope: "mine" | "all";
+  };
+  members: AdvisorMember[];
+  clients: RoutingClient[];
+  inbox: InboxItem[];
+};
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -377,22 +95,43 @@ const toneClasses: Record<Tone, string> = {
   slate: "border-slate-500/20 bg-slate-500/10 text-slate-100",
 };
 
-function typeTone(type: InboxType): Tone {
-  if (type === "Risk Update") return "red";
-  if (type === "Holding Update") return "cyan";
-  if (type === "Document") return "amber";
-  if (type === "Meeting") return "purple";
-  if (type === "Approval") return "green";
-  if (type === "Request") return "blue";
-  if (type === "Profile Update") return "purple";
+function kindTone(kind: string): Tone {
+  if (kind === "Risk Update") return "red";
+  if (kind === "Holding Update") return "cyan";
+  if (kind === "Document") return "amber";
+  if (kind === "Meeting") return "purple";
+  if (kind === "Approval") return "green";
+  if (kind === "Request") return "blue";
+  if (kind === "Profile Update") return "purple";
   return "slate";
 }
 
-function priorityTone(priority: Priority): Tone {
+function priorityTone(priority: InboxItem["priority"]): Tone {
   if (priority === "Critical") return "red";
   if (priority === "High") return "amber";
   if (priority === "Medium") return "cyan";
   return "slate";
+}
+
+function statusTone(status: InboxStatus): Tone {
+  if (status === "Unread") return "red";
+  if (status === "Needs Review") return "amber";
+  if (status === "In Progress") return "cyan";
+  if (status === "Waiting on Client") return "purple";
+  if (status === "Resolved") return "green";
+  return "slate";
+}
+
+function readableDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -421,42 +160,14 @@ function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }
   );
 }
 
-function ActionButton({
-  children,
-  tone = "red",
-  onClick,
-  className = "",
-}: {
-  children: ReactNode;
-  tone?: Tone;
-  onClick: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-black transition hover:-translate-y-0.5",
-        toneClasses[tone],
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 function LinkButton({
   href,
   children,
   tone = "red",
-  className = "",
 }: {
   href: string;
   children: ReactNode;
   tone?: Tone;
-  className?: string;
 }) {
   return (
     <Link
@@ -465,7 +176,6 @@ function LinkButton({
       className={cx(
         "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-black transition hover:-translate-y-0.5",
         toneClasses[tone],
-        className,
       )}
     >
       {children}
@@ -473,227 +183,169 @@ function LinkButton({
   );
 }
 
-function loadJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveJson<T>(key: string, value: T) {
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
-function getClient(clients: ClientProfile[], clientId: string) {
-  return clients.find((client) => client.id === clientId) ?? clients[0];
-}
-
-function getTeamMember(memberId?: string) {
-  if (!memberId) return undefined;
-  return TEAM.find((member) => member.id === memberId);
-}
-
-function nowLabel() {
-  return new Date().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default function ClientPortalInboxPage() {
-  const [clients, setClients] = useState<ClientProfile[]>(DEFAULT_CLIENTS);
-  const [items, setItems] = useState<ClientInboxItem[]>(DEFAULT_INBOX);
-  const [delegations, setDelegations] = useState<DelegatedTask[]>([]);
-  const [communications, setCommunications] = useState<CommunicationRecord[]>(DEFAULT_COMMUNICATIONS);
-  const [selectedItemId, setSelectedItemId] = useState(DEFAULT_INBOX[0]?.id ?? "");
+  const [payload, setPayload] = useState<InboxPayload | null>(null);
+  const [scope, setScope] = useState<"mine" | "all">("mine");
+  const [selectedItemId, setSelectedItemId] = useState("");
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<InboxType | "All">("All");
-  const [statusFilter, setStatusFilter] = useState<Status | "All">("All");
-  const [assignmentMemberId, setAssignmentMemberId] = useState("lead-advisor");
-  const [clientUpdateTitle, setClientUpdateTitle] = useState("");
-  const [clientUpdateBody, setClientUpdateBody] = useState("");
+  const [kindFilter, setKindFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [replyBody, setReplyBody] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function load(nextScope = scope, preferredItemId?: string) {
+    setLoading(true);
+
+    try {
+      const params = new URLSearchParams({ scope: nextScope });
+      const response = await fetch(`/api/advisor-routing?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as InboxPayload & { error?: string };
+
+      if (!response.ok) {
+        setMessage(data.error || "Unable to load the client portal inbox.");
+        return;
+      }
+
+      setPayload(data);
+      const nextId =
+        preferredItemId ||
+        selectedItemId ||
+        data.inbox[0]?.id ||
+        "";
+      setSelectedItemId(nextId);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to load the client portal inbox.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    const storedClients = loadJson<ClientProfile[]>(CLIENTS_KEY, DEFAULT_CLIENTS);
-    const storedInbox = loadJson<ClientInboxItem[]>(INBOX_KEY, DEFAULT_INBOX);
-    const storedDelegations = loadJson<DelegatedTask[]>(TEAM_DELEGATIONS_KEY, []);
-    const storedComms = loadJson<CommunicationRecord[]>(COMMUNICATIONS_KEY, DEFAULT_COMMUNICATIONS);
-
-    setClients(storedClients);
-    setItems(storedInbox);
-    setDelegations(storedDelegations);
-    setCommunications(storedComms);
-
-    const params = new URLSearchParams(window.location.search);
-    const clientId = params.get("clientId");
-    const itemId = params.get("itemId");
-
-    if (itemId && storedInbox.some((item) => item.id === itemId)) {
-      setSelectedItemId(itemId);
-    } else if (clientId) {
-      const clientItem = storedInbox.find((item) => item.clientId === clientId);
-      if (clientItem) setSelectedItemId(clientItem.id);
-      setQuery(getClient(storedClients, clientId).fullName);
-    }
+    void load("mine");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    saveJson(CLIENTS_KEY, clients);
-  }, [clients]);
+  async function postAction(body: Record<string, unknown>) {
+    setLoading(true);
+    setMessage("");
 
-  useEffect(() => {
-    saveJson(INBOX_KEY, items);
-  }, [items]);
+    try {
+      const response = await fetch("/api/advisor-routing", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-slice-sensitive-action": String(body.action || "inbox-action"),
+        },
+        body: JSON.stringify({ ...body, scope }),
+      });
+      const data = (await response.json()) as InboxPayload & { error?: string };
 
-  useEffect(() => {
-    saveJson(TEAM_DELEGATIONS_KEY, delegations);
-  }, [delegations]);
+      if (!response.ok) {
+        setMessage(data.error || "Inbox action failed.");
+        return false;
+      }
 
-  useEffect(() => {
-    saveJson(COMMUNICATIONS_KEY, communications);
-  }, [communications]);
+      setPayload(data);
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Inbox action failed.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filteredItems = useMemo(() => {
     const normalized = query.trim().toLowerCase();
+    const items = payload?.inbox ?? [];
 
-    return [...items]
-      .filter((item) => {
-        const client = getClient(clients, item.clientId);
-        const matchesType = typeFilter === "All" || item.type === typeFilter;
-        const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+    return items.filter((item) => {
+      const matchesKind = kindFilter === "All" || item.kind === kindFilter;
+      const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+      const haystack = [
+        item.title,
+        item.body,
+        item.clientName,
+        item.senderName || "",
+        item.senderEmail || "",
+        item.kind,
+        item.priority,
+        item.status,
+        item.assignedAdvisor?.name || "",
+      ]
+        .join(" ")
+        .toLowerCase();
 
-        const haystack = [
-          item.title,
-          item.body,
-          item.type,
-          item.priority,
-          item.status,
-          item.relatedSymbol ?? "",
-          item.source,
-          client.fullName,
-          client.householdName,
-          client.email,
-          client.riskProfile,
-          ...client.holdings.map((holding) => `${holding.symbol} ${holding.name}`),
-        ]
-          .join(" ")
-          .toLowerCase();
+      return matchesKind && matchesStatus && (!normalized || haystack.includes(normalized));
+    });
+  }, [kindFilter, payload?.inbox, query, statusFilter]);
 
-        return matchesType && matchesStatus && (!normalized || haystack.includes(normalized));
-      })
-      .sort((a, b) => {
-        const priorityOrder: Record<Priority, number> = {
-          Critical: 4,
-          High: 3,
-          Medium: 2,
-          Low: 1,
-        };
+  const selectedItem =
+    payload?.inbox.find((item) => item.id === selectedItemId) ??
+    filteredItems[0] ??
+    null;
+  const selectedClient =
+    payload?.clients.find((client) => client.id === selectedItem?.clientId) ?? null;
+  const unreadCount = payload?.inbox.filter((item) => item.status === "Unread").length ?? 0;
+  const highPriorityCount =
+    payload?.inbox.filter(
+      (item) => item.priority === "Critical" || item.priority === "High",
+    ).length ?? 0;
+  const waitingCount =
+    payload?.inbox.filter((item) => item.status === "Waiting on Client").length ?? 0;
 
-        return priorityOrder[b.priority] - priorityOrder[a.priority];
+  async function selectItem(item: InboxItem) {
+    setSelectedItemId(item.id);
+    setReplyBody("");
+
+    if (item.status === "Unread") {
+      await postAction({
+        action: "updateInbox",
+        itemId: item.id,
+        status: "Needs Review",
       });
-  }, [clients, items, query, statusFilter, typeFilter]);
-
-  const selectedItem = items.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? items[0];
-  const selectedClient = selectedItem ? getClient(clients, selectedItem.clientId) : clients[0];
-  const selectedClientComms = communications.filter((comm) => comm.clientId === selectedClient.id);
-  const selectedClientInboxItems = items.filter((item) => item.clientId === selectedClient.id);
-
-  const unreadCount = items.filter((item) => item.status === "Unread").length;
-  const highPriorityCount = items.filter((item) => item.priority === "Critical" || item.priority === "High").length;
-  const openDelegations = delegations.filter((task) => task.status !== "Done").length;
-
-  function updateItemStatus(itemId: string, status: Status) {
-    setItems((current) =>
-      current.map((item) => (item.id === itemId ? { ...item, status } : item)),
-    );
+    }
   }
 
-  function assignItem(itemId: string, memberId: string) {
-    const item = items.find((entry) => entry.id === itemId);
-    const member = getTeamMember(memberId);
-
-    if (!item || !member) return;
-
-    const client = getClient(clients, item.clientId);
-
-    const delegatedTask: DelegatedTask = {
-      id: `delegation-${Date.now()}`,
-      title: `${item.type}: ${item.title}`,
-      clientId: item.clientId,
-      clientName: client.fullName,
-      owner: member.name,
-      ownerRole: member.role,
-      status: "Open",
-      priority: item.priority,
-      due: item.priority === "Critical" ? "Today" : "This Week",
-      source: "Client Portal Inbox",
-      sourceItemId: item.id,
-      createdAt: nowLabel(),
-      detail: item.body,
-    };
-
-    const communication: CommunicationRecord = {
-      id: `comm-${Date.now()}`,
-      clientId: item.clientId,
-      type: "Assignment",
-      title: `Assigned to ${member.name}`,
-      body: `${item.title} was assigned to ${member.name} from the Client Portal Inbox.`,
-      createdAt: nowLabel(),
-      owner: "Lead Advisor",
-      source: "Client Portal Inbox",
-    };
-
-    setItems((current) =>
-      current.map((entry) =>
-        entry.id === itemId
-          ? { ...entry, assignedTo: member.id, status: "Assigned" }
-          : entry,
-      ),
-    );
-
-    setDelegations((current) => [delegatedTask, ...current]);
-    setCommunications((current) => [communication, ...current]);
+  async function updateStatus(status: InboxStatus) {
+    if (!selectedItem) return;
+    const ok = await postAction({
+      action: "updateInbox",
+      itemId: selectedItem.id,
+      status,
+    });
+    if (ok) setMessage(`Inbox item moved to ${status}.`);
   }
 
-  function receiveClientUpdate() {
-    const title = clientUpdateTitle.trim() || "New client portal update";
-    const body =
-      clientUpdateBody.trim() ||
-      "Client submitted an account update from their designated portal account.";
+  async function sendReply() {
+    if (!selectedItem || !replyBody.trim()) {
+      setMessage("Write a reply first.");
+      return;
+    }
 
-    const newItem: ClientInboxItem = {
-      id: `inbox-${Date.now()}`,
-      clientId: selectedClient.id,
-      type: "Message",
-      title,
-      body,
-      submittedAt: nowLabel(),
-      priority: "Medium",
-      status: "Unread",
-      source: "Client Account",
-    };
+    const ok = await postAction({
+      action: "reply",
+      itemId: selectedItem.id,
+      body: replyBody,
+    });
 
-    const communication: CommunicationRecord = {
-      id: `comm-${Date.now()}`,
-      clientId: selectedClient.id,
-      type: "Client Message",
-      title,
-      body,
-      createdAt: nowLabel(),
-      owner: selectedClient.fullName,
-      source: "Client Account",
-    };
+    if (ok) {
+      setReplyBody("");
+      setMessage("Reply saved for secure delivery to the client portal.");
+    }
+  }
 
-    setItems((current) => [newItem, ...current]);
-    setCommunications((current) => [communication, ...current]);
-    setSelectedItemId(newItem.id);
-    setClientUpdateTitle("");
-    setClientUpdateBody("");
+  async function changeScope(nextScope: "mine" | "all") {
+    setScope(nextScope);
+    setSelectedItemId("");
+    await load(nextScope);
   }
 
   return (
@@ -710,28 +362,41 @@ export default function ClientPortalInboxPage() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex flex-wrap gap-2">
-                <Pill tone="purple">Client Portal Inbox</Pill>
-                <Pill tone="green">Client account updates</Pill>
+                <Pill tone="purple">Individual Advisor Inbox</Pill>
+                <Pill tone="green">Assigned clients only</Pill>
                 <Pill tone="amber">{unreadCount} unread</Pill>
                 <Pill tone="red">{highPriorityCount} high priority</Pill>
               </div>
 
               <h1 className="mt-3 text-3xl font-black leading-tight text-white md:text-5xl">
-                Consolidated client inbox for advisor action.
+                Client portal work routed to the right advisor.
               </h1>
 
               <p className="mt-2 max-w-5xl text-sm font-semibold leading-7 text-slate-400">
-                Every client message, request, risk update, holding question, document upload, and account update lands here. Lead advisors can delegate responses directly to the team board.
+                Messages and profile updates appear in the assigned advisor’s personal inbox. Firm oversight is available to authorized lead advisors without duplicating delivery to the entire team.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <LinkButton href="/workspace" tone="slate">Workspace</LinkButton>
-              <LinkButton href={`/workspace/clients?clientId=${selectedClient.id}`} tone="purple">Open Profile</LinkButton>
-              <LinkButton href="/workspace/team-board" tone="green">Team Board</LinkButton>
+              {selectedClient ? (
+                <LinkButton
+                  href={`/workspace/clients?clientId=${encodeURIComponent(selectedClient.id)}`}
+                  tone="purple"
+                >
+                  Open Profile
+                </LinkButton>
+              ) : null}
+              <LinkButton href="/workspace/settings" tone="cyan">Advisor Settings</LinkButton>
               <LinkButton href="/workspace/client-emails" tone="green">Email Center</LinkButton>
             </div>
           </div>
+
+          {message ? (
+            <div className="mt-3 rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-xs font-bold text-cyan-50">
+              {message}
+            </div>
+          ) : null}
         </header>
 
         <section className="grid min-h-0 gap-3 xl:grid-cols-[370px_minmax(0,1fr)_410px]">
@@ -739,25 +404,56 @@ export default function ClientPortalInboxPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
-                  Live Intake
+                  Secure Intake
                 </div>
-                <h2 className="mt-1 text-2xl font-black text-white">Client feed</h2>
+                <h2 className="mt-1 text-2xl font-black text-white">
+                  {scope === "mine" ? "My client feed" : "Firm oversight"}
+                </h2>
               </div>
               <Pill tone="purple">{filteredItems.length} items</Pill>
             </div>
+
+            {payload?.permissions.canViewFirmOversight ? (
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-black/30 p-1.5">
+                <button
+                  type="button"
+                  onClick={() => void changeScope("mine")}
+                  className={cx(
+                    "rounded-xl px-3 py-2 text-xs font-black",
+                    scope === "mine"
+                      ? "bg-red-600 text-white"
+                      : "text-slate-400 hover:bg-white/[0.06]",
+                  )}
+                >
+                  My Inbox
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void changeScope("all")}
+                  className={cx(
+                    "rounded-xl px-3 py-2 text-xs font-black",
+                    scope === "all"
+                      ? "bg-purple-600 text-white"
+                      : "text-slate-400 hover:bg-white/[0.06]",
+                  )}
+                >
+                  Firm Oversight
+                </button>
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-2">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search clients, messages, holdings..."
+                placeholder="Search clients and messages…"
                 className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-purple-500"
               />
 
               <div className="grid grid-cols-2 gap-2">
                 <select
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value as InboxType | "All")}
+                  value={kindFilter}
+                  onChange={(event) => setKindFilter(event.target.value)}
                   className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-bold text-white outline-none"
                 >
                   <option>All</option>
@@ -773,43 +469,44 @@ export default function ClientPortalInboxPage() {
 
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as Status | "All")}
+                  onChange={(event) => setStatusFilter(event.target.value)}
                   className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-bold text-white outline-none"
                 >
                   <option>All</option>
                   <option>Unread</option>
                   <option>Needs Review</option>
-                  <option>Assigned</option>
                   <option>In Progress</option>
+                  <option>Waiting on Client</option>
                   <option>Resolved</option>
+                  <option>Archived</option>
                 </select>
               </div>
             </div>
 
-            <div className="mt-4 grid max-h-[calc(100vh-308px)] gap-2 overflow-y-auto pr-1">
+            <div className="mt-4 grid max-h-[calc(100vh-360px)] gap-2 overflow-y-auto pr-1">
               {filteredItems.map((item) => {
-                const client = getClient(clients, item.clientId);
                 const active = selectedItem?.id === item.id;
 
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedItemId(item.id);
-                      if (item.status === "Unread") updateItemStatus(item.id, "Needs Review");
-                    }}
+                    onClick={() => void selectItem(item)}
                     className={cx(
                       "rounded-3xl border p-4 text-left transition hover:-translate-y-0.5",
                       active
-                        ? toneClasses[typeTone(item.type)]
+                        ? toneClasses[kindTone(item.kind)]
                         : "border-white/10 bg-white/[0.045] hover:bg-white/[0.075]",
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-white">{item.title}</div>
-                        <div className="mt-1 truncate text-xs font-semibold text-slate-500">{client.fullName}</div>
+                        <div className="truncate text-sm font-black text-white">
+                          {item.title}
+                        </div>
+                        <div className="mt-1 truncate text-xs font-semibold text-slate-500">
+                          {item.clientName}
+                        </div>
                       </div>
                       <Pill tone={priorityTone(item.priority)}>{item.priority}</Pill>
                     </div>
@@ -819,13 +516,20 @@ export default function ClientPortalInboxPage() {
                     </p>
 
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      <Pill tone={typeTone(item.type)}>{item.type}</Pill>
-                      <Pill tone="slate">{item.status}</Pill>
-                      {item.relatedSymbol ? <Pill tone="cyan">{item.relatedSymbol}</Pill> : null}
+                      <Pill tone={kindTone(item.kind)}>{item.kind}</Pill>
+                      <Pill tone={statusTone(item.status)}>{item.status}</Pill>
                     </div>
                   </button>
                 );
               })}
+
+              {!filteredItems.length ? (
+                <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5 text-sm font-semibold leading-6 text-emerald-50">
+                  {loading
+                    ? "Loading assigned client activity…"
+                    : "No client portal items match this view."}
+                </div>
+              ) : null}
             </div>
           </Card>
 
@@ -834,10 +538,10 @@ export default function ClientPortalInboxPage() {
               <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2">
-                    <Pill tone={typeTone(selectedItem.type)}>{selectedItem.type}</Pill>
+                    <Pill tone={kindTone(selectedItem.kind)}>{selectedItem.kind}</Pill>
                     <Pill tone={priorityTone(selectedItem.priority)}>{selectedItem.priority}</Pill>
-                    <Pill tone="slate">{selectedItem.source}</Pill>
-                    <Pill tone="green">{selectedItem.status}</Pill>
+                    <Pill tone={statusTone(selectedItem.status)}>{selectedItem.status}</Pill>
+                    <Pill tone="slate">Secure Client Portal</Pill>
                   </div>
 
                   <h2 className="mt-3 text-3xl font-black leading-tight text-white">
@@ -852,215 +556,207 @@ export default function ClientPortalInboxPage() {
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Client</div>
-                    <div className="mt-1 truncate text-sm font-black text-white">{selectedClient.fullName}</div>
+                    <div className="mt-1 truncate text-sm font-black text-white">{selectedItem.clientName}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Risk</div>
-                    <div className="mt-1 truncate text-sm font-black text-white">{selectedClient.riskProfile}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Assigned Advisor</div>
+                    <div className="mt-1 truncate text-sm font-black text-white">{selectedItem.assignedAdvisor?.name || "Unassigned"}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Assigned</div>
-                    <div className="mt-1 truncate text-sm font-black text-white">{getTeamMember(selectedItem.assignedTo)?.name ?? "Unassigned"}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Sender</div>
+                    <div className="mt-1 truncate text-sm font-black text-white">{selectedItem.senderName || selectedItem.clientName}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Submitted</div>
-                    <div className="mt-1 truncate text-sm font-black text-white">{selectedItem.submittedAt}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Received</div>
+                    <div className="mt-1 truncate text-sm font-black text-white">{readableDate(selectedItem.createdAt)}</div>
                   </div>
                 </div>
 
                 <div className="min-h-0 overflow-y-auto pr-1">
-                  <div className="grid gap-4 xl:grid-cols-2">
+                  <div className="grid gap-4">
                     <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
-                        Client Snapshot
-                      </div>
-
-                      <div className="mt-4 grid gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <div className="text-sm font-black text-white">{selectedClient.fullName}</div>
-                          <div className="text-xs font-semibold text-slate-500">{selectedClient.householdName} · {selectedClient.tier}</div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Risk Score</div>
-                            <div className="mt-1 text-2xl font-black text-white">{selectedClient.riskScore}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Time Horizon</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedClient.timeHorizon}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Liquidity</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedClient.liquidityNeeds}</div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Portal</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedClient.hasPortalAccount ? "Active" : "No Account"}</div>
-                          </div>
-                        </div>
-
-                        <p className="text-sm font-semibold leading-6 text-slate-400">{selectedClient.objective}</p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                        Held Securities
-                      </div>
-
-                      <div className="mt-4 grid gap-2">
-                        {selectedClient.holdings.map((holding) => (
-                          <Link
-                            key={holding.id}
-                            href={`/workspace/custom-board?symbol=${encodeURIComponent(holding.symbol)}`}
-                            prefetch={false}
-                            className="rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:bg-cyan-500/10"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="text-sm font-black text-white">{holding.symbol}</div>
-                                <div className="text-xs font-semibold text-slate-500">{holding.name}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-sm font-black text-white">{holding.allocationPct}%</div>
-                                <div className="text-xs font-semibold text-slate-500">{holding.value}</div>
-                              </div>
-                            </div>
-                            <div className="mt-2 text-xs font-semibold text-slate-400">{holding.note}</div>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="xl:col-span-2 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-black uppercase tracking-[0.18em] text-green-400">
-                            Communication + Request Stream
+                          <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
+                            Advisor Workflow
                           </div>
                           <div className="mt-1 text-sm font-semibold text-slate-400">
-                            Every profile, inbox, assignment, and message event for this client.
+                            Update the assigned advisor’s personal work status.
                           </div>
                         </div>
-                        <LinkButton href={`/workspace/clients?clientId=${selectedClient.id}`} tone="purple">
-                          Open Profile
-                        </LinkButton>
-                      </div>
-
-                      <div className="mt-4 grid max-h-[220px] gap-2 overflow-y-auto pr-1">
-                        {[...selectedClientInboxItems.map((item) => ({
-                          id: item.id,
-                          title: item.title,
-                          body: item.body,
-                          meta: `${item.type} · ${item.status} · ${item.submittedAt}`,
-                          href: `/workspace/client-portal-inbox?itemId=${item.id}`,
-                        })), ...selectedClientComms.map((comm) => ({
-                          id: comm.id,
-                          title: comm.title,
-                          body: comm.body,
-                          meta: `${comm.type} · ${comm.owner} · ${comm.createdAt}`,
-                          href: `/workspace/client-portal-inbox?clientId=${comm.clientId}`,
-                        }))].map((entry) => (
-                          <Link
-                            key={entry.id}
-                            href={entry.href}
-                            prefetch={false}
-                            className="rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:bg-white/[0.06]"
-                          >
-                            <div className="text-sm font-black text-white">{entry.title}</div>
-                            <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{entry.meta}</div>
-                            <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{entry.body}</p>
-                          </Link>
-                        ))}
+                        <div className="flex flex-wrap gap-2">
+                          {(["Needs Review", "In Progress", "Resolved", "Archived"] as InboxStatus[]).map((status) => (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() => void updateStatus(status)}
+                              disabled={loading}
+                              className={cx(
+                                "rounded-xl border px-3 py-2 text-xs font-black disabled:opacity-50",
+                                toneClasses[statusTone(status)],
+                              )}
+                            >
+                              {status}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-green-400">
+                        Secure Reply Stream
+                      </div>
+
+                      <div className="mt-4 grid max-h-[240px] gap-2 overflow-y-auto pr-1">
+                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-3">
+                          <div className="text-xs font-black text-purple-100">{selectedItem.senderName || selectedItem.clientName}</div>
+                          <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">{selectedItem.body}</p>
+                          <div className="mt-2 text-[10px] font-bold text-slate-500">{readableDate(selectedItem.createdAt)}</div>
+                        </div>
+
+                        {selectedItem.replies.map((reply) => (
+                          <div key={reply.id} className="ml-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                            <div className="text-xs font-black text-emerald-100">Advisor reply</div>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">{reply.body}</p>
+                            <div className="mt-2 text-[10px] font-bold text-slate-500">{readableDate(reply.createdAt)}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <textarea
+                        value={replyBody}
+                        onChange={(event) => setReplyBody(event.target.value)}
+                        placeholder="Write a secure reply for this client…"
+                        rows={4}
+                        className="mt-4 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-emerald-500/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void sendReply()}
+                        disabled={loading || !replyBody.trim()}
+                        className="mt-3 w-full rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
+                      >
+                        Send to Client Portal
+                      </button>
+                    </div>
+
+                    {Object.keys(selectedItem.metadata || {}).length ? (
+                      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-xs font-black uppercase tracking-[0.18em] text-purple-400">
+                          Submitted Details
+                        </div>
+                        <pre className="mt-3 max-h-[260px] overflow-auto whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/30 p-4 text-[11px] font-semibold leading-5 text-slate-400">
+                          {JSON.stringify(selectedItem.metadata, null, 2)}
+                        </pre>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="grid h-full place-items-center text-center">
+                <div>
+                  <Pill tone="green">Inbox Clear</Pill>
+                  <h2 className="mt-4 text-3xl font-black">No selected client item.</h2>
+                  <p className="mt-3 max-w-xl text-sm font-semibold leading-7 text-slate-400">
+                    New client portal activity will appear only for the advisor currently assigned to that client.
+                  </p>
+                </div>
+              </div>
+            )}
           </Card>
 
-          <div className="grid min-h-0 gap-3">
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-green-400">
-                Delegate Client Response
+          <Card className="min-h-0 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                  Advisor + Client
+                </div>
+                <h2 className="mt-1 text-2xl font-black text-white">Routing details</h2>
+              </div>
+              <Pill tone="green">{waitingCount} waiting</Pill>
+            </div>
+
+            <div className="mt-4 grid max-h-[calc(100vh-245px)] gap-4 overflow-y-auto pr-1">
+              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  Signed-in advisor
+                </div>
+                <div className="mt-2 text-lg font-black text-white">
+                  {payload?.membership.name || "Advisor"}
+                </div>
+                <div className="mt-1 text-xs font-semibold text-slate-500">
+                  {payload?.membership.role} · {payload?.firm.name}
+                </div>
+                <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-semibold leading-5 text-emerald-50">
+                  Personal delivery scope: {scope === "mine" ? "assigned clients only" : "authorized firm oversight"}.
+                </div>
               </div>
 
-              <div className="mt-4 grid gap-3">
-                <select
-                  value={assignmentMemberId}
-                  onChange={(event) => setAssignmentMemberId(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none"
-                >
-                  {TEAM.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} · {member.role}
-                    </option>
-                  ))}
-                </select>
-
-                <ActionButton
-                  onClick={() => selectedItem && assignItem(selectedItem.id, assignmentMemberId)}
-                  tone="green"
-                >
-                  Assign to Team Board
-                </ActionButton>
-
-                <LinkButton href="/workspace/team-board" tone="green">
-                  View Team To-Do List
-                </LinkButton>
-              </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-400">
-                Receive Client Account Update
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <input
-                  value={clientUpdateTitle}
-                  onChange={(event) => setClientUpdateTitle(event.target.value)}
-                  placeholder="Client update title"
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
-                />
-                <textarea
-                  value={clientUpdateBody}
-                  onChange={(event) => setClientUpdateBody(event.target.value)}
-                  placeholder="Client message/request body"
-                  rows={3}
-                  className="resize-none rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600"
-                />
-                <ActionButton onClick={receiveClientUpdate} tone="cyan">
-                  Simulate Client Update
-                </ActionButton>
-              </div>
-            </Card>
-
-            <Card className="min-h-0 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">
-                    Notifications
+              {selectedClient ? (
+                <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Client snapshot
                   </div>
-                  <h2 className="mt-1 text-2xl font-black text-white">Advisor alerts</h2>
-                </div>
-                <Pill tone="amber">{highPriorityCount} high</Pill>
-              </div>
+                  <div className="mt-2 text-lg font-black text-white">{selectedClient.fullName}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">
+                    {selectedClient.householdName || "No household"} · {selectedClient.clientType}
+                  </div>
 
-              <div className="mt-4 grid gap-2">
-                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3">
-                  <div className="text-sm font-black text-white">{unreadCount} unread client updates</div>
-                  <div className="mt-1 text-xs font-semibold text-slate-400">New portal activity requiring advisor review.</div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Risk</div>
+                      <div className="mt-1 text-sm font-black text-white">{selectedClient.riskProfile}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
+                      <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Portal</div>
+                      <div className="mt-1 text-sm font-black text-white">{selectedClient.portalOnboardingStatus}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-cyan-300">Assigned advisor</div>
+                    <div className="mt-1 text-sm font-black text-white">{selectedClient.assignedAdvisor?.name || "Unassigned"}</div>
+                    <div className="mt-1 text-xs font-semibold text-cyan-100">{selectedClient.assignedAdvisor?.role || "Assign from client profile"}</div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    <LinkButton
+                      href={`/workspace/clients?clientId=${encodeURIComponent(selectedClient.id)}`}
+                      tone="purple"
+                    >
+                      Open Client Profile + Assignment
+                    </LinkButton>
+                    {selectedClient.assignedAdvisor?.calendlyUrl ? (
+                      <a
+                        href={selectedClient.assignedAdvisor.calendlyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cx(
+                          "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-black",
+                          toneClasses.cyan,
+                        )}
+                      >
+                        Preview Client Scheduling Link
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                  <div className="text-sm font-black text-white">{openDelegations} open delegated tasks</div>
-                  <div className="mt-1 text-xs font-semibold text-slate-400">Tasks will appear in the Team Board bridge.</div>
+              ) : null}
+
+              <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-400">
+                  Routing Rules
+                </div>
+                <div className="mt-3 grid gap-2 text-xs font-semibold leading-5 text-slate-400">
+                  <div className="rounded-2xl border border-white/10 bg-black/25 p-3">New messages and profile updates are written with the client’s current assigned advisor membership.</div>
+                  <div className="rounded-2xl border border-white/10 bg-black/25 p-3">Reassignment moves unresolved items to the new advisor and changes the client’s visible Calendly link.</div>
+                  <div className="rounded-2xl border border-white/10 bg-black/25 p-3">Firm oversight is a management view; normal delivery is not broadcast to every advisor.</div>
                 </div>
               </div>
-            </Card>
-          </div>
+            </div>
+          </Card>
         </section>
       </div>
     </main>

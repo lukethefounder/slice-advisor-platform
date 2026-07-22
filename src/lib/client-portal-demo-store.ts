@@ -951,9 +951,25 @@ export function loadJson<T>(key: string, fallback: T) {
   }
 }
 
-export function saveJson<T>(key: string, value: T) {
+export function saveJson<T>(
+  key: string,
+  value: T,
+) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+
+  window.localStorage.setItem(
+    key,
+    JSON.stringify(value),
+  );
+
+  window.dispatchEvent(
+    new CustomEvent(
+      "slice-client-portal-storage-updated",
+      {
+        detail: { key },
+      },
+    ),
+  );
 }
 
 export function loadClientPortalEvents() {

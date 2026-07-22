@@ -1,294 +1,1238 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { transcribeAudio } from "@/lib/integrations/audio";
-import { prisma } from "@/lib/prisma";
 import {
   ensureBotProfile,
   executePersonalBotCommand,
+  type BotProfileShape,
+  type CurrentUserShape,
+  type ExecutePersonalBotCommandResult,
 } from "@/lib/bot/command-router";
 import {
   startVoiceSession,
   updateVoiceSession,
 } from "@/lib/bot/platform-brain";
+import {
+  getOpenAiAudioRuntimeStatus,
+  transcribeAudio,
+  type AudioTranscriptionResult,
+} from "@/lib/integrations/audio";
+import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+export const dynamic =
+  "force-dynamic";
 
-function asJson(value: unknown) {
-  return JSON.stringify(value);
+export const runtime =
+  "nodejs";
+
+const db = prisma as any;
+
+type AnswerMode =
+  | "quick"
+  | "balanced"
+  | "deep";
+
+type RecentMessage = {
+  role: string;
+  content: string;
+};
+
+type VoiceRequestPayload = {
+  audio:
+    | File
+    | null;
+  action: string;
+  language: string;
+  suppliedSessionKey: string;
+  fallbackPrompt: string;
+  fallbackTranscript: string;
+  currentPath:
+    | string
+    | null;
+  pageTitle:
+    | string
+    | null;
+  answerMode: AnswerMode;
+  recentMessages: RecentMessage[];
+  advancedSettings:
+    | Record<
+        string,
+        unknown
+      >
+    | null;
+};
+
+function noStoreJson(
+  body: unknown,
+  init?: ResponseInit,
+) {
+  const response =
+    NextResponse.json(
+      body,
+      init,
+    );
+
+  response.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate",
+  );
+
+  response.headers.set(
+    "Pragma",
+    "no-cache",
+  );
+
+  response.headers.set(
+    "X-Slice-Voice-Ops",
+    "low-latency-unified",
+  );
+
+  return response;
 }
 
-function readText(value: FormDataEntryValue | null, fallback = "") {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+function asJson(
+  value: unknown,
+) {
+  return JSON.stringify(
+    value,
+  );
 }
 
-function isFile(value: FormDataEntryValue | null): value is File {
-  return Boolean(value && typeof value !== "string" && typeof value.arrayBuffer === "function");
+function parseJson<T>(
+  value: unknown,
+  fallback: T,
+): T {
+  if (
+    typeof value !==
+      "string" ||
+    !value.trim()
+  ) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(
+      value,
+    ) as T;
+  } catch {
+    return fallback;
+  }
 }
 
-async function createAssistantRecoveryMessage(input: {
-  userId: string;
-  profileId: string;
-  sessionKey: string;
-  reason: string;
-}) {
-  const content =
-    "I did not receive a clear enough voice command, so I stayed in command mode instead of failing. Try again with a short command like: “Open market visuals,” “Research NVDA,” “Run vendor health,” “Create a price alert for NVDA above 1000,” or type the command below.";
+function cleanText(
+  value: unknown,
+  fallback = "",
+  maximum = 30_000,
+) {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
 
-  await prisma.personalUserBotMessage.create({
-    data: {
-      userId: input.userId,
-      profileId: input.profileId,
-      role: "assistant",
-      content,
-      intent: "Voice Recovery",
-      metadataJson: asJson({
-        sessionKey: input.sessionKey,
-        recoveryReason: input.reason,
-        clientAction: {
-          type: "none",
-          autoRun: false,
-        },
-      }),
-    },
-  });
+  const clean =
+    value
+      .replace(
+        /\u0000/g,
+        "",
+      )
+      .trim()
+      .slice(
+        0,
+        maximum,
+      );
+
+  return clean ||
+    fallback;
+}
+
+function nullableText(
+  value: unknown,
+  maximum = 1000,
+) {
+  return (
+    cleanText(
+      value,
+      "",
+      maximum,
+    ) || null
+  );
+}
+
+function readAnswerMode(
+  value: unknown,
+): AnswerMode {
+  return value ===
+      "quick" ||
+    value ===
+      "balanced" ||
+    value ===
+      "deep"
+    ? value
+    : "balanced";
+}
+
+function isFile(
+  value: unknown,
+): value is File {
+  return Boolean(
+    value &&
+      typeof value !==
+        "string" &&
+      typeof (
+        value as File
+      ).arrayBuffer ===
+        "function",
+  );
+}
+
+function normalizeRecentMessages(
+  value: unknown,
+): RecentMessage[] {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return null;
+      }
+
+      const record =
+        item as Record<
+          string,
+          unknown
+        >;
+
+      const content =
+        cleanText(
+          record.content,
+          "",
+          12_000,
+        );
+
+      if (!content) {
+        return null;
+      }
+
+      return {
+        role:
+          cleanText(
+            record.role,
+            "assistant",
+            40,
+          ),
+
+        content,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is RecentMessage =>
+        Boolean(item),
+    )
+    .slice(-8);
+}
+
+function normalizeAdvancedSettings(
+  value: unknown,
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value,
+    )
+  ) {
+    return null;
+  }
+
+  return value as Record<
+    string,
+    unknown
+  >;
+}
+
+async function readVoiceRequest(
+  request: Request,
+): Promise<VoiceRequestPayload> {
+  const contentType =
+    request.headers.get(
+      "content-type",
+    ) ?? "";
+
+  if (
+    contentType.includes(
+      "application/json",
+    )
+  ) {
+    const body =
+      (await request
+        .json()
+        .catch(
+          () => ({}),
+        )) as Record<
+        string,
+        unknown
+      >;
+
+    return {
+      audio: null,
+
+      action:
+        cleanText(
+          body.action,
+          "transcribeAndExecute",
+          100,
+        ),
+
+      language:
+        cleanText(
+          body.language,
+          "en-US",
+          30,
+        ),
+
+      suppliedSessionKey:
+        cleanText(
+          body.sessionKey,
+          "",
+          200,
+        ),
+
+      fallbackPrompt:
+        cleanText(
+          body.fallbackPrompt ??
+            body.prompt,
+        ),
+
+      fallbackTranscript:
+        cleanText(
+          body.fallbackTranscript ??
+            body.transcript,
+        ),
+
+      currentPath:
+        nullableText(
+          body.currentPath,
+          500,
+        ),
+
+      pageTitle:
+        nullableText(
+          body.pageTitle,
+          500,
+        ),
+
+      answerMode:
+        readAnswerMode(
+          body.answerMode,
+        ),
+
+      recentMessages:
+        normalizeRecentMessages(
+          body.recentMessages,
+        ),
+
+      advancedSettings:
+        normalizeAdvancedSettings(
+          body.advancedSettings,
+        ),
+    };
+  }
+
+  const form =
+    await request.formData();
+
+  const audioValue =
+    form.get("audio");
 
   return {
-    intent: "Voice Recovery",
-    answer: content,
-    status: "Recovered",
-    resultSummary: "Voice command did not produce a clear transcript, so the bot returned command suggestions instead of failing.",
-    clientAction: {
-      type: "none",
-      autoRun: false,
-    },
+    audio: isFile(
+      audioValue,
+    )
+      ? audioValue
+      : null,
+
+    action:
+      cleanText(
+        form.get("action"),
+        "transcribeAndExecute",
+        100,
+      ),
+
+    language:
+      cleanText(
+        form.get(
+          "language",
+        ),
+        "en-US",
+        30,
+      ),
+
+    suppliedSessionKey:
+      cleanText(
+        form.get(
+          "sessionKey",
+        ),
+        "",
+        200,
+      ),
+
+    fallbackPrompt:
+      cleanText(
+        form.get(
+          "fallbackPrompt",
+        ),
+      ),
+
+    fallbackTranscript:
+      cleanText(
+        form.get(
+          "fallbackTranscript",
+        ),
+      ),
+
+    currentPath:
+      nullableText(
+        form.get(
+          "currentPath",
+        ),
+        500,
+      ),
+
+    pageTitle:
+      nullableText(
+        form.get(
+          "pageTitle",
+        ),
+        500,
+      ),
+
+    answerMode:
+      readAnswerMode(
+        form.get(
+          "answerMode",
+        ),
+      ),
+
+    recentMessages:
+      normalizeRecentMessages(
+        parseJson<unknown>(
+          form.get(
+            "recentMessages",
+          ),
+          [],
+        ),
+      ),
+
+    advancedSettings:
+      normalizeAdvancedSettings(
+        parseJson<unknown>(
+          form.get(
+            "advancedSettings",
+          ),
+          null,
+        ),
+      ),
   };
 }
 
-export async function POST(request: Request) {
-  const user = await getCurrentUser();
+async function recentMessagesForUser(
+  userId: string,
+) {
+  const rows =
+    await db.personalUserBotMessage.findMany(
+      {
+        where: {
+          userId,
+        },
+
+        select: {
+          role: true,
+          content: true,
+        },
+
+        orderBy: {
+          createdAt:
+            "desc",
+        },
+
+        take: 8,
+      },
+    );
+
+  return rows
+    .reverse()
+    .map(
+      (row: any) => ({
+        role: row.role,
+        content:
+          row.content,
+      }),
+    );
+}
+
+async function ensureVoiceSession(
+  input: {
+    user: CurrentUserShape;
+    profile: BotProfileShape;
+    suppliedSessionKey: string;
+    language: string;
+  },
+) {
+  if (
+    input.suppliedSessionKey
+  ) {
+    const existing =
+      await db.personalUserBotVoiceSession.findFirst(
+        {
+          where: {
+            userId:
+              input.user.id,
+
+            sessionKey:
+              input.suppliedSessionKey,
+          },
+        },
+      );
+
+    if (existing) {
+      return existing;
+    }
+  }
+
+  return startVoiceSession(
+    {
+      userId:
+        input.user.id,
+
+      profileId:
+        input.profile.id,
+
+      firmId:
+        input.profile
+          .firmId,
+
+      language:
+        input.language,
+    },
+  );
+}
+
+async function saveMessage(
+  input: {
+    userId: string;
+    profileId: string;
+    role:
+      | "user"
+      | "assistant";
+    content: string;
+    intent: string;
+    metadata: Record<
+      string,
+      unknown
+    >;
+  },
+) {
+  return db.personalUserBotMessage.create(
+    {
+      data: {
+        userId:
+          input.userId,
+
+        profileId:
+          input.profileId,
+
+        role:
+          input.role,
+
+        content:
+          input.content,
+
+        intent:
+          input.intent,
+
+        metadataJson:
+          asJson(
+            input.metadata,
+          ),
+      },
+    },
+  );
+}
+
+function resultPayload(
+  result:
+    | ExecutePersonalBotCommandResult
+    | null,
+) {
+  if (!result) {
+    return null;
+  }
+
+  return {
+    intent:
+      result.intent,
+
+    answer:
+      result.answer,
+
+    status:
+      result.status,
+
+    resultSummary:
+      result.resultSummary,
+
+    clientAction:
+      result.clientAction,
+
+    structuredCommand:
+      result.structuredCommand,
+
+    aiParserOk:
+      result.aiParserOk,
+
+    aiParserError:
+      result.aiParserError,
+
+    fastRouterUsed:
+      result.fastRouterUsed,
+
+    fastRouterReason:
+      result.fastRouterReason,
+
+    fastRouterConfidence:
+      result.fastRouterConfidence,
+
+    sources:
+      result.sources ??
+      result.orchestration
+        .sources,
+
+    researchUsed:
+      result.researchUsed ??
+      result.orchestration
+        .researchUsed,
+
+    orchestration:
+      result.orchestration,
+
+    commandId:
+      result.commandRecord
+        ?.id ??
+      null,
+  };
+}
+
+function recoveryAnswer(
+  reason: string,
+) {
+  return `I could not obtain a reliable transcript from that recording.
+
+Reason: ${reason}
+
+Try a shorter command such as:
+- Open client profiles.
+- Research NVDA with current sources.
+- Create a task to review the client briefing tomorrow.
+- Create a report explaining market volatility.
+- Run backend vendor health.`;
+}
+
+export async function POST(
+  request: Request,
+) {
+  const requestStartedAt =
+    Date.now();
+
+  const user =
+    (await getCurrentUser()) as
+      | CurrentUserShape
+      | null;
 
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    return noStoreJson(
+      {
+        error:
+          "Unauthorized.",
+      },
+      {
+        status: 401,
+      },
+    );
   }
 
-  const form = await request.formData();
-  const audio = form.get("audio");
-  const action = readText(form.get("action"), "transcribeAndExecute");
-  const language = readText(form.get("language"), "en-US");
-  const suppliedSessionKey = readText(form.get("sessionKey"), "");
-  const fallbackPrompt = readText(form.get("fallbackPrompt"), "");
-  const fallbackTranscript = readText(form.get("fallbackTranscript"), "");
-  const execute = action !== "transcribeOnly";
+  try {
+    const payload =
+      await readVoiceRequest(
+        request,
+      );
 
-  const profile = await ensureBotProfile(user);
+    const execute =
+      payload.action !==
+      "transcribeOnly";
 
-  let sessionKey = suppliedSessionKey;
-
-  if (!sessionKey) {
-    const session = await startVoiceSession({
-      userId: user.id,
-      profileId: profile.id,
-      firmId: profile.firmId,
-      language,
-    });
-
-    sessionKey = session.sessionKey;
-  }
-
-  if (!isFile(audio)) {
-    const fallbackText = fallbackTranscript || fallbackPrompt;
-
-    if (fallbackText && execute) {
-      const result = await executePersonalBotCommand({
+    const profile =
+      await ensureBotProfile(
         user,
-        profile,
-        prompt: fallbackText,
-        voiceTranscript: fallbackText,
-      });
+      );
 
-      await updateVoiceSession({
+    const audioRuntime =
+      getOpenAiAudioRuntimeStatus();
+
+    const session =
+      await ensureVoiceSession(
+        {
+          user,
+          profile,
+
+          suppliedSessionKey:
+            payload.suppliedSessionKey,
+
+          language:
+            payload.language,
+        },
+      );
+
+    const sessionKey =
+      session.sessionKey;
+
+    let transcription:
+      | AudioTranscriptionResult
+      | null = null;
+
+    const transcriptionStartedAt =
+      Date.now();
+
+    if (payload.audio) {
+      transcription =
+        await transcribeAudio(
+          {
+            file:
+              payload.audio,
+
+            language:
+              payload.language,
+
+            model:
+              process.env
+                .OPENAI_FAST_TRANSCRIBE_MODEL ||
+              process.env
+                .OPENAI_TRANSCRIBE_MODEL ||
+              "gpt-4o-mini-transcribe",
+
+            prompt:
+              "Short command for Slice, a financial-advisor operating platform. Preserve ticker symbols, company names, client workflow terms, dates, percentages, prices, email addresses, and route names exactly. Common routes and terms include Workspace, Custom Board, Watchlists, Market Visuals, Intelligence, Triage, Opportunity Radar, Client Portal Inbox, Client Profiles, Client Email Center, Client Briefings, AI Studio, Team Board, Firm Command Center, Portfolio Lab, Alternative Investments, Backend Kernel, Backend Readiness, Briefings, Security, Compliance Center, settings, advisor day, vendor health, price alert, approval, report, and PDF.",
+          },
+        );
+    }
+
+    const transcriptionMs =
+      Date.now() -
+      transcriptionStartedAt;
+
+    const transcript =
+      transcription?.text ||
+      payload.fallbackTranscript ||
+      payload.fallbackPrompt;
+
+    if (!transcript) {
+      const reason =
+        transcription?.error ||
+        (payload.audio
+          ? "The audio did not contain enough clear speech."
+          : "No audio or transcript was supplied.");
+
+      const answer =
+        recoveryAnswer(
+          reason,
+        );
+
+      await saveMessage({
         userId: user.id,
-        sessionKey,
-        transcript: fallbackText,
-        finalTranscript: fallbackText,
-        status: "Recovered",
-        confidenceScore: 55,
-        commandId: result.commandRecord.id,
+        profileId:
+          profile.id,
+        role:
+          "assistant",
+        content: answer,
+        intent:
+          "Voice Recovery",
+
+        metadata: {
+          voiceSessionKey:
+            sessionKey,
+
+          recoveryReason:
+            reason,
+
+          transcription,
+
+          clientAction: {
+            type: "none",
+            autoRun: false,
+          },
+        },
       });
 
-      return NextResponse.json({
+      await updateVoiceSession(
+        {
+          userId:
+            user.id,
+
+          sessionKey,
+
+          transcript: "",
+
+          finalTranscript:
+            "",
+
+          status:
+            "Failed",
+
+          confidenceScore:
+            10,
+
+          commandId: null,
+        },
+      );
+
+      return noStoreJson(
+        {
+          ok: false,
+
+          recovered:
+            true,
+
+          sessionKey,
+
+          transcript: "",
+
+          transcription,
+
+          audioRuntime,
+
+          executed: false,
+
+          result: {
+            intent:
+              "Voice Recovery",
+
+            answer,
+
+            status:
+              "Recovered",
+
+            clientAction: {
+              type:
+                "none",
+
+              autoRun:
+                false,
+            },
+          },
+
+          performance: {
+            totalMs:
+              Date.now() -
+              requestStartedAt,
+
+            transcriptionMs,
+
+            executionMs: 0,
+          },
+        },
+        {
+          status: 422,
+        },
+      );
+    }
+
+    if (!execute) {
+      await updateVoiceSession(
+        {
+          userId:
+            user.id,
+
+          sessionKey,
+
+          transcript,
+
+          finalTranscript:
+            transcript,
+
+          status:
+            "Transcribed",
+
+          confidenceScore:
+            transcription?.ok
+              ? 96
+              : 70,
+
+          commandId: null,
+        },
+      );
+
+      return noStoreJson({
         ok: true,
-        recovered: true,
+
+        recovered:
+          !transcription?.ok,
+
         sessionKey,
-        transcript: fallbackText,
-        executed: true,
-        result: {
-          intent: result.intent,
-          answer: result.answer,
-          status: result.status,
-          resultSummary: result.resultSummary,
-          clientAction: result.clientAction,
-          structuredCommand: result.structuredCommand,
-          aiParserOk: result.aiParserOk,
-          aiParserError: result.aiParserError,
-          fastRouterUsed: result.fastRouterUsed,
-          fastRouterReason: result.fastRouterReason,
-          fastRouterConfidence: result.fastRouterConfidence,
+
+        transcript,
+
+        transcription,
+
+        audioRuntime,
+
+        executed:
+          false,
+
+        result: null,
+
+        performance: {
+          totalMs:
+            Date.now() -
+            requestStartedAt,
+
+          transcriptionMs,
+
+          executionMs: 0,
         },
       });
     }
 
-    const recovery = await createAssistantRecoveryMessage({
+    const recentMessages =
+      payload.recentMessages
+        .length
+        ? payload.recentMessages
+        : await recentMessagesForUser(
+            user.id,
+          );
+
+    await saveMessage({
       userId: user.id,
-      profileId: profile.id,
-      sessionKey,
-      reason: "No audio file was received.",
-    });
 
-    await updateVoiceSession({
-      userId: user.id,
-      sessionKey,
-      transcript: "",
-      finalTranscript: "",
-      status: "Recovered",
-      confidenceScore: 20,
-    });
+      profileId:
+        profile.id,
 
-    return NextResponse.json({
-      ok: true,
-      recovered: true,
-      sessionKey,
-      transcript: "",
-      executed: false,
-      result: recovery,
-    });
-  }
+      role: "user",
 
-  const transcription = await transcribeAudio({
-    file: audio,
-    language: language.split("-")[0] || "en",
-    prompt:
-      "This is a voice command for Slice, an investment advisor platform. Common terms include Slice, market visuals, backend kernel, triage, opportunity radar, venture monitor, watchlist alerts, advisor command center, client brain, portfolio lab, NVDA, AAPL, MSFT, TSLA, OpenAI, vendor health, price check, approval, report, and PDF.",
-  });
+      content:
+        transcript,
 
-  const transcript = transcription.text || fallbackTranscript || fallbackPrompt;
+      intent:
+        "Voice Command",
 
-  if (!transcript) {
-    const recovery = await createAssistantRecoveryMessage({
-      userId: user.id,
-      profileId: profile.id,
-      sessionKey,
-      reason: transcription.error || "No transcript was returned.",
-    });
-
-    await updateVoiceSession({
-      userId: user.id,
-      sessionKey,
-      transcript: "",
-      finalTranscript: "",
-      status: "Recovered",
-      confidenceScore: 25,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      recovered: true,
-      sessionKey,
-      transcript: "",
-      transcription,
-      executed: false,
-      result: recovery,
-    });
-  }
-
-  let botResult: Awaited<ReturnType<typeof executePersonalBotCommand>> | null = null;
-  let commandId: string | null = null;
-
-  if (execute) {
-    await prisma.personalUserBotMessage.create({
-      data: {
-        userId: user.id,
-        profileId: profile.id,
-        role: "user",
-        content: transcript,
-        intent: "Voice Command",
-        metadataJson: asJson({
-          source: transcription.ok ? "openai-audio-transcription" : "voice-recovery-fallback",
+      metadata: {
+        voiceSessionKey:
           sessionKey,
-          transcriptionModel: transcription.model,
-          attemptedModels: transcription.attemptedModels,
-          transcriptionStatus: transcription.status,
-          language,
-        }),
+
+        language:
+          payload.language,
+
+        answerMode:
+          payload.answerMode,
+
+        transcriptionProvider:
+          transcription?.provider ??
+          "browser-or-text",
+
+        transcriptionModel:
+          transcription?.model ??
+          null,
+
+        transcriptionStatus:
+          transcription?.status ??
+          "fallback",
+
+        transcriptionError:
+          transcription?.error ??
+          null,
+
+        transcriptionLatencyMs:
+          transcription?.latencyMs ??
+          transcriptionMs,
+
+        lowLatencyCommandPath:
+          true,
       },
     });
 
-    botResult = await executePersonalBotCommand({
-      user,
-      profile,
-      prompt: transcript,
-      voiceTranscript: transcript,
+    const executionStartedAt =
+      Date.now();
+
+    const result =
+      await executePersonalBotCommand(
+        {
+          user,
+          profile,
+
+          prompt:
+            transcript,
+
+          voiceTranscript:
+            transcript,
+
+          currentPath:
+            payload.currentPath ||
+            "/workspace/personal-bot",
+
+          pageTitle:
+            payload.pageTitle ||
+            "Slice AI Studio Voice Ops",
+
+          answerMode:
+            payload.answerMode,
+
+          recentMessages,
+
+          advancedSettings:
+            payload.advancedSettings,
+        },
+      );
+
+    const executionMs =
+      Date.now() -
+      executionStartedAt;
+
+    await saveMessage({
+      userId: user.id,
+
+      profileId:
+        profile.id,
+
+      role:
+        "assistant",
+
+      content:
+        result.answer,
+
+      intent:
+        result.intent,
+
+      metadata: {
+        commandId:
+          result.commandRecord
+            ?.id ??
+          null,
+
+        clientAction:
+          result.clientAction,
+
+        structuredCommand:
+          result.structuredCommand,
+
+        executionStatus:
+          result.status,
+
+        resultSummary:
+          result.resultSummary,
+
+        aiParserOk:
+          result.aiParserOk,
+
+        aiParserError:
+          result.aiParserError ??
+          null,
+
+        fastRouterUsed:
+          result.fastRouterUsed,
+
+        fastRouterReason:
+          result.fastRouterReason ??
+          null,
+
+        fastRouterConfidence:
+          result.fastRouterConfidence ??
+          null,
+
+        universalAiProvider:
+          result.orchestration
+            .provider ||
+          result.aiProvider,
+
+        universalAiStatus:
+          result.orchestration
+            .aiStatus ||
+          result.status,
+
+        universalAiError:
+          result.orchestration
+            .aiError ??
+          null,
+
+        universalAiModel:
+          result.orchestration
+            .aiModel ??
+          null,
+
+        universalAiLatencyMs:
+          result.orchestration
+            .latencyMs ??
+          null,
+
+        researchUsed:
+          result.researchUsed ??
+          result.orchestration
+            .researchUsed,
+
+        sources:
+          result.sources ??
+          result.orchestration
+            .sources,
+
+        voiceSessionKey:
+          sessionKey,
+
+        transcriptionProvider:
+          transcription?.provider ??
+          "browser-or-text",
+
+        transcriptionModel:
+          transcription?.model ??
+          null,
+
+        transcriptionStatus:
+          transcription?.status ??
+          "fallback",
+
+        performance: {
+          transcriptionMs,
+          executionMs,
+
+          totalMs:
+            Date.now() -
+            requestStartedAt,
+        },
+      },
     });
 
-    commandId = botResult.commandRecord.id;
+    const failed =
+      result.status ===
+        "Failed" ||
+      result.status ===
+        "Error";
 
-    await prisma.personalUserBotMessage.create({
-      data: {
+    await updateVoiceSession(
+      {
         userId: user.id,
-        profileId: profile.id,
-        role: "assistant",
-        content: botResult.answer,
-        intent: botResult.intent,
-        metadataJson: asJson({
-          commandId,
-          clientAction: botResult.clientAction,
-          structuredCommand: botResult.structuredCommand,
-          aiParserOk: botResult.aiParserOk,
-          aiParserError: botResult.aiParserError,
-          fastRouterUsed: botResult.fastRouterUsed,
-          fastRouterReason: botResult.fastRouterReason,
-          fastRouterConfidence: botResult.fastRouterConfidence,
-          voiceSessionKey: sessionKey,
-          transcriptionProvider: transcription.provider,
-          transcriptionModel: transcription.model,
-          transcriptionStatus: transcription.status,
-        }),
+
+        sessionKey,
+
+        transcript,
+
+        finalTranscript:
+          transcript,
+
+        status: failed
+          ? "Failed"
+          : "Complete",
+
+        confidenceScore:
+          transcription?.ok
+            ? 96
+            : 72,
+
+        commandId:
+          result.commandRecord
+            ?.id ??
+          null,
+      },
+    );
+
+    return noStoreJson({
+      ok: !failed,
+
+      recovered:
+        !transcription?.ok,
+
+      sessionKey,
+
+      transcript,
+
+      transcription,
+
+      audioRuntime,
+
+      executed: true,
+
+      result:
+        resultPayload(
+          result,
+        ),
+
+      speech: {
+        available:
+          audioRuntime.configured,
+
+        endpoint:
+          "/api/personal-bot/speech",
+
+        text:
+          result.answer,
+
+        voice:
+          audioRuntime.speechVoice,
+
+        model:
+          audioRuntime.speechModel,
+
+        format:
+          audioRuntime.speechFormat,
+
+        disclosure:
+          "Spoken output is AI-generated.",
+      },
+
+      performance: {
+        totalMs:
+          Date.now() -
+          requestStartedAt,
+
+        transcriptionMs,
+
+        executionMs,
+
+        fastRouterUsed:
+          result.fastRouterUsed,
       },
     });
+  } catch (error) {
+    return noStoreJson(
+      {
+        ok: false,
+
+        error:
+          "Voice Ops request failed.",
+
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Unknown Voice Ops error.",
+
+        performance: {
+          totalMs:
+            Date.now() -
+            requestStartedAt,
+        },
+      },
+      {
+        status: 500,
+      },
+    );
   }
-
-  await updateVoiceSession({
-    userId: user.id,
-    sessionKey,
-    transcript,
-    finalTranscript: transcript,
-    status: execute ? "Complete" : "Transcribed",
-    confidenceScore: transcription.ok ? 90 : 60,
-    commandId,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    recovered: !transcription.ok,
-    sessionKey,
-    transcript,
-    transcription,
-    executed: execute,
-    result: botResult
-      ? {
-          intent: botResult.intent,
-          answer: botResult.answer,
-          status: botResult.status,
-          resultSummary: botResult.resultSummary,
-          clientAction: botResult.clientAction,
-          structuredCommand: botResult.structuredCommand,
-          aiParserOk: botResult.aiParserOk,
-          aiParserError: botResult.aiParserError,
-          fastRouterUsed: botResult.fastRouterUsed,
-          fastRouterReason: botResult.fastRouterReason,
-          fastRouterConfidence: botResult.fastRouterConfidence,
-        }
-      : null,
-  });
 }

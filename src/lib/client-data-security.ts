@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { findAccessibleClient } from "@/lib/client-access";
 import {
   checkRateLimit,
   getClientIp,
@@ -15,7 +15,12 @@ type CurrentUserShape = {
   email: string;
 };
 
-type ClientAccessScope = "read" | "write" | "delete" | "export" | "email";
+type ClientAccessScope =
+  | "read"
+  | "write"
+  | "delete"
+  | "export"
+  | "email";
 
 type SecureRouteInput = {
   request: Request;
@@ -34,16 +39,37 @@ type ClientAccessInput = {
   request?: Request;
 };
 
-export function noStoreJson(body: unknown, init?: ResponseInit) {
+export function noStoreJson(
+  body: unknown,
+  init?: ResponseInit,
+) {
   const response = NextResponse.json(body, init);
-  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
-  response.headers.set("Pragma", "no-cache");
-  response.headers.set("X-Slice-Client-Data", "protected");
+
+  response.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate",
+  );
+
+  response.headers.set(
+    "Pragma",
+    "no-cache",
+  );
+
+  response.headers.set(
+    "X-Slice-Client-Data",
+    "protected",
+  );
+
   return response;
 }
 
-export function cleanText(value: unknown, fallback = "") {
-  if (typeof value !== "string") return fallback;
+export function cleanText(
+  value: unknown,
+  fallback = "",
+) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
 
   return value
     .replace(/\u0000/g, "")
@@ -52,54 +78,96 @@ export function cleanText(value: unknown, fallback = "") {
     .slice(0, 5000);
 }
 
-export function cleanNullableText(value: unknown) {
+export function cleanNullableText(
+  value: unknown,
+) {
   const clean = cleanText(value, "");
+
   return clean || null;
 }
 
-export function cleanEmail(value: unknown) {
-  const clean = cleanText(value, "").toLowerCase();
+export function cleanEmail(
+  value: unknown,
+) {
+  const clean = cleanText(
+    value,
+    "",
+  ).toLowerCase();
 
-  if (!clean) return null;
+  if (!clean) {
+    return null;
+  }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      clean,
+    )
+  ) {
     return null;
   }
 
   return clean.slice(0, 320);
 }
 
-export function cleanTicker(value: unknown) {
+export function cleanTicker(
+  value: unknown,
+) {
   return cleanText(value, "")
     .toUpperCase()
     .replace(/[^A-Z0-9.-]/g, "")
     .slice(0, 12);
 }
 
-export function cleanMoneyLike(value: unknown) {
+export function cleanMoneyLike(
+  value: unknown,
+) {
   const clean = cleanText(value, "");
 
-  if (!clean) return null;
+  if (!clean) {
+    return null;
+  }
 
-  return clean.replace(/[^\d.,$%-]/g, "").slice(0, 80) || null;
+  return (
+    clean
+      .replace(/[^\d.,$%-]/g, "")
+      .slice(0, 80) || null
+  );
 }
 
 export function sensitiveActionConfirmationRequired() {
-  return process.env.ENFORCE_SENSITIVE_CONFIRMATION === "true";
+  return (
+    process.env
+      .ENFORCE_SENSITIVE_CONFIRMATION ===
+    "true"
+  );
 }
 
 export function hasSensitiveActionConfirmation(
   request: Request,
-  expected: string
+  expected: string,
 ) {
-  if (!sensitiveActionConfirmationRequired()) return true;
+  if (
+    !sensitiveActionConfirmationRequired()
+  ) {
+    return true;
+  }
 
-  const header = request.headers.get("x-slice-sensitive-action") ?? "";
+  const header =
+    request.headers.get(
+      "x-slice-sensitive-action",
+    ) ?? "";
+
   return header === expected;
 }
 
-export async function protectClientDataRoute(input: SecureRouteInput) {
-  if (isPotentiallyCrossSiteUnsafeRequest(input.request)) {
+export async function protectClientDataRoute(
+  input: SecureRouteInput,
+) {
+  if (
+    isPotentiallyCrossSiteUnsafeRequest(
+      input.request,
+    )
+  ) {
     await recordSecurityEvent({
       userId: input.user.id,
       eventType: `${input.eventType}.cross_site_blocked`,
@@ -115,18 +183,25 @@ export async function protectClientDataRoute(input: SecureRouteInput) {
       allowed: false,
       response: noStoreJson(
         {
-          error: "Security policy blocked this client-data request.",
+          error:
+            "Security policy blocked this client-data request.",
         },
-        { status: 403 }
+        {
+          status: 403,
+        },
       ),
     };
   }
 
-  const ipHash = hashForSecurity(getClientIp(input.request));
+  const ipHash = hashForSecurity(
+    getClientIp(input.request),
+  );
+
   const rate = checkRateLimit({
     key: `client-data:${input.user.id}:${ipHash}:${input.eventType}`,
     limit: input.limit ?? 80,
-    windowMs: input.windowMs ?? 60 * 1000,
+    windowMs:
+      input.windowMs ?? 60 * 1000,
   });
 
   if (!rate.allowed) {
@@ -136,7 +211,8 @@ export async function protectClientDataRoute(input: SecureRouteInput) {
       severity: "Medium",
       area: input.area,
       title: `${input.title}: rate limited`,
-      detail: "Client-data endpoint rate limit triggered.",
+      detail:
+        "Client-data endpoint rate limit triggered.",
       metadata: {
         limit: rate.limit,
         resetAt: rate.resetAt,
@@ -146,12 +222,18 @@ export async function protectClientDataRoute(input: SecureRouteInput) {
 
     const response = noStoreJson(
       {
-        error: "Too many client-data requests. Try again shortly.",
+        error:
+          "Too many client-data requests. Try again shortly.",
       },
-      { status: 429 }
+      {
+        status: 429,
+      },
     );
 
-    response.headers.set("Retry-After", String(rate.retryAfterSeconds));
+    response.headers.set(
+      "Retry-After",
+      String(rate.retryAfterSeconds),
+    );
 
     return {
       allowed: false,
@@ -165,13 +247,14 @@ export async function protectClientDataRoute(input: SecureRouteInput) {
   };
 }
 
-export async function requireClientAccess(input: ClientAccessInput) {
-  const client = await prisma.clientProfile.findFirst({
-    where: {
-      id: input.clientId,
+export async function requireClientAccess(
+  input: ClientAccessInput,
+) {
+  const { client } =
+    await findAccessibleClient({
       userId: input.user.id,
-    },
-  });
+      clientId: input.clientId,
+    });
 
   if (!client) {
     await recordSecurityEvent({
@@ -180,10 +263,12 @@ export async function requireClientAccess(input: ClientAccessInput) {
       severity: "High",
       area: "Client Data",
       title: "Client-data access denied",
-      detail:
-        `User attempted ${input.scope} access to a client they do not own or cannot access.`,
+      detail: `User attempted ${input.scope} access to a client they do not own, are not assigned to, or cannot access through firm permissions.`,
       metadata: {
-        clientIdHash: hashForSecurity(input.clientId),
+        clientIdHash:
+          hashForSecurity(
+            input.clientId,
+          ),
         scope: input.scope,
       },
       request: input.request,
@@ -192,7 +277,14 @@ export async function requireClientAccess(input: ClientAccessInput) {
     return {
       allowed: false,
       client: null,
-      response: noStoreJson({ error: "Client not found." }, { status: 404 }),
+      response: noStoreJson(
+        {
+          error: "Client not found.",
+        },
+        {
+          status: 404,
+        },
+      ),
     };
   }
 
@@ -209,9 +301,19 @@ export async function requireClientAccess(input: ClientAccessInput) {
     title: `Client ${input.scope} access`,
     detail: `User accessed client data with ${input.scope} scope.`,
     metadata: {
-      clientIdHash: hashForSecurity(input.clientId),
-      clientEmailHash: client.email ? hashForSecurity(client.email) : null,
+      clientIdHash:
+        hashForSecurity(
+          input.clientId,
+        ),
+      clientEmailHash: client.email
+        ? hashForSecurity(client.email)
+        : null,
       scope: input.scope,
+      firmId:
+        client.firmId ?? null,
+      assignedAdvisorMembershipId:
+        client.assignedAdvisorMembershipId ??
+        null,
     },
     request: input.request,
   });
@@ -223,59 +325,98 @@ export async function requireClientAccess(input: ClientAccessInput) {
   };
 }
 
-export function redactClientForSummary(client: any) {
-  const decryptedEmail = client.email ? decryptSensitiveText(client.email) : null;
+export function redactClientForSummary(
+  client: any,
+) {
+  const decryptedEmail = client.email
+    ? decryptSensitiveText(
+        client.email,
+      )
+    : null;
 
   return {
     id: client.id,
     fullName: client.fullName,
-    householdName: client.householdName,
+    householdName:
+      client.householdName,
     clientType: client.clientType,
     riskProfile: client.riskProfile,
-    liquidityNeeds: client.liquidityNeeds,
+    liquidityNeeds:
+      client.liquidityNeeds,
     timeHorizon: client.timeHorizon,
     objective: client.objective,
-    portfolioValue: client.portfolioValue
-      ? "[REDACTED_IN_SUMMARY_VIEW]"
-      : null,
+    portfolioValue:
+      client.portfolioValue
+        ? "[REDACTED_IN_SUMMARY_VIEW]"
+        : null,
     status: client.status,
     createdAt: client.createdAt,
-    holdingsCount: client.holdings?.length ?? 0,
-    notesCount: client.notesList?.length ?? 0,
-    tasksCount: client.tasks?.length ?? 0,
-    reviewsCount: client.reviews?.length ?? 0,
-    documentsCount: client.documents?.length ?? 0,
-    email: decryptedEmail ? maskEmail(decryptedEmail) : null,
-    notes: client.notes ? "[REDACTED_IN_SUMMARY_VIEW]" : null,
+    holdingsCount:
+      client.holdings?.length ?? 0,
+    notesCount:
+      client.notesList?.length ?? 0,
+    tasksCount:
+      client.tasks?.length ?? 0,
+    reviewsCount:
+      client.reviews?.length ?? 0,
+    documentsCount:
+      client.documents?.length ?? 0,
+    email: decryptedEmail
+      ? maskEmail(decryptedEmail)
+      : null,
+    notes: client.notes
+      ? "[REDACTED_IN_SUMMARY_VIEW]"
+      : null,
   };
 }
 
-export function maskEmail(email: string) {
-  const [name, domain] = email.split("@");
+export function maskEmail(
+  email: string,
+) {
+  const [name, domain] =
+    email.split("@");
 
-  if (!name || !domain) return "masked";
+  if (!name || !domain) {
+    return "masked";
+  }
 
-  return `${name.slice(0, 2)}${"*".repeat(Math.max(2, name.length - 2))}@${domain}`;
+  return `${name.slice(0, 2)}${"*".repeat(
+    Math.max(
+      2,
+      name.length - 2,
+    ),
+  )}@${domain}`;
 }
 
-export async function recordClientMutation(input: {
-  user: CurrentUserShape;
-  request?: Request;
-  clientId: string;
-  action: string;
-  title: string;
-  detail?: string;
-  metadata?: Record<string, unknown>;
-}) {
+export async function recordClientMutation(
+  input: {
+    user: CurrentUserShape;
+    request?: Request;
+    clientId: string;
+    action: string;
+    title: string;
+    detail?: string;
+    metadata?: Record<
+      string,
+      unknown
+    >;
+  },
+) {
   await recordSecurityEvent({
     userId: input.user.id,
     eventType: `client.${input.action}`,
-    severity: input.action.includes("delete") ? "High" : "Medium",
+    severity:
+      input.action.includes("delete")
+        ? "High"
+        : "Medium",
     area: "Client Data",
     title: input.title,
     detail: input.detail,
     metadata: {
-      clientIdHash: hashForSecurity(input.clientId),
+      clientIdHash:
+        hashForSecurity(
+          input.clientId,
+        ),
       ...(input.metadata ?? {}),
     },
     request: input.request,

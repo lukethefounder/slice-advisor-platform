@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { AdvisorRoutingDock } from "@/components/advisor-routing-dock";
 
 const WORKSPACE_SETTINGS_KEY = "slice-workspace-settings-v5";
 const THEME_KEY = "slice-theme-mode-v1";
@@ -318,6 +319,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
         }}
       />
       {children}
+      <AdvisorRoutingDock />
     </div>
   );
 }

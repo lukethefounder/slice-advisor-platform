@@ -237,7 +237,9 @@ function id(prefix: string) {
 
 function shortDate(value: string | null | undefined) {
   if (!value) return "No date";
+
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return value;
 
   return date.toLocaleDateString("en-US", {
@@ -252,6 +254,7 @@ function parseFlags(value: string | null | undefined) {
 
   try {
     const parsed = JSON.parse(value);
+
     return Array.isArray(parsed) ? parsed.map(String) : [];
   } catch {
     return [];
@@ -272,7 +275,12 @@ function cleanSymbols(value: string) {
     new Set(
       value
         .split(/,|\n|\s|\t/)
-        .map((item) => item.trim().toUpperCase().replace(/[^A-Z0-9._/!\-$]/g, ""))
+        .map((item) =>
+          item
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9._/!\-$]/g, ""),
+        )
         .filter(Boolean),
     ),
   ).slice(0, 50);
@@ -281,9 +289,30 @@ function cleanSymbols(value: string) {
 function assetClassForSymbol(symbol: string) {
   const upper = symbol.toUpperCase();
 
-  if (upper.includes("BTC") || upper.includes("ETH") || upper.includes("USDT")) return "Crypto";
-  if (upper.endsWith("1!") || upper.includes("ES") || upper.includes("NQ")) return "Futures";
-  if (["SPY", "QQQ", "VOO", "VTI", "TLT", "GLD", "IWM", "DIA"].includes(upper)) return "ETF";
+  if (
+    upper.includes("BTC") ||
+    upper.includes("ETH") ||
+    upper.includes("USDT")
+  ) {
+    return "Crypto";
+  }
+
+  if (
+    upper.endsWith("1!") ||
+    upper.includes("ES") ||
+    upper.includes("NQ")
+  ) {
+    return "Futures";
+  }
+
+  if (
+    ["SPY", "QQQ", "VOO", "VTI", "TLT", "GLD", "IWM", "DIA"].includes(
+      upper,
+    )
+  ) {
+    return "ETF";
+  }
+
   if (upper.startsWith("^")) return "Index";
 
   return "Stock";
@@ -331,11 +360,20 @@ function toneFor(value: string | number | null | undefined): Tone {
     return "amber";
   }
 
-  if (lower.includes("client") || lower.includes("household") || lower.includes("profile")) {
+  if (
+    lower.includes("client") ||
+    lower.includes("household") ||
+    lower.includes("profile")
+  ) {
     return "purple";
   }
 
-  if (lower.includes("stock") || lower.includes("security") || lower.includes("etf") || lower.includes("bond")) {
+  if (
+    lower.includes("stock") ||
+    lower.includes("security") ||
+    lower.includes("etf") ||
+    lower.includes("bond")
+  ) {
     return "cyan";
   }
 
@@ -344,11 +382,13 @@ function toneFor(value: string | number | null | undefined): Tone {
 
 function loadLocal(key: string, fallback = "") {
   if (typeof window === "undefined") return fallback;
+
   return window.localStorage.getItem(key) ?? fallback;
 }
 
 function saveLocal(key: string, value: string) {
   if (typeof window === "undefined") return;
+
   window.localStorage.setItem(key, value);
 }
 
@@ -358,7 +398,9 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   const chunkSize = 0x8000;
 
   for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    binary += String.fromCharCode(
+      ...bytes.subarray(index, index + chunkSize),
+    );
   }
 
   return window.btoa(binary);
@@ -384,35 +426,69 @@ function SectionShell({
   return (
     <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.045]">
       <div className="flex items-center justify-between gap-3 p-4">
-        <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{eyebrow}</div>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+            {eyebrow}
+          </div>
+
           <div className="mt-1 flex items-center gap-3">
-            <span className={cx("h-2.5 w-2.5 rounded-full shadow-lg", dotClass(tone))} />
-            <h3 className="truncate text-lg font-black text-white">{title}</h3>
-            <span className="text-xs font-black text-slate-500">{open ? "Close" : "Open"}</span>
+            <span
+              className={cx(
+                "h-2.5 w-2.5 rounded-full shadow-lg",
+                dotClass(tone),
+              )}
+            />
+
+            <h3 className="truncate text-lg font-black text-white">
+              {title}
+            </h3>
+
+            <span className="text-xs font-black text-slate-500">
+              {open ? "Close" : "Open"}
+            </span>
           </div>
         </button>
+
         {action}
       </div>
 
-      {open ? <div className="border-t border-white/10 p-4">{children}</div> : null}
+      {open ? (
+        <div className="border-t border-white/10 p-4">{children}</div>
+      ) : null}
     </div>
   );
 }
 
-function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
+function Pill({
+  children,
+  tone = "slate",
+}: {
+  children: ReactNode;
+  tone?: Tone;
+}) {
   const tones: Record<Tone, string> = {
     red: "border-red-500/30 bg-red-500/10 text-red-200",
-    green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    green:
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
+    purple:
+      "border-purple-500/30 bg-purple-500/10 text-purple-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
     blue: "border-blue-500/30 bg-blue-500/10 text-blue-200",
     slate: "border-slate-500/20 bg-slate-500/10 text-slate-200",
   };
 
   return (
-    <span className={cx("inline-flex max-w-full rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]", tones[tone])}>
+    <span
+      className={cx(
+        "inline-flex max-w-full rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+        tones[tone],
+      )}
+    >
       <span className="truncate">{children}</span>
     </span>
   );
@@ -435,20 +511,35 @@ function dotClass(tone: Tone) {
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
     red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
-    green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
-    amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
-    purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
+    green:
+      "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
+    amber:
+      "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
+    purple:
+      "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
     cyan: "border-cyan-500/25 bg-cyan-500/10 text-cyan-100 shadow-cyan-950/20",
     blue: "border-blue-500/25 bg-blue-500/10 text-blue-100 shadow-blue-950/20",
-    slate: "border-slate-500/20 bg-slate-500/10 text-slate-100 shadow-slate-950/20",
+    slate:
+      "border-slate-500/20 bg-slate-500/10 text-slate-100 shadow-slate-950/20",
   };
 
   return tones[tone];
 }
 
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -477,11 +568,27 @@ function Metric({
 
   return (
     <div className="relative min-h-[112px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
-      <div className={cx("absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent", glows[tone])} />
+      <div
+        className={cx(
+          "absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
+          glows[tone],
+        )}
+      />
+
       <div className="relative">
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-        <div className="mt-2 truncate text-2xl font-black text-white">{value}</div>
-        {helper ? <div className="mt-1 truncate text-xs text-slate-500">{helper}</div> : null}
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+          {label}
+        </div>
+
+        <div className="mt-2 truncate text-2xl font-black text-white">
+          {value}
+        </div>
+
+        {helper ? (
+          <div className="mt-1 truncate text-xs text-slate-500">
+            {helper}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -525,7 +632,9 @@ export default function ClientProfilesPage() {
   });
 
   const [importProfiles, setImportProfiles] = useState<AiImportedClient[]>([]);
-  const [importSelections, setImportSelections] = useState<Record<string, boolean>>({});
+  const [importSelections, setImportSelections] = useState<
+    Record<string, boolean>
+  >({});
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [importLoading, setImportLoading] = useState(false);
@@ -537,7 +646,12 @@ export default function ClientProfilesPage() {
   const recognitionRef = useRef<ClientSpeechRecognitionLike | null>(null);
 
   const clients = payload.clients ?? [];
-  const selectedClient = clients.find((client) => client.id === selectedClientId) ?? clients[0] ?? null;
+
+  const selectedClient =
+    clients.find((client) => client.id === selectedClientId) ??
+    clients[0] ??
+    null;
+
   const metrics = payload.metrics ?? EMPTY_PAYLOAD.metrics!;
 
   const filteredClients = useMemo(() => {
@@ -555,26 +669,42 @@ export default function ClientProfilesPage() {
             holding.assetName.toLowerCase().includes(query),
         );
 
-      const matchesStatus = statusFilter === "All" || client.status === statusFilter;
-      const matchesRisk = riskFilter === "All" || client.riskProfile === riskFilter;
+      const matchesStatus =
+        statusFilter === "All" || client.status === statusFilter;
+
+      const matchesRisk =
+        riskFilter === "All" || client.riskProfile === riskFilter;
 
       return matchesSearch && matchesStatus && matchesRisk;
     });
   }, [clients, search, statusFilter, riskFilter]);
 
   const selectedRiskReview = selectedClient?.reviews?.[0] ?? null;
+
   const selectedOpenTasks =
-    selectedClient?.tasks?.filter((task) => task.status !== "Done" && task.status !== "Complete") ?? [];
+    selectedClient?.tasks?.filter(
+      (task) => task.status !== "Done" && task.status !== "Complete",
+    ) ?? [];
 
   const allHeldSymbols = useMemo(() => {
-    return Array.from(new Set(clients.flatMap((client) => client.holdings.map((holding) => holding.symbol)))).sort();
+    return Array.from(
+      new Set(
+        clients.flatMap((client) =>
+          client.holdings.map((holding) => holding.symbol),
+        ),
+      ),
+    ).sort();
   }, [clients]);
 
   useEffect(() => {
     setAdvisorNotifyEmail(loadLocal(CLIENT_NOTIFY_EMAIL_KEY));
-    setSendChangeEmails(loadLocal(CLIENT_NOTIFY_ENABLED_KEY, "true") !== "false");
+
+    setSendChangeEmails(
+      loadLocal(CLIENT_NOTIFY_ENABLED_KEY, "true") !== "false",
+    );
 
     const savedImportSelections = loadLocal(CLIENT_IMPORT_SELECTION_KEY);
+
     if (savedImportSelections) {
       try {
         setImportSelections(JSON.parse(savedImportSelections));
@@ -584,6 +714,7 @@ export default function ClientProfilesPage() {
     }
 
     void loadClients();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -596,7 +727,10 @@ export default function ClientProfilesPage() {
   }, [sendChangeEmails]);
 
   useEffect(() => {
-    saveLocal(CLIENT_IMPORT_SELECTION_KEY, JSON.stringify(importSelections));
+    saveLocal(
+      CLIENT_IMPORT_SELECTION_KEY,
+      JSON.stringify(importSelections),
+    );
   }, [importSelections]);
 
   function setStatus(text: string, tone: Tone = "slate") {
@@ -623,22 +757,54 @@ export default function ClientProfilesPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setStatus(data.error ?? "Unable to load client profiles.", "red");
+        setStatus(
+          data.error ?? "Unable to load client profiles.",
+          "red",
+        );
+
         return;
       }
 
       setPayload(data);
 
-      const nextId = nextSelectedId || selectedClientId || data.clients?.[0]?.id || "";
-      setSelectedClientId(nextId);
+      const requestedClientId =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("clientId")
+          : null;
+
+      const nextId =
+        nextSelectedId ||
+        requestedClientId ||
+        selectedClientId ||
+        data.clients?.[0]?.id ||
+        "";
+
+      const nextClient = data.clients?.find(
+        (client: ClientProfile) => client.id === nextId,
+      );
+
+      if (nextClient) {
+        loadClientIntoForm(nextClient);
+      } else {
+        setSelectedClientId(nextId);
+      }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to load client profiles.", "red");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to load client profiles.",
+        "red",
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  async function notifyAdvisor(changeType: string, clientName: string, summary: string) {
+  async function notifyAdvisor(
+    changeType: string,
+    clientName: string,
+    summary: string,
+  ) {
     if (!sendChangeEmails) return;
     if (!advisorNotifyEmail.trim()) return;
 
@@ -661,7 +827,11 @@ export default function ClientProfilesPage() {
   async function postClientAction(
     body: Record<string, unknown>,
     successMessage: string,
-    notify?: { type: string; clientName: string; summary: string },
+    notify?: {
+      type: string;
+      clientName: string;
+      summary: string;
+    },
   ) {
     setLoading(true);
     setStatus("");
@@ -671,7 +841,9 @@ export default function ClientProfilesPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-slice-sensitive-action": String(body.action ?? "client-action"),
+          "x-slice-sensitive-action": String(
+            body.action ?? "client-action",
+          ),
         },
         body: JSON.stringify(body),
       });
@@ -680,6 +852,7 @@ export default function ClientProfilesPage() {
 
       if (!response.ok) {
         setStatus(data.error ?? "Client action failed.", "red");
+
         return null;
       }
 
@@ -690,13 +863,24 @@ export default function ClientProfilesPage() {
       }
 
       if (notify) {
-        await notifyAdvisor(notify.type, notify.clientName, notify.summary);
+        await notifyAdvisor(
+          notify.type,
+          notify.clientName,
+          notify.summary,
+        );
       }
 
       setStatus(successMessage, "green");
-      return data as ClientsPayload & { client?: ClientProfile };
+
+      return data as ClientsPayload & {
+        client?: ClientProfile;
+      };
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Client action failed.", "red");
+      setStatus(
+        error instanceof Error ? error.message : "Client action failed.",
+        "red",
+      );
+
       return null;
     } finally {
       setLoading(false);
@@ -708,7 +892,9 @@ export default function ClientProfilesPage() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-slice-sensitive-action": String(body.action ?? "client-action"),
+        "x-slice-sensitive-action": String(
+          body.action ?? "client-action",
+        ),
       },
       body: JSON.stringify(body),
     });
@@ -719,11 +905,30 @@ export default function ClientProfilesPage() {
       throw new Error(data.error ?? "Client action failed.");
     }
 
-    return data as ClientsPayload & { client?: ClientProfile };
+    return data as ClientsPayload & {
+      client?: ClientProfile;
+    };
   }
 
   function loadClientIntoForm(client: ClientProfile) {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+
+      url.searchParams.set("clientId", client.id);
+
+      window.history.replaceState({}, "", url.toString());
+
+      window.dispatchEvent(
+        new CustomEvent("slice-client-selected", {
+          detail: {
+            clientId: client.id,
+          },
+        }),
+      );
+    }
+
     setSelectedClientId(client.id);
+
     setClientForm({
       fullName: client.fullName,
       email: client.email ?? "",
@@ -736,7 +941,11 @@ export default function ClientProfilesPage() {
       status: client.status,
       notes: client.notes ?? "",
     });
-    setOpenSections((current) => ({ ...current, profile: true }));
+
+    setOpenSections((current) => ({
+      ...current,
+      profile: true,
+    }));
   }
 
   function resetClientForm() {
@@ -750,6 +959,7 @@ export default function ClientProfilesPage() {
 
     if (!clientForm.fullName.trim()) {
       setStatus("Client full name is required.", "red");
+
       return;
     }
 
@@ -776,6 +986,7 @@ export default function ClientProfilesPage() {
 
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
@@ -799,11 +1010,13 @@ export default function ClientProfilesPage() {
 
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
     if (!holdingForm.symbol.trim()) {
       setStatus("Security symbol is required.", "red");
+
       return;
     }
 
@@ -816,7 +1029,8 @@ export default function ClientProfilesPage() {
         ...holdingForm,
         symbol,
         assetName: holdingForm.assetName || symbol,
-        assetClass: holdingForm.assetClass || assetClassForSymbol(symbol),
+        assetClass:
+          holdingForm.assetClass || assetClassForSymbol(symbol),
       },
       `${symbol} added to ${selectedClient.fullName}.`,
       {
@@ -834,6 +1048,7 @@ export default function ClientProfilesPage() {
   async function bulkAddHoldings() {
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
@@ -841,6 +1056,7 @@ export default function ClientProfilesPage() {
 
     if (!symbols.length) {
       setStatus("Paste at least one symbol.", "red");
+
       return;
     }
 
@@ -861,15 +1077,28 @@ export default function ClientProfilesPage() {
       }
 
       setBulkSymbols("");
+
       await loadClients(selectedClient.id);
+
       await notifyAdvisor(
         "Bulk securities added",
         selectedClient.fullName,
-        `${symbols.length} securities were added to ${selectedClient.fullName}: ${symbols.join(", ")}.`,
+        `${symbols.length} securities were added to ${
+          selectedClient.fullName
+        }: ${symbols.join(", ")}.`,
       );
-      setStatus(`${symbols.length} security symbol(s) added without storing position amounts.`, "green");
+
+      setStatus(
+        `${symbols.length} security symbol(s) added without storing position amounts.`,
+        "green",
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to add symbols.", "red");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to add symbols.",
+        "red",
+      );
     } finally {
       setLoading(false);
     }
@@ -898,11 +1127,13 @@ export default function ClientProfilesPage() {
 
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
     if (!noteForm.title.trim() || !noteForm.body.trim()) {
       setStatus("Note title and body are required.", "red");
+
       return;
     }
 
@@ -930,11 +1161,13 @@ export default function ClientProfilesPage() {
 
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
     if (!taskForm.title.trim()) {
       setStatus("Task title is required.", "red");
+
       return;
     }
 
@@ -971,7 +1204,9 @@ export default function ClientProfilesPage() {
       {
         type: "Client task updated",
         clientName: selectedClient.fullName,
-        summary: `Task "${task.title}" was ${task.status === "Done" ? "reopened" : "completed"} for ${selectedClient.fullName}.`,
+        summary: `Task "${task.title}" was ${
+          task.status === "Done" ? "reopened" : "completed"
+        } for ${selectedClient.fullName}.`,
       },
     );
   }
@@ -981,11 +1216,13 @@ export default function ClientProfilesPage() {
 
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
     if (!documentForm.fileName.trim()) {
       setStatus("Document name is required.", "red");
+
       return;
     }
 
@@ -1011,6 +1248,7 @@ export default function ClientProfilesPage() {
   async function addRiskReview() {
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
@@ -1031,10 +1269,14 @@ export default function ClientProfilesPage() {
   async function deleteSelectedClient() {
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
-    const confirmed = window.confirm(`Remove ${selectedClient.fullName}? This deletes the profile and related client records.`);
+    const confirmed = window.confirm(
+      `Remove ${selectedClient.fullName}? This deletes the profile and related client records.`,
+    );
+
     if (!confirmed) return;
 
     setLoading(true);
@@ -1055,6 +1297,7 @@ export default function ClientProfilesPage() {
 
       if (!response.ok) {
         setStatus(data.error ?? "Unable to delete client.", "red");
+
         return;
       }
 
@@ -1066,10 +1309,17 @@ export default function ClientProfilesPage() {
 
       setSelectedClientId("");
       setClientForm(DEFAULT_CLIENT_FORM);
+
       await loadClients("");
+
       setStatus(`${selectedClient.fullName} removed.`, "green");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to delete client.", "red");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete client.",
+        "red",
+      );
     } finally {
       setLoading(false);
     }
@@ -1084,7 +1334,8 @@ export default function ClientProfilesPage() {
 
     try {
       const lowerName = file.name.toLowerCase();
-      const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+      const isExcel =
+        lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
 
       let body: Record<string, unknown> = {
         fileName: file.name,
@@ -1115,8 +1366,13 @@ export default function ClientProfilesPage() {
       const data = (await response.json()) as AiImportResponse;
 
       if (!response.ok || !data.ok) {
-        setStatus(data.message || "Unable to normalize client file.", "red");
+        setStatus(
+          data.message || "Unable to normalize client file.",
+          "red",
+        );
+
         setImportWarnings(data.warnings ?? []);
+
         return;
       }
 
@@ -1124,25 +1380,46 @@ export default function ClientProfilesPage() {
       setImportWarnings(data.warnings ?? []);
 
       const selections: Record<string, boolean> = {};
+
       for (const profile of data.profiles) {
-        selections[profile.importKey] = profile.confidence >= 88 && !profile.duplicateHint;
+        selections[profile.importKey] =
+          profile.confidence >= 88 && !profile.duplicateHint;
       }
 
       setImportSelections(selections);
-      setOpenSections((current) => ({ ...current, import: true }));
-      setStatus(`${data.profiles.length} profile(s) prepared from ${file.name}. Review before importing.`, "green");
+
+      setOpenSections((current) => ({
+        ...current,
+        import: true,
+      }));
+
+      setStatus(
+        `${data.profiles.length} profile(s) prepared from ${file.name}. Review before importing.`,
+        "green",
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to import file.", "red");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to import file.",
+        "red",
+      );
     } finally {
       setImportLoading(false);
     }
   }
 
   async function importSelectedProfiles() {
-    const selectedProfiles = importProfiles.filter((profile) => importSelections[profile.importKey]);
+    const selectedProfiles = importProfiles.filter(
+      (profile) => importSelections[profile.importKey],
+    );
 
     if (!selectedProfiles.length) {
-      setStatus("Select at least one AI-prepared profile to import.", "red");
+      setStatus(
+        "Select at least one AI-prepared profile to import.",
+        "red",
+      );
+
       return;
     }
 
@@ -1168,7 +1445,9 @@ export default function ClientProfilesPage() {
           status: profile.status,
           notes: [
             profile.notes,
-            profile.warnings.length ? `Import warnings: ${profile.warnings.join(" | ")}` : "",
+            profile.warnings.length
+              ? `Import warnings: ${profile.warnings.join(" | ")}`
+              : "",
             `Import confidence: ${profile.confidence}%. Source row: ${profile.sourceRow}.`,
           ]
             .filter(Boolean)
@@ -1186,15 +1465,21 @@ export default function ClientProfilesPage() {
             clientId: result.client.id,
             symbol: holding.symbol,
             assetName: holding.assetName || holding.symbol,
-            assetClass: holding.assetClass || assetClassForSymbol(holding.symbol),
+            assetClass:
+              holding.assetClass ||
+              assetClassForSymbol(holding.symbol),
             riskLevel: holding.riskLevel || "Medium",
-            thesis: holding.thesis || "Imported from advisor client file.",
+            thesis:
+              holding.thesis ||
+              "Imported from advisor client file.",
           });
+
           holdingsCount += 1;
         }
       }
 
       await loadClients(lastClientId);
+
       await notifyAdvisor(
         "Client import completed",
         "Client import",
@@ -1203,9 +1488,18 @@ export default function ClientProfilesPage() {
 
       setImportProfiles([]);
       setImportSelections({});
-      setStatus(`${createdCount} clients imported with ${holdingsCount} security records.`, "green");
+
+      setStatus(
+        `${createdCount} clients imported with ${holdingsCount} security records.`,
+        "green",
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to import selected profiles.", "red");
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Unable to import selected profiles.",
+        "red",
+      );
     } finally {
       setLoading(false);
     }
@@ -1213,9 +1507,11 @@ export default function ClientProfilesPage() {
 
   function selectAllImports(value: boolean) {
     const next: Record<string, boolean> = {};
+
     for (const profile of importProfiles) {
       next[profile.importKey] = value;
     }
+
     setImportSelections(next);
   }
 
@@ -1228,36 +1524,55 @@ export default function ClientProfilesPage() {
 
   function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
     event.preventDefault();
+
     const file = event.dataTransfer.files?.[0];
-    if (file) void normalizeImportFile(file);
+
+    if (file) {
+      void normalizeImportFile(file);
+    }
   }
 
   function startVoice() {
     const speechWindow = window as unknown as SpeechWindow;
-    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
+    const Recognition =
+      speechWindow.SpeechRecognition ||
+      speechWindow.webkitSpeechRecognition;
 
     if (!Recognition) {
-      setStatus("Voice entry is not supported in this browser. Try Chrome or Edge.", "amber");
+      setStatus(
+        "Voice entry is not supported in this browser. Try Chrome or Edge.",
+        "amber",
+      );
+
       return;
     }
 
     const recognition = new Recognition();
-    recognitionRef.current = recognition;
 
+    recognitionRef.current = recognition;
     recognition.lang = "en-US";
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
+      const transcript =
+        event.results?.[0]?.[0]?.transcript?.trim() ?? "";
+
       setVoiceTranscript(transcript);
       applyVoiceCommand(transcript);
     };
 
     recognition.onerror = (event) => {
       setVoiceListening(false);
-      setStatus(event.error ? `Voice error: ${event.error}` : "Voice command failed.", "red");
+
+      setStatus(
+        event.error
+          ? `Voice error: ${event.error}`
+          : "Voice command failed.",
+        "red",
+      );
     };
 
     recognition.onend = () => {
@@ -1279,10 +1594,21 @@ export default function ClientProfilesPage() {
 
     if (!text) return;
 
-    if (lower.startsWith("add client") || lower.startsWith("create client")) {
-      const withoutCommand = text.replace(/^add client/i, "").replace(/^create client/i, "").trim();
-      const emailMatch = withoutCommand.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i);
+    if (
+      lower.startsWith("add client") ||
+      lower.startsWith("create client")
+    ) {
+      const withoutCommand = text
+        .replace(/^add client/i, "")
+        .replace(/^create client/i, "")
+        .trim();
+
+      const emailMatch = withoutCommand.match(
+        /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+      );
+
       const email = emailMatch?.[0] ?? "";
+
       const name = withoutCommand
         .replace(email, "")
         .replace(/\bemail\b/gi, "")
@@ -1295,8 +1621,16 @@ export default function ClientProfilesPage() {
         email: email || current.email,
       }));
 
-      setOpenSections((current) => ({ ...current, profile: true }));
-      setStatus("Voice filled the client form. Review, then save.", "cyan");
+      setOpenSections((current) => ({
+        ...current,
+        profile: true,
+      }));
+
+      setStatus(
+        "Voice filled the client form. Review, then save.",
+        "cyan",
+      );
+
       return;
     }
 
@@ -1306,7 +1640,9 @@ export default function ClientProfilesPage() {
       const clientNamePart = parts[1]?.trim();
 
       if (symbolPart) {
-        const symbol = cleanSymbols(symbolPart)[0] ?? symbolPart.toUpperCase();
+        const symbol =
+          cleanSymbols(symbolPart)[0] ?? symbolPart.toUpperCase();
+
         setHoldingForm((current) => ({
           ...current,
           symbol,
@@ -1316,12 +1652,27 @@ export default function ClientProfilesPage() {
       }
 
       if (clientNamePart) {
-        const match = clients.find((client) => client.fullName.toLowerCase().includes(clientNamePart.toLowerCase()));
-        if (match) loadClientIntoForm(match);
+        const match = clients.find((client) =>
+          client.fullName
+            .toLowerCase()
+            .includes(clientNamePart.toLowerCase()),
+        );
+
+        if (match) {
+          loadClientIntoForm(match);
+        }
       }
 
-      setOpenSections((current) => ({ ...current, securities: true }));
-      setStatus("Voice prepared the security entry. Review, then add.", "cyan");
+      setOpenSections((current) => ({
+        ...current,
+        securities: true,
+      }));
+
+      setStatus(
+        "Voice prepared the security entry. Review, then add.",
+        "cyan",
+      );
+
       return;
     }
 
@@ -1331,17 +1682,30 @@ export default function ClientProfilesPage() {
         title: "Voice note",
         body: text.replace(/^note/i, "").trim() || text,
       }));
-      setOpenSections((current) => ({ ...current, notes: true }));
-      setStatus("Voice prepared an advisor note. Review, then save.", "cyan");
+
+      setOpenSections((current) => ({
+        ...current,
+        notes: true,
+      }));
+
+      setStatus(
+        "Voice prepared an advisor note. Review, then save.",
+        "cyan",
+      );
+
       return;
     }
 
-    setStatus("Voice captured text, but no automatic command matched. Use it as a note or form input.", "amber");
+    setStatus(
+      "Voice captured text, but no automatic command matched. Use it as a note or form input.",
+      "amber",
+    );
   }
 
   async function applyPortalPreferenceChange() {
     if (!selectedClient) {
       setStatus("Select a client first.", "red");
+
       return;
     }
 
@@ -1371,6 +1735,7 @@ export default function ClientProfilesPage() {
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+
           <div className="pointer-events-none absolute right-[-120px] top-[-160px] hidden h-[360px] w-[360px] rounded-full border border-red-500/10 xl:block">
             <div className="absolute inset-12 rounded-full border border-cyan-500/10" />
             <div className="absolute inset-24 rounded-full border border-white/10" />
@@ -1390,36 +1755,86 @@ export default function ClientProfilesPage() {
               </h1>
 
               <p className="mt-4 max-w-5xl text-sm leading-7 text-slate-400">
-                Drop in client lists, let AI stage clean profiles from the file, review every field before import,
-                add securities by text or voice, manage client portal preference changes, and notify the advisor
-                whenever profile data changes.
+                Drop in client lists, let AI stage clean profiles from
+                the file, review every field before import, add securities
+                by text or voice, manage client portal preference changes,
+                and notify the advisor whenever profile data changes.
               </p>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3">
-              <a href="/workspace" className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-center text-sm font-black text-white hover:bg-white/10">
+              <a
+                href="/workspace"
+                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-center text-sm font-black text-white hover:bg-white/10"
+              >
                 Workspace
               </a>
-              <a href="/workspace/client-emails" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-black text-emerald-100 hover:bg-emerald-500/20">
+
+              <a
+                href="/workspace/client-emails"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-black text-emerald-100 hover:bg-emerald-500/20"
+              >
                 Email Center
               </a>
-              <a href="/workspace/client-briefings" className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center text-sm font-black text-cyan-100 hover:bg-cyan-500/20">
+
+              <a
+                href="/workspace/client-briefings"
+                className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-center text-sm font-black text-cyan-100 hover:bg-cyan-500/20"
+              >
                 Briefings
               </a>
             </div>
           </div>
 
           <div className="relative mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Metric label="Clients" value={metrics.clientCount} helper={`${metrics.activeCount} active`} tone="purple" />
-            <Metric label="Email Ready" value={metrics.emailReadyCount} helper={`${metrics.missingEmailCount} missing`} tone={metrics.missingEmailCount ? "amber" : "green"} />
-            <Metric label="Tracked Securities" value={metrics.holdingsCount} helper={`${allHeldSymbols.length} unique`} tone="cyan" />
-            <Metric label="Open Follow-Ups" value={selectedOpenTasks.length || metrics.taskCount} helper="Client tasks" tone="amber" />
-            <Metric label="Vault" value={payload.vault?.enabled ? "Encrypted" : "Ready"} helper={payload.vault?.keyConfigured ? "Key configured" : "Local/plain mode"} tone={payload.vault?.enabled ? "green" : "slate"} />
+            <Metric
+              label="Clients"
+              value={metrics.clientCount}
+              helper={`${metrics.activeCount} active`}
+              tone="purple"
+            />
+
+            <Metric
+              label="Email Ready"
+              value={metrics.emailReadyCount}
+              helper={`${metrics.missingEmailCount} missing`}
+              tone={metrics.missingEmailCount ? "amber" : "green"}
+            />
+
+            <Metric
+              label="Tracked Securities"
+              value={metrics.holdingsCount}
+              helper={`${allHeldSymbols.length} unique`}
+              tone="cyan"
+            />
+
+            <Metric
+              label="Open Follow-Ups"
+              value={selectedOpenTasks.length || metrics.taskCount}
+              helper="Client tasks"
+              tone="amber"
+            />
+
+            <Metric
+              label="Vault"
+              value={payload.vault?.enabled ? "Encrypted" : "Ready"}
+              helper={
+                payload.vault?.keyConfigured
+                  ? "Key configured"
+                  : "Local/plain mode"
+              }
+              tone={payload.vault?.enabled ? "green" : "slate"}
+            />
           </div>
         </header>
 
         {message ? (
-          <div className={cx("rounded-2xl border p-4 text-sm font-bold", toneClass(messageTone))}>
+          <div
+            className={cx(
+              "rounded-2xl border p-4 text-sm font-bold",
+              toneClass(messageTone),
+            )}
+          >
             {message}
           </div>
         ) : null}
@@ -1432,18 +1847,37 @@ export default function ClientProfilesPage() {
                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400">
                     Client Directory
                   </div>
-                  <h2 className="mt-2 text-2xl font-black text-white">Find or create a profile</h2>
+
+                  <h2 className="mt-2 text-2xl font-black text-white">
+                    Find or create a profile
+                  </h2>
                 </div>
-                <button type="button" onClick={() => void loadClients(selectedClientId)} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-black text-white hover:bg-white/10">
+
+                <button
+                  type="button"
+                  onClick={() => void loadClients(selectedClientId)}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-2 text-xs font-black text-white hover:bg-white/10"
+                >
                   {loading ? "Loading" : "Refresh"}
                 </button>
               </div>
 
               <div className="mt-5 grid gap-3">
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search clients, households, emails, symbols..." className={inputClass} />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search clients, households, emails, symbols..."
+                  className={inputClass}
+                />
 
                 <div className="grid gap-2 md:grid-cols-2">
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value)
+                    }
+                    className={inputClass}
+                  >
                     <option>All</option>
                     <option>Active</option>
                     <option>Needs Review</option>
@@ -1451,7 +1885,13 @@ export default function ClientProfilesPage() {
                     <option>Inactive</option>
                   </select>
 
-                  <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} className={inputClass}>
+                  <select
+                    value={riskFilter}
+                    onChange={(event) =>
+                      setRiskFilter(event.target.value)
+                    }
+                    className={inputClass}
+                  >
                     <option>All</option>
                     <option>Conservative</option>
                     <option>Balanced</option>
@@ -1472,7 +1912,9 @@ export default function ClientProfilesPage() {
                       onClick={() => loadClientIntoForm(client)}
                       className={cx(
                         "rounded-[1.5rem] border p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]",
-                        active ? "border-cyan-400/50 bg-cyan-500/10 shadow-lg shadow-cyan-950/20" : "border-white/10 bg-black/35",
+                        active
+                          ? "border-cyan-400/50 bg-cyan-500/10 shadow-lg shadow-cyan-950/20"
+                          : "border-white/10 bg-black/35",
                       )}
                     >
                       <div className="flex items-start gap-3">
@@ -1481,15 +1923,27 @@ export default function ClientProfilesPage() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-base font-black text-white">{client.fullName}</div>
+                          <div className="truncate text-base font-black text-white">
+                            {client.fullName}
+                          </div>
+
                           <div className="mt-1 truncate text-xs text-slate-500">
-                            {client.householdName || "No household"} · {client.email || "No email"}
+                            {client.householdName || "No household"} ·{" "}
+                            {client.email || "No email"}
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            <Pill tone={toneFor(client.riskProfile)}>{client.riskProfile}</Pill>
-                            <Pill tone={toneFor(client.status)}>{client.status}</Pill>
-                            <Pill tone="cyan">{client.holdings.length} holdings</Pill>
+                            <Pill tone={toneFor(client.riskProfile)}>
+                              {client.riskProfile}
+                            </Pill>
+
+                            <Pill tone={toneFor(client.status)}>
+                              {client.status}
+                            </Pill>
+
+                            <Pill tone="cyan">
+                              {client.holdings.length} holdings
+                            </Pill>
                           </div>
                         </div>
                       </div>
@@ -1509,9 +1963,14 @@ export default function ClientProfilesPage() {
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-400">
                 AI Import
               </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Drop CSV or Excel</h2>
+
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Drop CSV or Excel
+              </h2>
+
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                AI stages profiles first. Advisors approve before anything is created.
+                AI stages profiles first. Advisors approve before
+                anything is created.
               </p>
 
               <label
@@ -1525,14 +1984,22 @@ export default function ClientProfilesPage() {
                   className="hidden"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) void normalizeImportFile(file);
+
+                    if (file) {
+                      void normalizeImportFile(file);
+                    }
                   }}
                 />
+
                 <div className="text-sm font-black text-cyan-100">
-                  {importLoading ? "Interpreting file..." : "Drop file or click to upload"}
+                  {importLoading
+                    ? "Interpreting file..."
+                    : "Drop file or click to upload"}
                 </div>
+
                 <div className="mt-2 text-xs leading-5 text-cyan-200/80">
-                  CSV, TSV, TXT, XLSX, or XLS. Excel support requires the server xlsx package.
+                  CSV, TSV, TXT, XLSX, or XLS. Excel support requires
+                  the server xlsx package.
                 </div>
               </label>
 
@@ -1545,16 +2012,28 @@ export default function ClientProfilesPage() {
               <div className="mt-4 grid gap-2">
                 <input
                   value={advisorNotifyEmail}
-                  onChange={(event) => setAdvisorNotifyEmail(event.target.value)}
+                  onChange={(event) =>
+                    setAdvisorNotifyEmail(event.target.value)
+                  }
                   placeholder="Advisor notification email"
                   className={inputClass}
                 />
+
                 <button
                   type="button"
-                  onClick={() => setSendChangeEmails((current) => !current)}
-                  className={cx("rounded-2xl border px-4 py-3 text-xs font-black", sendChangeEmails ? toneClass("green") : toneClass("slate"))}
+                  onClick={() =>
+                    setSendChangeEmails((current) => !current)
+                  }
+                  className={cx(
+                    "rounded-2xl border px-4 py-3 text-xs font-black",
+                    sendChangeEmails
+                      ? toneClass("green")
+                      : toneClass("slate"),
+                  )}
                 >
-                  {sendChangeEmails ? "Advisor change emails on" : "Advisor change emails off"}
+                  {sendChangeEmails
+                    ? "Advisor change emails on"
+                    : "Advisor change emails off"}
                 </button>
               </div>
 
@@ -1562,11 +2041,21 @@ export default function ClientProfilesPage() {
                 <div className="mt-5 grid gap-3">
                   <div className="flex items-center justify-between gap-2">
                     <Pill tone="cyan">{importProfiles.length} staged</Pill>
+
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => selectAllImports(true)} className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white">
+                      <button
+                        type="button"
+                        onClick={() => selectAllImports(true)}
+                        className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white"
+                      >
                         Select All
                       </button>
-                      <button type="button" onClick={() => selectAllImports(false)} className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white">
+
+                      <button
+                        type="button"
+                        onClick={() => selectAllImports(false)}
+                        className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white"
+                      >
                         Clear
                       </button>
                     </div>
@@ -1577,26 +2066,51 @@ export default function ClientProfilesPage() {
                       <button
                         key={profile.importKey}
                         type="button"
-                        onClick={() => toggleImportSelection(profile.importKey)}
+                        onClick={() =>
+                          toggleImportSelection(profile.importKey)
+                        }
                         className={cx(
                           "rounded-2xl border p-3 text-left transition hover:bg-white/[0.075]",
-                          importSelections[profile.importKey] ? "border-emerald-500/35 bg-emerald-500/10" : "border-white/10 bg-black/25",
+                          importSelections[profile.importKey]
+                            ? "border-emerald-500/35 bg-emerald-500/10"
+                            : "border-white/10 bg-black/25",
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-black text-white">{profile.fullName || "Unnamed profile"}</div>
+                            <div className="truncate text-sm font-black text-white">
+                              {profile.fullName || "Unnamed profile"}
+                            </div>
+
                             <div className="mt-1 truncate text-xs text-slate-500">
-                              Row {profile.sourceRow} · {profile.email || "No email"} · {profile.holdings.length} holdings
+                              Row {profile.sourceRow} ·{" "}
+                              {profile.email || "No email"} ·{" "}
+                              {profile.holdings.length} holdings
                             </div>
                           </div>
-                          <Pill tone={profile.confidence >= 90 ? "green" : profile.confidence >= 75 ? "amber" : "red"}>
+
+                          <Pill
+                            tone={
+                              profile.confidence >= 90
+                                ? "green"
+                                : profile.confidence >= 75
+                                  ? "amber"
+                                  : "red"
+                            }
+                          >
                             {profile.confidence}%
                           </Pill>
                         </div>
-                        {profile.warnings.length || profile.duplicateHint ? (
+
+                        {profile.warnings.length ||
+                        profile.duplicateHint ? (
                           <div className="mt-2 text-xs leading-5 text-amber-200">
-                            {[profile.duplicateHint, ...profile.warnings].filter(Boolean).join(" · ")}
+                            {[
+                              profile.duplicateHint,
+                              ...profile.warnings,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </div>
                         ) : null}
                       </button>
@@ -1627,27 +2141,54 @@ export default function ClientProfilesPage() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
-                    <Pill tone="purple">{selectedClient ? "Selected Client" : "New Client"}</Pill>
-                    {selectedClient ? <Pill tone={toneFor(selectedClient.status)}>{selectedClient.status}</Pill> : null}
-                    {selectedClient ? <Pill tone="cyan">{selectedClient.holdings.length} holdings</Pill> : null}
+                    <Pill tone="purple">
+                      {selectedClient ? "Selected Client" : "New Client"}
+                    </Pill>
+
+                    {selectedClient ? (
+                      <Pill tone={toneFor(selectedClient.status)}>
+                        {selectedClient.status}
+                      </Pill>
+                    ) : null}
+
+                    {selectedClient ? (
+                      <Pill tone="cyan">
+                        {selectedClient.holdings.length} holdings
+                      </Pill>
+                    ) : null}
                   </div>
 
                   <h2 className="mt-3 truncate text-4xl font-black tracking-tight text-white">
-                    {selectedClient?.fullName ?? "Create a new client profile"}
+                    {selectedClient?.fullName ??
+                      "Create a new client profile"}
                   </h2>
+
                   <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
                     {selectedClient
-                      ? `${selectedClient.householdName || "No household"} · ${selectedClient.email || "No email on file"}`
+                      ? `${
+                          selectedClient.householdName || "No household"
+                        } · ${
+                          selectedClient.email || "No email on file"
+                        }`
                       : "Use the profile form, AI import, or voice command to create a client."}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={resetClientForm} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white hover:bg-white/10">
+                  <button
+                    type="button"
+                    onClick={resetClientForm}
+                    className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white hover:bg-white/10"
+                  >
                     New Client
                   </button>
+
                   {selectedClient ? (
-                    <button type="button" onClick={() => loadClientIntoForm(selectedClient)} className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/15">
+                    <button
+                      type="button"
+                      onClick={() => loadClientIntoForm(selectedClient)}
+                      className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-xs font-black text-cyan-100 hover:bg-cyan-500/15"
+                    >
                       Load Into Form
                     </button>
                   ) : null}
@@ -1662,16 +2203,59 @@ export default function ClientProfilesPage() {
               open={openSections.profile}
               onToggle={() => toggleSection("profile")}
             >
-              <form onSubmit={selectedClient ? updateClient : createClient} className="grid gap-3">
+              <form
+                onSubmit={selectedClient ? updateClient : createClient}
+                className="grid gap-3"
+              >
                 <div className="grid gap-3 md:grid-cols-2">
-                  <input value={clientForm.fullName} onChange={(event) => setClientForm((current) => ({ ...current, fullName: event.target.value }))} placeholder="Client full name" className={inputClass} />
-                  <input value={clientForm.email} onChange={(event) => setClientForm((current) => ({ ...current, email: event.target.value }))} placeholder="Client email" className={inputClass} />
+                  <input
+                    value={clientForm.fullName}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        fullName: event.target.value,
+                      }))
+                    }
+                    placeholder="Client full name"
+                    className={inputClass}
+                  />
+
+                  <input
+                    value={clientForm.email}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder="Client email"
+                    className={inputClass}
+                  />
                 </div>
 
-                <input value={clientForm.householdName} onChange={(event) => setClientForm((current) => ({ ...current, householdName: event.target.value }))} placeholder="Household name" className={inputClass} />
+                <input
+                  value={clientForm.householdName}
+                  onChange={(event) =>
+                    setClientForm((current) => ({
+                      ...current,
+                      householdName: event.target.value,
+                    }))
+                  }
+                  placeholder="Household name"
+                  className={inputClass}
+                />
 
                 <div className="grid gap-3 md:grid-cols-3">
-                  <select value={clientForm.clientType} onChange={(event) => setClientForm((current) => ({ ...current, clientType: event.target.value }))} className={inputClass}>
+                  <select
+                    value={clientForm.clientType}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        clientType: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Private Client</option>
                     <option>Household</option>
                     <option>Business Owner</option>
@@ -1679,14 +2263,32 @@ export default function ClientProfilesPage() {
                     <option>Prospect</option>
                   </select>
 
-                  <select value={clientForm.riskProfile} onChange={(event) => setClientForm((current) => ({ ...current, riskProfile: event.target.value }))} className={inputClass}>
+                  <select
+                    value={clientForm.riskProfile}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        riskProfile: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Conservative</option>
                     <option>Balanced</option>
                     <option>Growth</option>
                     <option>Aggressive</option>
                   </select>
 
-                  <select value={clientForm.status} onChange={(event) => setClientForm((current) => ({ ...current, status: event.target.value }))} className={inputClass}>
+                  <select
+                    value={clientForm.status}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        status: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Active</option>
                     <option>Needs Review</option>
                     <option>Prospect</option>
@@ -1695,16 +2297,64 @@ export default function ClientProfilesPage() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <input value={clientForm.liquidityNeeds} onChange={(event) => setClientForm((current) => ({ ...current, liquidityNeeds: event.target.value }))} placeholder="Liquidity needs" className={inputClass} />
-                  <input value={clientForm.timeHorizon} onChange={(event) => setClientForm((current) => ({ ...current, timeHorizon: event.target.value }))} placeholder="Time horizon" className={inputClass} />
+                  <input
+                    value={clientForm.liquidityNeeds}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        liquidityNeeds: event.target.value,
+                      }))
+                    }
+                    placeholder="Liquidity needs"
+                    className={inputClass}
+                  />
+
+                  <input
+                    value={clientForm.timeHorizon}
+                    onChange={(event) =>
+                      setClientForm((current) => ({
+                        ...current,
+                        timeHorizon: event.target.value,
+                      }))
+                    }
+                    placeholder="Time horizon"
+                    className={inputClass}
+                  />
                 </div>
 
-                <input value={clientForm.objective} onChange={(event) => setClientForm((current) => ({ ...current, objective: event.target.value }))} placeholder="Primary objective" className={inputClass} />
+                <input
+                  value={clientForm.objective}
+                  onChange={(event) =>
+                    setClientForm((current) => ({
+                      ...current,
+                      objective: event.target.value,
+                    }))
+                  }
+                  placeholder="Primary objective"
+                  className={inputClass}
+                />
 
-                <textarea value={clientForm.notes} onChange={(event) => setClientForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Advisor notes / client context" rows={4} className={cx(inputClass, "resize-none")} />
+                <textarea
+                  value={clientForm.notes}
+                  onChange={(event) =>
+                    setClientForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  placeholder="Advisor notes / client context"
+                  rows={4}
+                  className={cx(inputClass, "resize-none")}
+                />
 
-                <button type="submit" disabled={loading} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50">
-                  {selectedClient ? "Save Profile Changes" : "Create Client Profile"}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {selectedClient
+                    ? "Save Profile Changes"
+                    : "Create Client Profile"}
                 </button>
               </form>
             </SectionShell>
@@ -1718,9 +2368,43 @@ export default function ClientProfilesPage() {
             >
               <form onSubmit={addHolding} className="grid gap-3">
                 <div className="grid gap-3 md:grid-cols-4">
-                  <input value={holdingForm.symbol} onChange={(event) => setHoldingForm((current) => ({ ...current, symbol: event.target.value.toUpperCase(), assetClass: current.assetClass || assetClassForSymbol(event.target.value) }))} placeholder="Symbol, e.g. AAPL" className={inputClass} />
-                  <input value={holdingForm.assetName} onChange={(event) => setHoldingForm((current) => ({ ...current, assetName: event.target.value }))} placeholder="Name optional" className={inputClass} />
-                  <select value={holdingForm.assetClass} onChange={(event) => setHoldingForm((current) => ({ ...current, assetClass: event.target.value }))} className={inputClass}>
+                  <input
+                    value={holdingForm.symbol}
+                    onChange={(event) =>
+                      setHoldingForm((current) => ({
+                        ...current,
+                        symbol: event.target.value.toUpperCase(),
+                        assetClass:
+                          current.assetClass ||
+                          assetClassForSymbol(event.target.value),
+                      }))
+                    }
+                    placeholder="Symbol, e.g. AAPL"
+                    className={inputClass}
+                  />
+
+                  <input
+                    value={holdingForm.assetName}
+                    onChange={(event) =>
+                      setHoldingForm((current) => ({
+                        ...current,
+                        assetName: event.target.value,
+                      }))
+                    }
+                    placeholder="Name optional"
+                    className={inputClass}
+                  />
+
+                  <select
+                    value={holdingForm.assetClass}
+                    onChange={(event) =>
+                      setHoldingForm((current) => ({
+                        ...current,
+                        assetClass: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Stock</option>
                     <option>ETF</option>
                     <option>Mutual Fund</option>
@@ -1730,7 +2414,17 @@ export default function ClientProfilesPage() {
                     <option>Alternative</option>
                     <option>Other</option>
                   </select>
-                  <select value={holdingForm.riskLevel} onChange={(event) => setHoldingForm((current) => ({ ...current, riskLevel: event.target.value }))} className={inputClass}>
+
+                  <select
+                    value={holdingForm.riskLevel}
+                    onChange={(event) =>
+                      setHoldingForm((current) => ({
+                        ...current,
+                        riskLevel: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Low</option>
                     <option>Medium</option>
                     <option>High</option>
@@ -1738,37 +2432,89 @@ export default function ClientProfilesPage() {
                   </select>
                 </div>
 
-                <input value={holdingForm.thesis} onChange={(event) => setHoldingForm((current) => ({ ...current, thesis: event.target.value }))} placeholder="Thesis / reason this security matters" className={inputClass} />
+                <input
+                  value={holdingForm.thesis}
+                  onChange={(event) =>
+                    setHoldingForm((current) => ({
+                      ...current,
+                      thesis: event.target.value,
+                    }))
+                  }
+                  placeholder="Thesis / reason this security matters"
+                  className={inputClass}
+                />
 
-                <button type="submit" disabled={loading || !selectedClient} className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50">
+                <button
+                  type="submit"
+                  disabled={loading || !selectedClient}
+                  className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Add Security
                 </button>
               </form>
 
               <div className="mt-5 grid gap-3">
-                <textarea value={bulkSymbols} onChange={(event) => setBulkSymbols(event.target.value)} placeholder="Bulk add symbols: AAPL, MSFT, NVDA, SPY..." rows={3} className={cx(inputClass, "resize-none")} />
-                <button type="button" onClick={bulkAddHoldings} disabled={loading || !selectedClient} className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <textarea
+                  value={bulkSymbols}
+                  onChange={(event) =>
+                    setBulkSymbols(event.target.value)
+                  }
+                  placeholder="Bulk add symbols: AAPL, MSFT, NVDA, SPY..."
+                  rows={3}
+                  className={cx(inputClass, "resize-none")}
+                />
+
+                <button
+                  type="button"
+                  onClick={bulkAddHoldings}
+                  disabled={loading || !selectedClient}
+                  className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Bulk Add Symbols
                 </button>
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {(selectedClient?.holdings ?? []).map((holding) => (
-                  <div key={holding.id} className="rounded-[1.25rem] border border-white/10 bg-black/30 p-4">
+                  <div
+                    key={holding.id}
+                    className="rounded-[1.25rem] border border-white/10 bg-black/30 p-4"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-lg font-black text-white">{holding.symbol}</div>
-                        <div className="mt-1 truncate text-xs text-slate-500">{holding.assetName}</div>
+                        <div className="truncate text-lg font-black text-white">
+                          {holding.symbol}
+                        </div>
+
+                        <div className="mt-1 truncate text-xs text-slate-500">
+                          {holding.assetName}
+                        </div>
                       </div>
-                      <button type="button" onClick={() => removeHolding(holding)} className="rounded-full border border-white/10 bg-black/30 px-2 py-1 text-xs font-black text-slate-300 hover:text-white">
+
+                      <button
+                        type="button"
+                        onClick={() => removeHolding(holding)}
+                        className="rounded-full border border-white/10 bg-black/30 px-2 py-1 text-xs font-black text-slate-300 hover:text-white"
+                      >
                         ×
                       </button>
                     </div>
+
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Pill tone={toneFor(holding.assetClass)}>{holding.assetClass}</Pill>
-                      <Pill tone={toneFor(holding.riskLevel)}>{holding.riskLevel}</Pill>
+                      <Pill tone={toneFor(holding.assetClass)}>
+                        {holding.assetClass}
+                      </Pill>
+
+                      <Pill tone={toneFor(holding.riskLevel)}>
+                        {holding.riskLevel}
+                      </Pill>
                     </div>
-                    {holding.thesis ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-400">{holding.thesis}</p> : null}
+
+                    {holding.thesis ? (
+                      <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-400">
+                        {holding.thesis}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
 
@@ -1789,12 +2535,20 @@ export default function ClientProfilesPage() {
             >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
                 <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <div className="text-sm font-black text-white">Voice examples</div>
-                  <div className="mt-3 grid gap-2 text-xs leading-5 text-slate-400">
-                    <div>• “Add client John Smith email john@example.com”</div>
-                    <div>• “Add AAPL to John Smith”</div>
-                    <div>• “Note client wants conservative income focus”</div>
+                  <div className="text-sm font-black text-white">
+                    Voice examples
                   </div>
+
+                  <div className="mt-3 grid gap-2 text-xs leading-5 text-slate-400">
+                    <div>
+                      • “Add client John Smith email john@example.com”
+                    </div>
+                    <div>• “Add AAPL to John Smith”</div>
+                    <div>
+                      • “Note client wants conservative income focus”
+                    </div>
+                  </div>
+
                   {voiceTranscript ? (
                     <div className="mt-4 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
                       {voiceTranscript}
@@ -1802,7 +2556,16 @@ export default function ClientProfilesPage() {
                   ) : null}
                 </div>
 
-                <button type="button" onClick={voiceListening ? stopVoice : startVoice} className={cx("rounded-[1.5rem] border p-5 text-center text-sm font-black", voiceListening ? toneClass("red") : toneClass("amber"))}>
+                <button
+                  type="button"
+                  onClick={voiceListening ? stopVoice : startVoice}
+                  className={cx(
+                    "rounded-[1.5rem] border p-5 text-center text-sm font-black",
+                    voiceListening
+                      ? toneClass("red")
+                      : toneClass("amber"),
+                  )}
+                >
                   {voiceListening ? "Stop Listening" : "Start Voice Entry"}
                 </button>
               </div>
@@ -1817,14 +2580,24 @@ export default function ClientProfilesPage() {
             >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
                 <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                  <div className="text-sm font-black text-white">Advisor notification flow</div>
+                  <div className="text-sm font-black text-white">
+                    Advisor notification flow
+                  </div>
+
                   <p className="mt-2 text-sm leading-6 text-slate-400">
-                    When client portal data changes, use the same profile update path and notification route.
-                    This keeps advisor records synced and sends a Resend email when the advisor email is configured.
+                    When client portal data changes, use the same profile
+                    update path and notification route. This keeps advisor
+                    records synced and sends a Resend email when the
+                    advisor email is configured.
                   </p>
                 </div>
 
-                <button type="button" onClick={applyPortalPreferenceChange} disabled={!selectedClient || loading} className="rounded-[1.5rem] border border-emerald-500/25 bg-emerald-500/10 p-5 text-center text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={applyPortalPreferenceChange}
+                  disabled={!selectedClient || loading}
+                  className="rounded-[1.5rem] border border-emerald-500/25 bg-emerald-500/10 p-5 text-center text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Apply Portal Sync + Notify
                 </button>
               </div>
@@ -1839,8 +2612,28 @@ export default function ClientProfilesPage() {
             >
               <form onSubmit={addNote} className="grid gap-3">
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                  <input value={noteForm.title} onChange={(event) => setNoteForm((current) => ({ ...current, title: event.target.value }))} placeholder="Note title" className={inputClass} />
-                  <select value={noteForm.noteType} onChange={(event) => setNoteForm((current) => ({ ...current, noteType: event.target.value }))} className={inputClass}>
+                  <input
+                    value={noteForm.title}
+                    onChange={(event) =>
+                      setNoteForm((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                    placeholder="Note title"
+                    className={inputClass}
+                  />
+
+                  <select
+                    value={noteForm.noteType}
+                    onChange={(event) =>
+                      setNoteForm((current) => ({
+                        ...current,
+                        noteType: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>General</option>
                     <option>Meeting</option>
                     <option>Suitability</option>
@@ -1849,23 +2642,54 @@ export default function ClientProfilesPage() {
                     <option>Compliance</option>
                   </select>
                 </div>
-                <textarea value={noteForm.body} onChange={(event) => setNoteForm((current) => ({ ...current, body: event.target.value }))} placeholder="Note body" rows={3} className={cx(inputClass, "resize-none")} />
-                <button type="submit" disabled={!selectedClient || loading} className="rounded-2xl border border-purple-500/25 bg-purple-500/10 px-4 py-3 text-sm font-black text-purple-100 disabled:cursor-not-allowed disabled:opacity-50">
+
+                <textarea
+                  value={noteForm.body}
+                  onChange={(event) =>
+                    setNoteForm((current) => ({
+                      ...current,
+                      body: event.target.value,
+                    }))
+                  }
+                  placeholder="Note body"
+                  rows={3}
+                  className={cx(inputClass, "resize-none")}
+                />
+
+                <button
+                  type="submit"
+                  disabled={!selectedClient || loading}
+                  className="rounded-2xl border border-purple-500/25 bg-purple-500/10 px-4 py-3 text-sm font-black text-purple-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Add Note
                 </button>
               </form>
 
               <div className="mt-5 grid gap-3">
                 {(selectedClient?.notesList ?? []).map((note) => (
-                  <div key={note.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                  <div
+                    key={note.id}
+                    className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="text-sm font-black text-white">{note.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">{note.noteType} · {shortDate(note.createdAt)}</div>
+                        <div className="text-sm font-black text-white">
+                          {note.title}
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-500">
+                          {note.noteType} · {shortDate(note.createdAt)}
+                        </div>
                       </div>
-                      <Pill tone={toneFor(note.noteType)}>{note.noteType}</Pill>
+
+                      <Pill tone={toneFor(note.noteType)}>
+                        {note.noteType}
+                      </Pill>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-400">{note.body}</p>
+
+                    <p className="mt-3 text-sm leading-6 text-slate-400">
+                      {note.body}
+                    </p>
                   </div>
                 ))}
 
@@ -1885,35 +2709,107 @@ export default function ClientProfilesPage() {
               onToggle={() => toggleSection("tasks")}
             >
               <form onSubmit={addTask} className="grid gap-3">
-                <input value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} placeholder="Task title" className={inputClass} />
-                <textarea value={taskForm.description} onChange={(event) => setTaskForm((current) => ({ ...current, description: event.target.value }))} placeholder="Task details" rows={2} className={cx(inputClass, "resize-none")} />
+                <input
+                  value={taskForm.title}
+                  onChange={(event) =>
+                    setTaskForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
+                  placeholder="Task title"
+                  className={inputClass}
+                />
+
+                <textarea
+                  value={taskForm.description}
+                  onChange={(event) =>
+                    setTaskForm((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  placeholder="Task details"
+                  rows={2}
+                  className={cx(inputClass, "resize-none")}
+                />
+
                 <div className="grid gap-3 md:grid-cols-2">
-                  <select value={taskForm.priority} onChange={(event) => setTaskForm((current) => ({ ...current, priority: event.target.value }))} className={inputClass}>
+                  <select
+                    value={taskForm.priority}
+                    onChange={(event) =>
+                      setTaskForm((current) => ({
+                        ...current,
+                        priority: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Low</option>
                     <option>Medium</option>
                     <option>High</option>
                     <option>Critical</option>
                   </select>
-                  <input type="date" value={taskForm.dueDate} onChange={(event) => setTaskForm((current) => ({ ...current, dueDate: event.target.value }))} className={inputClass} />
+
+                  <input
+                    type="date"
+                    value={taskForm.dueDate}
+                    onChange={(event) =>
+                      setTaskForm((current) => ({
+                        ...current,
+                        dueDate: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  />
                 </div>
-                <button type="submit" disabled={!selectedClient || loading} className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-50">
+
+                <button
+                  type="submit"
+                  disabled={!selectedClient || loading}
+                  className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Add Task
                 </button>
               </form>
 
               <div className="mt-5 grid gap-3">
                 {(selectedClient?.tasks ?? []).map((task) => (
-                  <div key={task.id} className={cx("rounded-2xl border p-4", toneClass(toneFor(task.priority)))}>
+                  <div
+                    key={task.id}
+                    className={cx(
+                      "rounded-2xl border p-4",
+                      toneClass(toneFor(task.priority)),
+                    )}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-black text-white">{task.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">{task.priority} · {task.dueDate ? shortDate(task.dueDate) : "No due date"}</div>
+                        <div className="text-sm font-black text-white">
+                          {task.title}
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-500">
+                          {task.priority} ·{" "}
+                          {task.dueDate
+                            ? shortDate(task.dueDate)
+                            : "No due date"}
+                        </div>
                       </div>
-                      <button type="button" onClick={() => completeTask(task)} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-white">
+
+                      <button
+                        type="button"
+                        onClick={() => completeTask(task)}
+                        className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-black text-white"
+                      >
                         {task.status === "Done" ? "Reopen" : "Done"}
                       </button>
                     </div>
-                    {task.description ? <p className="mt-3 text-sm leading-6 text-slate-400">{task.description}</p> : null}
+
+                    {task.description ? (
+                      <p className="mt-3 text-sm leading-6 text-slate-400">
+                        {task.description}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
 
@@ -1933,9 +2829,29 @@ export default function ClientProfilesPage() {
               onToggle={() => toggleSection("documents")}
             >
               <form onSubmit={addDocument} className="grid gap-3">
-                <input value={documentForm.fileName} onChange={(event) => setDocumentForm((current) => ({ ...current, fileName: event.target.value }))} placeholder="Document name / reference" className={inputClass} />
+                <input
+                  value={documentForm.fileName}
+                  onChange={(event) =>
+                    setDocumentForm((current) => ({
+                      ...current,
+                      fileName: event.target.value,
+                    }))
+                  }
+                  placeholder="Document name / reference"
+                  className={inputClass}
+                />
+
                 <div className="grid gap-3 md:grid-cols-2">
-                  <select value={documentForm.documentType} onChange={(event) => setDocumentForm((current) => ({ ...current, documentType: event.target.value }))} className={inputClass}>
+                  <select
+                    value={documentForm.documentType}
+                    onChange={(event) =>
+                      setDocumentForm((current) => ({
+                        ...current,
+                        documentType: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>General</option>
                     <option>IPS</option>
                     <option>Risk Survey</option>
@@ -1944,25 +2860,64 @@ export default function ClientProfilesPage() {
                     <option>Tax</option>
                     <option>Agreement</option>
                   </select>
-                  <select value={documentForm.status} onChange={(event) => setDocumentForm((current) => ({ ...current, status: event.target.value }))} className={inputClass}>
+
+                  <select
+                    value={documentForm.status}
+                    onChange={(event) =>
+                      setDocumentForm((current) => ({
+                        ...current,
+                        status: event.target.value,
+                      }))
+                    }
+                    className={inputClass}
+                  >
                     <option>Needs Review</option>
                     <option>Reviewed</option>
                     <option>Approved</option>
                     <option>Archived</option>
                   </select>
                 </div>
-                <input value={documentForm.notes} onChange={(event) => setDocumentForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Document notes" className={inputClass} />
-                <button type="submit" disabled={!selectedClient || loading} className="rounded-2xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm font-black text-blue-100 disabled:cursor-not-allowed disabled:opacity-50">
+
+                <input
+                  value={documentForm.notes}
+                  onChange={(event) =>
+                    setDocumentForm((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  placeholder="Document notes"
+                  className={inputClass}
+                />
+
+                <button
+                  type="submit"
+                  disabled={!selectedClient || loading}
+                  className="rounded-2xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm font-black text-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Add Document Reference
                 </button>
               </form>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2">
                 {(selectedClient?.documents ?? []).map((document) => (
-                  <div key={document.id} className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                    <div className="text-sm font-black text-white">{document.fileName}</div>
-                    <div className="mt-1 text-xs text-slate-500">{document.documentType} · {document.status}</div>
-                    {document.notes ? <p className="mt-3 text-sm leading-6 text-slate-400">{document.notes}</p> : null}
+                  <div
+                    key={document.id}
+                    className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                  >
+                    <div className="text-sm font-black text-white">
+                      {document.fileName}
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-500">
+                      {document.documentType} · {document.status}
+                    </div>
+
+                    {document.notes ? (
+                      <p className="mt-3 text-sm leading-6 text-slate-400">
+                        {document.notes}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
 
@@ -1977,39 +2932,70 @@ export default function ClientProfilesPage() {
             <SectionShell
               title="Risk Review"
               eyebrow="Pulldown suitability context"
-              tone={toneFor(selectedRiskReview?.score ?? selectedClient?.riskProfile)}
+              tone={toneFor(
+                selectedRiskReview?.score ?? selectedClient?.riskProfile,
+              )}
               open={openSections.risk}
               onToggle={() => toggleSection("risk")}
               action={
-                <button type="button" onClick={addRiskReview} disabled={!selectedClient || loading} className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={addRiskReview}
+                  disabled={!selectedClient || loading}
+                  className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Generate
                 </button>
               }
             >
               {selectedRiskReview ? (
                 <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className={cx("rounded-2xl border p-4 text-center", toneClass(toneFor(selectedRiskReview.score)))}>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Risk Score</div>
-                    <div className="mt-2 text-5xl font-black text-white">{selectedRiskReview.score}</div>
-                    <div className="mt-2 text-xs font-black text-slate-300">{selectedRiskReview.suitabilityStatus}</div>
+                  <div
+                    className={cx(
+                      "rounded-2xl border p-4 text-center",
+                      toneClass(toneFor(selectedRiskReview.score)),
+                    )}
+                  >
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Risk Score
+                    </div>
+
+                    <div className="mt-2 text-5xl font-black text-white">
+                      {selectedRiskReview.score}
+                    </div>
+
+                    <div className="mt-2 text-xs font-black text-slate-300">
+                      {selectedRiskReview.suitabilityStatus}
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                    <div className="text-sm font-black text-white">Summary</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{selectedRiskReview.summary}</p>
+                    <div className="text-sm font-black text-white">
+                      Summary
+                    </div>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {selectedRiskReview.summary}
+                    </p>
 
                     <div className="mt-4 grid gap-2">
-                      {parseFlags(selectedRiskReview.flagsJson).map((flag) => (
-                        <div key={flag} className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
-                          {flag}
-                        </div>
-                      ))}
+                      {parseFlags(selectedRiskReview.flagsJson).map(
+                        (flag) => (
+                          <div
+                            key={flag}
+                            className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100"
+                          >
+                            {flag}
+                          </div>
+                        ),
+                      )}
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm font-bold text-slate-500">
-                  No risk review yet. Generate one from the current client profile.
+                  No risk review yet. Generate one from the current
+                  client profile.
                 </div>
               )}
             </SectionShell>
@@ -2023,13 +3009,22 @@ export default function ClientProfilesPage() {
             >
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
                 <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-4">
-                  <div className="text-sm font-black text-white">Removal is permanent</div>
+                  <div className="text-sm font-black text-white">
+                    Removal is permanent
+                  </div>
+
                   <p className="mt-2 text-sm leading-6 text-red-100">
-                    This removes the selected client profile and related local profile records from the client data API.
+                    This removes the selected client profile and related
+                    local profile records from the client data API.
                   </p>
                 </div>
 
-                <button type="button" onClick={deleteSelectedClient} disabled={!selectedClient || loading} className="rounded-2xl bg-red-600 px-4 py-4 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50">
+                <button
+                  type="button"
+                  onClick={deleteSelectedClient}
+                  disabled={!selectedClient || loading}
+                  className="rounded-2xl bg-red-600 px-4 py-4 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   Remove Selected Client
                 </button>
               </div>
