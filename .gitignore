@@ -53,4 +53,5 @@ services/slice-intelligence/.env
 services/slice-intelligence/**/__pycache__/
 services/slice-intelligence/.pytest_cache/
 services/slice-intelligence/.ruff_cache/
-"@ | Add-Content .\.gitignore
+"@ | Add-Content .\.gitignore/$null
+/$null
