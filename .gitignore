@@ -55,3 +55,7 @@ services/slice-intelligence/.pytest_cache/
 services/slice-intelligence/.ruff_cache/
 "@ | Add-Content .\.gitignore/$null
 /$null
+.env.local
+node_modules/
+.next/
+audit-high.json
