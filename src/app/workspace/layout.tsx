@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+
 import { AdvisorRoutingDock } from "@/components/advisor-routing-dock";
 
 const WORKSPACE_SETTINGS_KEY = "slice-workspace-settings-v5";
@@ -11,105 +12,119 @@ const ACCENT_KEY = "slice-accent-mode-v1";
 
 type ThemeMode = "dark" | "light" | "system";
 type Density = "comfortable" | "compact" | "spacious";
-type Accent = "slice-red" | "crimson" | "ruby" | "graphite" | "blue";
+type Accent =
+  | "market-green"
+  | "emerald"
+  | "teal"
+  | "graphite"
+  | "blue";
 
 type SavedWorkspaceSettings = {
   appearance?: {
     mode?: ThemeMode;
     density?: Density;
-    accent?: Accent;
+    accent?: string;
   };
 };
 
 function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
   }
 }
 
 function normalizeTheme(value: unknown): ThemeMode {
-  if (value === "light" || value === "system" || value === "dark") return value;
-  return "dark";
+  return value === "light" || value === "system" || value === "dark"
+    ? value
+    : "dark";
 }
 
 function normalizeDensity(value: unknown): Density {
-  if (value === "compact" || value === "spacious" || value === "comfortable") return value;
-  return "comfortable";
+  return value === "compact" ||
+    value === "spacious" ||
+    value === "comfortable"
+    ? value
+    : "comfortable";
 }
 
 function normalizeAccent(value: unknown): Accent {
   if (
-    value === "crimson" ||
-    value === "ruby" ||
+    value === "emerald" ||
+    value === "teal" ||
     value === "graphite" ||
     value === "blue" ||
-    value === "slice-red"
+    value === "market-green"
   ) {
     return value;
   }
 
-  return "slice-red";
+  // All legacy red-family settings now migrate to the market-green identity.
+  return "market-green";
 }
 
 function accentValues(accent: Accent) {
-  if (accent === "crimson") {
+  if (accent === "emerald") {
     return {
-      accent: "#b91c1c",
-      accentDark: "#7f1d1d",
-      accentSoft: "rgba(185, 28, 28, 0.14)",
-      accentBorder: "rgba(185, 28, 28, 0.38)",
+      accent: "#059669",
+      accentDark: "#064e3b",
+      accentSoft: "rgba(5, 150, 105, 0.14)",
+      accentBorder: "rgba(52, 211, 153, 0.36)",
     };
   }
 
-  if (accent === "ruby") {
+  if (accent === "teal") {
     return {
-      accent: "#e11d48",
-      accentDark: "#881337",
-      accentSoft: "rgba(225, 29, 72, 0.14)",
-      accentBorder: "rgba(225, 29, 72, 0.38)",
+      accent: "#0d9488",
+      accentDark: "#134e4a",
+      accentSoft: "rgba(13, 148, 136, 0.14)",
+      accentBorder: "rgba(45, 212, 191, 0.36)",
     };
   }
 
   if (accent === "graphite") {
     return {
-      accent: "#475569",
+      accent: "#64748b",
       accentDark: "#0f172a",
-      accentSoft: "rgba(71, 85, 105, 0.16)",
-      accentBorder: "rgba(71, 85, 105, 0.42)",
+      accentSoft: "rgba(100, 116, 139, 0.16)",
+      accentBorder: "rgba(148, 163, 184, 0.32)",
     };
   }
 
   if (accent === "blue") {
     return {
-      accent: "#2563eb",
-      accentDark: "#1e3a8a",
-      accentSoft: "rgba(37, 99, 235, 0.14)",
-      accentBorder: "rgba(37, 99, 235, 0.38)",
+      accent: "#0284c7",
+      accentDark: "#0c4a6e",
+      accentSoft: "rgba(2, 132, 199, 0.14)",
+      accentBorder: "rgba(56, 189, 248, 0.34)",
     };
   }
 
   return {
-    accent: "#dc2626",
-    accentDark: "#7f1d1d",
-    accentSoft: "rgba(220, 38, 38, 0.16)",
-    accentBorder: "rgba(220, 38, 38, 0.40)",
+    accent: "#10b981",
+    accentDark: "#022c22",
+    accentSoft: "rgba(16, 185, 129, 0.15)",
+    accentBorder: "rgba(52, 211, 153, 0.38)",
   };
 }
 
 function resolveTheme(mode: ThemeMode) {
   if (mode === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
   }
 
   return mode;
 }
 
 function applyWorkspaceTheme() {
-  const saved = readJson<SavedWorkspaceSettings>(WORKSPACE_SETTINGS_KEY, {});
+  const saved = readJson<SavedWorkspaceSettings>(
+    WORKSPACE_SETTINGS_KEY,
+    {},
+  );
   const rawTheme =
     saved.appearance?.mode ||
     window.localStorage.getItem(THEME_KEY) ||
@@ -121,7 +136,7 @@ function applyWorkspaceTheme() {
   const rawAccent =
     saved.appearance?.accent ||
     window.localStorage.getItem(ACCENT_KEY) ||
-    "slice-red";
+    "market-green";
 
   const mode = normalizeTheme(rawTheme);
   const theme = resolveTheme(mode);
@@ -141,35 +156,39 @@ function applyWorkspaceTheme() {
   root.style.setProperty("--slice-accent-border", colors.accentBorder);
 
   if (theme === "light") {
-    root.style.setProperty("--slice-bg", "#f8fafc");
-    root.style.setProperty("--slice-bg-2", "#fff7f7");
+    root.style.setProperty("--slice-bg", "#f0fdf4");
+    root.style.setProperty("--slice-bg-2", "#ecfdf5");
     root.style.setProperty("--slice-surface", "rgba(255,255,255,0.94)");
     root.style.setProperty("--slice-surface-strong", "#ffffff");
-    root.style.setProperty("--slice-panel", "rgba(15,23,42,0.045)");
-    root.style.setProperty("--slice-panel-2", "rgba(255,255,255,0.76)");
+    root.style.setProperty("--slice-panel", "rgba(6,78,59,0.05)");
+    root.style.setProperty("--slice-panel-2", "rgba(255,255,255,0.80)");
     root.style.setProperty("--slice-input", "#ffffff");
-    root.style.setProperty("--slice-text", "#0f172a");
-    root.style.setProperty("--slice-muted", "#64748b");
-    root.style.setProperty("--slice-muted-2", "#475569");
-    root.style.setProperty("--slice-border", "rgba(15,23,42,0.12)");
-    root.style.setProperty("--slice-shadow", "rgba(15,23,42,0.12)");
+    root.style.setProperty("--slice-text", "#052e16");
+    root.style.setProperty("--slice-muted", "#4b5563");
+    root.style.setProperty("--slice-muted-2", "#334155");
+    root.style.setProperty("--slice-border", "rgba(6,78,59,0.13)");
+    root.style.setProperty("--slice-shadow", "rgba(6,78,59,0.12)");
   } else {
-    root.style.setProperty("--slice-bg", "#020202");
-    root.style.setProperty("--slice-bg-2", "#260606");
-    root.style.setProperty("--slice-surface", "rgba(9,9,11,0.82)");
-    root.style.setProperty("--slice-surface-strong", "#09090b");
-    root.style.setProperty("--slice-panel", "rgba(255,255,255,0.055)");
+    root.style.setProperty("--slice-bg", "#010604");
+    root.style.setProperty("--slice-bg-2", "#022c22");
+    root.style.setProperty("--slice-surface", "rgba(3,12,9,0.84)");
+    root.style.setProperty("--slice-surface-strong", "#020806");
+    root.style.setProperty("--slice-panel", "rgba(52,211,153,0.055)");
     root.style.setProperty("--slice-panel-2", "rgba(0,0,0,0.36)");
     root.style.setProperty("--slice-input", "rgba(0,0,0,0.44)");
-    root.style.setProperty("--slice-text", "#ffffff");
+    root.style.setProperty("--slice-text", "#f0fdf4");
     root.style.setProperty("--slice-muted", "#94a3b8");
-    root.style.setProperty("--slice-muted-2", "#cbd5e1");
-    root.style.setProperty("--slice-border", "rgba(255,255,255,0.11)");
-    root.style.setProperty("--slice-shadow", "rgba(0,0,0,0.38)");
+    root.style.setProperty("--slice-muted-2", "#d1fae5");
+    root.style.setProperty("--slice-border", "rgba(52,211,153,0.12)");
+    root.style.setProperty("--slice-shadow", "rgba(0,0,0,0.40)");
   }
 }
 
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
+export default function WorkspaceLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   useEffect(() => {
     applyWorkspaceTheme();
 
@@ -187,7 +206,10 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("storage", handleChange);
       window.removeEventListener("slice-theme-change", handleChange);
-      window.removeEventListener("slice-workspace-settings-change", handleChange);
+      window.removeEventListener(
+        "slice-workspace-settings-change",
+        handleChange,
+      );
       media.removeEventListener?.("change", handleChange);
     };
   }, []);
@@ -224,17 +246,17 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
             html[data-slice-theme="light"] .slice-workspace-theme-root main {
               background:
-                radial-gradient(circle at top left, rgba(220, 38, 38, 0.11), transparent 30%),
-                radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 30%),
+                radial-gradient(circle at top left, rgba(16,185,129,0.14), transparent 30%),
+                radial-gradient(circle at top right, rgba(34,211,238,0.10), transparent 28%),
                 linear-gradient(135deg, var(--slice-bg), var(--slice-bg-2)) !important;
               color: var(--slice-text) !important;
             }
 
             html[data-slice-theme="dark"] .slice-workspace-theme-root main {
               background:
-                radial-gradient(circle at top left, rgba(127, 29, 29, 0.45), transparent 30%),
-                radial-gradient(circle at top right, rgba(239, 68, 68, 0.18), transparent 26%),
-                linear-gradient(135deg, var(--slice-bg), #09090b, #111111, var(--slice-bg-2)) !important;
+                radial-gradient(circle at top left, rgba(5,150,105,0.30), transparent 30%),
+                radial-gradient(circle at top right, rgba(34,211,238,0.10), transparent 28%),
+                linear-gradient(135deg, var(--slice-bg), #020806, #07130e, var(--slice-bg-2)) !important;
               color: var(--slice-text) !important;
             }
 
@@ -247,77 +269,19 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
             html[data-slice-theme="light"] .slice-workspace-theme-root [class*="text-slate-400"],
             html[data-slice-theme="light"] .slice-workspace-theme-root [class*="text-slate-500"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="text-zinc-400"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="text-zinc-500"] {
+            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="text-zinc-400"] {
               color: var(--slice-muted) !important;
-            }
-
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-[#050505]"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-[#050202]"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-zinc-950"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-zinc-900"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-black/"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="bg-white/["] {
-              background-color: var(--slice-surface) !important;
-            }
-
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="border-white/"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="border-zinc-"],
-            html[data-slice-theme="light"] .slice-workspace-theme-root [class*="border-slate-"] {
-              border-color: var(--slice-border) !important;
-            }
-
-            .slice-workspace-theme-root [class*="text-red-"] {
-              color: var(--slice-accent) !important;
-            }
-
-            .slice-workspace-theme-root [class*="border-red-"] {
-              border-color: var(--slice-accent-border) !important;
-            }
-
-            .slice-workspace-theme-root [class*="ring-red-"] {
-              --tw-ring-color: var(--slice-accent-border) !important;
-            }
-
-            .slice-workspace-theme-root [class*="bg-red-"] {
-              background-color: var(--slice-accent-soft) !important;
-            }
-
-            .slice-workspace-theme-root [class*="from-red-"] {
-              --tw-gradient-from: var(--slice-accent-dark) var(--tw-gradient-from-position) !important;
-              --tw-gradient-to: color-mix(in srgb, var(--slice-accent-dark) 0%, transparent) var(--tw-gradient-to-position) !important;
-              --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-            }
-
-            .slice-workspace-theme-root [class*="via-red-"] {
-              --tw-gradient-to: color-mix(in srgb, var(--slice-accent) 0%, transparent) var(--tw-gradient-to-position) !important;
-              --tw-gradient-stops: var(--tw-gradient-from), var(--slice-accent) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-            }
-
-            .slice-workspace-theme-root [class*="to-red-"] {
-              --tw-gradient-to: var(--slice-accent) var(--tw-gradient-to-position) !important;
             }
 
             .slice-workspace-theme-root input,
             .slice-workspace-theme-root textarea,
             .slice-workspace-theme-root select {
-              color: var(--slice-text);
-            }
-
-            html[data-slice-theme="light"] .slice-workspace-theme-root input,
-            html[data-slice-theme="light"] .slice-workspace-theme-root textarea,
-            html[data-slice-theme="light"] .slice-workspace-theme-root select {
-              background: var(--slice-input) !important;
-              color: var(--slice-text) !important;
-              border-color: var(--slice-border) !important;
-            }
-
-            html[data-slice-theme="light"] .slice-workspace-theme-root ::placeholder {
-              color: #94a3b8 !important;
+              caret-color: var(--slice-accent);
             }
           `,
         }}
       />
+
       {children}
       <AdvisorRoutingDock />
     </div>

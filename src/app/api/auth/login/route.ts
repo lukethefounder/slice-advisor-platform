@@ -1,4 +1,7 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
+
 import {
   createSession,
   hashPassword,
@@ -9,13 +12,11 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import {
-  TEMP_FIRM_ADVISOR_EMAIL,
-  TEMP_FOUNDER_EMAIL,
   isFounderEmail,
-  temporaryLoginsEnabled,
 } from "@/lib/founder-access";
-import { ensureTemporaryLogins } from "@/lib/temporary-logins";
-import { prisma } from "@/lib/prisma";
+import {
+  prisma,
+} from "@/lib/prisma";
 import {
   checkRateLimit,
   getClientIp,
@@ -25,21 +26,19 @@ import {
   recordSecurityEvent,
 } from "@/lib/security";
 
-function isTemporaryLoginEmail(email: string) {
-  const normalizedEmail = email.trim().toLowerCase();
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-  return (
-    normalizedEmail === TEMP_FOUNDER_EMAIL ||
-    normalizedEmail === TEMP_FIRM_ADVISOR_EMAIL
-  );
-}
-
-function blockedResponse(message: string, status = 429, retryAfterSeconds?: number) {
+function blockedResponse(
+  message: string,
+  status = 429,
+  retryAfterSeconds?: number,
+) {
   const response = NextResponse.json(
     {
       error: message,
     },
-    { status }
+    { status },
   );
 
   response.headers.set("Cache-Control", "no-store");
@@ -51,17 +50,15 @@ function blockedResponse(message: string, status = 429, retryAfterSeconds?: numb
   return response;
 }
 
-function genericInvalidLogin(seedError?: string | null) {
+function genericInvalidLogin() {
   const response = NextResponse.json(
     {
       error: "Invalid email or password.",
-      seedError: seedError ?? null,
     },
-    { status: 401 }
+    { status: 401 },
   );
 
   response.headers.set("Cache-Control", "no-store");
-
   return response;
 }
 
@@ -75,7 +72,8 @@ export async function POST(request: Request) {
         severity: "High",
         area: "Authentication",
         title: "Cross-site login request blocked",
-        detail: "A login attempt was blocked because it appeared to come from a cross-site request.",
+        detail:
+          "A login attempt was blocked because it appeared to come from a cross-site request.",
         request,
       });
 
@@ -100,7 +98,8 @@ export async function POST(request: Request) {
         severity: "High",
         area: "Authentication",
         title: "Login IP rate limit triggered",
-        detail: "Too many login attempts were made from the same IP fingerprint.",
+        detail:
+          "Too many login attempts were made from the same IP fingerprint.",
         metadata: {
           limit: ipLimit.limit,
           resetAt: ipLimit.resetAt,
@@ -111,7 +110,7 @@ export async function POST(request: Request) {
       return blockedResponse(
         "Too many login attempts. Try again later.",
         429,
-        ipLimit.retryAfterSeconds
+        ipLimit.retryAfterSeconds,
       );
     }
 
@@ -119,7 +118,6 @@ export async function POST(request: Request) {
       email?: string;
       password?: string;
     };
-
     const email = body.email?.trim().toLowerCase();
     const password = body.password ?? "";
 
@@ -128,7 +126,7 @@ export async function POST(request: Request) {
         {
           error: "Email and password are required.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -156,48 +154,15 @@ export async function POST(request: Request) {
       return blockedResponse(
         "Too many login attempts. Try again later.",
         429,
-        emailLimit.retryAfterSeconds
+        emailLimit.retryAfterSeconds,
       );
     }
 
-    const temporarySeedResult = isTemporaryLoginEmail(email)
-      ? await ensureTemporaryLogins()
-      : null;
-
-    if (isTemporaryLoginEmail(email) && !temporaryLoginsEnabled()) {
-      await recordSecurityEvent({
-        eventType: "auth.login.temporary_disabled",
-        severity: "Medium",
-        area: "Authentication",
-        title: "Temporary login attempted while disabled",
-        detail: `Temporary login attempted for ${maskEmail(email)}.`,
-        request,
-      });
-
-      return NextResponse.json(
-        {
-          error:
-            "Temporary logins are disabled. Add ENABLE_TEMP_LOGINS=true to .env.local, restart the dev server, and try again.",
-        },
-        { status: 403 }
-      );
-    }
-
-    let user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: {
         email,
       },
     });
-
-    if (!user && isTemporaryLoginEmail(email)) {
-      await ensureTemporaryLogins();
-
-      user = await prisma.user.findUnique({
-        where: {
-          email,
-        },
-      });
-    }
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
       await recordSecurityEvent({
@@ -212,12 +177,13 @@ export async function POST(request: Request) {
         metadata: {
           emailHash: hashForSecurity(email),
           knownAccount: Boolean(user),
-          seedError: temporarySeedResult?.seedError ?? null,
+          betaAccess: true,
+          temporaryLogin: false,
         },
         request,
       });
 
-      return genericInvalidLogin(temporarySeedResult?.seedError ?? null);
+      return genericInvalidLogin();
     }
 
     if (user.platformStatus === "Banned") {
@@ -237,7 +203,7 @@ export async function POST(request: Request) {
             user.governanceReason ||
             "This account has been banned by platform governance.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -258,12 +224,11 @@ export async function POST(request: Request) {
             user.governanceReason ||
             "This account has been suspended by platform governance.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const isFounder = isFounderEmail(user.email);
-
     const activeMembership = await prisma.firmMembership.findFirst({
       where: {
         userId: user.id,
@@ -290,9 +255,8 @@ export async function POST(request: Request) {
         {
           error:
             "This account is not connected to an active firm workspace. Ask a firm owner to invite or restore access.",
-          seedError: temporarySeedResult?.seedError ?? null,
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -319,7 +283,7 @@ export async function POST(request: Request) {
         mfaEnabled: false,
         requireReauthForSensitiveActions: true,
         alertOnNewLogin: true,
-        advisorModeEnabled: false,
+        advisorModeEnabled: true,
         sessionTimeoutMinutes: 720,
         lastSecurityReviewAt: new Date(),
       },
@@ -332,12 +296,14 @@ export async function POST(request: Request) {
       eventType: "auth.login.success",
       severity: "Info",
       area: "Authentication",
-      title: "Successful login",
-      detail: `Successful login for ${maskEmail(user.email)}.`,
+      title: "Successful beta login",
+      detail: `Successful real-account login for ${maskEmail(user.email)}.`,
       metadata: {
         isFounder,
         firmId: activeMembership?.firmId ?? null,
         sessionExpiresAt: session.expiresAt,
+        betaAccess: true,
+        temporaryLogin: false,
       },
       request,
     });
@@ -345,15 +311,14 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       user: publicUser(user),
       isFounder,
-      temporarySeedError: temporarySeedResult?.seedError ?? null,
+      betaAccess: true,
     });
 
     response.headers.set("Cache-Control", "no-store");
-
     response.cookies.set(
       SESSION_COOKIE,
       session.token,
-      sessionCookieOptions(session.expiresAt)
+      sessionCookieOptions(session.expiresAt),
     );
 
     return response;
@@ -374,7 +339,7 @@ export async function POST(request: Request) {
             ? `Login failed: ${error.message}`
             : "Login failed: Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

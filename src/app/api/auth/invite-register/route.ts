@@ -1,4 +1,7 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
+
 import {
   createSession,
   hashPassword,
@@ -7,18 +10,23 @@ import {
   sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import {
+  prisma,
+} from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const TEAM_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
+  "#10b981",
+  "#34d399",
+  "#059669",
   "#14b8a6",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#f43f5e",
+  "#2dd4bf",
+  "#22d3ee",
+  "#84cc16",
+  "#65a30d",
+  "#0ea5e9",
   "#06b6d4",
 ];
 
@@ -26,8 +34,15 @@ function teamColor(index: number) {
   return TEAM_COLORS[index % TEAM_COLORS.length];
 }
 
-function permissionPreset(role: string) {
-  if (role === "Admin") {
+function permissionPreset(roleValue: string) {
+  const role = roleValue.trim().toLowerCase();
+
+  if (
+    role === "admin" ||
+    role === "principal advisor" ||
+    role === "lead advisor" ||
+    role === "chief compliance officer"
+  ) {
     return {
       canAccessPortfolios: true,
       canManageProjects: true,
@@ -36,7 +51,11 @@ function permissionPreset(role: string) {
     };
   }
 
-  if (role === "Advisor") {
+  if (
+    role === "senior wealth advisor" ||
+    role === "portfolio manager" ||
+    role === "compliance officer"
+  ) {
     return {
       canAccessPortfolios: true,
       canManageProjects: true,
@@ -45,17 +64,27 @@ function permissionPreset(role: string) {
     };
   }
 
-  if (role === "Viewer") {
+  if (
+    role === "associate advisor" ||
+    role === "service advisor" ||
+    role === "investment analyst" ||
+    role === "financial planning analyst" ||
+    role === "paraplanner" ||
+    role === "client service associate" ||
+    role === "relationship manager" ||
+    role === "operations associate" ||
+    role === "ops"
+  ) {
     return {
-      canAccessPortfolios: false,
-      canManageProjects: false,
+      canAccessPortfolios: true,
+      canManageProjects: role !== "client service associate",
       canInviteMembers: false,
       canManageFirm: false,
     };
   }
 
   return {
-    canAccessPortfolios: true,
+    canAccessPortfolios: false,
     canManageProjects: false,
     canInviteMembers: false,
     canManageFirm: false,
@@ -69,7 +98,6 @@ export async function POST(request: Request) {
       name?: string;
       password?: string;
     };
-
     const inviteCode = body.inviteCode?.trim().toUpperCase();
     const name = body.name?.trim();
     const password = body.password ?? "";
@@ -79,7 +107,7 @@ export async function POST(request: Request) {
         {
           error: "Invite code is required.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -97,7 +125,7 @@ export async function POST(request: Request) {
         {
           error: "Invite not found or no longer pending.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -108,21 +136,31 @@ export async function POST(request: Request) {
             invite.firm.governanceReason ||
             "This firm workspace is not currently active.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     if (invite.expiresAt && invite.expiresAt < new Date()) {
+      await prisma.firmInvite
+        .update({
+          where: {
+            id: invite.id,
+          },
+          data: {
+            status: "Expired",
+          },
+        })
+        .catch(() => undefined);
+
       return NextResponse.json(
         {
-          error: "Invite has expired. Ask the firm to send a new invite.",
+          error: "Invite has expired. Ask the firm to send a new invitation.",
         },
-        { status: 410 }
+        { status: 410 },
       );
     }
 
     const invitedEmail = invite.email.trim().toLowerCase();
-
     const existingUser = await prisma.user.findUnique({
       where: {
         email: invitedEmail,
@@ -140,7 +178,7 @@ export async function POST(request: Request) {
             existingUser.governanceReason ||
             "This account is blocked by platform governance.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -148,28 +186,31 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Name and a password of at least 8 characters are required to accept this firm invite.",
+            "Name and a password of at least 8 characters are required to create the invited account.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (existingUser && !verifyPassword(password, existingUser.passwordHash)) {
+    if (
+      existingUser &&
+      !verifyPassword(password, existingUser.passwordHash)
+    ) {
       return NextResponse.json(
         {
           error:
-            "This invite email already has a Slice account. Enter that account password to accept the invite.",
+            "This invitation email already has a Slice account. Enter that account password to connect the firm membership.",
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     const memberCount = await prisma.firmMembership.count({
       where: {
         firmId: invite.firmId,
+        status: "Active",
       },
     });
-
     const permissions = permissionPreset(invite.role);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -180,6 +221,7 @@ export async function POST(request: Request) {
             name: name || invitedEmail,
             email: invitedEmail,
             passwordHash: hashPassword(password),
+            platformStatus: "Active",
           },
         }));
 
@@ -216,6 +258,44 @@ export async function POST(request: Request) {
         },
       });
 
+      await tx.userSecuritySetting.upsert({
+        where: {
+          userId: user.id,
+        },
+        update: {
+          advisorModeEnabled: true,
+          lastSecurityReviewAt: new Date(),
+        },
+        create: {
+          userId: user.id,
+          mfaEnabled: false,
+          requireReauthForSensitiveActions: true,
+          alertOnNewLogin: true,
+          advisorModeEnabled: true,
+          sessionTimeoutMinutes: 720,
+          lastSecurityReviewAt: new Date(),
+        },
+      });
+
+      const existingWatchlist = await tx.namedWatchlist.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      if (!existingWatchlist) {
+        await tx.namedWatchlist.create({
+          data: {
+            userId: user.id,
+            name: "Main Watchlist",
+            description:
+              "Live securities and ideas selected by the advisor. No demo observations are preloaded.",
+            focus: "General",
+            riskLevel: "Mixed",
+          },
+        });
+      }
+
       return {
         user,
         membership,
@@ -224,18 +304,19 @@ export async function POST(request: Request) {
     });
 
     const session = await createSession(result.user.id);
-
     const response = NextResponse.json({
       user: publicUser(result.user),
       firm: invite.firm,
       membership: result.membership,
       invite: result.acceptedInvite,
+      betaAccess: true,
     });
 
+    response.headers.set("Cache-Control", "no-store");
     response.cookies.set(
       SESSION_COOKIE,
       session.token,
-      sessionCookieOptions(session.expiresAt)
+      sessionCookieOptions(session.expiresAt),
     );
 
     return response;
@@ -245,7 +326,7 @@ export async function POST(request: Request) {
         error: "Invite acceptance failed.",
         detail: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

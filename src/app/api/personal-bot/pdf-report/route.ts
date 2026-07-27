@@ -53,9 +53,9 @@ const COLORS = {
   white: "#ffffff",
   text: "#e5e7eb",
   muted: "#94a3b8",
-  red: "#dc2626",
-  redSoft: "#ef4444",
-  redDark: "#450a0a",
+  red: "#059669",
+  redSoft: "#10b981",
+  redDark: "#022c22",
   green: "#10b981",
   amber: "#f59e0b",
   purple: "#a855f7",
@@ -1002,7 +1002,7 @@ class SimplePdf {
           "SLICE ADVISOR INTELLIGENCE",
         size: 8,
         font: "bold",
-        color: "#fecaca",
+        color: "#a7f3d0",
       }),
     );
 
@@ -1029,7 +1029,7 @@ class SimplePdf {
         text:
           "AI-assisted financial research and operating report",
         size: 8,
-        color: "#fca5a5",
+        color: "#6ee7b7",
       }),
     );
   }
@@ -1188,7 +1188,7 @@ class SimplePdf {
         82,
         82,
         COLORS.red,
-        "#fecaca",
+        "#a7f3d0",
       ),
     );
 
@@ -1223,7 +1223,7 @@ class SimplePdf {
           "SOURCE-BACKED AI REPORT",
         size: 9,
         font: "bold",
-        color: "#fecaca",
+        color: "#a7f3d0",
       }),
     );
 
@@ -1244,7 +1244,7 @@ class SimplePdf {
             34,
           )}`,
         size: 8,
-        color: "#fca5a5",
+        color: "#6ee7b7",
       }),
     );
 
@@ -1291,7 +1291,7 @@ class SimplePdf {
 
         size: 10,
 
-        color: "#fecaca",
+        color: "#a7f3d0",
       }),
     );
 

@@ -275,14 +275,14 @@ function renderEmailHtml(input: {
   <div style="margin:0;padding:0;background:#f8fafc;font-family:Inter,Arial,sans-serif;">
     <div style="max-width:760px;margin:0 auto;padding:32px 18px;">
       <div style="border-radius:28px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 18px 45px rgba(15,23,42,.08);overflow:hidden;">
-        <div style="padding:26px 28px;background:linear-gradient(135deg,#450a0a,#991b1b,#111827);">
-          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#fecaca;font-weight:800;">
+        <div style="padding:26px 28px;background:linear-gradient(135deg,#022c22,#065f46,#111827);">
+          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#a7f3d0;font-weight:800;">
             Advisor Communication
           </div>
           <h1 style="margin:10px 0 0;color:#ffffff;font-size:24px;line-height:1.25;">
             ${escapeHtml(input.subject)}
           </h1>
-          <div style="margin-top:12px;color:#fecaca;font-size:13px;">
+          <div style="margin-top:12px;color:#a7f3d0;font-size:13px;">
             Prepared for ${escapeHtml(input.clientName)}
           </div>
         </div>

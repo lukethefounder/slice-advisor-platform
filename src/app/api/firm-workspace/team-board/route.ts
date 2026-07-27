@@ -521,8 +521,8 @@ async function notifyCreated(input: {
       html: `
         <div style="margin:0;background:#f8fafc;padding:28px;font-family:Inter,Arial,sans-serif;color:#111827;line-height:1.6">
           <div style="max-width:720px;margin:0 auto;border:1px solid #e5e7eb;border-radius:24px;background:#fff;overflow:hidden">
-            <div style="padding:24px 28px;background:linear-gradient(135deg,#450a0a,#991b1b,#111827);color:#fff">
-              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#fecaca;font-weight:800">SLICE Team Board</div>
+            <div style="padding:24px 28px;background:linear-gradient(135deg,#022c22,#065f46,#111827);color:#fff">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#a7f3d0;font-weight:800">SLICE Team Board</div>
               <h1 style="margin:8px 0 0;font-size:24px">New task assigned</h1>
             </div>
 

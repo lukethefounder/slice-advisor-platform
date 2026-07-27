@@ -208,7 +208,7 @@ function toneClasses(
     string
   > = {
     red:
-      "border-red-500/30 bg-red-500/10 text-red-100",
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
 
     green:
       "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
@@ -308,7 +308,7 @@ function Card({
   return (
     <div
       className={cx(
-        "rounded-[2rem] border border-white/10 bg-zinc-950/82 shadow-2xl shadow-red-950/20 backdrop-blur-xl",
+        "rounded-[2rem] border border-white/10 bg-zinc-950/82 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl",
         className,
       )}
     >
@@ -410,7 +410,7 @@ function ChartCard({
 
                 <div className="flex h-36 items-end overflow-hidden rounded-xl border border-white/10 bg-white/5 print:border-slate-200">
                   <div
-                    className="w-full rounded-t-xl bg-gradient-to-t from-red-800 via-red-500 to-cyan-300 print:bg-red-600"
+                    className="w-full rounded-t-xl bg-gradient-to-t from-emerald-800 via-emerald-500 to-cyan-300 print:bg-emerald-600"
                     style={{
                       height:
                         `${percentage}%`,
@@ -568,7 +568,7 @@ export default function ReportViewerPage() {
       .charts ?? [];
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_28%),linear-gradient(135deg,_#020202,_#09090b,_#1f0707)] p-4 text-white print:bg-white print:p-0 print:text-slate-950">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_28%),linear-gradient(135deg,_#020202,_#09090b,_#1f0707)] p-4 text-white print:bg-white print:p-0 print:text-slate-950">
       <div className="mx-auto max-w-[1180px]">
         <div className="mb-4 flex flex-col gap-3 print:hidden md:flex-row md:items-center md:justify-between">
           <BrandMark />
@@ -598,7 +598,7 @@ export default function ReportViewerPage() {
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
               >
                 Open Raw PDF
               </a>
@@ -608,7 +608,7 @@ export default function ReportViewerPage() {
 
         {error ? (
           <Card className="p-8 text-center">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
               Report Error
             </div>
 
@@ -632,7 +632,7 @@ export default function ReportViewerPage() {
         {!report &&
         !error ? (
           <Card className="p-8 text-center">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
               Slice Report Viewer
             </div>
 
@@ -644,7 +644,7 @@ export default function ReportViewerPage() {
 
         {report ? (
           <article className="overflow-hidden rounded-[2.2rem] border border-white/10 bg-zinc-950/88 shadow-2xl shadow-black/30 print:rounded-none print:border-0 print:bg-white print:shadow-none">
-            <section className="relative overflow-hidden bg-gradient-to-br from-red-950 via-black to-red-800 p-8 print:bg-white print:p-8">
+            <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-black to-emerald-800 p-8 print:bg-white print:p-8">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.18),transparent_34%)] print:hidden" />
 
               <div className="relative">
@@ -700,13 +700,13 @@ export default function ReportViewerPage() {
                   {report.title}
                 </h1>
 
-                <p className="mt-5 max-w-4xl text-base leading-8 text-red-100 print:text-slate-600">
+                <p className="mt-5 max-w-4xl text-base leading-8 text-emerald-100 print:text-slate-600">
                   {report.summary}
                 </p>
 
                 <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200 print:text-slate-500">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
                       Prepared by
                     </div>
 
@@ -719,7 +719,7 @@ export default function ReportViewerPage() {
                   </div>
 
                   <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200 print:text-slate-500">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
                       Prepared for
                     </div>
 
@@ -732,7 +732,7 @@ export default function ReportViewerPage() {
                   </div>
 
                   <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200 print:text-slate-500">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
                       AI runtime
                     </div>
 
@@ -742,7 +742,7 @@ export default function ReportViewerPage() {
                         "Not recorded"}
                     </div>
 
-                    <div className="mt-1 text-xs text-red-100/70 print:text-slate-600">
+                    <div className="mt-1 text-xs text-emerald-100/70 print:text-slate-600">
                       {
                         report.design
                           .provider
@@ -751,7 +751,7 @@ export default function ReportViewerPage() {
                   </div>
 
                   <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-red-200 print:text-slate-500">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
                       As of
                     </div>
 
@@ -863,7 +863,7 @@ export default function ReportViewerPage() {
                     key={`${section.title}-${index}`}
                     className="rounded-[1.7rem] border border-white/10 bg-white/[0.055] p-6 print:border-slate-200 print:bg-white"
                   >
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-red-300 print:text-red-700">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300 print:text-emerald-700">
                       Section{" "}
                       {index + 1}
                     </div>
@@ -908,7 +908,7 @@ export default function ReportViewerPage() {
             </section>
 
             <section className="border-t border-white/10 bg-black/35 p-8 print:border-slate-200 print:bg-slate-50">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-red-300 print:text-red-700">
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300 print:text-emerald-700">
                 Advisor Review Disclosure
               </div>
 

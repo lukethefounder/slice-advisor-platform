@@ -261,7 +261,7 @@ function parseTradingViewSymbol(raw: string, fallbackExchange = "NASDAQ"): Tradi
 
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
+    red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
     purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
@@ -275,7 +275,7 @@ function toneClass(tone: Tone) {
 
 function dotClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-400 shadow-red-400/50",
+    red: "bg-emerald-400 shadow-emerald-400/50",
     green: "bg-emerald-400 shadow-emerald-400/50",
     amber: "bg-amber-400 shadow-amber-400/50",
     purple: "bg-purple-400 shadow-purple-400/50",
@@ -655,7 +655,7 @@ function MetricCard({
         <button
           type="button"
           onClick={onToggleExpanded}
-          className="col-span-2 rounded-lg border border-red-500/25 bg-red-500/10 px-2 py-1 text-[9px] font-black text-red-100 transition hover:bg-red-500/15"
+          className="col-span-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[9px] font-black text-emerald-100 transition hover:bg-emerald-500/15"
         >
           {expanded ? "Close Alert" : "Alert Rules"}
         </button>
@@ -665,7 +665,7 @@ function MetricCard({
         <div className="mt-2 rounded-2xl border border-white/10 bg-black/35 p-2.5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-red-300">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300">
                 Advanced Alert
               </div>
               <div className="mt-0.5 text-xs font-black text-white">
@@ -688,7 +688,7 @@ function MetricCard({
                     enabled: false,
                   })
                 }
-                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-red-500 focus:ring-2"
+                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-emerald-500 focus:ring-2"
               >
                 <option value="above">Above</option>
                 <option value="below">Below</option>
@@ -707,7 +707,7 @@ function MetricCard({
                     enabled: false,
                   })
                 }
-                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-red-500 focus:ring-2"
+                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-emerald-500 focus:ring-2"
               >
                 <option value="Monitor">Monitor</option>
                 <option value="Important">Important</option>
@@ -726,7 +726,7 @@ function MetricCard({
                   })
                 }
                 placeholder={alert.condition === "moves-by" ? "Move, e.g. 3%" : "Threshold"}
-                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               />
 
               {alert.condition === "between" ? (
@@ -740,7 +740,7 @@ function MetricCard({
                     })
                   }
                   placeholder="Upper"
-                  className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                  className="rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                 />
               ) : null}
             </div>
@@ -756,7 +756,7 @@ function MetricCard({
               }
               placeholder="Advisor note..."
               rows={2}
-              className="resize-none rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+              className="resize-none rounded-xl border border-white/10 bg-black/55 px-2 py-2 text-[11px] font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
             />
 
             <button
@@ -1049,10 +1049,10 @@ export default function CustomAdvisorWorkspacePage() {
   const changeDisplay = snapshot?.metrics?.["change-pct"]?.display || "—";
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_30%),radial-gradient(circle_at_bottom,_rgba(168,85,247,0.12),_transparent_36%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-4 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_30%),radial-gradient(circle_at_bottom,_rgba(168,85,247,0.12),_transparent_36%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-4 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-4">
-        <header className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="absolute right-[-120px] top-[-160px] hidden h-[360px] w-[360px] rounded-full border border-red-500/10 xl:block">
+        <header className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
+          <div className="absolute right-[-120px] top-[-160px] hidden h-[360px] w-[360px] rounded-full border border-emerald-500/10 xl:block">
             <div className="absolute inset-12 rounded-full border border-cyan-500/10" />
             <div className="absolute inset-24 rounded-full border border-white/10" />
           </div>
@@ -1097,12 +1097,12 @@ export default function CustomAdvisorWorkspacePage() {
                       if (event.key === "Enter") openSymbolFromSearch(true);
                     }}
                     placeholder="NASDAQ:AAPL, AMEX:SPY, SP:SPX, CME_MINI:ES1!, BINANCE:BTCUSDT..."
-                    className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                   />
                   <button
                     type="button"
                     onClick={() => openSymbolFromSearch(true)}
-                    className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30"
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30"
                   >
                     Open
                   </button>
@@ -1121,7 +1121,7 @@ export default function CustomAdvisorWorkspacePage() {
         <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_390px]">
           <Card className="h-fit p-3 xl:sticky xl:top-4">
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-              <div className="absolute right-[-50px] top-[-60px] h-32 w-32 rounded-full bg-red-500/15 blur-2xl" />
+              <div className="absolute right-[-50px] top-[-60px] h-32 w-32 rounded-full bg-emerald-500/15 blur-2xl" />
               <div className="relative">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1209,7 +1209,7 @@ export default function CustomAdvisorWorkspacePage() {
             <Card className="p-0">
               <div className="flex flex-col gap-3 border-b border-white/10 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
                     Active Live Chart
                   </div>
                   <h2 className="mt-1 text-3xl font-black">{boardState.activeSymbol.full}</h2>
@@ -1293,13 +1293,13 @@ export default function CustomAdvisorWorkspacePage() {
                 value={boardState.metricSearch}
                 onChange={(event) => updateState({ metricSearch: event.target.value })}
                 placeholder="Search metrics..."
-                className="w-full rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 text-xs font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                className="w-full rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 text-xs font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               />
 
               <select
                 value={boardState.metricCategory}
                 onChange={(event) => updateState({ metricCategory: event.target.value as MetricCategory | "All" })}
-                className="w-full rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 text-xs font-bold text-white outline-none ring-red-500 focus:ring-2"
+                className="w-full rounded-2xl border border-white/10 bg-black/45 px-3 py-2.5 text-xs font-bold text-white outline-none ring-emerald-500 focus:ring-2"
               >
                 {METRIC_CATEGORIES.map((category) => (
                   <option key={category} value={category}>

@@ -364,8 +364,8 @@ export default function ForecastHistoryPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Forecast Accountability
         </p>
 
@@ -397,13 +397,13 @@ export default function ForecastHistoryPage() {
               }
             }}
             placeholder="Filter by ticker"
-            className="w-52 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-red-400/40"
+            className="w-52 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/40"
           />
 
           <button
             type="button"
             onClick={applyFilter}
-            className="rounded-xl border border-red-400/25 bg-red-500/15 px-5 py-3 text-sm font-black text-red-100 transition hover:bg-red-500/25"
+            className="rounded-xl border border-emerald-400/25 bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/25"
           >
             Apply Filter
           </button>
@@ -432,7 +432,7 @@ export default function ForecastHistoryPage() {
       </section>
 
       {error ? (
-        <div className="mt-6 rounded-2xl border border-red-400/25 bg-red-500/10 p-5 text-sm text-red-100">
+        <div className="mt-6 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-5 text-sm text-emerald-100">
           {error}
         </div>
       ) : null}
@@ -544,7 +544,7 @@ export default function ForecastHistoryPage() {
 
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
                   <div
-                    className="h-full rounded-full bg-red-500"
+                    className="h-full rounded-full bg-emerald-500"
                     style={{
                       width: `${Math.max(
                         0,
@@ -757,7 +757,7 @@ export default function ForecastHistoryPage() {
                                     className={
                                       horizon.outcome.directionalCorrect
                                         ? "text-emerald-300"
-                                        : "text-red-300"
+                                        : "text-emerald-300"
                                     }
                                   >
                                     Direction{" "}
@@ -804,7 +804,7 @@ export default function ForecastHistoryPage() {
                                       horizon,
                                     )
                                   }
-                                  className="rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 font-black text-red-100 transition enabled:hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                                  className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 font-black text-emerald-100 transition enabled:hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-35"
                                 >
                                   {due
                                     ? "Settle Price"

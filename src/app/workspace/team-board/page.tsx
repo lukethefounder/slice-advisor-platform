@@ -14,15 +14,15 @@ const TeamBoardEmbedded = dynamic(
 function TeamBoardLoading() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_9%_0%,rgba(153,27,27,0.46),transparent_30%),radial-gradient(circle_at_84%_8%,rgba(239,68,68,0.13),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_9%_0%,rgba(6,95,70,0.46),transparent_30%),radial-gradient(circle_at_84%_8%,rgba(16,185,129,0.13),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
 
       <div className="relative mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-[1900px] place-items-center">
-        <div className="rounded-[2rem] border border-white/10 bg-black/70 px-8 py-10 text-center shadow-2xl shadow-red-950/25 backdrop-blur-xl">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-300">
+        <div className="rounded-[2rem] border border-white/10 bg-black/70 px-8 py-10 text-center shadow-2xl shadow-emerald-950/25 backdrop-blur-xl">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
 
-          <div className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-red-400">
+          <div className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
             Slice Team Board OS
           </div>
 

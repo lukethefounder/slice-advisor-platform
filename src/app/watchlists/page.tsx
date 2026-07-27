@@ -141,10 +141,10 @@ type View = "watchlists" | "alerts" | "scans" | "portfolio";
 type Tone = "red" | "green" | "amber" | "cyan" | "purple" | "slate";
 
 const INPUT =
-  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
+  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
 
 const PRIMARY =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:opacity-40";
 
 const SOFT =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
@@ -274,7 +274,7 @@ function statusTone(value: string | number): Tone {
 
 function toneClass(tone: Tone) {
   const classes: Record<Tone, string> = {
-    red: "border-red-400/25 bg-red-400/10 text-red-100",
+    red: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     green: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
     cyan: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
@@ -336,7 +336,7 @@ function Metric({
 }) {
   return (
     <div className="relative min-w-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
-      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-600/10 blur-2xl" />
 
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -349,7 +349,7 @@ function Metric({
           </div>
         </div>
 
-        <div className="shrink-0 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+        <div className="shrink-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-300">
           {icon}
         </div>
       </div>
@@ -384,7 +384,7 @@ function LiveSnapshot({
           <div
             className={cx(
               "mt-1 text-xs font-black",
-              positive ? "text-emerald-300" : "text-red-300"
+              positive ? "text-emerald-300" : "text-emerald-300"
             )}
           >
             {percent(snapshot.changePercent)}
@@ -742,7 +742,7 @@ export default function WatchlistsPage() {
     return (
       <main className="grid min-h-screen place-items-center bg-[#050505] text-white">
         <div className="flex items-center gap-3 text-sm font-black uppercase tracking-[0.18em] text-slate-400">
-          <Loader2 className="h-5 w-5 animate-spin text-red-400" />
+          <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
           Loading Alpha Vantage watchlists
         </div>
       </main>
@@ -751,14 +751,14 @@ export default function WatchlistsPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(153,27,27,0.46),transparent_30%),radial-gradient(circle_at_86%_8%,rgba(6,182,212,0.12),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(6,95,70,0.46),transparent_30%),radial-gradient(circle_at_86%_8%,rgba(6,182,212,0.12),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
       <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/25 backdrop-blur-xl md:p-7">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-400">
                 <Radar className="h-4 w-4" />
                 SLICE Alpha Watchlists
               </div>
@@ -787,7 +787,7 @@ export default function WatchlistsPage() {
 
               <a
                 href="/workspace"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-50"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to workspace
@@ -797,7 +797,7 @@ export default function WatchlistsPage() {
         </header>
 
         {message ? (
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm font-bold text-red-100">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm font-bold text-emerald-100">
             <span>{message}</span>
             <button type="button" onClick={() => setMessage("")}>
               ×
@@ -806,12 +806,12 @@ export default function WatchlistsPage() {
         ) : null}
 
         {market.error ? (
-          <div className="rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm font-bold leading-6 text-red-100">
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm font-bold leading-6 text-emerald-100">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
               Alpha Vantage refresh failed
             </div>
-            <div className="mt-2 text-red-100/75">{market.error}</div>
+            <div className="mt-2 text-emerald-100/75">{market.error}</div>
           </div>
         ) : null}
 
@@ -887,7 +887,7 @@ export default function WatchlistsPage() {
           <div className="grid gap-5 2xl:grid-cols-[320px_minmax(0,1fr)_390px]">
             <Panel className="h-fit 2xl:sticky 2xl:top-5">
               <div className="border-b border-white/10 p-5">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">
                   Named lists
                 </div>
                 <h2 className="mt-2 text-2xl font-black">Select a watchlist</h2>
@@ -902,7 +902,7 @@ export default function WatchlistsPage() {
                     className={cx(
                       "w-full rounded-2xl border p-4 text-left",
                       selectedWatchlist?.id === watchlist.id
-                        ? "border-red-400/40 bg-red-500/10"
+                        ? "border-emerald-400/40 bg-emerald-500/10"
                         : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
                     )}
                   >
@@ -1056,7 +1056,7 @@ export default function WatchlistsPage() {
                           type="button"
                           onClick={() => void deleteItem(item.id)}
                           disabled={working}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-3 text-xs font-black text-red-100"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100"
                         >
                           <Trash2 className="h-4 w-4" />
                           Remove
@@ -1171,7 +1171,7 @@ export default function WatchlistsPage() {
         {activeView === "alerts" ? (
           <Panel>
             <div className="border-b border-white/10 p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">
                 Alert intelligence
               </div>
               <h2 className="mt-2 text-3xl font-black">Ranked alerts with live market context</h2>
@@ -1192,7 +1192,7 @@ export default function WatchlistsPage() {
                         </div>
                         <h3 className="mt-3 line-clamp-2 text-lg font-black">{alert.title}</h3>
                       </div>
-                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-red-400/25 bg-red-400/10 text-lg font-black">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-400/25 bg-emerald-400/10 text-lg font-black">
                         {alert.score}
                       </div>
                     </div>

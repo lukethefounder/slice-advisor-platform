@@ -86,7 +86,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 const toneClasses: Record<Tone, string> = {
-  red: "border-red-500/30 bg-red-500/10 text-red-100",
+  red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
   green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
   amber: "border-amber-500/30 bg-amber-500/10 text-amber-100",
   purple: "border-purple-500/30 bg-purple-500/10 text-purple-100",
@@ -351,7 +351,7 @@ export default function ClientPortalInboxPage() {
   return (
     <main className="relative h-screen overflow-hidden bg-[#050505] text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-16%] top-[-18%] h-[34rem] w-[34rem] rounded-full bg-red-700/25 blur-3xl" />
+        <div className="absolute left-[-16%] top-[-18%] h-[34rem] w-[34rem] rounded-full bg-emerald-700/25 blur-3xl" />
         <div className="absolute right-[-12%] top-[8%] h-[32rem] w-[32rem] rounded-full bg-purple-700/14 blur-3xl" />
         <div className="absolute bottom-[-18%] left-[28%] h-[30rem] w-[30rem] rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:44px_44px]" />
@@ -421,7 +421,7 @@ export default function ClientPortalInboxPage() {
                   className={cx(
                     "rounded-xl px-3 py-2 text-xs font-black",
                     scope === "mine"
-                      ? "bg-red-600 text-white"
+                      ? "bg-emerald-600 text-white"
                       : "text-slate-400 hover:bg-white/[0.06]",
                   )}
                 >
@@ -670,7 +670,7 @@ export default function ClientPortalInboxPage() {
           <Card className="min-h-0 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
                   Advisor + Client
                 </div>
                 <h2 className="mt-1 text-2xl font-black text-white">Routing details</h2>

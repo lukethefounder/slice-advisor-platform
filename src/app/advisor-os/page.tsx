@@ -328,13 +328,13 @@ export default function AdvisorOsPage() {
         <TopNav subtitle="Advisor OS" />
 
         {message ? (
-          <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100">
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100">
             {message}
           </div>
         ) : null}
 
         <Card className="p-5 md:p-8">
-          <div className="absolute inset-x-0 top-0 h-52 bg-gradient-to-b from-red-500/15 to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-52 bg-gradient-to-b from-emerald-500/15 to-transparent" />
           <div className="relative grid gap-8 xl:grid-cols-[1.12fr_0.88fr] xl:items-center">
             <div>
               <Pill tone="green">Adaptive Advisor OS</Pill>
@@ -434,7 +434,7 @@ export default function AdvisorOsPage() {
             <Card key={phase.phase} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
                     {phase.phase}
                   </div>
                   <h3 className="mt-2 text-xl font-black">{phase.title}</h3>

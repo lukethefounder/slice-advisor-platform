@@ -244,10 +244,10 @@ const viewTabs: Array<{ id: View; label: string; tone: Tone }> = [
 ];
 
 const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 const selectClass =
-  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -318,7 +318,7 @@ function riskTone(value: string | number | null | undefined): Tone {
 
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
+    red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
     purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
@@ -340,7 +340,7 @@ function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/76 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/76 p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -366,7 +366,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -392,18 +392,18 @@ function Metric({
 function Logo() {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div className="min-w-0">
         <div className="truncate text-2xl font-black tracking-tight text-white">Slice</div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Portfolio Lab
         </div>
       </div>
@@ -1046,10 +1046,10 @@ export default function PortfolioLabPage() {
   const emailReadyCount = clientExposures.filter((client) => Boolean(client.clientEmail) && client.emailOptIn).length;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <Logo />
@@ -1058,7 +1058,7 @@ export default function PortfolioLabPage() {
               <a href="/workspace" className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white hover:bg-white/10">
                 Workspace
               </a>
-              <button type="button" onClick={seedDefaults} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20">
+              <button type="button" onClick={seedDefaults} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20">
                 Seed Defaults
               </button>
               <button type="button" onClick={() => void loadData()} className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 hover:bg-cyan-500/20">
@@ -1095,14 +1095,14 @@ export default function PortfolioLabPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
 
         <section className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
           <Card className="h-fit xl:sticky xl:top-5">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
               Navigation
             </div>
 
@@ -1188,7 +1188,7 @@ export default function PortfolioLabPage() {
 
                     <textarea value={accountForm.notes} onChange={(event) => setAccountForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Notes" rows={3} className={cx(inputClass, "resize-none")} />
 
-                    <button type="submit" disabled={working} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button type="submit" disabled={working} className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50">
                       Create Client Exposure
                     </button>
                   </form>
@@ -1216,7 +1216,7 @@ export default function PortfolioLabPage() {
                         <button type="button" onClick={() => startEditingClient(client)} className="rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-black text-white">
                           Edit
                         </button>
-                        <button type="button" onClick={() => deleteClient(client)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
+                        <button type="button" onClick={() => deleteClient(client)} className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100">
                           Delete
                         </button>
                       </div>
@@ -1246,7 +1246,7 @@ export default function PortfolioLabPage() {
                         </select>
                       </div>
                       <textarea value={editClientForm.notes} onChange={(event) => setEditClientForm((current) => ({ ...current, notes: event.target.value }))} rows={3} className={cx(inputClass, "resize-none")} />
-                      <button type="submit" disabled={working} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
+                      <button type="submit" disabled={working} className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50">
                         Save Client
                       </button>
                     </form>
@@ -1378,7 +1378,7 @@ export default function PortfolioLabPage() {
                             {holding.clientName || "Unassigned"} · {holding.assetClass} · {money(holding.valueNumber ?? holding.value)}
                           </div>
                         </div>
-                        <button type="button" onClick={() => deleteHolding(holding)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-black text-red-100">
+                        <button type="button" onClick={() => deleteHolding(holding)} className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100">
                           Remove
                         </button>
                       </div>
@@ -1587,7 +1587,7 @@ export default function PortfolioLabPage() {
             {activeView === "voice" ? (
               <div className="grid gap-5">
                 <Card>
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
                     Voice Command
                   </div>
                   <h2 className="mt-2 text-3xl font-black text-white">Speak portfolio actions</h2>

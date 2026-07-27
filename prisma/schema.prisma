@@ -853,7 +853,7 @@ model FirmMembership {
   canManageProjects   Boolean  @default(false)
   canInviteMembers    Boolean  @default(false)
   canManageFirm       Boolean  @default(false)
-  calendarColor       String   @default("#ef4444")
+  calendarColor       String   @default("#10b981")
   calendlyUrl         String?
   calendlyLabel       String   @default("Schedule a meeting")
   calendlyEnabled     Boolean  @default(true)
@@ -1558,10 +1558,10 @@ model PersonalUserBotWorkspaceTab {
 model PersonalUserUiPreference {
   id               String   @id @default(cuid())
   userId           String   @unique
-  accentName       String   @default("Slice Red")
-  accentHex        String   @default("#dc2626")
-  accentDarkHex    String   @default("#7f1d1d")
-  accentSoftHex    String   @default("#fee2e2")
+  accentName       String   @default("Market Green")
+  accentHex        String   @default("#059669")
+  accentDarkHex    String   @default("#064e3b")
+  accentSoftHex    String   @default("#d1fae5")
   backgroundStyle  String   @default("Premium Dark")
   preferenceSource String   @default("Personal Bot")
   createdAt        DateTime @default(now())

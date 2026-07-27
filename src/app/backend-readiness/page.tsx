@@ -212,7 +212,7 @@ function relativeTime(value: string | null | undefined) {
 
 function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -229,7 +229,7 @@ function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-emerald-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -245,7 +245,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -273,7 +273,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -295,7 +295,7 @@ function Metric({
 
 function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
@@ -316,18 +316,18 @@ function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div>
         <div className="text-2xl font-black tracking-tight text-white">Slice</div>
-        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Backend Readiness
         </div>
       </div>
@@ -338,7 +338,7 @@ function Logo() {
 function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
     <div className="mb-5">
-      <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">{eyebrow}</div>
+      <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">{eyebrow}</div>
       <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
     </div>
@@ -433,21 +433,21 @@ export default function BackendReadinessPage() {
 
   if (!data) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
         <Card className="mx-auto mt-20 max-w-3xl p-8 text-center">
           <Logo />
           <h1 className="mt-6 text-3xl font-black">Loading backend readiness...</h1>
-          {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
+          {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
         </Card>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(88,28,135,0.24),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(88,28,135,0.24),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.25),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.14),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.25),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.14),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -474,7 +474,7 @@ export default function BackendReadinessPage() {
               <a href="/workspace?tab=security" className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-lg shadow-black/20">
                 ← Workspace
               </a>
-              <a href="/security" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100">
+              <a href="/security" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100">
                 Security Center
               </a>
               <a href="/advisor-command-center" className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-sm font-black text-purple-100">
@@ -483,7 +483,7 @@ export default function BackendReadinessPage() {
               <button
                 onClick={() => runAction("bootstrap")}
                 disabled={working === "bootstrap"}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
               >
                 {working === "bootstrap" ? "Bootstrapping..." : "Bootstrap Foundation"}
               </button>
@@ -503,7 +503,7 @@ export default function BackendReadinessPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -673,14 +673,14 @@ export default function BackendReadinessPage() {
                   value={approvalForm.title}
                   onChange={(event) => setApprovalForm((current) => ({ ...current, title: event.target.value }))}
                   placeholder="Approval title"
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                 />
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <select
                     value={approvalForm.actionType}
                     onChange={(event) => setApprovalForm((current) => ({ ...current, actionType: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 focus:ring-2"
                   >
                     <option>Manual Review</option>
                     <option>Backend Readiness</option>
@@ -693,7 +693,7 @@ export default function BackendReadinessPage() {
                   <select
                     value={approvalForm.riskLevel}
                     onChange={(event) => setApprovalForm((current) => ({ ...current, riskLevel: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 focus:ring-2"
                   >
                     <option>Low</option>
                     <option>Medium</option>
@@ -706,7 +706,7 @@ export default function BackendReadinessPage() {
                   value={approvalForm.summary}
                   onChange={(event) => setApprovalForm((current) => ({ ...current, summary: event.target.value }))}
                   placeholder="Approval summary"
-                  className="min-h-[120px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                  className="min-h-[120px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                 />
 
                 <button
@@ -754,7 +754,7 @@ export default function BackendReadinessPage() {
                                 approvalNotes: "Rejected from backend readiness console.",
                               })
                             }
-                            className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
+                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100"
                           >
                             Reject
                           </button>

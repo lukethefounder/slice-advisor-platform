@@ -988,7 +988,7 @@ function Surface({
     string
   > = {
     red:
-      "from-red-950/[0.12]",
+      "from-emerald-950/[0.12]",
     cyan:
       "from-cyan-950/[0.09]",
     purple:
@@ -1033,7 +1033,7 @@ function Heading({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
         {eyebrow}
       </div>
 
@@ -1071,16 +1071,16 @@ function Button({
 }) {
   const styles = {
     primary:
-      "border-white/20 bg-white text-slate-950 hover:bg-red-50 shadow-lg shadow-black/40",
+      "border-white/20 bg-white text-slate-950 hover:bg-emerald-50 shadow-lg shadow-black/40",
 
     secondary:
-      "border-red-400/25 bg-red-950/20 text-red-100 hover:border-red-300/40 hover:bg-red-950/30",
+      "border-emerald-400/25 bg-emerald-950/20 text-emerald-100 hover:border-emerald-300/40 hover:bg-emerald-950/30",
 
     ghost:
       "border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20 hover:bg-white/[0.07]",
 
     danger:
-      "border-red-500/30 bg-red-950/25 text-red-100 hover:bg-red-900/30",
+      "border-emerald-500/30 bg-emerald-950/25 text-emerald-100 hover:bg-emerald-900/30",
   };
 
   return (
@@ -3011,11 +3011,11 @@ Requirements:
               />
 
               <div className="mt-8 flex gap-1">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.3s]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
 
-                <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.15s]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
 
-                <span className="h-2 w-2 animate-bounce rounded-full bg-red-300" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300" />
               </div>
 
               <h1 className="mt-5 text-3xl font-black text-white">
@@ -3027,7 +3027,7 @@ Requirements:
               </p>
 
               {notice ? (
-                <p className="mt-4 text-sm text-red-300">
+                <p className="mt-4 text-sm text-emerald-300">
                   {notice}
                 </p>
               ) : null}
@@ -3053,9 +3053,9 @@ Requirements:
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-black/65" />
 
-        <div className="absolute -left-48 -top-48 h-[34rem] w-[34rem] rounded-full bg-red-950/15 blur-[120px]" />
+        <div className="absolute -left-48 -top-48 h-[34rem] w-[34rem] rounded-full bg-emerald-950/15 blur-[120px]" />
 
-        <div className="absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-red-950/10 blur-[120px]" />
+        <div className="absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-emerald-950/10 blur-[120px]" />
       </div>
 
       <div className="relative mx-auto grid max-w-[1900px] gap-4 p-3 md:p-5">
@@ -3068,12 +3068,12 @@ Requirements:
               />
 
               <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-center">
-                <div className="relative grid h-20 w-20 shrink-0 place-items-center rounded-full border border-red-300/20 bg-black shadow-2xl shadow-black">
+                <div className="relative grid h-20 w-20 shrink-0 place-items-center rounded-full border border-emerald-300/20 bg-black shadow-2xl shadow-black">
                   {activeAi ? (
-                    <div className="absolute inset-0 animate-ping rounded-full border border-red-400/20" />
+                    <div className="absolute inset-0 animate-ping rounded-full border border-emerald-400/20" />
                   ) : null}
 
-                  <div className="grid h-12 w-12 place-items-center rounded-full border border-red-300/20 bg-red-950/25 text-xs font-black text-red-100">
+                  <div className="grid h-12 w-12 place-items-center rounded-full border border-emerald-300/20 bg-emerald-950/25 text-xs font-black text-emerald-100">
                     AI
                   </div>
                 </div>
@@ -3168,7 +3168,7 @@ Requirements:
 
               <Link
                 href="/workspace"
-                className="rounded-2xl border border-white/20 bg-white px-4 py-2.5 text-xs font-black text-slate-950 transition hover:bg-red-50"
+                className="rounded-2xl border border-white/20 bg-white px-4 py-2.5 text-xs font-black text-slate-950 transition hover:bg-emerald-50"
               >
                 Return to Workspace
               </Link>
@@ -3281,7 +3281,7 @@ Requirements:
                       "rounded-[1.3rem] border p-4 text-left transition",
 
                       active
-                        ? "border-red-300/25 bg-white/[0.07]"
+                        ? "border-emerald-300/25 bg-white/[0.07]"
                         : "border-white/10 bg-black/60 hover:border-white/20 hover:bg-white/[0.04]",
                     )}
                   >
@@ -3305,7 +3305,7 @@ Requirements:
                           "text-xs font-black",
 
                           active
-                            ? "text-red-300"
+                            ? "text-emerald-300"
                             : "text-slate-400",
                         )}
                       >
@@ -3326,7 +3326,7 @@ Requirements:
         </Surface>
 
         {notice ? (
-          <div className="rounded-2xl border border-red-400/20 bg-[#090505] p-4 text-sm font-bold text-slate-100">
+          <div className="rounded-2xl border border-emerald-400/20 bg-[#090505] p-4 text-sm font-bold text-slate-100">
             {notice}
           </div>
         ) : null}
@@ -3403,7 +3403,7 @@ Requirements:
 
                           preferences.operatingMode ===
                             mode.id
-                            ? "border-red-300/25 bg-white/[0.07]"
+                            ? "border-emerald-300/25 bg-white/[0.07]"
                             : "border-white/5 bg-black/50 hover:border-white/15",
                         )}
                       >
@@ -3596,7 +3596,7 @@ Requirements:
                     }
                   }}
                   placeholder="Research an investment, search firm records, create a task, open a workflow, generate a report, or run a platform command..."
-                  className="min-h-[260px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-400 focus:border-red-300/35 focus:ring-4 focus:ring-red-950/30"
+                  className="min-h-[260px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35 focus:ring-4 focus:ring-emerald-950/30"
                 />
 
                 <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -3656,7 +3656,7 @@ Requirements:
 
               <div className="mt-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
                     Pinned intelligence
                   </span>
 
@@ -3682,7 +3682,7 @@ Requirements:
                               command,
                             )
                           }
-                          className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-red-300/25 hover:bg-white/[0.05]"
+                          className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-emerald-300/25 hover:bg-white/[0.05]"
                         >
                           {
                             command
@@ -3714,7 +3714,7 @@ Requirements:
                         href={
                           route.href
                         }
-                        className="rounded-xl border border-white/10 bg-[#050505] p-3 transition hover:border-red-300/25 hover:bg-white/[0.04]"
+                        className="rounded-xl border border-white/10 bg-[#050505] p-3 transition hover:border-emerald-300/25 hover:bg-white/[0.04]"
                       >
                         <div className="text-[11px] font-black text-white">
                           {
@@ -3722,7 +3722,7 @@ Requirements:
                           }
                         </div>
 
-                        <div className="mt-1 text-[9px] font-bold text-red-300">
+                        <div className="mt-1 text-[9px] font-bold text-emerald-300">
                           {
                             route.category
                           }
@@ -3777,7 +3777,7 @@ Requirements:
                               },
                             );
                           }}
-                          className="rounded-xl border border-white/10 bg-[#050505] p-3 text-left transition hover:border-red-300/25"
+                          className="rounded-xl border border-white/10 bg-[#050505] p-3 text-left transition hover:border-emerald-300/25"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
@@ -3871,14 +3871,14 @@ Requirements:
               </div>
 
               {busy ? (
-                <div className="mt-6 rounded-[1.4rem] border border-red-400/20 bg-[#090505] p-5">
+                <div className="mt-6 rounded-[1.4rem] border border-emerald-400/20 bg-[#090505] p-5">
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1">
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.3s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
 
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-red-300 [animation-delay:-0.15s]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
 
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-red-300" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300" />
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -4027,7 +4027,7 @@ Requirements:
                         }
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-2xl border border-red-400/25 bg-red-950/20 px-4 py-2.5 text-xs font-black text-red-100"
+                        className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 px-4 py-2.5 text-xs font-black text-emerald-100"
                       >
                         Open Raw PDF
                       </a>
@@ -4293,7 +4293,7 @@ Requirements:
                     "mt-7 rounded-full border px-10 py-5 text-base font-black shadow-2xl transition hover:-translate-y-1 disabled:opacity-45",
 
                     recording
-                      ? "border-red-300/40 bg-red-700 text-white"
+                      ? "border-emerald-300/40 bg-emerald-700 text-white"
                       : "border-white/20 bg-white text-slate-950",
                   )}
                 >
@@ -4312,7 +4312,7 @@ Requirements:
                         "voice",
                       )
                     }
-                    className="mt-3 block w-full text-xs font-black text-slate-300 hover:text-red-200"
+                    className="mt-3 block w-full text-xs font-black text-slate-300 hover:text-emerald-200"
                   >
                     Use browser speech recognition instead
                   </button>
@@ -4321,7 +4321,7 @@ Requirements:
 
               <div className="mt-7 rounded-[1.4rem] border border-white/10 bg-black/60 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
                     Live transcript
                   </span>
 
@@ -4343,7 +4343,7 @@ Requirements:
                     )
                   }
                   placeholder="The transcript appears here and can be edited before execution."
-                  className="mt-3 min-h-[180px] w-full resize-none rounded-[1.2rem] border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-red-300/35"
+                  className="mt-3 min-h-[180px] w-full resize-none rounded-[1.2rem] border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
                 />
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -4405,7 +4405,7 @@ Requirements:
                             value,
                           )
                         }
-                        className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-red-300/25"
+                        className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-emerald-300/25"
                       >
                         {value}
                       </button>
@@ -4527,7 +4527,7 @@ Requirements:
                       )
                     }
                     placeholder="Review client briefing before Friday meeting"
-                    className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-red-300/35"
+                    className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
                   />
                 </Field>
 
@@ -4553,7 +4553,7 @@ Requirements:
                       )
                     }
                     placeholder="Expected outcome, context, and review requirements"
-                    className="min-h-[140px] w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-400 focus:border-red-300/35"
+                    className="min-h-[140px] w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
                   />
                 </Field>
 
@@ -4956,7 +4956,7 @@ Requirements:
 
               <Surface className="p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
                     Recent work
                   </span>
 
@@ -5053,7 +5053,7 @@ Requirements:
                   )
                 }
                 placeholder="Describe the report you need"
-                className="mt-6 min-h-[220px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-red-300/35"
+                className="mt-6 min-h-[220px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
               />
 
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -5199,7 +5199,7 @@ Requirements:
                           template.prompt,
                         )
                       }
-                      className="rounded-2xl border border-white/10 bg-black/55 p-4 text-left transition hover:border-red-300/25"
+                      className="rounded-2xl border border-white/10 bg-black/55 p-4 text-left transition hover:border-emerald-300/25"
                     >
                       <div className="text-sm font-black text-white">
                         {
@@ -5252,7 +5252,7 @@ Requirements:
             <Surface className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
                     Report library
                   </div>
 
@@ -5375,7 +5375,7 @@ Requirements:
                               }
                               target="_blank"
                               rel="noreferrer"
-                              className="rounded-2xl border border-red-400/25 bg-red-950/20 px-4 py-2.5 text-center text-xs font-black text-red-100"
+                              className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 px-4 py-2.5 text-center text-xs font-black text-emerald-100"
                             >
                               Open Raw PDF
                             </a>

@@ -140,15 +140,15 @@ function emailHtml(input: {
   return `
   <div style="margin:0;padding:0;background:#050505;color:#f8fafc;font-family:Inter,Arial,sans-serif;">
     <div style="max-width:900px;margin:0 auto;padding:28px 18px;">
-      <div style="border:1px solid rgba(255,255,255,.12);border-radius:28px;background:#111827;overflow:hidden;box-shadow:0 22px 70px rgba(127,29,29,.28);">
-        <div style="padding:28px;background:linear-gradient(135deg,#450a0a,#991b1b,#111827);">
-          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#fecaca;font-weight:900;">
+      <div style="border:1px solid rgba(255,255,255,.12);border-radius:28px;background:#111827;overflow:hidden;box-shadow:0 22px 70px rgba(6,78,59,.28);">
+        <div style="padding:28px;background:linear-gradient(135deg,#022c22,#065f46,#111827);">
+          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#a7f3d0;font-weight:900;">
             Slice Autonomous Advisor Alert
           </div>
           <h1 style="margin:10px 0 0;color:#ffffff;font-size:25px;line-height:1.25;">
             ${escapeHtml(input.title)}
           </h1>
-          <div style="margin-top:12px;color:#fecaca;font-size:13px;">
+          <div style="margin-top:12px;color:#a7f3d0;font-size:13px;">
             Grade ${escapeHtml(input.grade)} · Score ${input.finalScore}/100 · ${escapeHtml(input.urgency)} urgency · ${escapeHtml(input.scanMode)} scan
           </div>
         </div>

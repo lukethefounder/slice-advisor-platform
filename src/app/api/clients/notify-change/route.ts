@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 
     const html = `
       <div style="font-family:Arial,sans-serif;background:#050505;color:#ffffff;padding:24px;border-radius:18px;">
-        <div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#f87171;font-weight:800;">
+        <div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#6ee7b7;font-weight:800;">
           Slice Client Profile Update
         </div>
         <h1 style="margin:10px 0 4px;font-size:24px;">${htmlEscape(changeType)}</h1>

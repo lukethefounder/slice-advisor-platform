@@ -140,7 +140,7 @@ function runStatusClass(
     return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
   }
 
-  return "border-red-400/25 bg-red-500/10 text-red-100";
+  return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
 }
 
 function categoryStatusClass(
@@ -422,8 +422,8 @@ export default function DataWarehousePage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Historical Data Integrity
         </p>
 
@@ -467,7 +467,7 @@ export default function DataWarehousePage() {
               }
             }}
             placeholder="Filter by ticker"
-            className="w-52 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40"
+            className="w-52 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40"
           />
 
           <button
@@ -475,7 +475,7 @@ export default function DataWarehousePage() {
             onClick={
               applyFilter
             }
-            className="rounded-xl border border-red-400/25 bg-red-500/15 px-5 py-3 text-sm font-black text-red-100 hover:bg-red-500/25"
+            className="rounded-xl border border-emerald-400/25 bg-emerald-500/15 px-5 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/25"
           >
             Apply Filter
           </button>
@@ -701,7 +701,7 @@ export default function DataWarehousePage() {
                         run.id,
                       )
                     }
-                    className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                    className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                   >
                     {activeAction ===
                     run.id

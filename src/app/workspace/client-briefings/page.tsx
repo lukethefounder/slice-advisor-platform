@@ -241,7 +241,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -265,7 +265,7 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/82 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/82 p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -284,7 +284,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -317,7 +317,7 @@ function MetricCard({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -341,7 +341,7 @@ function MetricCard({
 
 function ScoreBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
@@ -451,7 +451,7 @@ function SourceEvidencePanel({ draft }: { draft: Draft }) {
             {ai?.status || "Unknown"}
           </div>
           {ai?.error ? (
-            <p className="mt-2 text-xs leading-5 text-red-200">{ai.error}</p>
+            <p className="mt-2 text-xs leading-5 text-emerald-200">{ai.error}</p>
           ) : (
             <p className="mt-2 text-xs leading-5 text-slate-400">
               Draft still requires advisor approval before delivery.
@@ -661,13 +661,13 @@ function QualityPanel({
         </Panel>
 
         <Panel tone="red" className="bg-black/35">
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-red-300">
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">
             Improve before generation
           </div>
           <div className="mt-3 grid gap-2">
             {issues.length ? (
               issues.map((issue) => (
-                <div key={issue} className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm leading-6 text-red-50/80">
+                <div key={issue} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm leading-6 text-emerald-50/80">
                   {issue}
                 </div>
               ))
@@ -829,10 +829,10 @@ export default function ClientBriefingsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_30%),linear-gradient(135deg,_#030712,_#050505,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_30%),linear-gradient(135deg,_#030712,_#050505,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.26),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.26),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -862,7 +862,7 @@ export default function ClientBriefingsPage() {
               <a href="/workspace/personal-bot" className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100 hover:bg-cyan-500/20">
                 AI Studio
               </a>
-              <a href="/security" className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20">
+              <a href="/security" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20">
                 Security
               </a>
             </div>
@@ -881,7 +881,7 @@ export default function ClientBriefingsPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -911,7 +911,7 @@ export default function ClientBriefingsPage() {
                     className={cx(
                       "h-2 w-2 rounded-full",
                       tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tone === "cyan"
                           ? "bg-cyan-400"
                           : tone === "purple"
@@ -948,7 +948,7 @@ export default function ClientBriefingsPage() {
                     <input
                       value={form.symbols}
                       onChange={(event) => setForm((current) => ({ ...current, symbols: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                       placeholder="NVDA, AAPL, SPY"
                     />
                   </label>
@@ -960,7 +960,7 @@ export default function ClientBriefingsPage() {
                     <input
                       value={form.holdingQuery}
                       onChange={(event) => setForm((current) => ({ ...current, holdingQuery: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                       placeholder="technology fund, growth ETF, semiconductor"
                     />
                   </label>
@@ -973,7 +973,7 @@ export default function ClientBriefingsPage() {
                   <input
                     value={form.briefingTitle}
                     onChange={(event) => setForm((current) => ({ ...current, briefingTitle: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     placeholder="Example: Market update for semiconductor exposure"
                   />
                 </label>
@@ -986,7 +986,7 @@ export default function ClientBriefingsPage() {
                     <input
                       value={form.sourceTitle}
                       onChange={(event) => setForm((current) => ({ ...current, sourceTitle: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                       placeholder="Company guidance update, earnings report, SEC filing..."
                     />
                   </label>
@@ -998,7 +998,7 @@ export default function ClientBriefingsPage() {
                     <input
                       value={form.sourceName}
                       onChange={(event) => setForm((current) => ({ ...current, sourceName: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                       placeholder="SEC, Reuters, Company IR, CNBC..."
                     />
                   </label>
@@ -1011,7 +1011,7 @@ export default function ClientBriefingsPage() {
                   <input
                     value={form.sourceUrl}
                     onChange={(event) => setForm((current) => ({ ...current, sourceUrl: event.target.value }))}
-                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     placeholder="https://..."
                   />
                 </label>
@@ -1023,7 +1023,7 @@ export default function ClientBriefingsPage() {
                   <textarea
                     value={form.researchSummary}
                     onChange={(event) => setForm((current) => ({ ...current, researchSummary: event.target.value }))}
-                    className="min-h-[140px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="min-h-[140px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     placeholder="Summarize what happened, why it matters, what is uncertain, and how clients should think about it..."
                   />
                 </label>
@@ -1035,7 +1035,7 @@ export default function ClientBriefingsPage() {
                   <textarea
                     value={form.advisorMessage}
                     onChange={(event) => setForm((current) => ({ ...current, advisorMessage: event.target.value }))}
-                    className="min-h-[110px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="min-h-[110px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     placeholder="Optional personal note from the advisor..."
                   />
                 </label>
@@ -1047,7 +1047,7 @@ export default function ClientBriefingsPage() {
                   <textarea
                     value={form.objective}
                     onChange={(event) => setForm((current) => ({ ...current, objective: event.target.value }))}
-                    className="min-h-[90px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                    className="min-h-[90px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     placeholder="What should this message accomplish?"
                   />
                 </label>
@@ -1060,7 +1060,7 @@ export default function ClientBriefingsPage() {
                     <input
                       value={form.tone}
                       onChange={(event) => setForm((current) => ({ ...current, tone: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
                     />
                   </label>
 
@@ -1071,7 +1071,7 @@ export default function ClientBriefingsPage() {
                     <select
                       value={form.urgency}
                       onChange={(event) => setForm((current) => ({ ...current, urgency: event.target.value }))}
-                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 focus:ring-2"
+                      className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 focus:ring-2"
                     >
                       <option>Low</option>
                       <option>Normal</option>
@@ -1097,7 +1097,7 @@ export default function ClientBriefingsPage() {
 
                 <button
                   disabled={loading}
-                  className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                  className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
                 >
                   {loading ? "Working..." : "Generate Advisor-Approval Drafts"}
                 </button>
@@ -1148,11 +1148,11 @@ export default function ClientBriefingsPage() {
                 <MetricCard label="Failed / Blocked" value={failedApprovals.length} helper="Needs review" tone={failedApprovals.length ? "red" : "slate"} />
               </div>
 
-              <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">
+              <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">
                   Approval checklist
                 </div>
-                <div className="mt-3 grid gap-2 text-sm leading-6 text-red-50/80">
+                <div className="mt-3 grid gap-2 text-sm leading-6 text-emerald-50/80">
                   <div>• Confirm the client actually holds or is relevant to the security.</div>
                   <div>• Confirm source credibility and recency.</div>
                   <div>• Confirm no recommendation or performance guarantee is implied.</div>
@@ -1213,7 +1213,7 @@ export default function ClientBriefingsPage() {
 
             <Card>
               <div className="mb-4">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
                   Recent Drafts
                 </div>
                 <h2 className="mt-2 text-2xl font-black">Draft review workspace</h2>

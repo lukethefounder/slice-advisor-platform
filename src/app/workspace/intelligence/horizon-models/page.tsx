@@ -402,8 +402,8 @@ export default function HorizonModelsPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Independent Forecasting
         </p>
 

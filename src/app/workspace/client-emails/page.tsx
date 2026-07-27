@@ -144,13 +144,13 @@ const EMPTY: Payload = {
 };
 
 const INPUT =
-  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
+  "w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
 
 const SOFT =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
 
 const PRIMARY =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:opacity-40";
 
 const STARTERS = [
   [
@@ -260,7 +260,7 @@ function statusClass(status: string) {
   }
 
   if (value.includes("failed")) {
-    return "border-red-400/25 bg-red-400/10 text-red-200";
+    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   }
 
   if (
@@ -328,7 +328,7 @@ function Metric({
 }) {
   return (
     <div className="relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
-      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-600/10 blur-2xl" />
 
       <div className="relative flex items-start justify-between gap-3">
         <div>
@@ -345,7 +345,7 @@ function Metric({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-300">
           {icon}
         </div>
       </div>
@@ -368,7 +368,7 @@ function NoticeBar({
     notice.tone === "success"
       ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
       : notice.tone === "error"
-        ? "border-red-400/25 bg-red-400/10 text-red-100"
+        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
         : "border-cyan-400/25 bg-cyan-400/10 text-cyan-100";
 
   return (
@@ -421,7 +421,7 @@ function SaveLabel({ state }: { state: SaveState }) {
 
   if (state === "error") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-red-200">
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200">
         <CircleAlert className="h-3.5 w-3.5" />
         Save failed
       </span>
@@ -1615,7 +1615,7 @@ export default function ClientEmailsPage() {
     return (
       <main className="grid min-h-screen place-items-center bg-zinc-950 text-white">
         <div className="flex items-center gap-3 text-sm font-black uppercase tracking-[0.18em] text-slate-400">
-          <Loader2 className="h-5 w-5 animate-spin text-red-400" />
+          <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
           Loading communication OS
         </div>
       </main>
@@ -1624,15 +1624,15 @@ export default function ClientEmailsPage() {
 
   return (
     <main className="min-h-screen bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(153,27,27,0.42),transparent_31%),radial-gradient(circle_at_82%_8%,rgba(239,68,68,0.13),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(6,95,70,0.42),transparent_31%),radial-gradient(circle_at_82%_8%,rgba(16,185,129,0.13),transparent_25%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
 
       <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/25 backdrop-blur-xl md:p-7">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-400">
                 <Radar className="h-4 w-4" />
                 Slice Communication OS
               </div>
@@ -1653,7 +1653,7 @@ export default function ClientEmailsPage() {
 
             <a
               href="/workspace"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-50"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to workspace
@@ -1760,7 +1760,7 @@ export default function ClientEmailsPage() {
                   {key === "queue" &&
                   payload.metrics
                     .pendingApprovalCount ? (
-                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] text-white">
+                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">
                       {
                         payload.metrics
                           .pendingApprovalCount
@@ -1787,10 +1787,10 @@ export default function ClientEmailsPage() {
         {view === "compose" ? (
           <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_460px]">
             <Panel>
-              <div className="border-b border-white/10 bg-gradient-to-r from-red-950/50 via-zinc-950 to-zinc-950 p-5 md:p-6">
+              <div className="border-b border-white/10 bg-gradient-to-r from-emerald-950/50 via-zinc-950 to-zinc-950 p-5 md:p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                       Campaign intelligence
                     </div>
 
@@ -1830,7 +1830,7 @@ export default function ClientEmailsPage() {
                     className={cx(
                       "flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black",
                       composeMode === "ai"
-                        ? "bg-red-600 text-white"
+                        ? "bg-emerald-600 text-white"
                         : "text-slate-400 hover:bg-white/[0.06]"
                     )}
                   >
@@ -1884,7 +1884,7 @@ export default function ClientEmailsPage() {
                                   })
                                 )
                               }
-                              className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left text-xs font-black transition hover:border-red-400/30 hover:bg-red-500/10"
+                              className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left text-xs font-black transition hover:border-emerald-400/30 hover:bg-emerald-500/10"
                             >
                               {label}
                             </button>
@@ -2189,7 +2189,7 @@ export default function ClientEmailsPage() {
                           "rounded-2xl border p-3 text-left transition",
                           audienceMode ===
                             key
-                            ? "border-red-400/40 bg-red-500/10"
+                            ? "border-emerald-400/40 bg-emerald-500/10"
                             : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
                         )}
                       >
@@ -2399,7 +2399,7 @@ export default function ClientEmailsPage() {
                               className={cx(
                                 "flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left",
                                 selected
-                                  ? "border-red-400/35 bg-red-500/10"
+                                  ? "border-emerald-400/35 bg-emerald-500/10"
                                   : "border-white/10 bg-white/[0.035] hover:bg-white/[0.06]"
                               )}
                             >
@@ -2445,7 +2445,7 @@ export default function ClientEmailsPage() {
                                 className={cx(
                                   "grid h-6 w-6 shrink-0 place-items-center rounded-lg border",
                                   selected
-                                    ? "border-red-400 bg-red-500 text-white"
+                                    ? "border-emerald-400 bg-emerald-500 text-white"
                                     : "border-white/15 text-transparent"
                                 )}
                               >
@@ -2629,7 +2629,7 @@ export default function ClientEmailsPage() {
                         className={cx(
                           "flex items-start gap-2 rounded-2xl border p-3",
                           active
-                            ? "border-red-400/45 bg-red-500/10"
+                            ? "border-emerald-400/45 bg-emerald-500/10"
                             : "border-white/10 bg-white/[0.035]"
                         )}
                       >
@@ -2643,7 +2643,7 @@ export default function ClientEmailsPage() {
                           className={cx(
                             "mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-md border",
                             selected
-                              ? "border-red-400 bg-red-500 text-white"
+                              ? "border-emerald-400 bg-emerald-500 text-white"
                               : "border-white/15 text-transparent"
                           )}
                         >
@@ -2745,7 +2745,7 @@ export default function ClientEmailsPage() {
                   <>
                     <div className="flex flex-col gap-3 border-b border-white/10 p-5 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">
                           Smart editor
                         </div>
 
@@ -3081,8 +3081,8 @@ export default function ClientEmailsPage() {
                         </div>
                       </div>
 
-                      <div className="bg-gradient-to-br from-red-950 via-red-800 to-zinc-950 px-6 py-7">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-200">
+                      <div className="bg-gradient-to-br from-emerald-950 via-emerald-800 to-zinc-950 px-6 py-7">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
                           Advisor communication
                         </div>
 
@@ -3091,7 +3091,7 @@ export default function ClientEmailsPage() {
                             "Untitled email"}
                         </h3>
 
-                        <div className="mt-3 text-xs font-semibold text-red-100">
+                        <div className="mt-3 text-xs font-semibold text-emerald-100">
                           Prepared for{" "}
                           {recipientName(
                             activeDraft
@@ -3160,7 +3160,7 @@ export default function ClientEmailsPage() {
           <div className="grid gap-5 2xl:grid-cols-[390px_minmax(0,1fr)]">
             <Panel className="h-fit 2xl:sticky 2xl:top-5">
               <div className="border-b border-white/10 p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">
                   Approval batches
                 </div>
 
@@ -3240,7 +3240,7 @@ export default function ClientEmailsPage() {
                         className={cx(
                           "w-full rounded-2xl border p-4 text-left",
                           active
-                            ? "border-red-400/45 bg-red-500/10"
+                            ? "border-emerald-400/45 bg-emerald-500/10"
                             : "border-white/10 bg-white/[0.035]"
                         )}
                       >
@@ -3287,10 +3287,10 @@ export default function ClientEmailsPage() {
             <Panel>
               {selectedApproval ? (
                 <>
-                  <div className="border-b border-white/10 bg-gradient-to-r from-red-950/45 via-zinc-950 to-zinc-950 p-5 md:p-6">
+                  <div className="border-b border-white/10 bg-gradient-to-r from-emerald-950/45 via-zinc-950 to-zinc-950 p-5 md:p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                           Final send review
                         </div>
 
@@ -3342,7 +3342,7 @@ export default function ClientEmailsPage() {
                         <Badge
                           className={
                             blockedCount
-                              ? "border-red-400/25 bg-red-400/10 text-red-200"
+                              ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
                               : "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
                           }
                         >
@@ -3370,7 +3370,7 @@ export default function ClientEmailsPage() {
                                 index > 0 &&
                                   "border-t border-white/10",
                                 blocked
-                                  ? "bg-red-500/[0.07]"
+                                  ? "bg-emerald-500/[0.07]"
                                   : "bg-white/[0.025]"
                               )}
                             >
@@ -3378,7 +3378,7 @@ export default function ClientEmailsPage() {
                                 className={cx(
                                   "grid h-8 w-8 place-items-center rounded-full border text-xs font-black",
                                   blocked
-                                    ? "border-red-400/25 bg-red-400/10 text-red-200"
+                                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
                                     : "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
                                 )}
                               >
@@ -3539,7 +3539,7 @@ export default function ClientEmailsPage() {
                       </div>
 
                       {blockedCount ? (
-                        <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm font-semibold leading-6 text-red-100">
+                        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm font-semibold leading-6 text-emerald-100">
                           Every draft must be
                           assigned to a client with
                           a valid email before this

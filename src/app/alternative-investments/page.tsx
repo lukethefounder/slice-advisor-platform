@@ -386,7 +386,7 @@ function scopeTone(scope: string): Tone {
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-emerald-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -394,7 +394,7 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 function Panel({ children, className = "", tone = "slate" }: { children: ReactNode; className?: string; tone?: Tone }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -412,7 +412,7 @@ function Panel({ children, className = "", tone = "slate" }: { children: ReactNo
 
 function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -430,16 +430,16 @@ function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) 
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">S</div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">S</div>
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div className="min-w-0">
         <div className="truncate text-2xl font-black tracking-tight text-white">Slice</div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Alternative Investments
         </div>
       </div>
@@ -449,7 +449,7 @@ function Logo() {
 
 function MetricBubble({ label, value, helper, tone = "slate" }: { label: string; value: string | number; helper?: string; tone?: Tone }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     slate: "from-slate-400/10",
@@ -471,7 +471,7 @@ function MetricBubble({ label, value, helper, tone = "slate" }: { label: string;
 
 function ScoreBar({ value, tone = "red" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
@@ -514,8 +514,8 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
-const inputClass = "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2";
-const selectClass = "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 transition focus:ring-2";
+const inputClass = "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2";
+const selectClass = "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2";
 
 const viewTabs: Array<{ id: View; label: string; description: string; tone: Tone }> = [
   { id: "overview", label: "Overview", description: "Alternative dashboard", tone: "red" },
@@ -541,7 +541,7 @@ function CryptoCard({ coin }: { coin: EnrichedCryptoCoin }) {
         {coin.image ? (
           <img src={coin.image} alt={coin.name} className="h-12 w-12 rounded-2xl" />
         ) : (
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-red-500/10 text-sm font-black text-red-200">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/10 text-sm font-black text-emerald-200">
             {coin.symbol.toUpperCase()}
           </div>
         )}
@@ -660,7 +660,7 @@ function PennyStockCard({
         </Panel>
 
         <Panel className="bg-black/35" tone="red">
-          <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">Guardrails</div>
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Guardrails</div>
           <ul className="mt-2 grid gap-2">
             {stock.advisorGuardrails.map((guardrail) => (
               <li key={guardrail} className="text-sm leading-6 text-slate-300">• {guardrail}</li>
@@ -692,13 +692,13 @@ function VentureCard({
   return (
     <Panel tone={positiveScoreTone(venture.diligenceScore)} className="bg-black/35">
       <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-red-950 via-zinc-950 to-zinc-900">
+        <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-emerald-950 via-zinc-950 to-zinc-900">
           {venture.imageUrl ? (
             <img src={venture.imageUrl} alt={venture.startupName} className="h-72 w-full object-cover" />
           ) : (
             <div className="grid h-72 place-items-center p-6 text-center">
               <div>
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-red-500/15 text-2xl font-black text-red-100 ring-1 ring-red-500/30">
+                <div className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-emerald-500/15 text-2xl font-black text-emerald-100 ring-1 ring-emerald-500/30">
                   {venture.startupName.slice(0, 1)}
                 </div>
                 <div className="mt-4 text-2xl font-black text-white">{venture.startupName}</div>
@@ -776,7 +776,7 @@ function VentureCard({
             </Panel>
 
             <Panel className="bg-black/35" tone="red">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">Key risks</div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Key risks</div>
               <p className="mt-2 text-sm leading-6 text-slate-300">{venture.keyRisks || "No key risks recorded."}</p>
             </Panel>
           </div>
@@ -1166,15 +1166,15 @@ function BriefingQualityPanel({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-          <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">Improvements</div>
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Improvements</div>
           <div className="mt-3 grid gap-2">
             {qualityIssues.length ? (
               qualityIssues.map((issue) => (
-                <div key={issue} className="text-sm leading-6 text-red-50/80">• {issue}</div>
+                <div key={issue} className="text-sm leading-6 text-emerald-50/80">• {issue}</div>
               ))
             ) : (
-              <div className="text-sm leading-6 text-red-50/80">No major briefing quality gaps detected.</div>
+              <div className="text-sm leading-6 text-emerald-50/80">No major briefing quality gaps detected.</div>
             )}
           </div>
         </div>
@@ -1485,7 +1485,7 @@ export default function AlternativeInvestmentsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
         <div className="mx-auto max-w-[1500px]">
           <Logo />
           <div className="mt-8 text-sm font-semibold text-slate-400">
@@ -1498,7 +1498,7 @@ export default function AlternativeInvestmentsPage() {
 
   if (!firm) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
         <div className="mx-auto max-w-4xl">
           <Logo />
           <Card className="mt-8 p-6">
@@ -1517,10 +1517,10 @@ export default function AlternativeInvestmentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.16),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -1562,7 +1562,7 @@ export default function AlternativeInvestmentsPage() {
                   setLoading(true);
                   void loadData().finally(() => setLoading(false));
                 }}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40"
               >
                 Refresh Data
               </button>
@@ -1582,7 +1582,7 @@ export default function AlternativeInvestmentsPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -1607,7 +1607,7 @@ export default function AlternativeInvestmentsPage() {
                     className={cx(
                       "h-2 w-2 rounded-full",
                       tab.tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tab.tone === "cyan"
                           ? "bg-cyan-400"
                           : tab.tone === "purple"
@@ -1632,7 +1632,7 @@ export default function AlternativeInvestmentsPage() {
           <section className="grid gap-5 xl:grid-cols-[1fr_430px]">
             <Card className="p-6">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                   Risk-adjusted alternatives
                 </div>
                 <h2 className="mt-2 text-3xl font-black text-white">Alternative intelligence dashboard</h2>
@@ -1930,7 +1930,7 @@ export default function AlternativeInvestmentsPage() {
                         className={cx(
                           "h-2 w-2 rounded-full",
                           tab.tone === "red"
-                            ? "bg-red-400"
+                            ? "bg-emerald-400"
                             : tab.tone === "cyan"
                               ? "bg-cyan-400"
                               : tab.tone === "purple"
@@ -2230,7 +2230,7 @@ export default function AlternativeInvestmentsPage() {
                 </Card>
 
                 <Card className="p-6">
-                  <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">Briefing checklist</div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">Briefing checklist</div>
                   <h2 className="mt-2 text-2xl font-black text-white">Before sending</h2>
 
                   <div className="mt-5 grid gap-3">
@@ -2257,7 +2257,7 @@ export default function AlternativeInvestmentsPage() {
         {activeView === "risk" ? (
           <section className="grid gap-5 xl:grid-cols-[1fr_430px]">
             <Card className="p-6">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">Risk framework</div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">Risk framework</div>
               <h2 className="mt-2 text-3xl font-black text-white">Make risky trends less blind</h2>
               <p className="mt-2 max-w-4xl text-sm leading-7 text-slate-400">
                 The goal is not to make crypto, penny stocks, venture, or alternative briefings safe. The goal is to make the risk visible, documented, comparable, source-backed, and controlled before any advisor discusses the idea.
@@ -2274,9 +2274,9 @@ export default function AlternativeInvestmentsPage() {
                     </div>
 
                     <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-                        <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">Primary risks</div>
-                        <p className="mt-2 text-sm leading-6 text-red-50/80">{item.primaryRisks}</p>
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                        <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Primary risks</div>
+                        <p className="mt-2 text-sm leading-6 text-emerald-50/80">{item.primaryRisks}</p>
                       </div>
 
                       <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">

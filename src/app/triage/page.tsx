@@ -98,7 +98,7 @@ type RankingState = {
 };
 
 const inputClass =
-  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -190,7 +190,7 @@ function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -209,7 +209,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -238,7 +238,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -270,7 +270,7 @@ function MetricBubble({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     slate: "from-slate-400/10",
@@ -300,7 +300,7 @@ function ScoreBar({
   tone?: Tone;
 }) {
   const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
@@ -321,20 +321,20 @@ function ScoreBar({
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div className="min-w-0">
         <div className="truncate text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Intelligence Triage
         </div>
       </div>
@@ -383,8 +383,8 @@ function DecisionCard({ decision }: { decision: Decision }) {
         </div>
 
         <div className="grid min-w-[220px] gap-3">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-center">
-            <div className="text-xs font-black uppercase text-red-300">Score</div>
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-center">
+            <div className="text-xs font-black uppercase text-emerald-300">Score</div>
             <div className="text-4xl font-black">{decision.score}</div>
             <div className="mt-2">
               <ScoreBar value={decision.score} tone={scoreTone(decision.score)} />
@@ -805,10 +805,10 @@ export default function TriagePage() {
   }, [sortBy, visibleFloor]);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.14),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.14),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -852,7 +852,7 @@ export default function TriagePage() {
               <button
                 onClick={() => runTriage("full")}
                 disabled={loading}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-60"
               >
                 {loading ? "Running..." : "Run Full Triage"}
               </button>
@@ -872,7 +872,7 @@ export default function TriagePage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -903,7 +903,7 @@ export default function TriagePage() {
                     className={cx(
                       "h-2 w-2 rounded-full",
                       tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tone === "cyan"
                           ? "bg-cyan-400"
                           : tone === "purple"
@@ -927,7 +927,7 @@ export default function TriagePage() {
             <Card className="p-6">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                     Run control
                   </div>
                   <h2 className="mt-2 text-3xl font-black text-white">
@@ -950,7 +950,7 @@ export default function TriagePage() {
                   <button
                     onClick={() => runTriage("headlines")}
                     disabled={loading}
-                    className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 disabled:opacity-60"
+                    className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 disabled:opacity-60"
                   >
                     Headlines Only
                   </button>
@@ -975,7 +975,7 @@ export default function TriagePage() {
 
               <div className="mt-6 grid gap-4 xl:grid-cols-3">
                 <Panel tone="red" className="bg-black/35">
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
                     Headline triage
                   </div>
                   <h3 className="mt-2 text-2xl font-black text-white">
@@ -1177,7 +1177,7 @@ export default function TriagePage() {
           <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
             <div className="grid gap-5">
               <Card className="p-5">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
                   Top ranked
                 </div>
                 <h2 className="mt-2 text-2xl font-black">Most likely to matter</h2>
@@ -1200,8 +1200,8 @@ export default function TriagePage() {
                             </div>
                           </div>
 
-                          <div className="shrink-0 rounded-2xl bg-red-500/10 px-3 py-2 text-center ring-1 ring-red-500/30">
-                            <div className="text-[10px] font-black uppercase text-red-300">Score</div>
+                          <div className="shrink-0 rounded-2xl bg-emerald-500/10 px-3 py-2 text-center ring-1 ring-emerald-500/30">
+                            <div className="text-[10px] font-black uppercase text-emerald-300">Score</div>
                             <div className="text-2xl font-black">{decision.score}</div>
                           </div>
                         </div>
@@ -1237,7 +1237,7 @@ export default function TriagePage() {
             <Card className="p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
                     Ranked decisions
                   </div>
                   <h2 className="mt-2 text-2xl font-black">Signal ranking board</h2>
@@ -1404,7 +1404,7 @@ export default function TriagePage() {
                     Save Policy
                   </button>
 
-                  <button onClick={purgeNoise} disabled={loading} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 disabled:opacity-60">
+                  <button onClick={purgeNoise} disabled={loading} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 disabled:opacity-60">
                     Purge Noise
                   </button>
                 </div>

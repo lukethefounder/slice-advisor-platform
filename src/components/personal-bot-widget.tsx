@@ -230,7 +230,7 @@ function HumanRobotAvatar({
           <span className="absolute inset-0 animate-ping rounded-full border border-cyan-300/45" />
         </>
       ) : (
-        <span className="absolute inset-0 rounded-full bg-red-500/14 blur-lg" />
+        <span className="absolute inset-0 rounded-full bg-emerald-500/14 blur-lg" />
       )}
 
       <div
@@ -238,7 +238,7 @@ function HumanRobotAvatar({
           "relative flex items-center justify-center rounded-full border shadow-2xl transition",
           active
             ? "border-cyan-300/55 bg-gradient-to-br from-cyan-300/16 via-slate-900 to-black shadow-cyan-950/40"
-            : "border-white/15 bg-gradient-to-br from-slate-600 via-zinc-950 to-black shadow-red-950/45",
+            : "border-white/15 bg-gradient-to-br from-slate-600 via-zinc-950 to-black shadow-emerald-950/45",
           shellSize
         )}
       >
@@ -719,12 +719,12 @@ export default function PersonalBotWidget() {
   return (
     <div className="fixed bottom-5 right-5 z-[9999]">
       {panelOpen ? (
-        <div className="w-[min(580px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/96 shadow-2xl shadow-red-950/50 backdrop-blur-xl">
-          <div className="border-b border-white/10 bg-gradient-to-r from-red-950/70 via-zinc-950 to-black p-4">
+        <div className="w-[min(580px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/96 shadow-2xl shadow-emerald-950/50 backdrop-blur-xl">
+          <div className="border-b border-white/10 bg-gradient-to-r from-emerald-950/70 via-zinc-950 to-black p-4">
             <div className="flex items-center justify-between gap-3">
               <button
                 onClick={listening ? stopVoiceCommand : startVoiceCommand}
-                className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500"
+                className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500"
                 title={listening ? "Stop listening" : "Tap to speak"}
               >
                 <HumanRobotAvatar listening={listening} speaking={speaking} size="small" />
@@ -734,7 +734,7 @@ export default function PersonalBotWidget() {
                 <div className="truncate text-sm font-black text-white">
                   {bot?.profile.botName ?? "Slice AI"}
                 </div>
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                   {listening
                     ? `Listening · ${recognitionLanguage}`
                     : speaking
@@ -807,7 +807,7 @@ export default function PersonalBotWidget() {
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">
                   Presentation mode
                 </span>
-                <span className="rounded-full border border-red-400/25 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-100">
+                <span className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100">
                   No auto-reroute
                 </span>
               </div>
@@ -832,7 +832,7 @@ export default function PersonalBotWidget() {
                 href={latestAction?.href}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-center text-sm font-black text-red-100 hover:bg-red-500/20"
+                className="block rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-center text-sm font-black text-emerald-100 hover:bg-emerald-500/20"
               >
                 Open Presentation PDF
               </a>
@@ -866,7 +866,7 @@ export default function PersonalBotWidget() {
                 href={latestPdf.downloadUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-2xl border border-red-500/30 bg-gradient-to-r from-red-500/15 to-cyan-500/10 px-4 py-3 text-center text-sm font-black text-red-50 hover:from-red-500/25 hover:to-cyan-500/20"
+                className="block rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 to-cyan-500/10 px-4 py-3 text-center text-sm font-black text-emerald-50 hover:from-emerald-500/25 hover:to-cyan-500/20"
               >
                 Download Latest PDF Report
               </a>
@@ -879,7 +879,7 @@ export default function PersonalBotWidget() {
                   type="button"
                   onClick={() => void sendPromptText(item, "quick")}
                   disabled={sending}
-                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-left text-xs font-bold leading-5 text-slate-200 hover:border-red-400/30 hover:bg-red-500/10 disabled:opacity-50"
+                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-left text-xs font-bold leading-5 text-slate-200 hover:border-emerald-400/30 hover:bg-emerald-500/10 disabled:opacity-50"
                 >
                   {item}
                 </button>
@@ -887,7 +887,7 @@ export default function PersonalBotWidget() {
             </div>
 
             {message ? (
-              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-100">
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-100">
                 {message}
               </div>
             ) : null}
@@ -898,7 +898,7 @@ export default function PersonalBotWidget() {
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={handlePromptKeyDown}
-              className="min-h-24 w-full resize-none rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+              className="min-h-24 w-full resize-none rounded-2xl border border-white/10 bg-black/50 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               placeholder="Ask anything, give a rough voice-style command, or request a presentation-ready report..."
             />
 
@@ -934,7 +934,7 @@ export default function PersonalBotWidget() {
 
               <button
                 disabled={sending || !prompt.trim()}
-                className="rounded-2xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                className="rounded-2xl bg-emerald-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
               >
                 {sending ? "Thinking" : "Send"}
               </button>
@@ -976,7 +976,7 @@ export default function PersonalBotWidget() {
         <div className="flex items-end gap-2">
           <button
             onClick={startVoiceCommand}
-            className="rounded-full transition hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500"
+            className="rounded-full transition hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500"
             title="Tap assistant to speak"
           >
             <HumanRobotAvatar listening={listening} speaking={speaking} size="large" />
@@ -984,7 +984,7 @@ export default function PersonalBotWidget() {
 
           <button
             onClick={() => setPanelOpen(true)}
-            className="mb-1 rounded-2xl border border-white/10 bg-zinc-950/90 px-3 py-2 text-xs font-black text-white shadow-xl shadow-red-950/30 hover:bg-white/10"
+            className="mb-1 rounded-2xl border border-white/10 bg-zinc-950/90 px-3 py-2 text-xs font-black text-white shadow-xl shadow-emerald-950/30 hover:bg-white/10"
           >
             AI Studio
           </button>

@@ -498,7 +498,7 @@ function hashString(input: string) {
 
 function tonePanelClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-red-500/25 bg-red-500/10 shadow-red-950/20",
+    red: "border-emerald-500/25 bg-emerald-500/10 shadow-emerald-950/20",
     green: "border-emerald-500/25 bg-emerald-500/10 shadow-emerald-950/20",
     amber: "border-amber-500/25 bg-amber-500/10 shadow-amber-950/20",
     purple: "border-purple-500/25 bg-purple-500/10 shadow-purple-950/20",
@@ -512,7 +512,7 @@ function tonePanelClass(tone: Tone) {
 
 function dotClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-400 shadow-red-400/50",
+    red: "bg-emerald-400 shadow-emerald-400/50",
     green: "bg-emerald-400 shadow-emerald-400/50",
     amber: "bg-amber-400 shadow-amber-400/50",
     purple: "bg-purple-400 shadow-purple-400/50",
@@ -990,10 +990,10 @@ function LinkButton({
 }) {
   const classNameByVariant =
     variant === "light"
-      ? "border border-white/20 bg-white text-slate-950 shadow-lg shadow-red-950/20 hover:bg-red-100 hover:text-slate-950"
+      ? "border border-white/20 bg-white text-slate-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-100 hover:text-slate-950"
       : variant === "solid"
         ? tone === "red"
-          ? "border border-red-400/30 bg-gradient-to-r from-red-600 via-red-700 to-red-950 text-white shadow-lg shadow-red-950/40 hover:from-red-500 hover:via-red-700 hover:to-red-900"
+          ? "border border-emerald-400/30 bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 text-white shadow-lg shadow-emerald-950/40 hover:from-emerald-500 hover:via-emerald-700 hover:to-emerald-900"
           : cx("border text-white shadow-lg hover:scale-[1.01]", tonePanelClass(tone))
         : cx("border text-white shadow-lg hover:scale-[1.01]", tonePanelClass(tone));
 
@@ -1002,7 +1002,7 @@ function LinkButton({
       href={href}
       prefetch={false}
       className={cx(
-        "relative z-50 inline-flex min-w-0 items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-tight transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500",
+        "relative z-50 inline-flex min-w-0 items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-tight transition duration-200 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500",
         classNameByVariant,
         className,
       )}
@@ -1017,20 +1017,20 @@ function LinkButton({
 function BrandMark() {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-600 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-600 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div className="min-w-0">
         <div className="truncate text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-red-400 sm:truncate">
+        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-400 sm:truncate">
           Advisor Intelligence Platform
         </div>
       </div>
@@ -1052,7 +1052,7 @@ function SectionHeader({
   return (
     <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0">
-        <div className="text-xs font-black uppercase leading-relaxed tracking-[0.2em] text-red-400">
+        <div className="text-xs font-black uppercase leading-relaxed tracking-[0.2em] text-emerald-400">
           {eyebrow}
         </div>
         <h2 className="mt-2 max-w-5xl text-2xl font-black tracking-tight text-white md:text-4xl">
@@ -1172,7 +1172,7 @@ function MarketTile({ snapshot }: { snapshot: MarketSnapshot }) {
           <div
             className={cx(
               "mt-1 text-sm font-black transition-all duration-500",
-              positive ? "text-emerald-300" : "text-red-300",
+              positive ? "text-emerald-300" : "text-emerald-300",
             )}
           >
             {positive ? "+" : ""}
@@ -1186,7 +1186,7 @@ function MarketTile({ snapshot }: { snapshot: MarketSnapshot }) {
             "rounded-2xl border px-3 py-2 text-right transition-all duration-500",
             positive
               ? "border-emerald-400/20 bg-emerald-500/10"
-              : "border-red-400/20 bg-red-500/10",
+              : "border-emerald-400/20 bg-emerald-500/10",
           )}
         >
           <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
@@ -1489,7 +1489,7 @@ function CommandTab({
           <Card className="p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
                   Today’s AI Read
                 </div>
                 <h2 className="mt-2 text-2xl font-black leading-tight text-white">
@@ -1832,7 +1832,7 @@ function ProductionTab() {
                 key={item}
                 className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4"
               >
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-red-400 shadow-lg shadow-red-400/40" />
+                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/40" />
                 <span className="text-sm font-bold leading-6 text-slate-300">{item}</span>
               </div>
             ))}
@@ -1921,9 +1921,9 @@ export default function SliceHomePage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-14%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-red-700/24 blur-3xl" />
+        <div className="absolute left-[-14%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-emerald-700/24 blur-3xl" />
         <div className="absolute right-[-12%] top-[12%] h-[34rem] w-[34rem] rounded-full bg-purple-700/12 blur-3xl" />
-        <div className="absolute bottom-[-18%] left-[24%] h-[30rem] w-[30rem] rounded-full bg-red-500/10 blur-3xl" />
+        <div className="absolute bottom-[-18%] left-[24%] h-[30rem] w-[30rem] rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
@@ -1983,7 +1983,7 @@ export default function SliceHomePage() {
                 className={cx(
                   "group rounded-[1.25rem] border p-3 text-left transition hover:-translate-y-0.5",
                   activeTab === tab.id
-                    ? "border-red-400/40 bg-red-500/15 shadow-lg shadow-red-950/30"
+                    ? "border-emerald-400/40 bg-emerald-500/15 shadow-lg shadow-emerald-950/30"
                     : "border-white/10 bg-white/[0.045] hover:bg-white/[0.075]",
                 )}
               >

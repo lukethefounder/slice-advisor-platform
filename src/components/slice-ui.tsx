@@ -11,11 +11,15 @@ export type SliceTone =
   | "blue"
   | "cyan";
 
-export function cx(...classes: Array<string | false | null | undefined>) {
+export function cx(
+  ...classes: Array<string | false | null | undefined>
+) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function toneFor(value: string | number | null | undefined): SliceTone {
+export function toneFor(
+  value: string | number | null | undefined,
+): SliceTone {
   const normalized = String(value ?? "").toLowerCase();
 
   if (
@@ -39,20 +43,11 @@ export function toneFor(value: string | number | null | undefined): SliceTone {
     normalized.includes("pending") ||
     normalized.includes("review") ||
     normalized.includes("needs") ||
-    normalized.includes("routed")
+    normalized.includes("routed") ||
+    normalized.includes("risk") ||
+    normalized.includes("blocked")
   ) {
     return "amber";
-  }
-
-  if (
-    normalized.includes("restricted") ||
-    normalized.includes("blocked") ||
-    normalized.includes("risk") ||
-    normalized.includes("paused") ||
-    normalized.includes("dismissed") ||
-    normalized.includes("correction")
-  ) {
-    return "red";
   }
 
   if (
@@ -81,23 +76,33 @@ export function percent(value: number) {
 }
 
 export function shortDate(value: string | null | undefined) {
-  if (!value) return "Not recorded";
+  if (!value) {
+    return "Not recorded";
+  }
 
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const date = new Date(value);
+
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : value;
 }
 
-export function SliceBackground({ children }: { children: ReactNode }) {
+export function SliceBackground({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#020604] text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-14%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-red-700/24 blur-3xl" />
-        <div className="absolute right-[-12%] top-[12%] h-[34rem] w-[34rem] rounded-full bg-purple-700/12 blur-3xl" />
-        <div className="absolute bottom-[-18%] left-[24%] h-[30rem] w-[30rem] rounded-full bg-red-500/10 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:48px_48px]" />
+        <div className="absolute left-[-14%] top-[-12%] h-[34rem] w-[34rem] rounded-full bg-emerald-600/24 blur-3xl" />
+        <div className="absolute right-[-12%] top-[10%] h-[35rem] w-[35rem] rounded-full bg-cyan-600/10 blur-3xl" />
+        <div className="absolute bottom-[-18%] left-[26%] h-[31rem] w-[31rem] rounded-full bg-lime-500/8 blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.025)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
       <div className="relative">{children}</div>
@@ -114,20 +119,20 @@ export function BrandMark({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-600 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-600 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-950 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-300" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div className="min-w-0">
         <div className="truncate text-2xl font-black tracking-tight text-white">
           {label}
         </div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-emerald-300">
           {subtitle}
         </div>
       </div>
@@ -145,8 +150,8 @@ export function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 shadow-2xl shadow-red-950/20 backdrop-blur-xl",
-        className
+        "relative overflow-hidden rounded-[2rem] border border-emerald-300/10 bg-zinc-950/78 shadow-2xl shadow-emerald-950/18 backdrop-blur-xl",
+        className,
       )}
     >
       {children}
@@ -164,8 +169,8 @@ export function SoftCard({
   return (
     <div
       className={cx(
-        "rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4",
-        className
+        "rounded-[1.5rem] border border-emerald-200/10 bg-white/[0.05] p-4",
+        className,
       )}
     >
       {children}
@@ -181,12 +186,12 @@ export function Pill({
   tone?: SliceTone;
 }) {
   const tones: Record<SliceTone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
-    green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
-    amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
-    purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
-    blue: "bg-sky-500/10 text-sky-300 ring-sky-500/30",
-    cyan: "bg-cyan-500/10 text-cyan-300 ring-cyan-500/30",
+    red: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30",
+    green: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30",
+    amber: "bg-amber-500/10 text-amber-200 ring-amber-500/30",
+    purple: "bg-violet-500/10 text-violet-200 ring-violet-500/30",
+    blue: "bg-sky-500/10 text-sky-200 ring-sky-500/30",
+    cyan: "bg-cyan-500/10 text-cyan-200 ring-cyan-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
   };
 
@@ -194,7 +199,7 @@ export function Pill({
     <span
       className={cx(
         "inline-flex max-w-full items-center rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ring-1",
-        tones[tone]
+        tones[tone],
       )}
     >
       <span className="truncate">{children}</span>
@@ -204,16 +209,16 @@ export function Pill({
 
 export function Progress({
   value,
-  tone = "red",
+  tone = "green",
 }: {
   value: number;
   tone?: Exclude<SliceTone, "slate">;
 }) {
   const fills: Record<Exclude<SliceTone, "slate">, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-300",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
-    purple: "from-purple-700 to-purple-300",
+    purple: "from-violet-700 to-violet-300",
     blue: "from-sky-700 to-sky-300",
     cyan: "from-cyan-700 to-cyan-300",
   };
@@ -221,7 +226,10 @@ export function Progress({
   return (
     <div className="h-2 overflow-hidden rounded-full bg-black/50">
       <div
-        className={cx("h-full rounded-full bg-gradient-to-r", fills[tone])}
+        className={cx(
+          "h-full rounded-full bg-gradient-to-r",
+          fills[tone],
+        )}
         style={{ width: percent(value) }}
       />
     </div>
@@ -240,21 +248,21 @@ export function Metric({
   tone?: SliceTone;
 }) {
   const glow: Record<SliceTone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
-    purple: "from-purple-500/18",
+    purple: "from-violet-500/18",
     blue: "from-sky-500/18",
     cyan: "from-cyan-500/18",
     slate: "from-slate-400/10",
   };
 
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-4">
+    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
       <div
         className={cx(
           "pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
-          glow[tone]
+          glow[tone],
         )}
       />
       <div className="relative">
@@ -288,7 +296,7 @@ export function SectionHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+        <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">
           {eyebrow}
         </div>
         <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-4xl">
@@ -317,20 +325,20 @@ export function LinkButton({
 }) {
   const variantClass =
     variant === "primary"
-      ? "border border-red-400/30 bg-gradient-to-r from-red-600 via-red-700 to-red-950 text-white shadow-lg shadow-red-950/40 hover:from-red-500 hover:via-red-700 hover:to-red-900"
+      ? "border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 text-white shadow-lg shadow-emerald-950/40 hover:from-emerald-400 hover:via-emerald-600 hover:to-emerald-900"
       : variant === "danger"
-        ? "border border-red-500/35 bg-red-500/12 text-red-100 shadow-lg shadow-red-950/20 hover:bg-red-500/20 hover:text-white"
+        ? "border border-amber-500/35 bg-amber-500/10 text-amber-100 shadow-lg shadow-amber-950/20 hover:bg-amber-500/18 hover:text-white"
         : variant === "light"
-          ? "border border-white/20 bg-white text-slate-950 shadow-lg shadow-red-950/20 hover:bg-red-100 hover:text-slate-950"
-          : "border border-white/10 bg-white/[0.055] text-white shadow-lg shadow-black/20 hover:border-red-400/40 hover:bg-red-500/10 hover:text-white";
+          ? "border border-white/20 bg-white text-slate-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-50 hover:text-slate-950"
+          : "border border-white/10 bg-white/[0.05] text-white shadow-lg shadow-black/20 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-white";
 
   return (
     <a
       href={href}
       className={cx(
-        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none transition hover:scale-[1.01] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500",
+        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none transition hover:scale-[1.01] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500",
         variantClass,
-        className
+        className,
       )}
     >
       <span className="relative z-10 whitespace-nowrap">{children}</span>
@@ -353,12 +361,12 @@ export function ActionButton({
 }) {
   const variantClass =
     variant === "primary"
-      ? "border border-red-400/30 bg-gradient-to-r from-red-600 via-red-700 to-red-950 text-white shadow-red-950/40 hover:from-red-500 hover:via-red-700 hover:to-red-900"
+      ? "border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 text-white shadow-emerald-950/40 hover:from-emerald-400 hover:via-emerald-600 hover:to-emerald-900"
       : variant === "danger"
-        ? "border border-red-500/35 bg-red-500/12 text-red-100 shadow-red-950/20 hover:bg-red-500/20 hover:text-white"
+        ? "border border-amber-500/35 bg-amber-500/10 text-amber-100 shadow-amber-950/20 hover:bg-amber-500/18 hover:text-white"
         : variant === "light"
-          ? "border border-white/20 bg-white text-slate-950 shadow-red-950/20 hover:bg-red-100 hover:text-slate-950"
-          : "border border-white/10 bg-white/[0.055] text-white shadow-black/20 hover:border-red-400/40 hover:bg-red-500/10 hover:text-white";
+          ? "border border-white/20 bg-white text-slate-950 shadow-emerald-950/20 hover:bg-emerald-50 hover:text-slate-950"
+          : "border border-white/10 bg-white/[0.05] text-white shadow-black/20 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-white";
 
   return (
     <button
@@ -366,9 +374,9 @@ export function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none shadow-lg transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-red-500",
+        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none shadow-lg transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500",
         variantClass,
-        className
+        className,
       )}
     >
       <span className="relative z-10 whitespace-nowrap">{children}</span>
@@ -382,7 +390,7 @@ export function TopNav({
   subtitle?: string;
 }) {
   return (
-    <header className="sticky top-4 z-40 rounded-[1.75rem] border border-white/10 bg-black/72 p-4 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+    <header className="sticky top-4 z-40 rounded-[1.75rem] border border-emerald-300/10 bg-black/72 p-4 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <BrandMark subtitle={subtitle} />
 
@@ -392,7 +400,7 @@ export function TopNav({
           </LinkButton>
           <LinkButton
             href="/founder-login"
-            variant="danger"
+            variant="secondary"
             className="w-full sm:w-auto"
           >
             Login

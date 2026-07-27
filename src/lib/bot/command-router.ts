@@ -550,16 +550,16 @@ export async function ensureBotProfile(
           userId: user.id,
 
           accentName:
-            "Slice Red",
+            "Market Green",
 
           accentHex:
-            "#dc2626",
+            "#059669",
 
           accentDarkHex:
-            "#7f1d1d",
+            "#064e3b",
 
           accentSoftHex:
-            "#fee2e2",
+            "#d1fae5",
 
           backgroundStyle:
             "Premium Dark",
@@ -3864,12 +3864,12 @@ async function executeTheme(
     }
   > = {
     red: {
-      name: "Slice Red",
-      accentHex: "#dc2626",
+      name: "Market Green",
+      accentHex: "#059669",
       accentDarkHex:
-        "#7f1d1d",
+        "#064e3b",
       accentSoftHex:
-        "#fee2e2",
+        "#d1fae5",
     },
 
     blue: {

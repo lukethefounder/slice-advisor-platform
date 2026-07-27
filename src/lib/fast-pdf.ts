@@ -74,9 +74,9 @@ const COLORS = {
   white: "#ffffff",
   text: "#e5e7eb",
   muted: "#94a3b8",
-  red: "#dc2626",
-  redSoft: "#ef4444",
-  redDark: "#450a0a",
+  red: "#059669",
+  redSoft: "#10b981",
+  redDark: "#022c22",
   green: "#10b981",
   amber: "#f59e0b",
   purple: "#a855f7",
@@ -258,7 +258,7 @@ class PdfBuilder {
         text: "SLICE ADVISOR INTELLIGENCE",
         size: 8,
         font: "bold",
-        color: "#fecaca",
+        color: "#a7f3d0",
       })
     );
   }
@@ -280,7 +280,7 @@ class PdfBuilder {
     this.ops.push(rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, COLORS.bg));
     this.ops.push(rect(0, 0, PAGE_WIDTH, 292, COLORS.redDark));
     this.ops.push(rect(0, 0, PAGE_WIDTH, 24, COLORS.red));
-    this.ops.push(rect(MARGIN, 48, 82, 82, COLORS.red, "#fecaca"));
+    this.ops.push(rect(MARGIN, 48, 82, 82, COLORS.red, "#a7f3d0"));
     this.ops.push(rect(MARGIN + 18, 66, 46, 46, COLORS.bg, COLORS.white));
     this.ops.push(
       text({
@@ -300,7 +300,7 @@ class PdfBuilder {
         text: "PREMIUM AI REPORT",
         size: 9,
         font: "bold",
-        color: "#fecaca",
+        color: "#a7f3d0",
       })
     );
 
@@ -310,7 +310,7 @@ class PdfBuilder {
         y: 84,
         text: "Advisor-grade intelligence packet",
         size: 10,
-        color: "#fca5a5",
+        color: "#6ee7b7",
       })
     );
 
@@ -338,7 +338,7 @@ class PdfBuilder {
             y: titleY,
             text: lineText,
             size: 10,
-            color: "#fecaca",
+            color: "#a7f3d0",
           })
         );
         titleY += 14;

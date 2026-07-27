@@ -51,7 +51,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/55 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-red-400/50 focus:ring-2 focus:ring-red-500/20";
+  "w-full rounded-2xl border border-white/10 bg-black/55 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/50 focus:ring-2 focus:ring-emerald-500/20";
 
 export function AdvisorRoutingDock() {
   const pathname = usePathname();
@@ -268,10 +268,10 @@ export function AdvisorRoutingDock() {
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className="flex w-full items-center justify-between gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.22),transparent_48%),rgba(0,0,0,0.55)] px-5 py-4 text-left"
+          className="flex w-full items-center justify-between gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.22),transparent_48%),rgba(0,0,0,0.55)] px-5 py-4 text-left"
         >
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
               Advisor routing
             </div>
             <div className="mt-1 text-base font-black">
@@ -342,7 +342,7 @@ export function AdvisorRoutingDock() {
                     type="checkbox"
                     checked={calendlyEnabled}
                     onChange={(event) => setCalendlyEnabled(event.target.checked)}
-                    className="h-5 w-5 accent-red-600"
+                    className="h-5 w-5 accent-emerald-600"
                   />
                 </label>
 
@@ -350,7 +350,7 @@ export function AdvisorRoutingDock() {
                   type="button"
                   onClick={() => void saveCalendly()}
                   disabled={busy}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                  className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
                 >
                   {busy ? "Saving…" : "Save Advisor Scheduling"}
                 </button>
@@ -425,7 +425,7 @@ export function AdvisorRoutingDock() {
                       type="button"
                       onClick={() => void assignClient()}
                       disabled={busy}
-                      className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                      className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
                     >
                       {busy ? "Saving…" : "Assign Advisor to Client"}
                     </button>

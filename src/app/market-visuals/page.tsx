@@ -339,7 +339,7 @@ const TABS: Array<{
 ];
 
 const INPUT =
-  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
+  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
 
 const BUTTON =
   "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
@@ -436,7 +436,7 @@ function tone(value: string | number | null | undefined): Tone {
 
 const TONE_CLASSES: Record<Tone, string> = {
   green: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
-  red: "border-red-400/25 bg-red-400/10 text-red-100",
+  red: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
   amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
   cyan: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
   purple: "border-violet-400/25 bg-violet-400/10 text-violet-100",
@@ -485,7 +485,7 @@ function Metric({
 }) {
   return (
     <div className="relative min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-4">
-      <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+      <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-emerald-600/10 blur-2xl" />
       <div className="relative flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
@@ -516,7 +516,7 @@ function SectionHeader({
   return (
     <div className="flex min-w-0 flex-col gap-3 border-b border-white/10 p-5 md:p-6 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">{eyebrow}</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">{eyebrow}</div>
         <h2 className="mt-2 break-words text-2xl font-black md:text-3xl">{title}</h2>
         {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">{description}</p> : null}
       </div>
@@ -848,14 +848,14 @@ export default function MarketVisualsPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(153,27,27,0.48),transparent_30%),radial-gradient(circle_at_88%_4%,rgba(6,182,212,0.16),transparent_26%),radial-gradient(circle_at_55%_100%,rgba(124,58,237,0.08),transparent_30%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(6,95,70,0.48),transparent_30%),radial-gradient(circle_at_88%_4%,rgba(6,182,212,0.16),transparent_26%),radial-gradient(circle_at_55%_100%,rgba(124,58,237,0.08),transparent_30%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
       <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="rounded-[2rem] border border-white/10 bg-black/72 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+        <header className="rounded-[2rem] border border-white/10 bg-black/72 p-5 shadow-2xl shadow-emerald-950/25 backdrop-blur-xl md:p-7">
           <div className="flex min-w-0 flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-400">
                 <Activity className="h-4 w-4" />
                 SLICE Alpha Vantage Market OS
               </div>
@@ -869,7 +869,7 @@ export default function MarketVisualsPage() {
 
             <a
               href="/workspace"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-50"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to workspace
@@ -915,7 +915,7 @@ export default function MarketVisualsPage() {
               <RefreshCw className={cx("h-4 w-4", loading && "animate-spin")} />
               {autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
             </button>
-            <button disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 hover:bg-red-500 disabled:opacity-40">
+            <button disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 hover:bg-emerald-500 disabled:opacity-40">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
               Refresh market
             </button>
@@ -926,7 +926,7 @@ export default function MarketVisualsPage() {
         </header>
 
         {message ? (
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-red-400/25 bg-red-400/10 p-4 text-sm font-bold text-red-100">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm font-bold text-emerald-100">
             <span>{message}</span>
             <button type="button" onClick={() => setMessage("")}><X className="h-4 w-4" /></button>
           </div>
@@ -970,7 +970,7 @@ export default function MarketVisualsPage() {
         {loading && !data ? (
           <Panel className="grid min-h-[600px] place-items-center p-8 text-center">
             <div>
-              <Loader2 className="mx-auto h-9 w-9 animate-spin text-red-300" />
+              <Loader2 className="mx-auto h-9 w-9 animate-spin text-emerald-300" />
               <h2 className="mt-4 text-2xl font-black">Loading Alpha Vantage market data</h2>
               <p className="mt-2 text-sm text-slate-500">Retrieving entitled quotes, OHLCV history, fundamentals, earnings, and sentiment.</p>
             </div>
@@ -994,12 +994,12 @@ export default function MarketVisualsPage() {
                           <XAxis dataKey="label" minTickGap={24} stroke="#64748b" fontSize={11} />
                           <YAxis domain={["auto", "auto"]} stroke="#64748b" fontSize={11} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Area type="monotone" dataKey="close" name="Close" stroke="#ef4444" fill="#ef4444" fillOpacity={0.12} strokeWidth={3} />
+                          <Area type="monotone" dataKey="close" name="Close" stroke="#10b981" fill="#10b981" fillOpacity={0.12} strokeWidth={3} />
                           <Line type="monotone" dataKey="vwap" name="VWAP" stroke="#06b6d4" dot={false} connectNulls strokeWidth={2} />
                           <Line type="monotone" dataKey="sma20" name="SMA 20" stroke="#22c55e" dot={false} connectNulls />
                           <Line type="monotone" dataKey="sma50" name="SMA 50" stroke="#f59e0b" dot={false} connectNulls />
                           <ReferenceLine y={data.levels.support ?? undefined} stroke="#22c55e" strokeDasharray="5 5" />
-                          <ReferenceLine y={data.levels.resistance ?? undefined} stroke="#ef4444" strokeDasharray="5 5" />
+                          <ReferenceLine y={data.levels.resistance ?? undefined} stroke="#10b981" strokeDasharray="5 5" />
                         </ComposedChart>
                       </ResponsiveContainer>
                     ) : <ChartEmpty message="No Alpha Vantage candle data is available." />}
@@ -1050,7 +1050,7 @@ export default function MarketVisualsPage() {
                         <YAxis yAxisId="price" domain={["auto", "auto"]} stroke="#64748b" fontSize={11} />
                         <YAxis yAxisId="volume" orientation="right" stroke="#475569" fontSize={10} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Area yAxisId="price" type="monotone" dataKey="close" name="Close" stroke="#ef4444" fill="#ef4444" fillOpacity={0.1} strokeWidth={3} />
+                        <Area yAxisId="price" type="monotone" dataKey="close" name="Close" stroke="#10b981" fill="#10b981" fillOpacity={0.1} strokeWidth={3} />
                         <Line yAxisId="price" type="monotone" dataKey="high" name="High" stroke="#22c55e" dot={false} strokeOpacity={0.35} />
                         <Line yAxisId="price" type="monotone" dataKey="low" name="Low" stroke="#f43f5e" dot={false} strokeOpacity={0.35} />
                         <Line yAxisId="price" type="monotone" dataKey="ema9" name="EMA 9" stroke="#a3e635" dot={false} connectNulls />
@@ -1085,10 +1085,10 @@ export default function MarketVisualsPage() {
                           <Tooltip content={<CustomTooltip />} />
                           <Line type="monotone" dataKey="close" name="History" stroke="#ffffff" dot={false} strokeWidth={2} connectNulls />
                           <Area type="monotone" dataKey="upper" name="Upper band" stroke="#22c55e" fill="#22c55e" fillOpacity={0.06} dot={false} connectNulls />
-                          <Area type="monotone" dataKey="lower" name="Lower band" stroke="#ef4444" fill="#ef4444" fillOpacity={0.06} dot={false} connectNulls />
+                          <Area type="monotone" dataKey="lower" name="Lower band" stroke="#10b981" fill="#10b981" fillOpacity={0.06} dot={false} connectNulls />
                           <Line type="monotone" dataKey="projected" name="Base forecast" stroke="#a855f7" dot={false} strokeWidth={3} connectNulls />
                           <Line type="monotone" dataKey="bullish" name="Bull scenario" stroke="#22c55e" dot={false} strokeDasharray="5 5" connectNulls />
-                          <Line type="monotone" dataKey="bearish" name="Bear scenario" stroke="#ef4444" dot={false} strokeDasharray="5 5" connectNulls />
+                          <Line type="monotone" dataKey="bearish" name="Bear scenario" stroke="#10b981" dot={false} strokeDasharray="5 5" connectNulls />
                         </ComposedChart>
                       </ResponsiveContainer>
                     ) : <ChartEmpty message="Not enough Alpha Vantage history to create a forecast." />}
@@ -1138,7 +1138,7 @@ export default function MarketVisualsPage() {
                         <Tooltip content={<CustomTooltip />} />
                         <ReferenceLine y={70} stroke="#22c55e" strokeDasharray="5 5" />
                         <Bar dataKey="score" name="Score" radius={[10, 10, 0, 0]}>
-                          {technicalScores.map((row) => <Cell key={row.name} fill={row.score >= 70 ? "#22c55e" : row.score >= 45 ? "#f59e0b" : "#ef4444"} fillOpacity={0.82} />)}
+                          {technicalScores.map((row) => <Cell key={row.name} fill={row.score >= 70 ? "#22c55e" : row.score >= 45 ? "#f59e0b" : "#10b981"} fillOpacity={0.82} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -1248,7 +1248,7 @@ export default function MarketVisualsPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="m-5 rounded-2xl border border-red-400/25 bg-red-400/10 p-6 text-sm leading-7 text-red-100">
+                  <div className="m-5 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-6 text-sm leading-7 text-emerald-100">
                     <div className="flex items-center gap-2 font-black"><AlertTriangle className="h-5 w-5" />Options data unavailable</div>
                     <p className="mt-2">{data.options.error || "The Alpha Vantage response did not contain an options chain. Confirm that the paid plan includes REALTIME_OPTIONS and Greeks access."}</p>
                   </div>
@@ -1268,7 +1268,7 @@ export default function MarketVisualsPage() {
                         <YAxis stroke="#64748b" fontSize={11} />
                         <Tooltip content={<CustomTooltip />} />
                         <ReferenceLine y={0} stroke="#64748b" />
-                        <Line type="monotone" dataKey="primaryReturn" name={`${data.symbol} return %`} stroke="#ef4444" dot={false} strokeWidth={3} />
+                        <Line type="monotone" dataKey="primaryReturn" name={`${data.symbol} return %`} stroke="#10b981" dot={false} strokeWidth={3} />
                         <Line type="monotone" dataKey="compareReturn" name={`${compareSymbol.toUpperCase()} return %`} stroke="#06b6d4" dot={false} strokeWidth={3} />
                         <Area type="monotone" dataKey="spread" name="Relative spread %" stroke="#a855f7" fill="#a855f7" fillOpacity={0.08} />
                       </ComposedChart>
@@ -1301,7 +1301,7 @@ export default function MarketVisualsPage() {
                 <Panel className="h-fit 2xl:sticky 2xl:top-5">
                   <SectionHeader eyebrow="Saved locally" title="Pine projects" action={<Badge value="purple">{pineProjects.length}</Badge>} />
                   <div className="max-h-[760px] space-y-2 overflow-y-auto p-3">
-                    {pineProjects.map((project) => <div key={project.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="text-sm font-black">{project.name}</div><div className="mt-1 text-xs text-slate-500">{project.symbol} · {project.interval} · {project.scriptType}</div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setPineCode(project.code); setPinePrompt(project.prompt); setPineType(project.scriptType); }} className={BUTTON}><FileCode2 className="h-4 w-4" />Load</button><button type="button" onClick={() => setPineProjects((current) => current.filter((item) => item.id !== project.id))} className="inline-flex items-center justify-center rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs font-black text-red-100">Delete</button></div></div>)}
+                    {pineProjects.map((project) => <div key={project.id} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="text-sm font-black">{project.name}</div><div className="mt-1 text-xs text-slate-500">{project.symbol} · {project.interval} · {project.scriptType}</div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setPineCode(project.code); setPinePrompt(project.prompt); setPineType(project.scriptType); }} className={BUTTON}><FileCode2 className="h-4 w-4" />Load</button><button type="button" onClick={() => setPineProjects((current) => current.filter((item) => item.id !== project.id))} className="inline-flex items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">Delete</button></div></div>)}
                     {!pineProjects.length ? <div className="rounded-2xl border border-dashed border-white/10 p-7 text-center text-sm font-bold text-slate-500">No Pine projects saved yet.</div> : null}
                   </div>
                 </Panel>
@@ -1313,7 +1313,7 @@ export default function MarketVisualsPage() {
                 <Panel>
                   <SectionHeader eyebrow="Provider integrity" title="Every requested source and its status" description="Unavailable endpoints remain unavailable; SLICE does not replace them with demo values." action={<Badge value={data.quality.score}>{data.quality.score}/100 quality</Badge>} />
                   <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
-                    {data.quality.calls.map((call) => <div key={call.endpoint} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="flex items-center justify-between gap-2"><div className="truncate text-sm font-black">{call.endpoint}</div><Badge value={call.status}>{call.status}</Badge></div><div className="mt-2 text-xs text-slate-500">{call.asOf ? dateTime(call.asOf) : "No timestamp"}</div>{call.error ? <p className="mt-3 break-words text-xs leading-5 text-red-200">{call.error}</p> : null}</div>)}
+                    {data.quality.calls.map((call) => <div key={call.endpoint} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><div className="flex items-center justify-between gap-2"><div className="truncate text-sm font-black">{call.endpoint}</div><Badge value={call.status}>{call.status}</Badge></div><div className="mt-2 text-xs text-slate-500">{call.asOf ? dateTime(call.asOf) : "No timestamp"}</div>{call.error ? <p className="mt-3 break-words text-xs leading-5 text-emerald-200">{call.error}</p> : null}</div>)}
                   </div>
                   {data.quality.warnings.length ? <div className="mx-5 mb-5 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm leading-7 text-amber-100">{data.quality.warnings.map((warning) => <div key={warning}>• {warning}</div>)}</div> : null}
                 </Panel>

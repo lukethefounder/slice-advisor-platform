@@ -94,15 +94,15 @@ export default function BotOnboardingPage() {
   return (
     <main className="min-h-screen bg-[#050505] p-5 text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-12%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-red-700/24 blur-3xl" />
+        <div className="absolute left-[-12%] top-[-10%] h-[32rem] w-[32rem] rounded-full bg-emerald-700/24 blur-3xl" />
         <div className="absolute right-[-12%] top-[14%] h-[34rem] w-[34rem] rounded-full bg-purple-700/12 blur-3xl" />
       </div>
 
       <div className="relative mx-auto grid max-w-6xl gap-6">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-400">
                 Personal bot setup
               </div>
               <h1 className="mt-2 text-3xl font-black md:text-5xl">
@@ -126,14 +126,14 @@ export default function BotOnboardingPage() {
 
         <section className="grid gap-6 lg:grid-cols-[0.76fr_1.24fr]">
           <aside className="grid gap-4">
-            <div className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20">
+            <div className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20">
               <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                 Bot name
               </div>
               <input
                 value={botName}
                 onChange={(event) => setBotName(event.target.value)}
-                className="mt-3 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                className="mt-3 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 placeholder="Name your bot"
               />
               <p className="mt-3 text-sm leading-6 text-slate-400">
@@ -142,7 +142,7 @@ export default function BotOnboardingPage() {
               </p>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20">
+            <div className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
                   Progress
@@ -151,7 +151,7 @@ export default function BotOnboardingPage() {
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/50">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-red-700 to-red-400"
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-700 to-emerald-400"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -163,16 +163,16 @@ export default function BotOnboardingPage() {
                     className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.055] px-3 py-2"
                   >
                     <span className="text-xs font-bold text-slate-300">{category}</span>
-                    <span className="text-xs font-black text-red-300">{count}</span>
+                    <span className="text-xs font-black text-emerald-300">{count}</span>
                   </div>
                 ))}
               </div>
             </div>
           </aside>
 
-          <section className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-2xl shadow-red-950/20">
+          <section className="rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-2xl shadow-emerald-950/20">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-red-300 ring-1 ring-red-500/30">
+              <div className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-emerald-300 ring-1 ring-emerald-500/30">
                 Question {index + 1} of {PERSONAL_BOT_QUESTIONS.length}
               </div>
               <div className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-purple-300 ring-1 ring-purple-500/30">
@@ -197,7 +197,7 @@ export default function BotOnboardingPage() {
                       className={cx(
                         "rounded-2xl border px-4 py-4 text-left text-sm font-black transition",
                         currentAnswer === String(value)
-                          ? "border-red-400/40 bg-red-500/20 text-white"
+                          ? "border-emerald-400/40 bg-emerald-500/20 text-white"
                           : "border-white/10 bg-white/[0.055] text-slate-300 hover:bg-white/[0.08]"
                       )}
                     >
@@ -211,7 +211,7 @@ export default function BotOnboardingPage() {
                       className={cx(
                         "rounded-2xl border px-4 py-4 text-left text-sm font-black transition",
                         currentAnswer === option
-                          ? "border-red-400/40 bg-red-500/20 text-white"
+                          ? "border-emerald-400/40 bg-emerald-500/20 text-white"
                           : "border-white/10 bg-white/[0.055] text-slate-300 hover:bg-white/[0.08]"
                       )}
                     >
@@ -221,7 +221,7 @@ export default function BotOnboardingPage() {
             </div>
 
             {message ? (
-              <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+              <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
                 {message}
               </div>
             ) : null}
@@ -242,7 +242,7 @@ export default function BotOnboardingPage() {
                       Math.min(PERSONAL_BOT_QUESTIONS.length - 1, current + 1)
                     )
                   }
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40"
+                  className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40"
                 >
                   Next
                 </button>
@@ -250,7 +250,7 @@ export default function BotOnboardingPage() {
                 <button
                   onClick={saveOnboarding}
                   disabled={saving}
-                  className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+                  className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-60"
                 >
                   {saving ? "Saving..." : "Finish Bot Setup"}
                 </button>

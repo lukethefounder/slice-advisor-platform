@@ -1,1031 +1,330 @@
 "use client";
 
+import Link from "next/link";
 import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+  AlertTriangle,
+  ArrowLeft,
+  Bot,
+  BrainCircuit,
+  CheckCircle2,
+  Database,
+  Network,
+  Play,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-type RecentRun = {
-  runId: string;
-  requestId: string;
-  symbol: string;
-  generatedAt: string;
-  modelVersion: string;
-  marketRegime: string;
-  camelStatus: string;
-  status: string;
-  claimCount: number;
-  contradictionCount: number;
-  horizonCount: number;
-  outcomeCount: number;
-};
+import ResearchKnowledgeGraphCanvas from "@/components/intelligence/research-knowledge-graph";
+import type { ResearchSwarmResponse } from "@/lib/intelligence/research-swarm-types";
 
-type GraphObject =
-  Record<
-    string,
-    unknown
-  >;
+const panelClass =
+  "rounded-[1.75rem] border border-white/10 bg-black/58 shadow-2xl shadow-black/40 backdrop-blur-xl";
 
-type ProvenancePath = {
-  type: string;
-  path: string[];
-  status: string;
-};
-
-type GraphResponse = {
-  ok: boolean;
-  configured: boolean;
-  connectivity: {
-    ok: boolean;
-    configured: boolean;
-    enabled: boolean;
-    database: string;
-    address?: string;
-    agent?: string;
-    detail: string;
-    missing?: string[];
-  };
-  counts: {
-    assets: number;
-    runs: number;
-    models: number;
-    evidence: number;
-    horizons: number;
-    outcomes: number;
-    claims: number;
-    contradictions: number;
-  };
-  recentRuns: RecentRun[];
-  selectedRun: {
-    run: GraphObject;
-    asset: GraphObject;
-    models: GraphObject[];
-    evidence: GraphObject[];
-    horizons: GraphObject[];
-    outcomes: GraphObject[];
-    claims: GraphObject[];
-    contradictions: GraphObject[];
-  } | null;
-  provenancePaths: ProvenancePath[];
-  error?: string;
-};
-
-function text(
-  value: unknown,
-) {
-  return String(
-    value ?? "",
-  );
+function cx(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(" ");
 }
 
-function number(
-  value: unknown,
-  decimals = 1,
-) {
-  const parsed =
-    Number(value);
-
-  return Number.isFinite(
-    parsed,
-  )
-    ? parsed.toFixed(
-        decimals,
-      )
-    : "—";
-}
-
-function dateTime(
-  value: unknown,
-) {
-  const parsed =
-    new Date(
-      text(value),
-    );
-
-  return Number.isFinite(
-    parsed.getTime(),
-  )
-    ? parsed.toLocaleString()
-    : "—";
-}
-
-function polarityClass(
-  polarity: unknown,
-) {
-  const normalized =
-    text(
-      polarity,
-    ).toLowerCase();
-
-  if (
-    normalized ===
-    "bullish"
-  ) {
-    return "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100";
+function number(value: number | null | undefined, decimals = 1) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
   }
 
-  if (
-    normalized ===
-    "bearish"
-  ) {
-    return "border-red-400/20 bg-red-500/[0.06] text-red-100";
-  }
-
-  return "border-amber-400/20 bg-amber-500/[0.06] text-amber-100";
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
-export default function KnowledgeGraphPage() {
-  const [
-    data,
-    setData,
-  ] =
-    useState<GraphResponse | null>(
-      null,
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    ...init,
+  });
+  const body = (await response.json()) as T & {
+    error?: string;
+    detail?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(
+      body.detail || body.error || `Request failed with HTTP ${response.status}.`,
     );
+  }
 
-  const [
-    symbolInput,
-    setSymbolInput,
-  ] =
-    useState("");
+  return body;
+}
 
-  const [
-    activeSymbol,
-    setActiveSymbol,
-  ] =
-    useState("");
-
-  const [
-    selectedRunId,
-    setSelectedRunId,
-  ] =
-    useState("");
-
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
-
-  const [
-    activeAction,
-    setActiveAction,
-  ] =
-    useState<string | null>(
-      null,
-    );
-
-  const [
-    message,
-    setMessage,
-  ] =
-    useState(
-      "Loading Neo4j provenance graph.",
-    );
-
-  const loadGraph =
-    useCallback(
-      async (
-        explicitRunId =
-          selectedRunId,
-      ) => {
-        setLoading(
-          true,
-        );
-
-        try {
-          const parameters =
-            new URLSearchParams();
-
-          parameters.set(
-            "limit",
-            "50",
-          );
-
-          if (
-            activeSymbol
-          ) {
-            parameters.set(
-              "symbol",
-              activeSymbol,
-            );
-          }
-
-          if (
-            explicitRunId
-          ) {
-            parameters.set(
-              "runId",
-              explicitRunId,
-            );
-          }
-
-          const response =
-            await fetch(
-              `/api/intelligence/forecast/graph?${parameters.toString()}`,
-              {
-                cache:
-                  "no-store",
-              },
-            );
-
-          const body =
-            (await response.json()) as GraphResponse;
-
-          if (
-            !response.ok
-          ) {
-            throw new Error(
-              body.error ??
-                "Unable to load the knowledge graph.",
-            );
-          }
-
-          setData(
-            body,
-          );
-
-          setMessage(
-            body.connectivity
-              .ok
-              ? "Neo4j graph connected. Claims and evidence remain decision-support records."
-              : body.connectivity
-                  .detail,
-          );
-        } catch (error) {
-          setMessage(
-            error instanceof Error
-              ? error.message
-              : "Unable to load the knowledge graph.",
-          );
-        } finally {
-          setLoading(
-            false,
-          );
-        }
-      },
-      [
-        activeSymbol,
-        selectedRunId,
-      ],
-    );
-
-  useEffect(
-    () => {
-      void loadGraph();
-    },
-    [
-      loadGraph,
-    ],
+export default function IntelligenceKnowledgeGraphPage() {
+  const [symbolInput, setSymbolInput] = useState("MSFT");
+  const [activeSymbol, setActiveSymbol] = useState("MSFT");
+  const [agentCount, setAgentCount] = useState(2_000);
+  const [swarm, setSwarm] = useState<ResearchSwarmResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(
+    "Run the research swarm to build the complete agent-evidence-source graph.",
   );
 
-  async function performAction(
-    action: string,
-    additional:
-      Record<
-        string,
-        unknown
-      > = {},
-  ) {
-    setActiveAction(
-      action,
-    );
+  const runGraph = useCallback(
+    async (symbol: string, agents: number) => {
+      setLoading(true);
+      setMessage(
+        `Building a full ${agents.toLocaleString()}-pathway graph for ${symbol}.`,
+      );
 
-    try {
-      const response =
-        await fetch(
-          "/api/intelligence/forecast/graph",
+      try {
+        const body = await fetchJson<ResearchSwarmResponse>(
+          "/api/intelligence/research-swarm",
           {
-            method:
-              "POST",
-
+            method: "POST",
             headers: {
-              "Content-Type":
-                "application/json",
+              "Content-Type": "application/json",
             },
-
-            body:
-              JSON.stringify(
-                {
-                  action,
-                  ...additional,
-                },
-              ),
+            body: JSON.stringify({
+              symbol,
+              agentCount: agents,
+              graphMode: "full",
+              detailMode: "graph",
+              persistGraph: true,
+              simulationPaths: 500,
+            }),
           },
         );
-
-      const body =
-        (await response.json()) as {
-          error?: string;
-          detail?: string;
-          syncedCount?: number;
-          failedCount?: number;
-        };
-
-      if (
-        !response.ok
-      ) {
-        throw new Error(
-          body.detail ??
-            body.error ??
-            "Graph operation failed.",
-        );
-      }
-
-      if (
-        action ===
-        "sync-batch"
-      ) {
+        setSwarm(body);
         setMessage(
-          `Graph synchronization completed. ` +
-            `${body.syncedCount ?? 0} runs synchronized and ` +
-            `${body.failedCount ?? 0} failed.`,
+          `${body.graph.nodeCount.toLocaleString()} nodes and ${body.graph.edgeCount.toLocaleString()} edges created.`,
         );
-      } else {
+      } catch (error) {
         setMessage(
-          "Graph operation completed.",
+          error instanceof Error
+            ? error.message
+            : "Unable to build the research graph.",
         );
+      } finally {
+        setLoading(false);
       }
+    },
+    [],
+  );
 
-      await loadGraph();
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Graph operation failed.",
-      );
-    } finally {
-      setActiveAction(
-        null,
-      );
-    }
+  useEffect(() => {
+    void runGraph("MSFT", 2_000);
+  }, [runGraph]);
+
+  async function runRequestedGraph() {
+    const symbol = symbolInput.trim().toUpperCase() || activeSymbol;
+    setActiveSymbol(symbol);
+    await runGraph(symbol, agentCount);
   }
-
-  function applyFilter() {
-    setSelectedRunId(
-      "",
-    );
-
-    setActiveSymbol(
-      symbolInput
-        .trim()
-        .toUpperCase(),
-    );
-  }
-
-  const selected =
-    data?.selectedRun;
 
   return (
-    <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
-          Slice Provenance Intelligence
-        </p>
+    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute left-[-12rem] top-[-12rem] h-[36rem] w-[36rem] rounded-full bg-emerald-700/16 blur-3xl" />
+        <div className="absolute right-[-14rem] top-[7rem] h-[38rem] w-[38rem] rounded-full bg-cyan-800/8 blur-3xl" />
+      </div>
 
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
-          Knowledge Graph
-        </h1>
+      <div className="mx-auto max-w-[1950px]">
+        <section className={cx(panelClass, "p-6 sm:p-8")}>
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-200">
+                  <Network className="h-3.5 w-3.5" />
+                  Live Research Knowledge Graph
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border border-purple-400/25 bg-purple-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-purple-100">
+                  <Bot className="h-3.5 w-3.5" />
+                  Up to 2,000 pathways
+                </span>
+              </div>
+              <h1 className="mt-4 max-w-5xl text-4xl font-black tracking-[-0.045em] text-white sm:text-6xl">
+                See every pathway behind the Slice score.
+              </h1>
+              <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-slate-400 sm:text-base">
+                This canvas connects the asset, sector, industry, score, three equal
+                research cohorts, individual agents, evidence items, sources, topics,
+                and economic series. Neo4j persistence is used when configured.
+              </p>
+            </div>
 
-        <p className="mt-4 max-w-5xl text-sm leading-7 text-slate-400">
-          Trace every forecast from its model version and evidence
-          categories through claims, horizon conclusions,
-          contradictions, and realized outcomes. The graph stores
-          provenance and accountability—not trading instructions.
-        </p>
-
-        <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
-          {message}
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          <input
-            value={
-              symbolInput
-            }
-            onChange={(
-              event,
-            ) =>
-              setSymbolInput(
-                event
-                  .target
-                  .value,
-              )
-            }
-            onKeyDown={(
-              event,
-            ) => {
-              if (
-                event.key ===
-                "Enter"
-              ) {
-                applyFilter();
-              }
-            }}
-            placeholder="Filter by ticker"
-            className="w-52 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40"
-          />
-
-          <button
-            type="button"
-            onClick={
-              applyFilter
-            }
-            className="rounded-xl border border-red-400/25 bg-red-500/15 px-5 py-3 text-sm font-black text-red-100 hover:bg-red-500/25"
-          >
-            Apply Filter
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSymbolInput(
-                "",
-              );
-
-              setActiveSymbol(
-                "",
-              );
-
-              setSelectedRunId(
-                "",
-              );
-            }}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.08]"
-          >
-            Clear
-          </button>
-
-          <button
-            type="button"
-            disabled={
-              Boolean(
-                activeAction,
-              )
-            }
-            onClick={() =>
-              void performAction(
-                "initialize",
-              )
-            }
-            className="rounded-xl border border-blue-400/25 bg-blue-500/10 px-5 py-3 text-sm font-black text-blue-100 disabled:opacity-40"
-          >
-            Initialize Schema
-          </button>
-
-          <button
-            type="button"
-            disabled={
-              Boolean(
-                activeAction,
-              )
-            }
-            onClick={() =>
-              void performAction(
-                "sync-batch",
-                {
-                  limit:
-                    50,
-                },
-              )
-            }
-            className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
-          >
-            {activeAction ===
-            "sync-batch"
-              ? "Synchronizing…"
-              : "Sync Recent Forecasts"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              void loadGraph()
-            }
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.08]"
-          >
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-8">
-        {[
-          [
-            "Assets",
-            data?.counts
-              .assets ??
-              0,
-          ],
-          [
-            "Forecasts",
-            data?.counts
-              .runs ??
-              0,
-          ],
-          [
-            "Models",
-            data?.counts
-              .models ??
-              0,
-          ],
-          [
-            "Evidence",
-            data?.counts
-              .evidence ??
-              0,
-          ],
-          [
-            "Horizons",
-            data?.counts
-              .horizons ??
-              0,
-          ],
-          [
-            "Outcomes",
-            data?.counts
-              .outcomes ??
-              0,
-          ],
-          [
-            "Claims",
-            data?.counts
-              .claims ??
-              0,
-          ],
-          [
-            "Contradictions",
-            data?.counts
-              .contradictions ??
-              0,
-          ],
-        ].map(
-          ([
-            label,
-            value,
-          ]) => (
-            <div
-              key={
-                String(
-                  label,
-                )
-              }
-              className="rounded-2xl border border-white/8 bg-white/[0.035] p-5"
+            <Link
+              href="/workspace/intelligence"
+              className="inline-flex items-center gap-2 self-start rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 transition hover:border-emerald-400/25 hover:text-white xl:self-auto"
             >
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                {
-                  label
-                }
-              </div>
-
-              <div className="mt-3 text-2xl font-black text-white">
-                {
-                  value
-                }
-              </div>
-            </div>
-          ),
-        )}
-      </section>
-
-      <section className="mt-6 grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <aside className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-5">
-          <h2 className="text-lg font-black text-white">
-            Forecast Runs
-          </h2>
-
-          <div className="mt-4 space-y-3">
-            {(data?.recentRuns ?? []).map(
-              (
-                run,
-              ) => (
-                <button
-                  type="button"
-                  key={
-                    run.runId
-                  }
-                  onClick={() => {
-                    setSelectedRunId(
-                      run.runId,
-                    );
-
-                    void loadGraph(
-                      run.runId,
-                    );
-                  }}
-                  className={`w-full rounded-xl border p-4 text-left transition ${
-                    selectedRunId ===
-                    run.runId
-                      ? "border-red-400/30 bg-red-500/10"
-                      : "border-white/8 bg-black/30 hover:border-red-400/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-lg font-black text-white">
-                      {
-                        run.symbol
-                      }
-                    </div>
-
-                    <div className="text-[10px] font-black uppercase text-slate-500">
-                      {
-                        run.status
-                      }
-                    </div>
-                  </div>
-
-                  <div className="mt-2 text-xs text-slate-500">
-                    {dateTime(
-                      run.generatedAt,
-                    )}
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400">
-                    <div>
-                      Claims{" "}
-                      {
-                        run.claimCount
-                      }
-                    </div>
-
-                    <div>
-                      Conflicts{" "}
-                      {
-                        run.contradictionCount
-                      }
-                    </div>
-
-                    <div>
-                      Horizons{" "}
-                      {
-                        run.horizonCount
-                      }
-                    </div>
-
-                    <div>
-                      Outcomes{" "}
-                      {
-                        run.outcomeCount
-                      }
-                    </div>
-                  </div>
-                </button>
-              ),
-            )}
-
-            {!data
-              ?.recentRuns
-              .length ? (
-              <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
-                No synchronized forecasts.
-              </div>
-            ) : null}
+              <ArrowLeft className="h-4 w-4" />
+              Control Plane
+            </Link>
           </div>
-        </aside>
 
-        <div className="space-y-6">
-          {loading ? (
-            <div className="rounded-[2rem] border border-white/8 p-10 text-center text-sm text-slate-500">
-              Loading graph…
-            </div>
-          ) : null}
+          <div className="mt-7 grid gap-3 lg:grid-cols-[1fr_320px_auto]">
+            <label className="flex items-center rounded-2xl border border-white/10 bg-black/45 px-4">
+              <Search className="h-5 w-5 text-emerald-300" />
+              <input
+                value={symbolInput}
+                onChange={(event: any) =>
+                  setSymbolInput(event.target.value.toUpperCase())
+                }
+                onKeyDown={(event: any) => {
+                  if (event.key === "Enter") {
+                    void runRequestedGraph();
+                  }
+                }}
+                className="h-14 min-w-0 flex-1 bg-transparent px-4 text-sm font-black uppercase tracking-[0.12em] text-white outline-none"
+                placeholder="MSFT"
+              />
+            </label>
 
-          {selected ? (
-            <>
-              <section className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+            <label className="rounded-2xl border border-white/10 bg-black/45 px-4 py-2">
+              <span className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
+                Agent pathways
+                <span className="text-emerald-300">
+                  {agentCount.toLocaleString()}
+                </span>
+              </span>
+              <input
+                type="range"
+                min={300}
+                max={2_000}
+                step={100}
+                value={agentCount}
+                onChange={(event: any) => setAgentCount(Number(event.target.value))}
+                className="mt-2 w-full accent-emerald-600"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => void runRequestedGraph()}
+              disabled={loading}
+              className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 px-6 text-sm font-black text-white shadow-xl shadow-emerald-950/35 transition hover:brightness-110 disabled:opacity-50"
+            >
+              {loading ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 fill-current" />
+              )}
+              Build full graph
+            </button>
+          </div>
+
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm font-semibold leading-6 text-slate-300">
+            {loading ? (
+              <RefreshCw className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-emerald-300" />
+            ) : swarm ? (
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+            ) : (
+              <BrainCircuit className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+            )}
+            {message}
+          </div>
+        </section>
+
+        {swarm ? (
+          <>
+            <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+              {[
+                ["Slice score", number(swarm.score.overall, 1), "Equal thirds"],
+                ["Confidence", `${number(swarm.score.confidence, 0)}%`, "Research quality"],
+                ["Agents", swarm.activeAgents.toLocaleString(), "Analytical pathways"],
+                ["Evidence", swarm.evidence.length.toLocaleString(), "Provider and source items"],
+                ["Nodes", swarm.graph.nodeCount.toLocaleString(), "Visual graph objects"],
+                ["Edges", swarm.graph.edgeCount.toLocaleString(), "Research relationships"],
+                ["Connected", `${number(swarm.graphAnalytics.connectednessScore, 0)}%`, "Graph centrality"],
+              ].map(([label, value, helper]) => (
+                <div key={label} className={cx(panelClass, "p-4")}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-white">
+                    {value}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    {helper}
+                  </p>
+                </div>
+              ))}
+            </section>
+
+            <section className="mt-5">
+              <ResearchKnowledgeGraphCanvas
+                graph={swarm.graph}
+                analytics={swarm.graphAnalytics}
+                height={840}
+                live
+              />
+            </section>
+
+            <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_0.7fr]">
+              <div className={cx(panelClass, "p-5 sm:p-6")}>
+                <div className="flex items-end justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black text-white">
-                      {text(
-                        selected
-                          .asset
-                          .symbol,
-                      )}
+                    <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-cyan-100">
+                      <Database className="h-3.5 w-3.5" />
+                      Graph clusters
+                    </span>
+                    <h2 className="mt-3 text-2xl font-black text-white">
+                      Research topology
                     </h2>
-
-                    <p className="mt-2 text-xs text-slate-500">
-                      {text(
-                        selected
-                          .run
-                          .requestId,
-                      )}{" "}
-                      ·{" "}
-                      {dateTime(
-                        selected
-                          .run
-                          .generatedAt,
-                      )}
-                    </p>
                   </div>
-
-                  <button
-                    type="button"
-                    disabled={
-                      Boolean(
-                        activeAction,
-                      )
-                    }
-                    onClick={() =>
-                      void performAction(
-                        "sync-run",
-                        {
-                          runId:
-                            text(
-                              selected
-                                .run
-                                .runId,
-                            ),
-                        },
-                      )
-                    }
-                    className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
-                  >
-                    Sync This Run
-                  </button>
                 </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  {[
-                    [
-                      "Model",
-                      text(
-                        selected
-                          .run
-                          .modelVersion,
-                      ),
-                    ],
-                    [
-                      "Regime",
-                      text(
-                        selected
-                          .run
-                          .marketRegime,
-                      ),
-                    ],
-                    [
-                      "Slice Score",
-                      number(
-                        selected
-                          .run
-                          .sliceSentimentScore,
-                      ),
-                    ],
-                    [
-                      "Data Quality",
-                      number(
-                        selected
-                          .run
-                          .dataQualityScore,
-                      ),
-                    ],
-                    [
-                      "CAMEL",
-                      text(
-                        selected
-                          .run
-                          .camelStatus,
-                      ),
-                    ],
-                  ].map(
-                    ([
-                      label,
-                      value,
-                    ]) => (
-                      <div
-                        key={
-                          label
-                        }
-                        className="rounded-xl border border-white/8 bg-black/30 p-4"
-                      >
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
-                          {
-                            label
-                          }
-                        </div>
-
-                        <div className="mt-2 break-words text-sm font-black text-white">
-                          {
-                            value
-                          }
-                        </div>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-6">
-                <h2 className="text-xl font-black text-white">
-                  Provenance Paths
-                </h2>
-
-                <div className="mt-5 grid gap-3">
-                  {(data
-                    ?.provenancePaths ??
-                    [])
-                    .slice(
-                      0,
-                      80,
-                    )
-                    .map(
-                      (
-                        path,
-                        index,
-                      ) => (
-                        <div
-                          key={`${path.type}-${index}`}
-                          className="rounded-xl border border-white/8 bg-black/30 p-4"
-                        >
-                          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-red-300">
-                            {
-                              path.type
-                            }{" "}
-                            ·{" "}
-                            {
-                              path.status
-                            }
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                            {path.path.map(
-                              (
-                                item,
-                                itemIndex,
-                              ) => (
-                                <div
-                                  key={`${item}-${itemIndex}`}
-                                  className="flex items-center gap-2"
-                                >
-                                  {itemIndex >
-                                  0 ? (
-                                    <span className="text-red-500">
-                                      →
-                                    </span>
-                                  ) : null}
-
-                                  <span className="rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2">
-                                    {
-                                      item
-                                    }
-                                  </span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-6">
-                <h2 className="text-xl font-black text-white">
-                  Evidence Nodes
-                </h2>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {selected.evidence.map(
-                    (
-                      item,
-                      index,
-                    ) => (
-                      <div
-                        key={`${text(
-                          item.key,
-                        )}-${index}`}
-                        className="rounded-xl border border-blue-400/20 bg-blue-500/[0.05] p-4"
-                      >
-                        <div className="font-black text-blue-100">
-                          {text(
-                            item.sourceName,
-                          )}
-                        </div>
-
-                        <div className="mt-2 text-xs text-blue-100/70">
-                          {text(
-                            item.liveStatus,
-                          )}{" "}
-                          ·{" "}
-                          {text(
-                            item.freshnessStatus,
-                          )}
-                        </div>
-
-                        <div className="mt-3 text-2xl font-black text-white">
-                          {number(
-                            item.qualityScore,
-                          )}
-                        </div>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-6">
-                <h2 className="text-xl font-black text-white">
-                  Claims
-                </h2>
-
-                <div className="mt-5 grid gap-3">
-                  {selected.claims
-                    .slice(
-                      0,
-                      100,
-                    )
-                    .map(
-                      (
-                        claim,
-                        index,
-                      ) => (
-                        <div
-                          key={`${text(
-                            claim.key,
-                          )}-${index}`}
-                          className={`rounded-xl border p-4 ${polarityClass(
-                            claim.polarity,
-                          )}`}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.14em]">
-                              {text(
-                                claim.kind,
-                              )}{" "}
-                              ·{" "}
-                              {text(
-                                claim.polarity,
-                              )}
-                            </div>
-
-                            <div className="text-xs font-black">
-                              Confidence{" "}
-                              {number(
-                                claim.confidence,
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="mt-3 text-sm leading-6">
-                            {text(
-                              claim.text,
-                            )}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                </div>
-              </section>
-
-              <section className="rounded-[2rem] border border-white/8 bg-white/[0.025] p-6">
-                <h2 className="text-xl font-black text-white">
-                  Contradictions
-                </h2>
-
-                <div className="mt-5 grid gap-3">
-                  {selected.contradictions.map(
-                    (
-                      contradiction,
-                      index,
-                    ) => (
-                      <div
-                        key={`${text(
-                          contradiction.key,
-                        )}-${index}`}
-                        className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4"
-                      >
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-red-200">
-                          {text(
-                            contradiction.type,
-                          )}{" "}
-                          ·{" "}
-                          {text(
-                            contradiction.severity,
-                          )}
-                        </div>
-
-                        <div className="mt-3 text-sm leading-6 text-red-100">
-                          {text(
-                            contradiction.text,
-                          )}
-                        </div>
-                      </div>
-                    ),
-                  )}
-
-                  {!selected
-                    .contradictions
-                    .length ? (
-                    <div className="rounded-xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
-                      No graph contradictions were recorded for this run.
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {swarm.graph.clusters.map((cluster) => (
+                    <div
+                      key={cluster.id}
+                      className="rounded-2xl border border-white/8 bg-white/[0.025] p-4"
+                    >
+                      <p className="text-sm font-black text-white">
+                        {cluster.label}
+                      </p>
+                      <p className="mt-3 text-3xl font-black text-white">
+                        {cluster.nodeCount.toLocaleString()}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        nodes · score {number(cluster.averageScore, 1)}
+                      </p>
                     </div>
-                  ) : null}
+                  ))}
                 </div>
-              </section>
-            </>
-          ) : null}
-        </div>
-      </section>
+              </div>
+
+              <div className={cx(panelClass, "p-5 sm:p-6")}>
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-emerald-100">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Persistence
+                </span>
+                <h2 className="mt-3 text-2xl font-black text-white">
+                  Neo4j graph state
+                </h2>
+                <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.025] p-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-600">
+                    Status
+                  </p>
+                  <p className="mt-2 text-xl font-black text-white">
+                    {swarm.graphPersistence.status}
+                  </p>
+                  <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
+                    {"detail" in swarm.graphPersistence
+                      ? swarm.graphPersistence.detail
+                      : `${swarm.graphPersistence.nodeCount.toLocaleString()} nodes and ${swarm.graphPersistence.edgeCount.toLocaleString()} edges persisted.`}
+                  </p>
+                </div>
+
+                {swarm.warnings.length ? (
+                  <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-500/[0.05] p-4 text-xs font-semibold leading-5 text-amber-100">
+                    <div className="flex items-center gap-2 font-black">
+                      <AlertTriangle className="h-4 w-4" />
+                      {swarm.warnings.length} active limitations
+                    </div>
+                    <p className="mt-2">{swarm.warnings[0]}</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </>
+        ) : null}
+      </div>
     </main>
   );
 }

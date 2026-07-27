@@ -471,7 +471,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     green:
       "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
@@ -496,7 +496,7 @@ function Pill({
 
 function dotClass(tone: Tone) {
   const dots: Record<Tone, string> = {
-    red: "bg-red-400 shadow-red-400/50",
+    red: "bg-emerald-400 shadow-emerald-400/50",
     green: "bg-emerald-400 shadow-emerald-400/50",
     amber: "bg-amber-400 shadow-amber-400/50",
     purple: "bg-purple-400 shadow-purple-400/50",
@@ -510,7 +510,7 @@ function dotClass(tone: Tone) {
 
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-red-500/25 bg-red-500/10 text-red-100 shadow-red-950/20",
+    red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     green:
       "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     amber:
@@ -536,7 +536,7 @@ function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className,
       )}
     >
@@ -557,7 +557,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -595,10 +595,10 @@ function Metric({
 }
 
 const inputClass =
-  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 const compactInputClass =
-  "rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 export default function ClientProfilesPage() {
   const [payload, setPayload] = useState<ClientsPayload>(EMPTY_PAYLOAD);
@@ -1731,12 +1731,12 @@ export default function ClientProfilesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.46),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),radial-gradient(circle_at_bottom,_rgba(168,85,247,0.13),_transparent_36%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.46),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),radial-gradient(circle_at_bottom,_rgba(168,85,247,0.13),_transparent_36%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
-          <div className="pointer-events-none absolute right-[-120px] top-[-160px] hidden h-[360px] w-[360px] rounded-full border border-red-500/10 xl:block">
+          <div className="pointer-events-none absolute right-[-120px] top-[-160px] hidden h-[360px] w-[360px] rounded-full border border-emerald-500/10 xl:block">
             <div className="absolute inset-12 rounded-full border border-cyan-500/10" />
             <div className="absolute inset-24 rounded-full border border-white/10" />
           </div>
@@ -1918,7 +1918,7 @@ export default function ClientProfilesPage() {
                       )}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-red-600 via-red-900 to-zinc-950 text-sm font-black text-white shadow-lg shadow-red-950/30">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-900 to-zinc-950 text-sm font-black text-white shadow-lg shadow-emerald-950/30">
                           {initials(client.fullName)}
                         </div>
 
@@ -2127,7 +2127,7 @@ export default function ClientProfilesPage() {
                     type="button"
                     onClick={importSelectedProfiles}
                     disabled={loading || importLoading}
-                    className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Import Selected Profiles
                   </button>
@@ -2350,7 +2350,7 @@ export default function ClientProfilesPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {selectedClient
                     ? "Save Profile Changes"
@@ -3008,12 +3008,12 @@ export default function ClientProfilesPage() {
               onToggle={() => toggleSection("remove")}
             >
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
-                <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-4">
+                <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
                   <div className="text-sm font-black text-white">
                     Removal is permanent
                   </div>
 
-                  <p className="mt-2 text-sm leading-6 text-red-100">
+                  <p className="mt-2 text-sm leading-6 text-emerald-100">
                     This removes the selected client profile and related
                     local profile records from the client data API.
                   </p>
@@ -3023,7 +3023,7 @@ export default function ClientProfilesPage() {
                   type="button"
                   onClick={deleteSelectedClient}
                   disabled={!selectedClient || loading}
-                  className="rounded-2xl bg-red-600 px-4 py-4 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-2xl bg-emerald-600 px-4 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Remove Selected Client
                 </button>

@@ -520,10 +520,10 @@ export function ClientPortalRoutingBridge() {
               (current) => !current,
             )
           }
-          className="flex w-full items-center justify-between gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.24),transparent_48%),rgba(0,0,0,0.55)] px-5 py-4 text-left"
+          className="flex w-full items-center justify-between gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.24),transparent_48%),rgba(0,0,0,0.55)] px-5 py-4 text-left"
         >
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
               Your assigned advisor
             </div>
 
@@ -559,7 +559,7 @@ export function ClientPortalRoutingBridge() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-2xl bg-red-600 px-5 py-3 text-center text-sm font-black text-white shadow-lg shadow-red-950/40"
+                className="rounded-2xl bg-emerald-600 px-5 py-3 text-center text-sm font-black text-white shadow-lg shadow-emerald-950/40"
               >
                 {routing.advisor
                   .calendlyLabel ||

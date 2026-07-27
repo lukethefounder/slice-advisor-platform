@@ -112,7 +112,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const tones = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -134,7 +134,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={cx("rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20", className)}>
+    <div className={cx("rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20", className)}>
       {children}
     </div>
   );
@@ -152,7 +152,7 @@ function Metric({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const glows = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -182,7 +182,7 @@ function SectionHeader({
 }) {
   return (
     <div className="mb-5">
-      <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">{eyebrow}</div>
+      <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">{eyebrow}</div>
       <h2 className="mt-2 text-2xl font-black text-white">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
     </div>
@@ -249,16 +249,16 @@ export default function BackendKernelPage() {
         <Card className="mx-auto mt-20 max-w-3xl text-center">
           <Pill tone="red">Slice</Pill>
           <h1 className="mt-4 text-3xl font-black">Loading Backend Kernel...</h1>
-          {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
+          {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
         </Card>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(8,145,178,0.18),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(8,145,178,0.18),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1600px] gap-6">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
@@ -311,7 +311,7 @@ export default function BackendKernelPage() {
           <button
             onClick={() => runAction("runCoreJobs")}
             disabled={working === "runCoreJobs"}
-            className="rounded-[1.5rem] bg-white p-5 text-left text-slate-950 shadow-xl shadow-red-950/20 transition hover:scale-[1.01] disabled:opacity-50"
+            className="rounded-[1.5rem] bg-white p-5 text-left text-slate-950 shadow-xl shadow-emerald-950/20 transition hover:scale-[1.01] disabled:opacity-50"
           >
             <div className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Core Jobs</div>
             <div className="mt-2 text-2xl font-black">Run Core Backend</div>
@@ -459,7 +459,7 @@ export default function BackendKernelPage() {
                     </div>
                     <Pill tone={toneFor(run.status)}>{run.status}</Pill>
                   </div>
-                  {run.error ? <p className="mt-2 text-sm leading-6 text-red-200">{run.error}</p> : null}
+                  {run.error ? <p className="mt-2 text-sm leading-6 text-emerald-200">{run.error}</p> : null}
                 </div>
               ))}
             </div>
@@ -484,7 +484,7 @@ export default function BackendKernelPage() {
                     </div>
                     <Pill tone={toneFor(delivery.status)}>{delivery.status}</Pill>
                   </div>
-                  {delivery.failureReason ? <p className="mt-2 text-xs leading-5 text-red-200">{delivery.failureReason}</p> : null}
+                  {delivery.failureReason ? <p className="mt-2 text-xs leading-5 text-emerald-200">{delivery.failureReason}</p> : null}
                 </div>
               ))}
             </div>

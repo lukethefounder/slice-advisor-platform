@@ -79,7 +79,7 @@ async function createPersonalAdvisorFirm(user: {
           canManageProjects: true,
           canInviteMembers: true,
           canManageFirm: true,
-          calendarColor: "#ef4444",
+          calendarColor: "#10b981",
           calendlyLabel: "Schedule a meeting",
           calendlyEnabled: true,
         },

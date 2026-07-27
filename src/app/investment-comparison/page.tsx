@@ -93,7 +93,7 @@ function Card({
   return (
     <div
       className={cx(
-        "rounded-[2rem] border border-white/10 bg-zinc-950/70 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "rounded-[2rem] border border-white/10 bg-zinc-950/70 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -110,7 +110,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "slate" | "purple";
 }) {
   const tones = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -132,20 +132,20 @@ function Pill({
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div>
         <div className="text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Investment Comparison
         </div>
       </div>
@@ -154,10 +154,10 @@ function Logo() {
 }
 
 const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2";
+  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2";
 
 const selectClass =
-  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition focus:ring-2";
+  "w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2";
 
 function defaultSecurity(assetType: AssetType): SecurityFormState {
   return {
@@ -200,7 +200,7 @@ function ScoreBar({
   tone?: "red" | "green" | "amber" | "slate" | "purple";
 }) {
   const fills = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     slate: "from-slate-700 to-slate-300",
@@ -524,10 +524,10 @@ function AnalysisPanel({
         </div>
 
         <div>
-          <h3 className="text-lg font-black text-red-200">Key risks</h3>
+          <h3 className="text-lg font-black text-emerald-200">Key risks</h3>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-400">
             {analysis.keyRisks.map((item) => (
-              <li key={item} className="rounded-2xl bg-red-500/5 p-3">
+              <li key={item} className="rounded-2xl bg-emerald-500/5 p-3">
                 {item}
               </li>
             ))}
@@ -600,9 +600,9 @@ export default function InvestmentComparisonPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
       <div className="mx-auto max-w-7xl">
-        <header className="sticky top-4 z-40 rounded-[2rem] border border-white/10 bg-black/70 p-4 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+        <header className="sticky top-4 z-40 rounded-[2rem] border border-white/10 bg-black/70 p-4 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <Logo />
 
@@ -686,7 +686,7 @@ export default function InvestmentComparisonPage() {
         </section>
 
         {message ? (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">
+          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-200">
             {message}
           </div>
         ) : null}
@@ -762,7 +762,7 @@ export default function InvestmentComparisonPage() {
 
               <button
                 disabled={loading}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-6 py-4 font-black text-white shadow-lg shadow-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-6 py-4 font-black text-white shadow-lg shadow-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? "Comparing..." : "Compare"}
               </button>

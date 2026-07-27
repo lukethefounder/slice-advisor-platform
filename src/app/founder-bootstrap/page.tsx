@@ -37,10 +37,10 @@ export default function FounderBootstrapPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
       <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-3xl items-center">
-        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950/75 p-6 shadow-xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="inline-flex rounded-full bg-red-500/10 px-3 py-1 text-xs font-black text-red-300 ring-1 ring-red-500/30">
+        <div className="w-full rounded-[2rem] border border-white/10 bg-zinc-950/75 p-6 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
+          <div className="inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30">
             Local founder bootstrap
           </div>
 
@@ -68,7 +68,7 @@ export default function FounderBootstrapPage() {
           <button
             onClick={bootstrapFounder}
             disabled={loading}
-            className="mt-6 w-full rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-60"
+            className="mt-6 w-full rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-60"
           >
             {loading ? "Creating Founder Login..." : "Create / Reset Founder Login"}
           </button>
@@ -77,7 +77,7 @@ export default function FounderBootstrapPage() {
             <div className="mt-6 rounded-3xl border border-white/10 bg-black/35 p-4">
               {result.error ? (
                 <>
-                  <div className="font-black text-red-300">{result.error}</div>
+                  <div className="font-black text-emerald-300">{result.error}</div>
                   {result.detail ? (
                     <div className="mt-2 text-sm text-slate-400">
                       {result.detail}

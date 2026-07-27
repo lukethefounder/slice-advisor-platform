@@ -1244,7 +1244,7 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[2rem] border border-red-500/15 bg-zinc-950/82 shadow-xl shadow-red-950/25 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-emerald-500/15 bg-zinc-950/82 shadow-xl shadow-emerald-950/25 backdrop-blur-xl",
         className,
       )}
     >
@@ -1263,7 +1263,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/22",
+    red: "from-emerald-500/22",
     green: "from-emerald-500/16",
     amber: "from-amber-500/18",
     purple: "from-purple-500/16",
@@ -1287,7 +1287,7 @@ function Panel({
 
 function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -1311,18 +1311,18 @@ function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) 
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div>
         <div className="text-2xl font-black tracking-tight text-white">Slice</div>
-        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Compliance Center
         </div>
       </div>
@@ -1332,7 +1332,7 @@ function Logo() {
 
 function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-red-700 to-red-400",
+    red: "from-emerald-700 to-emerald-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",
@@ -1368,7 +1368,7 @@ function Metric({
         className={cn(
           "absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
           tone === "red"
-            ? "from-red-500/18"
+            ? "from-emerald-500/18"
             : tone === "green"
               ? "from-emerald-500/18"
               : tone === "amber"
@@ -1397,7 +1397,7 @@ function OfficialLinkButton({ source }: { source: OfficialSource }) {
       href={source.officialUrl}
       target="_blank"
       rel="noreferrer"
-      className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100 transition hover:bg-red-500/20"
+      className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/20"
     >
       Open official source ↗
     </a>
@@ -1639,7 +1639,7 @@ export default function SecurityPage() {
 
   if (unauthorized) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.60),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.28),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.60),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.28),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
         <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col items-center justify-center text-center">
           <Logo />
           <h1 className="mt-8 text-5xl font-black tracking-tight">Sign in to open the compliance center.</h1>
@@ -1647,7 +1647,7 @@ export default function SecurityPage() {
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <a
               href="/portal"
-              className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-6 py-4 font-black text-white shadow-lg shadow-red-950/40"
+              className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-6 py-4 font-black text-white shadow-lg shadow-emerald-950/40"
             >
               Go to Login Portal
             </a>
@@ -1662,7 +1662,7 @@ export default function SecurityPage() {
 
   if (!overview) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.60),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.28),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.60),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.28),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
         <div className="mx-auto max-w-7xl">
           <Logo />
           <div className="mt-8 text-slate-400">Loading compliance center...</div>
@@ -1675,17 +1675,17 @@ export default function SecurityPage() {
   const pendingDisclosures = overview.disclosures.filter((item) => !item.accepted);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.64),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(220,38,38,0.30),_transparent_28%),radial-gradient(circle_at_bottom,_rgba(127,29,29,0.34),_transparent_38%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#220606)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.64),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(5,150,105,0.30),_transparent_28%),radial-gradient(circle_at_bottom,_rgba(6,78,59,0.34),_transparent_38%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#220606)] p-5 text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-16%] top-[-20%] h-[40rem] w-[40rem] rounded-full bg-red-700/30 blur-3xl" />
-        <div className="absolute right-[-14%] top-[8%] h-[34rem] w-[34rem] rounded-full bg-red-500/18 blur-3xl" />
+        <div className="absolute left-[-16%] top-[-20%] h-[40rem] w-[40rem] rounded-full bg-emerald-700/30 blur-3xl" />
+        <div className="absolute right-[-14%] top-[8%] h-[34rem] w-[34rem] rounded-full bg-emerald-500/18 blur-3xl" />
         <div className="absolute bottom-[-18%] left-[30%] h-[34rem] w-[34rem] rounded-full bg-orange-700/12 blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.026)_1px,transparent_1px)] bg-[size:44px_44px]" />
       </div>
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="relative overflow-hidden rounded-[2.35rem] border border-red-500/20 bg-zinc-950/84 p-6 shadow-2xl shadow-red-950/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.34),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(185,28,28,0.18),transparent_30%)]" />
+        <header className="relative overflow-hidden rounded-[2.35rem] border border-emerald-500/20 bg-zinc-950/84 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.34),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(4,120,87,0.18),transparent_30%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -1729,7 +1729,7 @@ export default function SecurityPage() {
           </div>
 
           {message ? (
-            <div className="relative mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+            <div className="relative mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-100">
               {message}
             </div>
           ) : null}
@@ -1745,8 +1745,8 @@ export default function SecurityPage() {
                 className={cn(
                   "rounded-[1.25rem] px-3 py-2.5 text-left ring-1 transition hover:-translate-y-0.5",
                   activeView === tab.key
-                    ? "bg-gradient-to-br from-white via-red-100 to-red-200 text-slate-950 shadow-xl shadow-red-950/25 ring-white/40"
-                    : "bg-white/[0.045] text-white ring-white/10 hover:bg-red-500/10 hover:ring-red-400/30",
+                    ? "bg-gradient-to-br from-white via-emerald-100 to-emerald-200 text-slate-950 shadow-xl shadow-emerald-950/25 ring-white/40"
+                    : "bg-white/[0.045] text-white ring-white/10 hover:bg-emerald-500/10 hover:ring-emerald-400/30",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -1755,7 +1755,7 @@ export default function SecurityPage() {
                     className={cn(
                       "h-2 w-2 rounded-full",
                       tab.tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tab.tone === "cyan"
                           ? "bg-cyan-400"
                           : tab.tone === "purple"
@@ -1779,7 +1779,7 @@ export default function SecurityPage() {
         {activeView === "overview" ? (
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
             <Card className="p-6">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                 Learning layout
               </div>
               <h2 className="mt-2 text-3xl font-black text-white">
@@ -1864,7 +1864,7 @@ export default function SecurityPage() {
 
                   <button
                     onClick={runSecurityReview}
-                    className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40"
+                    className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40"
                   >
                     Run Compliance Review
                   </button>
@@ -1882,10 +1882,10 @@ export default function SecurityPage() {
                       href={source.officialUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-black text-red-100 transition hover:bg-red-500/20"
+                      className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-500/20"
                     >
                       {source.ruleLocation} ↗
-                      <span className="mt-1 block text-[10px] font-semibold text-red-200/70">{source.label}</span>
+                      <span className="mt-1 block text-[10px] font-semibold text-emerald-200/70">{source.label}</span>
                     </a>
                   ))}
                 </div>
@@ -1964,7 +1964,7 @@ export default function SecurityPage() {
                     </Panel>
 
                     <Panel tone="red" className="bg-black/35">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Unavoidable human review</div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Unavoidable human review</div>
                       <p className="mt-2 text-sm leading-7 text-slate-300">{control.unavoidableHumanReview}</p>
                     </Panel>
                   </div>
@@ -1982,7 +1982,7 @@ export default function SecurityPage() {
                     </Panel>
 
                     <Panel tone="red" className="bg-black/35">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Official source links</div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Official source links</div>
                       <div className="mt-3 grid gap-2">
                         {control.officialSourceIds.map((sourceId) => {
                           const source = OFFICIAL_SOURCES[sourceId];
@@ -1993,10 +1993,10 @@ export default function SecurityPage() {
                               href={source.officialUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="rounded-2xl border border-red-500/25 bg-red-500/10 p-3 text-xs font-black leading-5 text-red-100 hover:bg-red-500/20"
+                              className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs font-black leading-5 text-emerald-100 hover:bg-emerald-500/20"
                             >
                               {source.ruleLocation}
-                              <span className="mt-1 block text-[10px] font-semibold text-red-200/70">{source.regulator}</span>
+                              <span className="mt-1 block text-[10px] font-semibold text-emerald-200/70">{source.regulator}</span>
                             </a>
                           );
                         })}
@@ -2028,7 +2028,7 @@ export default function SecurityPage() {
                     </Panel>
 
                     <Panel tone="red" className="bg-black/35">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Compliance conclusion</div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Compliance conclusion</div>
                       <p className="mt-2 text-sm leading-7 text-slate-300">
                         {control.status === "Strong Evidence"
                           ? "Platform evidence is strong, but firm policy and periodic review still apply."
@@ -2101,14 +2101,14 @@ export default function SecurityPage() {
                     </Panel>
 
                     <Panel tone="red" className="bg-black/35">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Archive gap</div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Archive gap</div>
                       <p className="mt-2 text-sm leading-7 text-slate-300">{item.archiveGap}</p>
                     </Panel>
                   </div>
 
                   <div className="mt-5">
                     <Panel tone="red" className="bg-black/35">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Official source links</div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Official source links</div>
                       <div className="mt-3 grid gap-2 xl:grid-cols-2">
                         {item.sourceIds.map((sourceId) => {
                           const source = OFFICIAL_SOURCES[sourceId];
@@ -2138,7 +2138,7 @@ export default function SecurityPage() {
                 <select
                   value={auditFilter}
                   onChange={(event) => setAuditFilter(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none ring-emerald-500 focus:ring-2"
                 >
                   <option>All</option>
                   <option>Critical</option>
@@ -2155,7 +2155,7 @@ export default function SecurityPage() {
               </div>
 
               <Panel tone="red" className="mt-5 bg-black/35">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-red-300">Audit standard</div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Audit standard</div>
                 <p className="mt-2 text-xs leading-5 text-slate-400">
                   Audit logs should be exportable, immutable where required, searchable, reviewable, and tied to retention policy.
                 </p>
@@ -2304,7 +2304,7 @@ export default function SecurityPage() {
             </Card>
 
             <Card className="p-6">
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                 Before advisor rollout
               </div>
               <h2 className="mt-2 text-2xl font-black text-white">Do not skip these</h2>
@@ -2393,7 +2393,7 @@ export default function SecurityPage() {
                   max={43200}
                   value={sessionTimeout}
                   onChange={(event) => setSessionTimeout(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-black text-white outline-none ring-emerald-500 focus:ring-2"
                 />
                 <button
                   type="button"

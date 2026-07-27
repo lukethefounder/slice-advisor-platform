@@ -104,13 +104,13 @@ export const DEFAULT_SLICE_PLATFORM_SETTINGS: SlicePlatformSettings = {
 
 const ACCENT_PALETTES: Record<Exclude<SliceAccentPreset, "auto">, ColorPalette> = {
   red: {
-    accent300: "#fca5a5",
-    accent400: "#f87171",
-    accent500: "#ef4444",
-    accent600: "#dc2626",
-    accent700: "#b91c1c",
-    accent900: "#7f1d1d",
-    accentSoft: "#fee2e2",
+    accent300: "#6ee7b7",
+    accent400: "#6ee7b7",
+    accent500: "#10b981",
+    accent600: "#059669",
+    accent700: "#047857",
+    accent900: "#064e3b",
+    accentSoft: "#d1fae5",
   },
   blue: {
     accent300: "#93c5fd",

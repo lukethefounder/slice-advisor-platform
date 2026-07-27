@@ -205,10 +205,10 @@ const EMPTY: FirmWorkspacePayload = {
 };
 
 const INPUT =
-  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
+  "w-full min-w-0 rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2 disabled:opacity-50";
 
 const PRIMARY =
-  "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-red-950/30 transition hover:bg-red-500 disabled:opacity-40";
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 disabled:opacity-40";
 
 const SOFT =
   "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-4 py-3 text-xs font-black text-white transition hover:bg-white/10 disabled:opacity-40";
@@ -602,7 +602,7 @@ function statusStyle(status: string) {
   }
 
   if (lower.includes("blocked")) {
-    return "border-red-400/25 bg-red-400/10 text-red-200";
+    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   }
 
   if (
@@ -619,7 +619,7 @@ function priorityStyle(priority: string) {
   const lower = priority.toLowerCase();
 
   if (lower === "critical") {
-    return "border-red-400/30 bg-red-500/15 text-red-100";
+    return "border-emerald-400/30 bg-emerald-500/15 text-emerald-100";
   }
 
   if (lower === "high") {
@@ -684,7 +684,7 @@ function Metric({
 }) {
   return (
     <div className="relative min-w-0 overflow-hidden rounded-[1.4rem] border border-white/10 bg-white/[0.045] p-4">
-      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-red-600/10 blur-2xl" />
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-600/10 blur-2xl" />
 
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -701,7 +701,7 @@ function Metric({
           </div>
         </div>
 
-        <div className="shrink-0 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+        <div className="shrink-0 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-emerald-300">
           {icon}
         </div>
       </div>
@@ -724,7 +724,7 @@ function NoticeBar({
     notice.tone === "success"
       ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
       : notice.tone === "error"
-        ? "border-red-400/25 bg-red-400/10 text-red-100"
+        ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
         : "border-cyan-400/25 bg-cyan-400/10 text-cyan-100";
 
   return (
@@ -1901,15 +1901,15 @@ export default function TeamBoardEmbedded() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#050505] px-4 py-5 text-white md:px-6 lg:px-8">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_9%_0%,rgba(153,27,27,0.46),transparent_30%),radial-gradient(circle_at_84%_8%,rgba(239,68,68,0.13),transparent_25%),radial-gradient(circle_at_60%_100%,rgba(6,182,212,0.07),transparent_28%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_9%_0%,rgba(6,95,70,0.46),transparent_30%),radial-gradient(circle_at_84%_8%,rgba(16,185,129,0.13),transparent_25%),radial-gradient(circle_at_60%_100%,rgba(6,182,212,0.07),transparent_28%),linear-gradient(145deg,#030303,#09090b_48%,#111827)]" />
 
       <div className="pointer-events-none fixed inset-0 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.5)_1px,transparent_1px)] [background-size:46px_46px]" />
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="min-w-0 rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/25 backdrop-blur-xl md:p-7">
+        <header className="min-w-0 rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/25 backdrop-blur-xl md:p-7">
           <div className="flex min-w-0 flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-400">
                 <FolderKanban className="h-4 w-4" />
                 Slice Team Board OS
               </div>
@@ -1927,7 +1927,7 @@ export default function TeamBoardEmbedded() {
 
             <a
               href="/workspace"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-red-50"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-50"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to workspace
@@ -1945,7 +1945,7 @@ export default function TeamBoardEmbedded() {
         {loading && !firm ? (
           <Panel className="grid min-h-[520px] place-items-center p-8 text-center">
             <div>
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-red-300" />
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-300" />
 
               <h2 className="mt-4 text-2xl font-black">
                 Loading firm workspace
@@ -2112,10 +2112,10 @@ export default function TeamBoardEmbedded() {
               <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1fr)_430px]">
                 <div className="grid min-w-0 gap-5">
                   <Panel>
-                    <div className="border-b border-white/10 bg-gradient-to-r from-red-950/50 via-zinc-950 to-zinc-950 p-5 md:p-6">
+                    <div className="border-b border-white/10 bg-gradient-to-r from-emerald-950/50 via-zinc-950 to-zinc-950 p-5 md:p-6">
                       <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
-                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-300">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                             Assignee intelligence
                           </div>
 
@@ -2161,7 +2161,7 @@ export default function TeamBoardEmbedded() {
                               className={cx(
                                 "min-w-0 overflow-hidden rounded-2xl border p-4 text-left transition",
                                 selected
-                                  ? "border-red-400/45 bg-red-500/10"
+                                  ? "border-emerald-400/45 bg-emerald-500/10"
                                   : "border-white/10 bg-white/[0.035] hover:bg-white/[0.065]"
                               )}
                             >
@@ -2200,7 +2200,7 @@ export default function TeamBoardEmbedded() {
                                   className={cx(
                                     "grid h-6 w-6 shrink-0 place-items-center rounded-full border",
                                     selected
-                                      ? "border-red-300 bg-red-500 text-white"
+                                      ? "border-emerald-300 bg-emerald-500 text-white"
                                       : "border-white/15 text-transparent"
                                   )}
                                 >
@@ -2345,7 +2345,7 @@ export default function TeamBoardEmbedded() {
 
                 <Panel className="h-fit 2xl:sticky 2xl:top-5">
                   <div className="border-b border-white/10 p-5">
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400">
                       <Send className="h-3.5 w-3.5" />
                       Fast delegation
                     </div>
@@ -2395,7 +2395,7 @@ export default function TeamBoardEmbedded() {
                                   })
                                 )
                               }
-                              className="min-w-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-left text-[11px] font-black transition hover:border-red-400/30 hover:bg-red-500/10"
+                              className="min-w-0 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-left text-[11px] font-black transition hover:border-emerald-400/30 hover:bg-emerald-500/10"
                             >
                               <span className="block truncate">
                                 {
@@ -2409,7 +2409,7 @@ export default function TeamBoardEmbedded() {
                     </div>
 
                     {selectedMember ? (
-                      <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-red-400/20 bg-red-500/10 p-3">
+                      <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3">
                         <div
                           className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xs font-black"
                           style={{
@@ -2432,7 +2432,7 @@ export default function TeamBoardEmbedded() {
                             )}
                           </div>
 
-                          <div className="mt-1 truncate text-xs text-red-100/60">
+                          <div className="mt-1 truncate text-xs text-emerald-100/60">
                             {
                               selectedMember
                                 .user?.email
@@ -2947,7 +2947,7 @@ export default function TeamBoardEmbedded() {
                                 <Badge
                                   className={
                                     overdue
-                                      ? "border-red-400/25 bg-red-400/10 text-red-100"
+                                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-100"
                                       : "border-white/10 bg-white/[0.04] text-slate-400"
                                   }
                                 >
@@ -3310,7 +3310,7 @@ export default function TeamBoardEmbedded() {
                                     "Blocked"
                                   )
                                 }
-                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-100"
                               >
                                 <CircleAlert className="h-4 w-4" />
                                 Blocked
@@ -3358,7 +3358,7 @@ export default function TeamBoardEmbedded() {
                                     .id
                                 )
                               }
-                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-100"
                             >
                               <Trash2 className="h-4 w-4" />
                               Delete
@@ -3615,7 +3615,7 @@ export default function TeamBoardEmbedded() {
                             onClick={
                               deleteActiveDoc
                             }
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-xs font-black text-red-100"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-100"
                           >
                             <Trash2 className="h-4 w-4" />
                             Delete

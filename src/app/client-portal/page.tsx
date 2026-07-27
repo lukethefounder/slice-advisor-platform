@@ -75,7 +75,7 @@ type PermissionRow = {
 };
 
 const chartColors = [
-  "#ef4444",
+  "#10b981",
   "#06b6d4",
   "#8b5cf6",
   "#22c55e",
@@ -152,7 +152,7 @@ function toneForStatus(status: string) {
     lower.includes("revoked") ||
     lower.includes("removed")
   ) {
-    return "border-red-500/30 bg-red-500/10 text-red-100";
+    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-100";
   }
 
   return "border-white/10 bg-white/[0.055] text-slate-100";
@@ -166,7 +166,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "cyan" | "purple" | "blue" | "slate";
 }) {
   const tones = {
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
@@ -717,7 +717,7 @@ export default function ClientPortalPage() {
 
   if (!hasHydrated) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
         <Card className="max-w-xl text-center">
           <Pill tone="cyan">Client Portal</Pill>
           <h1 className="mt-4 text-4xl font-black">Loading portal...</h1>
@@ -731,7 +731,7 @@ export default function ClientPortalPage() {
 
   if (!session) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
         <Card className="max-w-xl text-center">
           <Pill tone="red">Client Portal</Pill>
           <h1 className="mt-4 text-4xl font-black">Client login required</h1>
@@ -740,7 +740,7 @@ export default function ClientPortalPage() {
           </p>
           <a
             href="/client-login"
-            className="mt-5 inline-flex rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white"
+            className="mt-5 inline-flex rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
           >
             Go to Client Login
           </a>
@@ -750,10 +750,10 @@ export default function ClientPortalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
       <div className="mx-auto grid max-w-[1800px] gap-5">
-        <header className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="absolute right-[-140px] top-[-180px] hidden h-[420px] w-[420px] rounded-full border border-red-500/10 xl:block">
+        <header className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
+          <div className="absolute right-[-140px] top-[-180px] hidden h-[420px] w-[420px] rounded-full border border-emerald-500/10 xl:block">
             <div className="absolute inset-12 rounded-full border border-cyan-500/10" />
             <div className="absolute inset-24 rounded-full border border-white/10" />
           </div>
@@ -789,7 +789,7 @@ export default function ClientPortalPage() {
               </a>
               <button
                 onClick={signOut}
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
               >
                 Sign Out
               </button>
@@ -898,7 +898,7 @@ export default function ClientPortalPage() {
               <div className="grid gap-5">
                 <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
                   <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+                    <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                       Portal Activity
                     </div>
                     <h2 className="mt-2 text-3xl font-black">Recent advisor submissions</h2>
@@ -1016,7 +1016,7 @@ export default function ClientPortalPage() {
                         placeholder="Message"
                         className="mt-2 min-h-[90px] w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm font-bold text-white"
                       />
-                      <button className="mt-3 w-full rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white">
+                      <button className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white">
                         Start Thread
                       </button>
                     </form>
@@ -1080,7 +1080,7 @@ export default function ClientPortalPage() {
                               className={cx(
                                 "max-w-[88%] rounded-2xl border p-4",
                                 message.senderRole === "Client"
-                                  ? "justify-self-end border-red-500/25 bg-red-500/10"
+                                  ? "justify-self-end border-emerald-500/25 bg-emerald-500/10"
                                   : "justify-self-start border-cyan-500/25 bg-cyan-500/10",
                               )}
                             >
@@ -1104,7 +1104,7 @@ export default function ClientPortalPage() {
                             placeholder="Reply to this thread..."
                             className="min-h-[100px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white"
                           />
-                          <button className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white">
+                          <button className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white">
                             Send Reply
                           </button>
                         </form>
@@ -1199,7 +1199,7 @@ export default function ClientPortalPage() {
                           />
                           <button
                             onClick={() => signPacket(packet)}
-                            className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white"
+                            className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
                           >
                             Sign & Return
                           </button>
@@ -1211,7 +1211,7 @@ export default function ClientPortalPage() {
                           </button>
                           <button
                             onClick={() => revokePacketAccess(packet)}
-                            className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
                           >
                             Revoke Advisor Access
                           </button>
@@ -1261,7 +1261,7 @@ export default function ClientPortalPage() {
 
                   <button
                     onClick={submitDocuments}
-                    className="mt-5 rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white"
+                    className="mt-5 rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
                   >
                     Submit Documents
                   </button>
@@ -1351,7 +1351,7 @@ export default function ClientPortalPage() {
 
                       <button
                         onClick={submitAllocationPreference}
-                        className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white"
+                        className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
                       >
                         Submit Allocation to Advisor
                       </button>
@@ -1390,7 +1390,7 @@ export default function ClientPortalPage() {
                             <span className="text-sm font-black text-slate-400">%</span>
                             <button
                               onClick={() => removeAllocation(item.id)}
-                              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-black text-red-100"
+                              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100"
                             >
                               Remove
                             </button>
@@ -1421,7 +1421,7 @@ export default function ClientPortalPage() {
 
             {tab === "requests" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                   Submit Request
                 </div>
                 <h2 className="mt-2 text-3xl font-black">Advisor review request</h2>
@@ -1537,7 +1537,7 @@ export default function ClientPortalPage() {
                     Requests involving stocks or ETFs are submitted for advisor review and are not automatic orders.
                   </div>
 
-                  <button className="rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white">
+                  <button className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white">
                     Submit to Advisor
                   </button>
                 </form>
@@ -1649,7 +1649,7 @@ export default function ClientPortalPage() {
                   </button>
                   <button
                     onClick={submitPermissions}
-                    className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white"
+                    className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white"
                   >
                     Submit Permissions
                   </button>
@@ -1686,7 +1686,7 @@ export default function ClientPortalPage() {
 
                 <button
                   onClick={submitRiskSurvey}
-                  className="mt-5 rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white"
+                  className="mt-5 rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
                 >
                   Submit Risk Update
                 </button>
@@ -1695,7 +1695,7 @@ export default function ClientPortalPage() {
 
             {tab === "access" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
                   Access Control
                 </div>
                 <h2 className="mt-2 text-3xl font-black">Control advisor access</h2>
@@ -1717,7 +1717,7 @@ export default function ClientPortalPage() {
                     </div>
                     <button
                       onClick={revokeAdvisorAccess}
-                      className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm font-black text-red-100"
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm font-black text-emerald-100"
                     >
                       Revoke Advisor Access
                     </button>

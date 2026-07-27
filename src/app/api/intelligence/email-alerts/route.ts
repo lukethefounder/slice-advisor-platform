@@ -54,13 +54,13 @@ export async function POST(request: Request) {
         subject: `[Slice Intelligence] ${type}: ${title}`,
         html: `
           <div style="font-family: Arial, sans-serif; background: #09090b; color: #ffffff; padding: 24px;">
-            <div style="max-width: 720px; margin: 0 auto; border: 1px solid rgba(248,113,113,.22); border-radius: 24px; padding: 24px; background: #111827;">
-              <div style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #f87171; font-weight: 800;">
+            <div style="max-width: 720px; margin: 0 auto; border: 1px solid rgba(110,231,183,.22); border-radius: 24px; padding: 24px; background: #111827;">
+              <div style="font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #6ee7b7; font-weight: 800;">
                 Slice Intelligence Alert
               </div>
               <h1 style="font-size: 24px; line-height: 1.3; margin: 12px 0 8px;">${title}</h1>
               <p style="font-size: 14px; line-height: 1.7; color: #d1d5db;">${detail}</p>
-              <div style="margin-top: 20px; padding: 12px 16px; border-radius: 16px; background: rgba(239,68,68,.10); color: #fecaca; font-size: 13px;">
+              <div style="margin-top: 20px; padding: 12px 16px; border-radius: 16px; background: rgba(16,185,129,.10); color: #a7f3d0; font-size: 13px;">
                 Alert Type: ${type}<br/>
                 Generated: ${new Date().toLocaleString()}
               </div>

@@ -1,0 +1,62 @@
+:root {
+  --color-red-50: var(--color-emerald-50);
+  --color-red-100: var(--color-emerald-100);
+  --color-red-200: var(--color-emerald-200);
+  --color-red-300: var(--color-emerald-300);
+  --color-red-400: var(--color-emerald-400);
+  --color-red-500: var(--color-emerald-500);
+  --color-red-600: var(--color-emerald-600);
+  --color-red-700: var(--color-emerald-700);
+  --color-red-800: var(--color-emerald-800);
+  --color-red-900: var(--color-emerald-900);
+  --color-red-950: var(--color-emerald-950);
+
+  --slice-accent: #10b981;
+  --slice-accent-dark: #064e3b;
+  --slice-accent-soft: rgba(16, 185, 129, 0.14);
+  --slice-accent-border: rgba(52, 211, 153, 0.34);
+  --slice-market-green: #10b981;
+  --slice-market-green-bright: #34d399;
+  --slice-market-green-deep: #022c22;
+  --slice-market-lime: #84cc16;
+  --slice-market-cyan: #22d3ee;
+}
+
+html {
+  accent-color: var(--slice-market-green);
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.13), transparent 30%),
+    radial-gradient(circle at 85% 15%, rgba(34, 211, 238, 0.08), transparent 28%),
+    #020604;
+}
+
+::selection {
+  background: rgba(52, 211, 153, 0.28);
+  color: #ecfdf5;
+}
+
+* {
+  scrollbar-color: rgba(52, 211, 153, 0.4) rgba(2, 44, 34, 0.22);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(2, 44, 34, 0.22);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(2, 44, 34, 0.36);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(52, 211, 153, 0.65), rgba(5, 150, 105, 0.65));
+}
+
+*:focus-visible {
+  outline-color: rgba(52, 211, 153, 0.9);
+}

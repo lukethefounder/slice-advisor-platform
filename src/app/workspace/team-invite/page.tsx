@@ -1,292 +1,478 @@
 "use client";
 
 import Link from "next/link";
-import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  KeyRound,
+  LockKeyhole,
+  RefreshCw,
+  ShieldCheck,
+  UserCheck,
+  UsersRound,
+} from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from "react";
 
-type InviteProfile = {
-  id: string;
+import {
+  BrandMark,
+  Card,
+  Pill,
+  SliceBackground,
+  cx,
+} from "@/components/slice-ui";
+
+type InviteDetails = {
   inviteCode: string;
   firmName: string;
-  email: string;
   role: string;
-  fullName: string;
-  title: string;
-  phone: string;
-  bio: string;
-  createdAt: string;
-  status: "Created";
+  emailMasked: string;
+  inviterName: string;
+  expiresAt: string | null;
+  existingAccount: boolean;
 };
 
-const PROFILE_KEY = "slice-team-member-profiles-v1";
+type InviteLookupResponse = {
+  ok: boolean;
+  invite?: InviteDetails;
+  error?: string;
+};
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-function nowLabel() {
-  return new Date().toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function loadProfiles() {
-  try {
-    const raw = window.localStorage.getItem(PROFILE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as InviteProfile[]) : [];
-  } catch {
-    return [];
-  }
-}
+type RegisterResponse = {
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  firm?: {
+    id: string;
+    name: string;
+  };
+  membership?: {
+    role: string;
+  };
+  error?: string;
+  detail?: string;
+};
 
 export default function TeamInvitePage() {
   const [inviteCode, setInviteCode] = useState("");
-  const [firmName, setFirmName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("Lead Advisor");
-
-  const [fullName, setFullName] = useState("");
-  const [title, setTitle] = useState("");
-  const [phone, setPhone] = useState("");
-  const [bio, setBio] = useState("");
+  const [invite, setInvite] = useState<InviteDetails | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [created, setCreated] = useState(false);
-  const [error, setError] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const code =
+      new URLSearchParams(window.location.search)
+        .get("code")
+        ?.trim()
+        .toUpperCase() || "";
 
-    setInviteCode(params.get("code") ?? "");
-    setFirmName(params.get("firm") ?? "");
-    setEmail(params.get("email") ?? "");
-    setRole(params.get("role") ?? "Lead Advisor");
+    if (!code) {
+      setLoadingInvite(false);
+      setMessage("This invitation link is missing its secure code.");
+      return;
+    }
+
+    setInviteCode(code);
+
+    async function loadInvite() {
+      try {
+        const response = await fetch(
+          `/api/team-invites/send?code=${encodeURIComponent(code)}`,
+          {
+            cache: "no-store",
+          },
+        );
+        const payload = (await response.json()) as InviteLookupResponse;
+
+        if (!response.ok || !payload.ok || !payload.invite) {
+          throw new Error(
+            payload.error || "The invitation could not be verified.",
+          );
+        }
+
+        setInvite(payload.invite);
+        setMessage("");
+      } catch (error) {
+        setInvite(null);
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "The invitation could not be verified.",
+        );
+      } finally {
+        setLoadingInvite(false);
+      }
+    }
+
+    void loadInvite();
   }, []);
 
-  const isReady = useMemo(() => {
-    return Boolean(inviteCode && firmName && email && fullName.trim() && title.trim() && password.length >= 8);
-  }, [email, firmName, fullName, inviteCode, password, title]);
+  const ready = useMemo(
+    () =>
+      Boolean(
+        invite &&
+          inviteCode &&
+          name.trim() &&
+          password.length >= 8 &&
+          password === confirmPassword,
+      ),
+    [confirmPassword, invite, inviteCode, name, password],
+  );
 
-  function createProfile(event: FormEvent<HTMLFormElement>) {
+  async function acceptInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setMessage("");
 
-    if (!inviteCode || !firmName || !email) {
-      setError("This invite link is missing required firm information.");
+    if (!invite || !inviteCode) {
+      setMessage("The invitation is not ready for account creation.");
       return;
     }
 
-    if (!fullName.trim()) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    if (!title.trim()) {
-      setError("Please enter your title.");
+    if (!name.trim()) {
+      setMessage("Enter your full name.");
       return;
     }
 
     if (password.length < 8) {
-      setError("Use at least 8 characters for the password.");
+      setMessage("Use a password with at least 8 characters.");
       return;
     }
 
-    const profile: InviteProfile = {
-      id: `team-profile-${Date.now()}`,
-      inviteCode,
-      firmName,
-      email,
-      role,
-      fullName: fullName.trim(),
-      title: title.trim(),
-      phone: phone.trim(),
-      bio: bio.trim(),
-      createdAt: nowLabel(),
-      status: "Created",
-    };
+    if (password !== confirmPassword) {
+      setMessage("The passwords do not match.");
+      return;
+    }
 
-    const next = [
-      profile,
-      ...loadProfiles().filter((item) => item.inviteCode !== inviteCode && item.email !== email),
-    ];
+    setSubmitting(true);
 
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+    try {
+      const response = await fetch("/api/auth/invite-register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inviteCode,
+          name: name.trim(),
+          password,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as RegisterResponse;
 
-    setError("");
-    setPassword("");
-    setCreated(true);
+      if (!response.ok) {
+        throw new Error(
+          payload.detail
+            ? `${payload.error || "Invite acceptance failed."} ${payload.detail}`
+            : payload.error || "Invite acceptance failed.",
+        );
+      }
+
+      setPassword("");
+      setConfirmPassword("");
+      setComplete(true);
+      setMessage("Your secure advisor account is ready.");
+      window.setTimeout(() => {
+        window.location.href = "/workspace";
+      }, 650);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Invite acceptance failed.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050202] px-4 py-6 text-white">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-18%] top-[-18%] h-[38rem] w-[38rem] rounded-full bg-red-700/30 blur-3xl" />
-        <div className="absolute right-[-16%] top-[10%] h-[34rem] w-[34rem] rounded-full bg-orange-600/12 blur-3xl" />
-        <div className="absolute bottom-[-20%] left-[30%] h-[30rem] w-[30rem] rounded-full bg-red-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.026)_1px,transparent_1px)] bg-[size:44px_44px]" />
-      </div>
-
-      <section className="relative mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl place-items-center">
-        <div className="grid w-full gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
-          <div className="rounded-[2rem] border border-white/10 bg-zinc-950/84 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="inline-flex rounded-full border border-red-500/35 bg-red-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-100">
-              Slice Team Invite
-            </div>
-
-            <h1 className="mt-4 text-4xl font-black leading-tight">
-              Create your advisor account.
-            </h1>
-
-            <p className="mt-3 text-sm font-semibold leading-7 text-slate-400">
-              This invite is linked directly to your firm. Create your profile to join the workspace.
-            </p>
-
-            <div className="mt-5 grid gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  Firm
-                </div>
-                <div className="mt-1 text-lg font-black">{firmName || "Missing firm"}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  Invited Email
-                </div>
-                <div className="mt-1 truncate text-lg font-black">{email || "Missing email"}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  Role
-                </div>
-                <div className="mt-1 text-lg font-black">{role}</div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                  Invite Code
-                </div>
-                <div className="mt-1 text-lg font-black">{inviteCode || "Missing code"}</div>
-              </div>
-            </div>
+    <SliceBackground>
+      <div className="mx-auto grid min-h-screen max-w-7xl gap-5 px-4 py-5 sm:px-6">
+        <header className="rounded-[1.7rem] border border-emerald-300/12 bg-black/65 p-4 shadow-xl shadow-emerald-950/25 backdrop-blur-xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <BrandMark subtitle="Secure Advisor Invitation" />
+            <Link
+              href="/founder-login"
+              className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-slate-300 hover:border-emerald-400/25 hover:text-white"
+            >
+              Existing account sign in
+            </Link>
           </div>
+        </header>
 
-          <div className="rounded-[2rem] border border-white/10 bg-zinc-950/84 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            {created ? (
+        <section className="grid items-center gap-5 lg:grid-cols-[0.88fr_1.12fr]">
+          <Card className="p-6 sm:p-8">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(16,185,129,0.24),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(34,211,238,0.10),transparent_30%)]" />
+
+            <div className="relative">
+              <div className="flex flex-wrap gap-2">
+                <Pill tone="green">Database verified</Pill>
+                <Pill tone="cyan">Expiring beta access</Pill>
+              </div>
+
+              <h1 className="mt-6 text-4xl font-black leading-[0.98] tracking-[-0.05em] text-white sm:text-6xl">
+                Join the advisor operating system.
+              </h1>
+
+              <p className="mt-5 text-sm font-semibold leading-7 text-slate-400">
+                This invitation creates or connects a real Slice account, assigns the
+                firm role selected by leadership, and establishes a protected session.
+              </p>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    icon: ShieldCheck,
+                    label: "Secure firm membership",
+                    helper: "Database-backed access",
+                  },
+                  {
+                    icon: LockKeyhole,
+                    label: "Protected session",
+                    helper: "HTTP-only login cookie",
+                  },
+                  {
+                    icon: UsersRound,
+                    label: "Role-aware workspace",
+                    helper: "Firm permissions applied",
+                  },
+                  {
+                    icon: KeyRound,
+                    label: "No demo credentials",
+                    helper: "Real beta account creation",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-white/8 bg-white/[0.035] p-4"
+                  >
+                    <item.icon className="h-5 w-5 text-emerald-300" />
+                    <p className="mt-3 text-sm font-black text-white">
+                      {item.label}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                      {item.helper}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {invite ? (
+                <div className="mt-7 grid gap-3">
+                  <div className="rounded-2xl border border-emerald-300/14 bg-emerald-500/[0.055] p-4">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-300">
+                      Firm
+                    </p>
+                    <p className="mt-1 text-lg font-black text-white">
+                      {invite.firmName}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-600">
+                        Invited account
+                      </p>
+                      <p className="mt-1 truncate text-sm font-black text-white">
+                        {invite.emailMasked}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-600">
+                        Role
+                      </p>
+                      <p className="mt-1 truncate text-sm font-black text-white">
+                        {invite.role}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-semibold leading-5 text-slate-500">
+                    Invited by {invite.inviterName}
+                    {invite.expiresAt
+                      ? ` · expires ${new Date(invite.expiresAt).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          },
+                        )}`
+                      : ""}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card className="p-6 sm:p-8">
+            {loadingInvite ? (
               <div className="grid min-h-[520px] place-items-center text-center">
                 <div>
-                  <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-3xl font-black text-emerald-100">
-                    ✓
-                  </div>
-
-                  <h2 className="mt-6 text-3xl font-black">Profile created.</h2>
-
-                  <p className="mx-auto mt-3 max-w-xl text-sm font-semibold leading-7 text-slate-400">
-                    Your advisor profile has been created for {firmName}. You can continue into the team workspace.
+                  <RefreshCw className="mx-auto h-9 w-9 animate-spin text-emerald-300" />
+                  <h2 className="mt-5 text-2xl font-black text-white">
+                    Verifying invitation
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    Checking firm, role, expiration, and account status.
                   </p>
-
-                  <div className="mt-6 flex flex-wrap justify-center gap-3">
-                    <Link
-                      href={`/workspace/team-board?firm=${encodeURIComponent(firmName)}&profile=created`}
-                      className="rounded-2xl border border-emerald-500/35 bg-emerald-500/12 px-5 py-3 text-sm font-black text-emerald-100"
-                    >
-                      Continue to Team Board
-                    </Link>
-
-                    <Link
-                      href="/workspace"
-                      className="rounded-2xl border border-red-500/35 bg-red-500/12 px-5 py-3 text-sm font-black text-red-100"
-                    >
-                      Open Workspace
-                    </Link>
-                  </div>
                 </div>
               </div>
-            ) : (
-              <form onSubmit={createProfile} className="grid gap-4">
+            ) : complete ? (
+              <div className="grid min-h-[520px] place-items-center text-center">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-red-400">
-                    Advisor Profile
+                  <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-emerald-400/25 bg-emerald-500/[0.08] text-emerald-200">
+                    <CheckCircle2 className="h-9 w-9" />
                   </div>
-                  <h2 className="mt-2 text-3xl font-black">Finish account setup</h2>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-400">
-                    Your password is validated here for setup flow only and is not stored in browser storage.
+                  <h2 className="mt-6 text-3xl font-black text-white">
+                    Account created.
+                  </h2>
+                  <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-7 text-slate-400">
+                    Your firm membership is active. Slice is opening the green-market
+                    advisor workspace.
                   </p>
+                  <Link
+                    href="/workspace"
+                    className="mt-6 inline-flex min-h-12 items-center justify-center rounded-2xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 px-6 text-sm font-black text-white"
+                  >
+                    Open Workspace
+                  </Link>
+                </div>
+              </div>
+            ) : invite ? (
+              <form onSubmit={acceptInvite}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Pill tone="green">
+                    {invite.existingAccount
+                      ? "Connect existing account"
+                      : "Create advisor account"}
+                  </Pill>
+                  <Pill tone="cyan">{invite.role}</Pill>
                 </div>
 
-                {error ? (
-                  <div className="rounded-2xl border border-red-500/35 bg-red-500/12 p-4 text-sm font-bold text-red-100">
-                    {error}
+                <h2 className="mt-5 text-3xl font-black tracking-[-0.04em] text-white">
+                  Finish secure account setup.
+                </h2>
+                <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
+                  {invite.existingAccount
+                    ? "This email already has a Slice account. Enter the account name and existing password to connect the firm membership."
+                    : "Choose your account name and password. The password is hashed server-side and is never stored in browser storage."}
+                </p>
+
+                {message ? (
+                  <div
+                    className={cx(
+                      "mt-4 rounded-2xl border p-4 text-sm font-bold leading-6",
+                      message.includes("ready")
+                        ? "border-emerald-400/25 bg-emerald-500/[0.08] text-emerald-100"
+                        : "border-amber-400/25 bg-amber-500/[0.08] text-amber-100",
+                    )}
+                  >
+                    {message}
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Full name"
-                    className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500"
-                  />
+                <div className="mt-6 grid gap-4">
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                      Full name
+                    </span>
+                    <input
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      autoComplete="name"
+                      placeholder="Your full name"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-700 focus:ring-2"
+                    />
+                  </label>
 
-                  <input
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder="Title, e.g. Lead Advisor"
-                    className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500"
-                  />
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                      {invite.existingAccount
+                        ? "Existing account password"
+                        : "Create password"}
+                    </span>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete={
+                        invite.existingAccount
+                          ? "current-password"
+                          : "new-password"
+                      }
+                      placeholder="Minimum 8 characters"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-700 focus:ring-2"
+                    />
+                  </label>
 
-                  <input
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="Email"
-                    className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500"
-                  />
-
-                  <input
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="Phone"
-                    className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500"
-                  />
-
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Create password"
-                    className="rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500 md:col-span-2"
-                  />
-
-                  <textarea
-                    value={bio}
-                    onChange={(event) => setBio(event.target.value)}
-                    placeholder="Short advisor bio or specialties"
-                    rows={5}
-                    className="resize-none rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:ring-2 focus:ring-red-500 md:col-span-2"
-                  />
+                  <label>
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                      Confirm password
+                    </span>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Repeat password"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-700 focus:ring-2"
+                    />
+                  </label>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={!isReady}
-                  className={cx(
-                    "rounded-2xl border px-5 py-4 text-sm font-black transition",
-                    isReady
-                      ? "border-red-400/40 bg-gradient-to-r from-red-500 via-red-700 to-red-950 text-white shadow-xl shadow-red-950/40 hover:-translate-y-0.5"
-                      : "border-white/10 bg-white/[0.045] text-slate-500",
-                  )}
+                  disabled={!ready || submitting}
+                  className="group relative mt-6 inline-flex min-h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 px-5 text-sm font-black text-white shadow-lg shadow-emerald-950/40 transition hover:brightness-110 disabled:opacity-40"
                 >
-                  Create Account + Profile
+                  {submitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserCheck className="h-4 w-4" />
+                  )}
+                  {submitting
+                    ? "Creating secure access…"
+                    : invite.existingAccount
+                      ? "Connect account to firm"
+                      : "Create account and join firm"}
                 </button>
               </form>
+            ) : (
+              <div className="grid min-h-[520px] place-items-center text-center">
+                <div>
+                  <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-amber-400/20 bg-amber-500/[0.07] text-amber-200">
+                    <LockKeyhole className="h-7 w-7" />
+                  </div>
+                  <h2 className="mt-5 text-2xl font-black text-white">
+                    Invitation unavailable
+                  </h2>
+                  <p className="mx-auto mt-3 max-w-lg text-sm font-semibold leading-7 text-slate-500">
+                    {message ||
+                      "Ask the firm owner to send a new secure beta invitation."}
+                  </p>
+                  <Link
+                    href="/founder-login"
+                    className="mt-6 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 hover:text-white"
+                  >
+                    Go to sign in
+                  </Link>
+                </div>
+              </div>
             )}
-          </div>
-        </div>
-      </section>
-    </main>
+          </Card>
+        </section>
+      </div>
+    </SliceBackground>
   );
 }

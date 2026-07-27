@@ -48,7 +48,7 @@ function Pill({
   tone?: "red" | "cyan" | "purple" | "amber" | "green";
 }) {
   const tones = {
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
     purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
@@ -194,10 +194,10 @@ export default function ClientLoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
       <div className="mx-auto grid min-h-[calc(100vh-40px)] max-w-7xl gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-        <section className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/70 p-6 shadow-2xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="absolute right-[-140px] top-[-180px] h-[420px] w-[420px] rounded-full border border-red-500/10">
+        <section className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/70 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
+          <div className="absolute right-[-140px] top-[-180px] h-[420px] w-[420px] rounded-full border border-emerald-500/10">
             <div className="absolute inset-12 rounded-full border border-cyan-500/10" />
             <div className="absolute inset-24 rounded-full border border-white/10" />
           </div>
@@ -253,7 +253,7 @@ export default function ClientLoginPage() {
           </p>
 
           {message ? (
-            <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+            <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-100">
               {message}
             </div>
           ) : null}
@@ -269,7 +269,7 @@ export default function ClientLoginPage() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="client@email.com"
                 autoComplete="email"
-                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               />
             </label>
 
@@ -282,14 +282,14 @@ export default function ClientLoginPage() {
                 value={inviteCode}
                 onChange={(event) => setInviteCode(event.target.value)}
                 autoComplete="one-time-code"
-                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/45 px-4 py-4 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               />
             </label>
           </div>
 
           <button
             disabled={loading}
-            className="mt-6 w-full rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+            className="mt-6 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
           >
             {loading ? "Opening Secure Portal…" : "Continue to Client Portal"}
           </button>

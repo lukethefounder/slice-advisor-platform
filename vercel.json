@@ -1,4 +1,5 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
       "path": "/api/cron/triage?limit=25&email=1&aiResearch=1&scanMode=fast&technicals=1&technicalUniverse=sp100&technicalLimit=25&technicalMinScore=62&technicalMaxDurationMs=25000",
@@ -49,8 +50,8 @@
       "schedule": "15 5 * * 0"
     },
     {
-      "path": "/api/cron/intelligence-advisor-brief?users=50",
-      "schedule": "5 15 * * 1-5"
+      "path": "/api/cron/intelligence-advisor-brief?users=100",
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/intelligence-production-health?users=50",

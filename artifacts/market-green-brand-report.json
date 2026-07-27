@@ -1,0 +1,357 @@
+{
+  "schemaVersion": "slice-market-green-brand-migration-1.0.0",
+  "generatedAt": "2026-07-27T15:48:27.032Z",
+  "scannedFiles": 318,
+  "changedFiles": 87,
+  "replacementScore": 8498,
+  "changes": [
+    {
+      "file": "src/app/advisor-command-center/page.tsx",
+      "replacementScore": 123
+    },
+    {
+      "file": "src/app/advisor-os/page.tsx",
+      "replacementScore": 25
+    },
+    {
+      "file": "src/app/alternative-investments/page.tsx",
+      "replacementScore": 235
+    },
+    {
+      "file": "src/app/api/account-settings/route.ts",
+      "replacementScore": 9
+    },
+    {
+      "file": "src/app/api/clients/notify-change/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/firm-planning/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/firm-workspace/access/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/firm-workspace/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/firm-workspace/team-board/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/intelligence/email-alerts/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/personal-bot/pdf-report/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/api/workspace/watchlists/check/route.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/app/backend-kernel/page.tsx",
+      "replacementScore": 53
+    },
+    {
+      "file": "src/app/backend-readiness/page.tsx",
+      "replacementScore": 177
+    },
+    {
+      "file": "src/app/bot-onboarding/page.tsx",
+      "replacementScore": 120
+    },
+    {
+      "file": "src/app/briefings/page.tsx",
+      "replacementScore": 142
+    },
+    {
+      "file": "src/app/client-login/page.tsx",
+      "replacementScore": 58
+    },
+    {
+      "file": "src/app/client-portal/page.tsx",
+      "replacementScore": 164
+    },
+    {
+      "file": "src/app/client-signup/page.tsx",
+      "replacementScore": 83
+    },
+    {
+      "file": "src/app/command/page.tsx",
+      "replacementScore": 166
+    },
+    {
+      "file": "src/app/firm/page.tsx",
+      "replacementScore": 329
+    },
+    {
+      "file": "src/app/firm-planning/page.tsx",
+      "replacementScore": 223
+    },
+    {
+      "file": "src/app/founder-bootstrap/page.tsx",
+      "replacementScore": 42
+    },
+    {
+      "file": "src/app/founder-portal/page.tsx",
+      "replacementScore": 261
+    },
+    {
+      "file": "src/app/globals.css",
+      "replacementScore": 122
+    },
+    {
+      "file": "src/app/intelligence-settings/page.tsx",
+      "replacementScore": 154
+    },
+    {
+      "file": "src/app/investment-comparison/page.tsx",
+      "replacementScore": 132
+    },
+    {
+      "file": "src/app/investor/page.tsx",
+      "replacementScore": 254
+    },
+    {
+      "file": "src/app/market-visuals/page.tsx",
+      "replacementScore": 113
+    },
+    {
+      "file": "src/app/notifications/page.tsx",
+      "replacementScore": 184
+    },
+    {
+      "file": "src/app/opportunity-radar/page.tsx",
+      "replacementScore": 164
+    },
+    {
+      "file": "src/app/page.tsx",
+      "replacementScore": 185
+    },
+    {
+      "file": "src/app/portfolio-lab/page.tsx",
+      "replacementScore": 184
+    },
+    {
+      "file": "src/app/security/page.tsx",
+      "replacementScore": 314
+    },
+    {
+      "file": "src/app/system/page.tsx",
+      "replacementScore": 164
+    },
+    {
+      "file": "src/app/triage/page.tsx",
+      "replacementScore": 214
+    },
+    {
+      "file": "src/app/watchlists/page.tsx",
+      "replacementScore": 158
+    },
+    {
+      "file": "src/app/wealth/page.tsx",
+      "replacementScore": 244
+    },
+    {
+      "file": "src/app/workspace/brief/page.tsx",
+      "replacementScore": 10
+    },
+    {
+      "file": "src/app/workspace/client-briefings/page.tsx",
+      "replacementScore": 204
+    },
+    {
+      "file": "src/app/workspace/client-emails/page.tsx",
+      "replacementScore": 274
+    },
+    {
+      "file": "src/app/workspace/client-portal-inbox/page.tsx",
+      "replacementScore": 30
+    },
+    {
+      "file": "src/app/workspace/clients/page.tsx",
+      "replacementScore": 139
+    },
+    {
+      "file": "src/app/workspace/custom-board/page.tsx",
+      "replacementScore": 124
+    },
+    {
+      "file": "src/app/workspace/firm-command-center/page.tsx",
+      "replacementScore": 178
+    },
+    {
+      "file": "src/app/workspace/intelligence/advisor-bot/page.tsx",
+      "replacementScore": 111
+    },
+    {
+      "file": "src/app/workspace/intelligence/agent-simulation/page.tsx",
+      "replacementScore": 95
+    },
+    {
+      "file": "src/app/workspace/intelligence/data-warehouse/page.tsx",
+      "replacementScore": 75
+    },
+    {
+      "file": "src/app/workspace/intelligence/ensemble-lab/page.tsx",
+      "replacementScore": 70
+    },
+    {
+      "file": "src/app/workspace/intelligence/forecast-history/page.tsx",
+      "replacementScore": 90
+    },
+    {
+      "file": "src/app/workspace/intelligence/forecast-lab/page.tsx",
+      "replacementScore": 110
+    },
+    {
+      "file": "src/app/workspace/intelligence/horizon-models/page.tsx",
+      "replacementScore": 20
+    },
+    {
+      "file": "src/app/workspace/intelligence/knowledge-graph/page.tsx",
+      "replacementScore": 70
+    },
+    {
+      "file": "src/app/workspace/intelligence/launch-readiness/page.tsx",
+      "replacementScore": 105
+    },
+    {
+      "file": "src/app/workspace/intelligence/layout.tsx",
+      "replacementScore": 70
+    },
+    {
+      "file": "src/app/workspace/intelligence/model-governance/page.tsx",
+      "replacementScore": 85
+    },
+    {
+      "file": "src/app/workspace/intelligence/page.tsx",
+      "replacementScore": 195
+    },
+    {
+      "file": "src/app/workspace/intelligence/production-controls/page.tsx",
+      "replacementScore": 80
+    },
+    {
+      "file": "src/app/workspace/personal-bot/page.tsx",
+      "replacementScore": 285
+    },
+    {
+      "file": "src/app/workspace/personal-bot/reports/page.tsx",
+      "replacementScore": 118
+    },
+    {
+      "file": "src/app/workspace/settings/page.tsx",
+      "replacementScore": 175
+    },
+    {
+      "file": "src/app/workspace/team-board/page.tsx",
+      "replacementScore": 24
+    },
+    {
+      "file": "src/app/workspace/watchlists/page.tsx",
+      "replacementScore": 53
+    },
+    {
+      "file": "src/components/advisor-brief/brief-hero.tsx",
+      "replacementScore": 76
+    },
+    {
+      "file": "src/components/advisor-brief/research-details.tsx",
+      "replacementScore": 10
+    },
+    {
+      "file": "src/components/advisor-brief/schedule-panel.tsx",
+      "replacementScore": 30
+    },
+    {
+      "file": "src/components/advisor-brief/security-results.tsx",
+      "replacementScore": 30
+    },
+    {
+      "file": "src/components/advisor-brief/ui.tsx",
+      "replacementScore": 95
+    },
+    {
+      "file": "src/components/advisor-routing-dock.tsx",
+      "replacementScore": 41
+    },
+    {
+      "file": "src/components/client-portal-routing-bridge.tsx",
+      "replacementScore": 16
+    },
+    {
+      "file": "src/components/intelligence/research-knowledge-graph.tsx",
+      "replacementScore": 19
+    },
+    {
+      "file": "src/components/personal-bot-widget.tsx",
+      "replacementScore": 135
+    },
+    {
+      "file": "src/components/user-theme-provider.tsx",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/components/workspace/team-board-embedded.tsx",
+      "replacementScore": 224
+    },
+    {
+      "file": "src/components/workspace/watchlists/watchlist-activity.tsx",
+      "replacementScore": 20
+    },
+    {
+      "file": "src/components/workspace/watchlists/watchlist-detail.tsx",
+      "replacementScore": 105
+    },
+    {
+      "file": "src/components/workspace/watchlists/watchlist-rail.tsx",
+      "replacementScore": 20
+    },
+    {
+      "file": "src/components/workspace-email-quick-access.tsx",
+      "replacementScore": 35
+    },
+    {
+      "file": "src/lib/advisor-briefing/email.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/lib/autonomous-triage.ts",
+      "replacementScore": 2
+    },
+    {
+      "file": "src/lib/bot/command-router.ts",
+      "replacementScore": 6
+    },
+    {
+      "file": "src/lib/client-access.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/lib/client-briefing-engine.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/lib/client-email-center.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/lib/fast-pdf.ts",
+      "replacementScore": 1
+    },
+    {
+      "file": "src/lib/workspace-watchlists.ts",
+      "replacementScore": 31
+    },
+    {
+      "file": "prisma/schema.prisma",
+      "replacementScore": 3
+    }
+  ]
+}

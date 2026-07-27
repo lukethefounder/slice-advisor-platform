@@ -204,7 +204,7 @@ function statusClass(
       "rejected",
     )
   ) {
-    return "border-red-400/25 bg-red-500/10 text-red-100";
+    return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
   }
 
   return "border-amber-400/25 bg-amber-500/10 text-amber-100";
@@ -575,8 +575,8 @@ export default function LaunchReadinessPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Controlled Launch
         </p>
 
@@ -1013,17 +1013,17 @@ export default function LaunchReadinessPage() {
             onClick={() =>
               void requestLaunch()
             }
-            className="mt-4 rounded-xl border border-red-400/25 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+            className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
           >
             Request {targetMode} Approval
           </button>
 
-          <div className="mt-6 rounded-xl border border-red-400/20 bg-red-500/[0.05] p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-red-300">
+          <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-500/[0.05] p-4">
+            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">
               Exact Confirmation Phrase
             </div>
 
-            <div className="mt-2 break-words font-mono text-sm text-red-100">
+            <div className="mt-2 break-words font-mono text-sm text-emerald-100">
               {readiness
                 ?.confirmationPhrase ??
               "—"}
@@ -1042,7 +1042,7 @@ export default function LaunchReadinessPage() {
                 )
               }
               placeholder="Type the exact phrase"
-              className="mt-4 w-full rounded-xl border border-red-400/20 bg-black/60 px-4 py-3 font-mono text-sm text-white placeholder:text-slate-600"
+              className="mt-4 w-full rounded-xl border border-emerald-400/20 bg-black/60 px-4 py-3 font-mono text-sm text-white placeholder:text-slate-600"
             />
           </div>
 
@@ -1095,7 +1095,7 @@ export default function LaunchReadinessPage() {
                           "reject",
                         )
                       }
-                      className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                      className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                     >
                       Reject
                     </button>
@@ -1235,7 +1235,7 @@ export default function LaunchReadinessPage() {
                           false,
                         )
                       }
-                      className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                      className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                     >
                       Record Failure
                     </button>

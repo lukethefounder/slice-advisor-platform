@@ -61,7 +61,7 @@ export default function WorkspaceEmailQuickAccess() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 left-5 z-[9998] rounded-2xl border border-red-500/30 bg-zinc-950/90 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-red-100 shadow-2xl shadow-red-950/40 backdrop-blur-xl hover:bg-red-500/15"
+        className="fixed bottom-5 left-5 z-[9998] rounded-2xl border border-emerald-500/30 bg-zinc-950/90 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-100 shadow-2xl shadow-emerald-950/40 backdrop-blur-xl hover:bg-emerald-500/15"
       >
         Client Email Center
       </button>
@@ -69,14 +69,14 @@ export default function WorkspaceEmailQuickAccess() {
   }
 
   return (
-    <aside className="fixed bottom-5 left-5 z-[9998] w-[min(420px,calc(100vw-2.5rem))] overflow-hidden rounded-[1.8rem] border border-white/10 bg-zinc-950/92 shadow-2xl shadow-red-950/40 backdrop-blur-xl">
+    <aside className="fixed bottom-5 left-5 z-[9998] w-[min(420px,calc(100vw-2.5rem))] overflow-hidden rounded-[1.8rem] border border-white/10 bg-zinc-950/92 shadow-2xl shadow-emerald-950/40 backdrop-blur-xl">
       <div className="relative p-4">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-red-600/18 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-emerald-600/18 to-transparent" />
 
         <div className="relative">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
                 Advisor Communication
               </div>
               <h2 className="mt-1 text-lg font-black text-white">

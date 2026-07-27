@@ -87,7 +87,7 @@ const EMPTY_PAYLOAD: NotificationCenterPayload = {
 };
 
 const inputClass =
-  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -201,7 +201,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -231,7 +231,7 @@ function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -250,7 +250,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -283,7 +283,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -311,7 +311,7 @@ function ScoreRing({ score }: { score: number }) {
   const tone = scoreTone(score);
   const border =
     tone === "red"
-      ? "border-red-500/40 bg-red-500/10 text-red-100"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
       : tone === "amber"
         ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
         : tone === "cyan"
@@ -588,10 +588,10 @@ export default function NotificationsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -634,7 +634,7 @@ export default function NotificationsPage() {
                 type="button"
                 onClick={() => runAction("queue")}
                 disabled={loading}
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20 disabled:opacity-50"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50"
               >
                 Queue Alerts
               </button>
@@ -643,7 +643,7 @@ export default function NotificationsPage() {
                 type="button"
                 onClick={() => runAction("process")}
                 disabled={loading}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
               >
                 Process Queue
               </button>
@@ -700,7 +700,7 @@ export default function NotificationsPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -730,7 +730,7 @@ export default function NotificationsPage() {
                     className={cx(
                       "h-2 w-2 rounded-full",
                       tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tone === "cyan"
                           ? "bg-cyan-400"
                           : tone === "purple"
@@ -750,7 +750,7 @@ export default function NotificationsPage() {
         {view === "deliveries" ? (
           <section className="grid gap-5 xl:grid-cols-[430px_minmax(0,1fr)_420px]">
             <Card>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
                 Filter Console
               </div>
               <h2 className="mt-2 text-2xl font-black text-white">
@@ -865,7 +865,7 @@ export default function NotificationsPage() {
                           deliveryIds: selectedIds,
                         })
                       }
-                      className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100 disabled:opacity-50"
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-black text-emerald-100 disabled:opacity-50"
                     >
                       Archive Selected
                     </button>
@@ -1083,7 +1083,7 @@ export default function NotificationsPage() {
                           deliveryId: selectedDelivery.id,
                         })
                       }
-                      className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100 disabled:opacity-50"
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-black text-emerald-100 disabled:opacity-50"
                     >
                       Archive
                     </button>
@@ -1157,7 +1157,7 @@ export default function NotificationsPage() {
                           className={cx(
                             "rounded-2xl px-4 py-2 text-xs font-black",
                             preference.enabled
-                              ? "border border-red-500/30 bg-red-500/10 text-red-100"
+                              ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
                               : "bg-white text-slate-950"
                           )}
                         >
@@ -1313,7 +1313,7 @@ export default function NotificationsPage() {
 
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400"
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-emerald-400"
                         style={{ width: `${item.health}%` }}
                       />
                     </div>
@@ -1449,7 +1449,7 @@ export default function NotificationsPage() {
                   type="button"
                   onClick={() => runAction("queue")}
                   disabled={loading}
-                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-5 text-sm font-black text-red-100 disabled:opacity-50"
+                  className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-5 text-sm font-black text-emerald-100 disabled:opacity-50"
                 >
                   Queue Alerts
                 </button>

@@ -234,7 +234,7 @@ async function loadPlanning(
         ownerId: agenda.membership.id,
         ownerName: agenda.membership.user?.name ?? "Team member",
         ownerEmail: agenda.membership.user?.email ?? "",
-        ownerColor: agenda.membership.calendarColor || "#ef4444",
+        ownerColor: agenda.membership.calendarColor || "#10b981",
       };
     })
   );

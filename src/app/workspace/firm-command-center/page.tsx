@@ -146,7 +146,7 @@ const tabs: Array<[View, string, string, Tone]> = [
 ];
 
 const toneClasses: Record<Tone, string> = {
-  red: "border-red-500/25 bg-red-500/10 text-red-100",
+  red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
   green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
   amber: "border-amber-500/25 bg-amber-500/10 text-amber-100",
   purple: "border-purple-500/25 bg-purple-500/10 text-purple-100",
@@ -156,7 +156,7 @@ const toneClasses: Record<Tone, string> = {
 };
 
 const inputClass =
-  "rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
 const docTemplates = [
   {
@@ -564,7 +564,7 @@ function GlassPanel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/20",
+    red: "from-emerald-500/20",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -611,7 +611,7 @@ function MetricCard({
 
 function ProgressBar({ value, tone = "green" }: { value: number; tone?: Tone }) {
   const colors: Record<Tone, string> = {
-    red: "from-red-500 to-red-800",
+    red: "from-emerald-500 to-emerald-800",
     green: "from-emerald-400 to-emerald-700",
     amber: "from-amber-400 to-amber-700",
     purple: "from-purple-400 to-purple-800",
@@ -644,7 +644,7 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-400">{eyebrow}</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">{eyebrow}</div>
         <h2 className="mt-1 text-2xl font-black text-white">{title}</h2>
         {description ? <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">{description}</p> : null}
       </div>
@@ -1681,17 +1681,17 @@ export default function FirmCommandCenterPage() {
   }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.48),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(220,38,38,0.20),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.48),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(5,150,105,0.20),_transparent_28%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-16%] top-[-18%] h-[38rem] w-[38rem] rounded-full bg-red-700/24 blur-3xl" />
-        <div className="absolute right-[-14%] top-[8%] h-[34rem] w-[34rem] rounded-full bg-red-500/12 blur-3xl" />
+        <div className="absolute left-[-16%] top-[-18%] h-[38rem] w-[38rem] rounded-full bg-emerald-700/24 blur-3xl" />
+        <div className="absolute right-[-14%] top-[8%] h-[34rem] w-[34rem] rounded-full bg-emerald-500/12 blur-3xl" />
         <div className="absolute bottom-[-18%] left-[28%] h-[30rem] w-[30rem] rounded-full bg-orange-500/10 blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:44px_44px]" />
       </div>
 
       <div className="relative mx-auto grid max-w-[1900px] gap-5">
-        <header className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/65 p-6 shadow-2xl shadow-red-950/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-60 bg-gradient-to-b from-red-600/24 via-red-500/10 to-transparent" />
+        <header className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/65 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-60 bg-gradient-to-b from-emerald-600/24 via-emerald-500/10 to-transparent" />
 
           <div className="relative grid gap-5 xl:grid-cols-[1fr_auto] xl:items-start">
             <div>
@@ -1731,7 +1731,7 @@ export default function FirmCommandCenterPage() {
           </div>
 
           {message ? (
-            <div className="relative mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+            <div className="relative mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
               {message}
             </div>
           ) : null}
@@ -1760,7 +1760,7 @@ export default function FirmCommandCenterPage() {
                   className={cx(
                     "h-2 w-2 rounded-full",
                     tone === "red"
-                      ? "bg-red-400"
+                      ? "bg-emerald-400"
                       : tone === "green"
                         ? "bg-emerald-400"
                         : tone === "amber"
@@ -1826,7 +1826,7 @@ export default function FirmCommandCenterPage() {
                   </div>
                 </details>
 
-                <button disabled={!activeFirmId || !delegateForm.targetMembershipId || working === "createDelegatedTask"} className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:opacity-50">
+                <button disabled={!activeFirmId || !delegateForm.targetMembershipId || working === "createDelegatedTask"} className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:opacity-50">
                   {working === "createDelegatedTask" ? "Creating..." : "Create Task"}
                 </button>
               </form>
@@ -1902,7 +1902,7 @@ export default function FirmCommandCenterPage() {
                         className={cx(
                           "min-h-[130px] rounded-[1.25rem] border p-3 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.08]",
                           isSelected ? "border-purple-300/70 bg-purple-500/20 shadow-lg shadow-purple-950/20" : "border-white/10 bg-white/[0.035]",
-                          isToday && !isSelected ? "ring-1 ring-red-400/40" : "",
+                          isToday && !isSelected ? "ring-1 ring-emerald-400/40" : "",
                           !isCurrentMonth ? "opacity-40" : "",
                         )}
                       >
@@ -2329,7 +2329,7 @@ export default function FirmCommandCenterPage() {
                         <div key={file.id} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-xs font-bold text-cyan-100">
                           {file.name}
                           <span className="mt-1 block text-[10px] text-cyan-200/70">{fileSizeLabel(file.size)} · ready to post</span>
-                          <button type="button" onClick={() => setProjectUploadFiles((current) => current.filter((item) => item.id !== file.id))} className="mt-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-[10px] font-black text-red-100">
+                          <button type="button" onClick={() => setProjectUploadFiles((current) => current.filter((item) => item.id !== file.id))} className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-black text-emerald-100">
                             Remove
                           </button>
                         </div>
@@ -2434,7 +2434,7 @@ export default function FirmCommandCenterPage() {
                     </select>
                   </div>
 
-                  <button disabled={working === "createIdea"} className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/30 disabled:opacity-50">
+                  <button disabled={working === "createIdea"} className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/30 disabled:opacity-50">
                     {working === "createIdea" ? "Submitting..." : "Add Idea"}
                   </button>
                 </form>
@@ -2586,7 +2586,7 @@ export default function FirmCommandCenterPage() {
                         {activeDoc.favorite ? "★ Favorite" : "☆ Favorite"}
                       </button>
                       <button type="button" onClick={() => exportDoc(activeDoc)} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100">Export</button>
-                      <button type="button" onClick={() => deleteDoc(activeDoc.id)} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100">Delete</button>
+                      <button type="button" onClick={() => deleteDoc(activeDoc.id)} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100">Delete</button>
                     </div>
                   </div>
 
@@ -2738,7 +2738,7 @@ export default function FirmCommandCenterPage() {
                                 setCalendarTaskForm((current) => ({ ...current, projectId: project.id }));
                                 setActiveView("delegate");
                               }}
-                              className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100"
+                              className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100"
                             >
                               Delegate
                             </button>

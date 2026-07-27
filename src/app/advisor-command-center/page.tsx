@@ -110,7 +110,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const tones = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -132,7 +132,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={cx("rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20", className)}>
+    <div className={cx("rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20", className)}>
       {children}
     </div>
   );
@@ -150,7 +150,7 @@ function Metric({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const glows = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -238,19 +238,19 @@ export default function AdvisorCommandCenterPage() {
         <Card className="mx-auto mt-20 max-w-3xl text-center">
           <Pill tone="red">Slice AI</Pill>
           <h1 className="mt-4 text-3xl font-black">Loading command center...</h1>
-          {message ? <p className="mt-3 text-sm text-red-200">{message}</p> : null}
+          {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
         </Card>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(88,28,135,0.24),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(88,28,135,0.24),_transparent_30%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1500px] gap-6">
-        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl">
+        <header className="rounded-[2rem] border border-white/10 bg-black/70 p-5 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.24em] text-red-400">
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-400">
                 Slice AI Command Center
               </div>
               <h1 className="mt-2 text-4xl font-black md:text-6xl">
@@ -272,7 +272,7 @@ export default function AdvisorCommandCenterPage() {
               </a>
               <a
                 href="/workspace/personal-bot"
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
               >
                 Personal Bot
               </a>
@@ -287,7 +287,7 @@ export default function AdvisorCommandCenterPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -304,9 +304,9 @@ export default function AdvisorCommandCenterPage() {
           <button
             onClick={() => runAction("advisorDay")}
             disabled={running === "advisorDay"}
-            className="rounded-[1.5rem] bg-white p-5 text-left text-slate-950 shadow-xl shadow-red-950/20 transition hover:scale-[1.01] disabled:opacity-50"
+            className="rounded-[1.5rem] bg-white p-5 text-left text-slate-950 shadow-xl shadow-emerald-950/20 transition hover:scale-[1.01] disabled:opacity-50"
           >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-red-700">One-Click</div>
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">One-Click</div>
             <div className="mt-2 text-2xl font-black">Advisor Day</div>
             <div className="mt-2 text-sm font-semibold text-slate-600">Generate the firm’s daily action brief.</div>
           </button>
@@ -314,7 +314,7 @@ export default function AdvisorCommandCenterPage() {
           <button
             onClick={() => runAction("buildClientBrains")}
             disabled={running === "buildClientBrains"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-red-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-emerald-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
             <div className="text-xs font-black uppercase tracking-[0.16em] text-purple-300">Client Brain</div>
             <div className="mt-2 text-2xl font-black">Refresh Profiles</div>
@@ -324,9 +324,9 @@ export default function AdvisorCommandCenterPage() {
           <button
             onClick={() => runAction("generateNextBestActions")}
             disabled={running === "generateNextBestActions"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-red-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-emerald-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-red-300">Action Engine</div>
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Action Engine</div>
             <div className="mt-2 text-2xl font-black">Prioritize Work</div>
             <div className="mt-2 text-sm font-semibold text-slate-500">Rank what matters now.</div>
           </button>
@@ -334,7 +334,7 @@ export default function AdvisorCommandCenterPage() {
           <button
             onClick={() => runAction("rebuildKnowledge")}
             disabled={running === "rebuildKnowledge"}
-            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-red-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-[1.5rem] border border-white/10 bg-white/[0.055] p-5 text-left shadow-xl shadow-emerald-950/10 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
             <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Ask the Firm</div>
             <div className="mt-2 text-2xl font-black">Index Data</div>
@@ -347,12 +347,12 @@ export default function AdvisorCommandCenterPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-red-500 placeholder:text-slate-600 focus:ring-2"
+              className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-white outline-none ring-emerald-500 placeholder:text-slate-600 focus:ring-2"
               placeholder="Ask the firm: client owns NVDA, Apple source, overdue task, tax notes..."
             />
             <button
               disabled={running === "searchFirm" || !query.trim()}
-              className="rounded-2xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+              className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
             >
               Search Firm
             </button>
@@ -390,7 +390,7 @@ export default function AdvisorCommandCenterPage() {
           <Card>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Next Best Action</div>
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">Next Best Action</div>
                 <h2 className="mt-2 text-2xl font-black">Advisor priority queue</h2>
               </div>
               <Pill tone="red">{data.nextBestActions.filter((action) => action.status === "Open").length} open</Pill>
@@ -490,7 +490,7 @@ export default function AdvisorCommandCenterPage() {
           </Card>
 
           <Card>
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-red-400">Advisor Day</div>
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">Advisor Day</div>
             <h2 className="mt-2 text-2xl font-black">Daily AI operating brief</h2>
 
             <div className="mt-5 grid gap-3">

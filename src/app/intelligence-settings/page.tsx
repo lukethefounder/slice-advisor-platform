@@ -48,9 +48,9 @@ type Policy = {
 const SOURCE_CAPACITY = 200;
 
 const inputClass =
-  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-red-400/40 focus:ring-2 focus:ring-red-500/20";
+  "rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-500/20";
 
-const chartColors = ["#ef4444", "#06b6d4", "#a855f7", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899"];
+const chartColors = ["#10b981", "#06b6d4", "#a855f7", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899"];
 
 const PLAYBOOKS = [
   {
@@ -204,7 +204,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -227,7 +227,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-red-950/20 backdrop-blur-xl", className)}>
+    <div className={cx("relative overflow-hidden rounded-[2rem] border border-white/10 bg-zinc-950/78 p-5 shadow-xl shadow-emerald-950/20 backdrop-blur-xl", className)}>
       {children}
     </div>
   );
@@ -243,7 +243,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/16",
+    red: "from-emerald-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -271,7 +271,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-red-500/18",
+    red: "from-emerald-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -301,7 +301,7 @@ function ProgressBar({
   tone?: Tone;
 }) {
   const colors: Record<Tone, string> = {
-    red: "from-red-500 to-red-800",
+    red: "from-emerald-500 to-emerald-800",
     green: "from-emerald-400 to-emerald-700",
     amber: "from-amber-400 to-amber-700",
     purple: "from-purple-400 to-purple-800",
@@ -720,10 +720,10 @@ export default function IntelligenceSettingsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.18),_transparent_28%),linear-gradient(135deg,_#020617,_#09090b,_#111827,_#1f0707)] p-5 text-white">
       <div className="mx-auto grid max-w-[1900px] gap-5">
         <header className="relative overflow-hidden rounded-[2.35rem] border border-white/10 bg-zinc-950/78 p-6 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(239,68,68,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(16,185,129,0.28),transparent_30%),radial-gradient(circle_at_85%_15%,rgba(6,182,212,0.16),transparent_26%)]" />
 
           <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
@@ -772,7 +772,7 @@ export default function IntelligenceSettingsPage() {
                 type="button"
                 onClick={cleanup}
                 disabled={loading}
-                className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-black text-red-100 hover:bg-red-500/20 disabled:opacity-50"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50"
               >
                 Run Cleanup
               </button>
@@ -781,7 +781,7 @@ export default function IntelligenceSettingsPage() {
                 type="button"
                 onClick={() => void loadSettings()}
                 disabled={loading}
-                className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
               >
                 Refresh
               </button>
@@ -799,7 +799,7 @@ export default function IntelligenceSettingsPage() {
         </header>
 
         {message ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-100">
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-100">
             {message}
           </div>
         ) : null}
@@ -830,7 +830,7 @@ export default function IntelligenceSettingsPage() {
                     className={cx(
                       "h-2 w-2 rounded-full",
                       tone === "red"
-                        ? "bg-red-400"
+                        ? "bg-emerald-400"
                         : tone === "cyan"
                           ? "bg-cyan-400"
                           : tone === "purple"
@@ -908,7 +908,7 @@ export default function IntelligenceSettingsPage() {
                         <Tooltip content={<CustomTooltip />} />
                         <Legend />
                         <Bar dataKey="trust" name="Trust" fill="#22c55e" radius={[8, 8, 0, 0]} />
-                        <Bar dataKey="alert" name="Alert" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="alert" name="Alert" fill="#10b981" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1067,7 +1067,7 @@ export default function IntelligenceSettingsPage() {
                   <button type="button" onClick={() => bulkSetEnabled(true)} disabled={loading || !filteredSources.length} className="rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-950 disabled:opacity-50">
                     Enable Filtered
                   </button>
-                  <button type="button" onClick={() => bulkSetEnabled(false)} disabled={loading || !filteredSources.length} className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs font-black text-red-100 disabled:opacity-50">
+                  <button type="button" onClick={() => bulkSetEnabled(false)} disabled={loading || !filteredSources.length} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-black text-emerald-100 disabled:opacity-50">
                     Disable Filtered
                   </button>
                 </div>
@@ -1143,7 +1143,7 @@ export default function IntelligenceSettingsPage() {
                         className={cx(
                           "rounded-2xl px-4 py-3 text-xs font-black disabled:opacity-50",
                           source.enabled
-                            ? "border border-red-500/30 bg-red-500/10 text-red-100"
+                            ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
                             : "bg-white text-slate-950"
                         )}
                       >
@@ -1166,7 +1166,7 @@ export default function IntelligenceSettingsPage() {
             </Card>
 
             <Card>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
                 Source Detail
               </div>
 
@@ -1291,7 +1291,7 @@ export default function IntelligenceSettingsPage() {
             </Card>
 
             <Card>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
                 Automatic Update Rules
               </div>
               <h2 className="mt-2 text-2xl font-black text-white">
@@ -1329,7 +1329,7 @@ export default function IntelligenceSettingsPage() {
             <Card>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-red-400">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
                     Global Policy
                   </div>
                   <h2 className="mt-2 text-2xl font-black text-white">
@@ -1411,7 +1411,7 @@ export default function IntelligenceSettingsPage() {
                     <XAxis dataKey="label" stroke="#64748b" fontSize={12} />
                     <YAxis stroke="#64748b" fontSize={12} domain={[0, 100]} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="value" name="Policy strength" fill="#ef4444" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="value" name="Policy strength" fill="#10b981" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

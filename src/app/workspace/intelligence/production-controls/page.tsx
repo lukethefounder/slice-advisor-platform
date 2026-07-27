@@ -254,7 +254,7 @@ function statusClass(
       "open",
     )
   ) {
-    return "border-red-400/25 bg-red-500/10 text-red-100";
+    return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
   }
 
   return "border-amber-400/25 bg-amber-500/10 text-amber-100";
@@ -614,8 +614,8 @@ export default function ProductionControlsPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Operational Resilience
         </p>
 
@@ -899,7 +899,7 @@ export default function ProductionControlsPage() {
             onClick={() =>
               void saveBudget()
             }
-            className="mt-5 rounded-xl border border-red-400/25 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+            className="mt-5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
           >
             Save Budget Policy
           </button>
@@ -1019,7 +1019,7 @@ export default function ProductionControlsPage() {
               onClick={() =>
                 void createIncident()
               }
-              className="rounded-xl border border-red-400/25 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+              className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
             >
               Open Incident
             </button>
@@ -1098,7 +1098,7 @@ export default function ProductionControlsPage() {
                             "Open",
                           )
                         }
-                        className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                        className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                       >
                         Open
                       </button>

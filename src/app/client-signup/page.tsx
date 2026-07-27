@@ -48,7 +48,7 @@ function Pill({
   tone?: "red" | "cyan" | "purple" | "amber" | "green";
 }) {
   const tones = {
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
     purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
@@ -235,9 +235,9 @@ export default function ClientSignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[430px_1fr] lg:items-start">
-        <section className="rounded-[2rem] border border-white/10 bg-black/70 p-6 shadow-2xl shadow-red-950/30 backdrop-blur-xl">
+        <section className="rounded-[2rem] border border-white/10 bg-black/70 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-wrap gap-2">
             <Pill tone="green">Step 2</Pill>
             <Pill>Secure Signup</Pill>
@@ -275,7 +275,7 @@ export default function ClientSignupPage() {
                 key={step}
                 className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.055] p-4"
               >
-                <div className="grid h-9 w-9 place-items-center rounded-xl bg-red-600 text-sm font-black">
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-600 text-sm font-black">
                   {step}
                 </div>
                 <div className="font-black">{title}</div>
@@ -288,13 +288,13 @@ export default function ClientSignupPage() {
           onSubmit={submit}
           className="rounded-[2rem] border border-white/10 bg-zinc-950/82 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl"
         >
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-red-400">
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
             Advisor-linked client profile
           </div>
           <h2 className="mt-2 text-3xl font-black">Client profile</h2>
 
           {message ? (
-            <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-bold text-red-100">
+            <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-100">
               {message}
             </div>
           ) : null}
@@ -312,7 +312,7 @@ export default function ClientSignupPage() {
                 <input
                   value={firstName}
                   onChange={(event) => setFirstName(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 />
               </label>
 
@@ -323,7 +323,7 @@ export default function ClientSignupPage() {
                 <input
                   value={lastName}
                   onChange={(event) => setLastName(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 />
               </label>
 
@@ -345,7 +345,7 @@ export default function ClientSignupPage() {
                 <input
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 />
               </label>
 
@@ -358,7 +358,7 @@ export default function ClientSignupPage() {
                   onChange={(event) =>
                     setPreferredContactMethod(event.target.value)
                   }
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 >
                   <option>Portal + email</option>
                   <option>Portal only</option>
@@ -375,7 +375,7 @@ export default function ClientSignupPage() {
                 <input
                   value={householdName}
                   onChange={(event) => setHouseholdName(event.target.value)}
-                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-red-500 focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white outline-none ring-emerald-500 focus:ring-2"
                 />
               </label>
             </div>
@@ -386,7 +386,7 @@ export default function ClientSignupPage() {
               type="checkbox"
               checked={accepted}
               onChange={(event) => setAccepted(event.target.checked)}
-              className="mt-1 h-4 w-4 accent-red-600"
+              className="mt-1 h-4 w-4 accent-emerald-600"
             />
             <span>
               I understand portal requests are submitted to my assigned advisor for review and are not automatic recommendations, trade instructions, or investment actions.
@@ -395,7 +395,7 @@ export default function ClientSignupPage() {
 
           <button
             disabled={loading || !context}
-            className="mt-5 w-full rounded-2xl bg-red-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-red-950/40 disabled:opacity-50"
+            className="mt-5 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
           >
             {loading ? "Saving Secure Profile…" : "Create Portal"}
           </button>

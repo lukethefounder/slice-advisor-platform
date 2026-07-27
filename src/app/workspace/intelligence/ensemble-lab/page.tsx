@@ -341,7 +341,7 @@ function conclusionClass(
     conclusion ===
       "Remove Candidate"
   ) {
-    return "text-red-300";
+    return "text-emerald-300";
   }
 
   return "text-amber-300";
@@ -562,8 +562,8 @@ export default function EnsembleLabPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Calibrated Decision Engine
         </p>
 
@@ -632,7 +632,7 @@ export default function EnsembleLabPage() {
                 "generate-run",
               )
             }
-            className="rounded-xl border border-red-400/25 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+            className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
           >
             Generate for Run
           </button>
@@ -761,7 +761,7 @@ export default function EnsembleLabPage() {
                           artifact.promotionGates
                             .allPassed
                             ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
-                            : "border-red-400/25 bg-red-500/10 text-red-100"
+                            : "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"
                         }`}
                       >
                         {artifact.promotionGates
@@ -1024,7 +1024,7 @@ export default function EnsembleLabPage() {
                         className={`rounded-xl border p-3 text-xs ${
                           gate.passed
                             ? "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
-                            : "border-red-400/20 bg-red-500/[0.06] text-red-100"
+                            : "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
                         }`}
                       >
                         <div className="font-black">

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const TEAM_COLORS = [
-  "#ef4444",
+  "#10b981",
   "#f97316",
   "#eab308",
   "#22c55e",

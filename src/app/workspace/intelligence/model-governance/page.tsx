@@ -92,7 +92,7 @@ function statusClass(status: string) {
   }
 
   if (status === "Disabled") {
-    return "border-red-400/25 bg-red-500/10 text-red-100";
+    return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
   }
 
   return "border-blue-400/20 bg-blue-500/10 text-blue-100";
@@ -259,8 +259,8 @@ export default function ModelGovernancePage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Model Risk Management
         </p>
 
@@ -336,7 +336,7 @@ export default function ModelGovernancePage() {
                     onClick={() =>
                       void runValidation(model.modelVersion)
                     }
-                    className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                    className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                   >
                     {activeAction ===
                     `validate:${model.modelVersion}`
@@ -409,7 +409,7 @@ export default function ModelGovernancePage() {
                         className={`rounded-xl border p-3 text-xs ${
                           gate.passed
                             ? "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
-                            : "border-red-400/20 bg-red-500/[0.06] text-red-100"
+                            : "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
                         }`}
                       >
                         <div className="font-black">
@@ -436,7 +436,7 @@ export default function ModelGovernancePage() {
 
               {model.driftAlerts.length ? (
                 <div className="mt-6">
-                  <h3 className="text-sm font-black text-red-200">
+                  <h3 className="text-sm font-black text-emerald-200">
                     Open drift alerts
                   </h3>
 
@@ -444,13 +444,13 @@ export default function ModelGovernancePage() {
                     {model.driftAlerts.map((alert) => (
                       <div
                         key={alert.id}
-                        className="rounded-xl border border-red-400/20 bg-red-500/[0.06] p-4 text-xs text-red-100"
+                        className="rounded-xl border border-emerald-400/20 bg-emerald-500/[0.06] p-4 text-xs text-emerald-100"
                       >
                         <div className="font-black">
                           {alert.severity} · {alert.horizon}
                         </div>
                         <div className="mt-2">{alert.reason}</div>
-                        <div className="mt-2 text-red-200/70">
+                        <div className="mt-2 text-emerald-200/70">
                           Brier change{" "}
                           {metric(alert.brierScoreChange, 4)} ·
                           Accuracy change{" "}

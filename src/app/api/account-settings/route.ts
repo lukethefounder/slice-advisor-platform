@@ -39,7 +39,7 @@ type AccountMeta = {
   timezone: string;
   appearanceMode: "dark" | "light" | "system";
   density: "Comfortable" | "Compact" | "Spacious";
-  accent: "Slice Red" | "Crimson" | "Ruby" | "Graphite";
+  accent: "Market Green" | "Crimson" | "Ruby" | "Graphite";
   privacy: {
     aiMemoryEnabled: boolean;
     analyticsEnabled: boolean;
@@ -57,7 +57,7 @@ const defaultAccountMeta: AccountMeta = {
   timezone: "America/Phoenix",
   appearanceMode: "dark",
   density: "Comfortable",
-  accent: "Slice Red",
+  accent: "Market Green",
   privacy: {
     aiMemoryEnabled: true,
     analyticsEnabled: true,
@@ -193,7 +193,7 @@ function normalizeAccountMeta(value: Partial<AccountMeta> | null | undefined): A
       merged.accent === "Ruby" ||
       merged.accent === "Graphite"
         ? merged.accent
-        : "Slice Red",
+        : "Market Green",
     privacy: {
       aiMemoryEnabled: Boolean(merged.privacy.aiMemoryEnabled),
       analyticsEnabled: Boolean(merged.privacy.analyticsEnabled),

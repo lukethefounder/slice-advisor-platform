@@ -348,7 +348,7 @@ function statusClass(
       "failed",
     )
   ) {
-    return "border-red-400/25 bg-red-500/10 text-red-100";
+    return "border-emerald-400/25 bg-emerald-500/10 text-emerald-100";
   }
 
   return "border-amber-400/25 bg-amber-500/10 text-amber-100";
@@ -863,8 +863,8 @@ export default function AdvisorBotPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1800px] px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-[2rem] border border-red-500/15 bg-gradient-to-br from-red-950/30 via-black to-black p-6 shadow-2xl shadow-red-950/20 sm:p-8">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">
+      <section className="rounded-[2rem] border border-emerald-500/15 bg-gradient-to-br from-emerald-950/30 via-black to-black p-6 shadow-2xl shadow-emerald-950/20 sm:p-8">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">
           Slice Personalized Intelligence
         </p>
 
@@ -1012,7 +1012,7 @@ export default function AdvisorBotPage() {
                     item.role ===
                     "user"
                       ? "ml-8 border-white/10 bg-white/[0.05]"
-                      : "mr-8 border-red-400/20 bg-red-500/[0.06]"
+                      : "mr-8 border-emerald-400/20 bg-emerald-500/[0.06]"
                   }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1036,7 +1036,7 @@ export default function AdvisorBotPage() {
 
                   {item.confidence !==
                   null ? (
-                    <div className="mt-3 text-[10px] font-black uppercase text-red-300">
+                    <div className="mt-3 text-[10px] font-black uppercase text-emerald-300">
                       Confidence{" "}
                       {number(
                         item.confidence,
@@ -1102,7 +1102,7 @@ export default function AdvisorBotPage() {
                 4
               }
               placeholder="Ask: Where is the highest disagreement in the latest MSFT forecast?"
-              className="w-full resize-none rounded-2xl border border-white/10 bg-black/60 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-red-400/40"
+              className="w-full resize-none rounded-2xl border border-white/10 bg-black/60 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400/40"
             />
 
             <div className="mt-3 flex justify-end">
@@ -1116,7 +1116,7 @@ export default function AdvisorBotPage() {
                 onClick={() =>
                   void sendMessage()
                 }
-                className="rounded-xl border border-red-400/25 bg-red-500/15 px-6 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+                className="rounded-xl border border-emerald-400/25 bg-emerald-500/15 px-6 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
               >
                 {activeAction ===
                 "chat"
@@ -1145,7 +1145,7 @@ export default function AdvisorBotPage() {
                       Slice Score
                     </div>
 
-                    <div className="text-xl font-black text-red-200">
+                    <div className="text-xl font-black text-emerald-200">
                       {number(
                         latestForecast.sliceSentimentScore,
                       )}
@@ -1186,7 +1186,7 @@ export default function AdvisorBotPage() {
                               {horizon.label}
                             </span>
 
-                            <span className="text-red-200">
+                            <span className="text-emerald-200">
                               {number(
                                 horizon.probability,
                               )}
@@ -1375,7 +1375,7 @@ export default function AdvisorBotPage() {
                           "reject",
                         )
                       }
-                      className="rounded-xl border border-red-400/25 bg-red-500/10 px-4 py-2 text-xs font-black text-red-100 disabled:opacity-40"
+                      className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"
                     >
                       Reject
                     </button>
@@ -1612,7 +1612,7 @@ export default function AdvisorBotPage() {
           onClick={() =>
             void saveProfile()
           }
-          className="mt-5 rounded-xl border border-red-400/25 bg-red-500/10 px-5 py-3 text-sm font-black text-red-100 disabled:opacity-40"
+          className="mt-5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-5 py-3 text-sm font-black text-emerald-100 disabled:opacity-40"
         >
           Save Bot Profile
         </button>

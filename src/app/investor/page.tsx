@@ -65,7 +65,7 @@ function Card({
   return (
     <div
       className={cx(
-        "rounded-[2rem] border border-white/10 bg-zinc-950/70 shadow-xl shadow-red-950/20 backdrop-blur-xl",
+        "rounded-[2rem] border border-white/10 bg-zinc-950/70 shadow-xl shadow-emerald-950/20 backdrop-blur-xl",
         className
       )}
     >
@@ -82,7 +82,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "slate";
 }) {
   const tones = {
-    red: "bg-red-500/10 text-red-300 ring-red-500/30",
+    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -103,20 +103,20 @@ function Pill({
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-red-950 via-zinc-950 to-red-700 shadow-lg shadow-red-950/50 ring-1 ring-red-500/40">
+      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-red-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-red-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-red-700" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
+        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
 
       <div>
         <div className="text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-red-400">
+        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
           Investor Workspace
         </div>
       </div>
@@ -337,7 +337,7 @@ export default function InvestorPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
         <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col items-center justify-center text-center">
           <Logo />
           <h1 className="mt-8 text-5xl font-black tracking-tight">
@@ -348,7 +348,7 @@ export default function InvestorPage() {
           </p>
           <a
             href="/portal"
-            className="mt-8 rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-6 py-4 font-black text-white shadow-lg shadow-red-950/40"
+            className="mt-8 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-6 py-4 font-black text-white shadow-lg shadow-emerald-950/40"
           >
             Go to Login Portal
           </a>
@@ -358,9 +358,9 @@ export default function InvestorPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(127,29,29,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(185,28,28,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
       <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-black/60 p-5 shadow-xl shadow-red-950/30 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-black/60 p-5 shadow-xl shadow-emerald-950/30 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
           <Logo />
 
           <div className="flex flex-wrap items-center gap-3">
@@ -380,14 +380,14 @@ export default function InvestorPage() {
 
             <a
               href="/portal"
-              className="rounded-2xl bg-red-600 px-4 py-3 font-black text-white"
+              className="rounded-2xl bg-emerald-600 px-4 py-3 font-black text-white"
             >
               Portal
             </a>
 
             <button
               onClick={runDemoScan}
-              className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-4 py-3 font-black text-white"
+              className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 font-black text-white"
             >
               Run Demo Scan
             </button>
@@ -395,7 +395,7 @@ export default function InvestorPage() {
         </header>
 
         {message ? (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm font-bold text-red-200">
+          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-200">
             {message}
           </div>
         ) : null}
@@ -435,7 +435,7 @@ export default function InvestorPage() {
                     title: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2 md:col-span-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2 md:col-span-2"
                 placeholder="Goal title, e.g. Build $100k opportunity fund"
               />
 
@@ -447,7 +447,7 @@ export default function InvestorPage() {
                     goalType: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2"
               >
                 <option>Wealth Growth</option>
                 <option>Retirement</option>
@@ -465,7 +465,7 @@ export default function InvestorPage() {
                     priority: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2"
               >
                 <option>Low</option>
                 <option>Medium</option>
@@ -480,7 +480,7 @@ export default function InvestorPage() {
                     targetAmount: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Target amount"
               />
 
@@ -492,11 +492,11 @@ export default function InvestorPage() {
                     currentAmount: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Current amount"
               />
 
-              <button className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 font-black text-white md:col-span-2">
+              <button className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 font-black text-white md:col-span-2">
                 Add Goal
               </button>
             </form>
@@ -528,7 +528,7 @@ export default function InvestorPage() {
 
                       <button
                         onClick={() => deleteGoal(goal.id)}
-                        className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-500/30"
+                        className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
                       >
                         Delete
                       </button>
@@ -551,7 +551,7 @@ export default function InvestorPage() {
                     ticker: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Ticker or theme, optional"
               />
 
@@ -563,7 +563,7 @@ export default function InvestorPage() {
                     title: event.target.value,
                   }))
                 }
-                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Research title"
               />
 
@@ -575,7 +575,7 @@ export default function InvestorPage() {
                     thesis: event.target.value,
                   }))
                 }
-                className="min-h-24 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="min-h-24 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Investment thesis"
               />
 
@@ -587,7 +587,7 @@ export default function InvestorPage() {
                     risks: event.target.value,
                   }))
                 }
-                className="min-h-20 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition placeholder:text-slate-600 focus:ring-2"
+                className="min-h-20 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
                 placeholder="Risks"
               />
 
@@ -600,7 +600,7 @@ export default function InvestorPage() {
                       decision: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2"
                 >
                   <option>Watch</option>
                   <option>Research More</option>
@@ -617,7 +617,7 @@ export default function InvestorPage() {
                       conviction: event.target.value,
                     }))
                   }
-                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-red-500 transition focus:ring-2"
+                  className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2"
                 >
                   <option>Low</option>
                   <option>Medium</option>
@@ -625,7 +625,7 @@ export default function InvestorPage() {
                 </select>
               </div>
 
-              <button className="rounded-2xl bg-gradient-to-r from-red-600 via-red-700 to-red-950 px-5 py-3 font-black text-white">
+              <button className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 font-black text-white">
                 Save Research
               </button>
             </form>
@@ -650,7 +650,7 @@ export default function InvestorPage() {
 
                     <button
                       onClick={() => deleteResearch(note.id)}
-                      className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-500/30"
+                      className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
                     >
                       Delete
                     </button>
@@ -726,7 +726,7 @@ export default function InvestorPage() {
 
                         <button
                           onClick={() => deleteAlert(alert.id)}
-                          className="rounded-xl bg-red-500/10 px-3 py-2 text-xs font-black text-red-300 ring-1 ring-red-500/30"
+                          className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
                         >
                           Delete
                         </button>
@@ -754,7 +754,7 @@ export default function InvestorPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-black">{insight.title}</div>
-                      <div className="mt-1 text-xs font-bold uppercase text-red-300">
+                      <div className="mt-1 text-xs font-bold uppercase text-emerald-300">
                         {insight.category}
                       </div>
                     </div>
