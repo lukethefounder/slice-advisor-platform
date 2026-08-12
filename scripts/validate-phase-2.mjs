@@ -5,6 +5,8 @@ const requiredFiles = [
   "src/lib/access-control.ts",
   "src/lib/client-access.ts",
   "src/lib/client-portal-auth.ts",
+  "src/lib/advisor-routing/service.ts",
+  "src/lib/client-portal/events.ts",
   "src/app/api/auth/me/route.ts",
   "src/app/api/auth/login/route.ts",
   "src/app/api/auth/logout/route.ts",
@@ -18,19 +20,22 @@ const requiredFiles = [
 const failures = [];
 
 function pathFor(relativePath) {
-  return resolve(process.cwd(), relativePath);
+  return resolve(
+    process.cwd(),
+    relativePath,
+  );
 }
 
 function read(relativePath) {
-  return readFileSync(pathFor(relativePath), "utf8");
+  return readFileSync(
+    pathFor(relativePath),
+    "utf8",
+  );
 }
 
 /**
  * Converts Windows CRLF and older CR line endings to standard LF,
  * then collapses formatting whitespace for resilient source checks.
- *
- * This prevents valid TypeScript from failing validation only because
- * it was saved on Windows instead of macOS or Linux.
  */
 function compact(source) {
   return source
@@ -42,18 +47,34 @@ function compact(source) {
 /**
  * Runs a source-code regular expression after normalizing line endings.
  */
-function containsPattern(source, pattern) {
+function containsPattern(
+  source,
+  pattern,
+) {
   return pattern.test(
-    source.replace(/\r\n?/g, "\n"),
+    source.replace(
+      /\r\n?/g,
+      "\n",
+    ),
   );
 }
 
 /**
- * Confirm that all required Phase 2 files exist before attempting
- * content-level validation.
+ * Phase 7 moved advisor-routing authorization and portal-event idempotency
+ * from thin route files into dedicated server-only services. Phase 2
+ * validation therefore inspects both the route boundary and the delegated
+ * implementation instead of requiring security logic to be duplicated in
+ * API handlers.
  */
-for (const relativePath of requiredFiles) {
-  if (!existsSync(pathFor(relativePath))) {
+for (
+  const relativePath
+  of requiredFiles
+) {
+  if (
+    !existsSync(
+      pathFor(relativePath),
+    )
+  ) {
     failures.push(
       `Missing required Phase 2 file: ${relativePath}`,
     );
@@ -64,9 +85,12 @@ if (!failures.length) {
   let packageJson;
 
   try {
-    packageJson = JSON.parse(
-      read("package.json"),
-    );
+    packageJson =
+      JSON.parse(
+        read(
+          "package.json",
+        ),
+      );
   } catch (error) {
     failures.push(
       `package.json is invalid JSON: ${
@@ -77,84 +101,120 @@ if (!failures.length) {
     );
   }
 
-  const accessControl = read(
-    "src/lib/access-control.ts",
-  );
+  const accessControl =
+    read(
+      "src/lib/access-control.ts",
+    );
 
-  const clientAccess = read(
-    "src/lib/client-access.ts",
-  );
+  const clientAccess =
+    read(
+      "src/lib/client-access.ts",
+    );
 
-  const portalAuth = read(
-    "src/lib/client-portal-auth.ts",
-  );
+  const portalAuth =
+    read(
+      "src/lib/client-portal-auth.ts",
+    );
 
-  const loginRoute = read(
-    "src/app/api/auth/login/route.ts",
-  );
+  const advisorRoutingService =
+    read(
+      "src/lib/advisor-routing/service.ts",
+    );
 
-  const meRoute = read(
-    "src/app/api/auth/me/route.ts",
-  );
+  const portalEvents =
+    read(
+      "src/lib/client-portal/events.ts",
+    );
 
-  const logoutRoute = read(
-    "src/app/api/auth/logout/route.ts",
-  );
+  const loginRoute =
+    read(
+      "src/app/api/auth/login/route.ts",
+    );
 
-  const advisorRouting = read(
-    "src/app/api/advisor-routing/route.ts",
-  );
+  const meRoute =
+    read(
+      "src/app/api/auth/me/route.ts",
+    );
 
-  const portalAccess = read(
-    "src/app/api/client-portal/access/route.ts",
-  );
+  const logoutRoute =
+    read(
+      "src/app/api/auth/logout/route.ts",
+    );
 
-  const portalRouting = read(
-    "src/app/api/client-portal/routing/route.ts",
-  );
+  const advisorRouting =
+    read(
+      "src/app/api/advisor-routing/route.ts",
+    );
 
-  const accessControlCompact = compact(
-    accessControl,
-  );
+  const portalAccess =
+    read(
+      "src/app/api/client-portal/access/route.ts",
+    );
 
-  const clientAccessCompact = compact(
-    clientAccess,
-  );
+  const portalRouting =
+    read(
+      "src/app/api/client-portal/routing/route.ts",
+    );
 
-  const portalAuthCompact = compact(
-    portalAuth,
-  );
+  const accessControlCompact =
+    compact(
+      accessControl,
+    );
 
-  const loginRouteCompact = compact(
-    loginRoute,
-  );
+  const clientAccessCompact =
+    compact(
+      clientAccess,
+    );
 
-  const meRouteCompact = compact(
-    meRoute,
-  );
+  const portalAuthCompact =
+    compact(
+      portalAuth,
+    );
 
-  const logoutRouteCompact = compact(
-    logoutRoute,
-  );
+  const advisorRoutingServiceCompact =
+    compact(
+      advisorRoutingService,
+    );
 
-  const advisorRoutingCompact = compact(
-    advisorRouting,
-  );
+  const loginRouteCompact =
+    compact(
+      loginRoute,
+    );
 
-  const portalAccessCompact = compact(
-    portalAccess,
-  );
+  const meRouteCompact =
+    compact(
+      meRoute,
+    );
 
-  const portalRoutingCompact = compact(
-    portalRouting,
-  );
+  const logoutRouteCompact =
+    compact(
+      logoutRoute,
+    );
+
+  const advisorRoutingCompact =
+    compact(
+      advisorRouting,
+    );
+
+  const portalAccessCompact =
+    compact(
+      portalAccess,
+    );
+
+  const portalRoutingCompact =
+    compact(
+      portalRouting,
+    );
 
   /**
    * Package command validation.
    */
   if (
     packageJson &&
-    !packageJson.scripts?.["validate:phase2"]
+    !packageJson
+      .scripts?.[
+        "validate:phase2"
+      ]
   ) {
     failures.push(
       'package.json is missing the "validate:phase2" script.',
@@ -219,13 +279,6 @@ if (!failures.length) {
 
   /**
    * Client portal authorization validation.
-   *
-   * This regex is intentionally tolerant of:
-   * - Windows CRLF line endings
-   * - Unix LF line endings
-   * - indentation differences
-   * - single or double quotes
-   * - formatting performed by Prettier
    */
   const validatesActiveFirm =
     containsPattern(
@@ -233,16 +286,14 @@ if (!failures.length) {
       /firm\s*:\s*\{\s*platformStatus\s*:\s*["']Active["']/m,
     );
 
-  if (!validatesActiveFirm) {
+  if (
+    !validatesActiveFirm
+  ) {
     failures.push(
       "client-portal-auth.ts must validate active firm status.",
     );
   }
 
-  /**
-   * Confirm that the advisor membership itself must be active
-   * before the nested active-firm check can grant portal access.
-   */
   const validatesActiveAdvisorMembership =
     containsPattern(
       portalAuth,
@@ -318,21 +369,73 @@ if (!failures.length) {
 
   /**
    * Advisor routing validation.
+   *
+   * The route is intentionally thin. It must resolve an authenticated routing
+   * context and delegate to the service, while the service must derive the
+   * supervisory permission and apply it to firm-wide reads and inbox writes.
    */
-  if (
-    !advisorRoutingCompact.includes(
+  const advisorRouteDelegatesToService =
+    advisorRoutingCompact.includes(
+      "requireAdvisorRoutingContext",
+    ) &&
+    advisorRoutingCompact.includes(
+      "loadAdvisorRoutingPayload",
+    ) &&
+    advisorRoutingCompact.includes(
+      "updateAdvisorInboxStatus",
+    ) &&
+    advisorRoutingCompact.includes(
+      "replyToAdvisorInboxItem",
+    );
+
+  const derivesInboxSupervision =
+    advisorRoutingServiceCompact.includes(
       "canSuperviseInbox",
-    )
+    ) &&
+    containsPattern(
+      advisorRoutingService,
+      /hasFirmPermission\(\s*access\s*,\s*["']inbox\.supervise["']\s*\)/m,
+    );
+
+  const gatesFirmWideInbox =
+    containsPattern(
+      advisorRoutingService,
+      /context\.canSuperviseInbox\s*&&\s*options\.scope\s*===\s*["']all["']/m,
+    );
+
+  const scopesInboxWrites =
+    containsPattern(
+      advisorRoutingService,
+      /\.\.\.\(\s*input\.context\.canSuperviseInbox\s*\?\s*\{\s*\}\s*:\s*\{\s*assignedAdvisorMembershipId\s*:\s*input\.context\.membership\.id/m,
+    );
+
+  if (
+    !advisorRouteDelegatesToService ||
+    !derivesInboxSupervision ||
+    !gatesFirmWideInbox ||
+    !scopesInboxWrites
   ) {
     failures.push(
       "Advisor routing must enforce supervised inbox access.",
     );
   }
 
+  const derivesFirmContext =
+    containsPattern(
+      advisorRoutingService,
+      /firmId\s*:\s*membership\.firmId/m,
+    );
+
+  const scopesAdvisorWrites =
+    containsPattern(
+      advisorRoutingService,
+      /firmId\s*:\s*input\.context\.firmId/m,
+    );
+
   if (
-    !advisorRoutingCompact.includes(
-      "firmId: membership.firmId",
-    )
+    !advisorRouteDelegatesToService ||
+    !derivesFirmContext ||
+    !scopesAdvisorWrites
   ) {
     failures.push(
       "Advisor routing must enforce firm-scoped writes.",
@@ -354,22 +457,66 @@ if (!failures.length) {
 
   /**
    * Client portal routing and idempotency validation.
+   *
+   * The route validates the active client session and delegates event creation
+   * to the server-only event service. That service derives the durable key
+   * from the authenticated client ID and rejects both existing-record and
+   * concurrent unique-constraint collisions that belong to another client.
    */
+  const portalRouteDelegatesToEventService =
+    portalRoutingCompact.includes(
+      "routeClientPortalEvent",
+    ) &&
+    portalRoutingCompact.includes(
+      "routeClientPortalEvents",
+    ) &&
+    portalRoutingCompact.includes(
+      "requireCurrentClientPortalSession",
+    );
+
+  const derivesServerScopedEventKey =
+    containsPattern(
+      portalEvents,
+      /function\s+eventKey\s*\(\s*clientId\s*:\s*string\s*,/m,
+    ) &&
+    containsPattern(
+      portalEvents,
+      /\.update\(\s*`\$\{clientId\}:\$\{stable\}`\s*\)/m,
+    ) &&
+    containsPattern(
+      portalEvents,
+      /return\s+`portal:\$\{clientId\}:\$\{digest\}`/m,
+    ) &&
+    containsPattern(
+      portalEvents,
+      /const\s+sourceEventId\s*=\s*eventKey\(\s*input\.current\.client\.id\s*,\s*input\.event\.sourceEventId\s*,?\s*\)/m,
+    );
+
   if (
-    !portalRoutingCompact.includes(
-      "clientEventKey",
-    )
+    !portalRouteDelegatesToEventService ||
+    !derivesServerScopedEventKey
   ) {
     failures.push(
       "Client portal routing must derive server-scoped event keys.",
     );
   }
 
+  const rejectsExistingCrossClientCollision =
+    containsPattern(
+      portalEvents,
+      /existing\.clientId\s*!==\s*input\.current\.client\.id/m,
+    );
+
+  const rejectsConcurrentCrossClientCollision =
+    containsPattern(
+      portalEvents,
+      /concurrent\.clientId\s*!==\s*input\.current\.client\.id/m,
+    );
+
   if (
-    !containsPattern(
-      portalRouting,
-      /existing\.clientId\s*!==\s*current\.client\.id/,
-    )
+    !portalRouteDelegatesToEventService ||
+    !rejectsExistingCrossClientCollision ||
+    !rejectsConcurrentCrossClientCollision
   ) {
     failures.push(
       "Client portal routing must reject cross-client idempotency collisions.",
@@ -377,10 +524,9 @@ if (!failures.length) {
   }
 }
 
-/**
- * Print a clear failure list or a machine-readable success response.
- */
-if (failures.length) {
+if (
+  failures.length
+) {
   process.stderr.write(
     `Phase 2 validation failed:\n${failures
       .map(
