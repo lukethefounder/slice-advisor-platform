@@ -14,6 +14,18 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/cron/intelligence-daily",
+      "schedule": "17 */4 * * *"
+    },
+    {
+      "path": "/api/cron/backend?mode=both&batch=8&users=50",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/workspace-watchlists?users=100&lists=250",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/firm-reminders?limit=150",
       "schedule": "*/10 * * * *"
     },
@@ -60,6 +72,10 @@
     {
       "path": "/api/cron/intelligence-launch-readiness?users=50&target=Production",
       "schedule": "30 */6 * * *"
+    },
+    {
+      "path": "/api/cron/maintenance?batch=2000",
+      "schedule": "10 6 * * *"
     }
   ]
 }

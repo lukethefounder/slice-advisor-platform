@@ -1,0 +1,141 @@
+name: Slice production quality gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slice-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Migrate, test, audit, build, smoke, and restore
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: slice_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d slice_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/slice_ci?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/slice_ci?schema=public
+      DATABASE_RESTORE_URL: postgresql://postgres:postgres@127.0.0.1:5432/slice_restore_ci?schema=public
+      APP_URL: https://slice-ci.example
+      NEXT_PUBLIC_APP_URL: https://slice-ci.example
+      SLICE_ENV_VALIDATION_MODE: ci
+      SLICE_STRICT_ENV: "true"
+      SLICE_SECRET_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      SECURITY_PEPPER: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+      SESSION_TTL_HOURS: "12"
+      SESSION_MAX_ACTIVE: "5"
+      CLIENT_PORTAL_SESSION_HOURS: "12"
+      CRON_SECRET: ci-only-random-secret-0123456789abcdef0123456789abcdef
+      ENABLE_LIVE_EMAIL: "false"
+      ENABLE_LIVE_SMS: "false"
+      NEO4J_ENABLED: "false"
+      SECURITY_CSP_REPORT_ONLY: "false"
+      SECURITY_RATE_LIMIT_FAIL_OPEN: "false"
+      NEXT_PUBLIC_WEB_VITALS_SAMPLE_RATE: "1"
+      WEB_VITALS_RETENTION_DAYS: "30"
+      LOG_LEVEL: warn
+      LOG_INCLUDE_STACKS: "false"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate environment contract
+        run: npm run validate:env -- --mode=ci
+
+      - name: Validate Prisma schema
+        run: npm run db:validate
+
+      - name: Apply migrations to clean PostgreSQL
+        run: npm run db:migrate:deploy
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Validate accumulated phase boundaries
+        run: |
+          npm run validate:phase1
+          npm run validate:phase2
+          npm run validate:phase3
+          npm run validate:phase4
+          npm run validate:phase12 -- --mode=production
+
+      - name: Run contract tests
+        run: |
+          npm run test:phase4
+          npm run test:phase12
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Audit production dependencies
+        run: npm run audit:production
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Run production smoke test
+        run: npm run test:smoke
+
+      - name: Create and verify PostgreSQL backup
+        run: |
+          mkdir -p .artifacts
+          npm run backup:database -- --output=.artifacts/slice-ci.dump
+          npm run verify:backup -- --file=.artifacts/slice-ci.dump
+
+      - name: Rehearse restore into an empty database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h 127.0.0.1 -p 5432 -U postgres slice_restore_ci
+          npm run restore:database -- --file=.artifacts/slice-ci.dump --confirm=RESTORE
+          psql "$DATABASE_RESTORE_URL" -v ON_ERROR_STOP=1 -c 'SELECT COUNT(*) FROM "_prisma_migrations";'
+
+      - name: Upload backup rehearsal metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slice-ci-backup-manifest
+          path: .artifacts/*.manifest.json
+          if-no-files-found: ignore
+          retention-days: 7

@@ -11,22 +11,27 @@
   --color-red-900: var(--color-emerald-900);
   --color-red-950: var(--color-emerald-950);
 
-  --slice-accent: #10b981;
-  --slice-accent-dark: #064e3b;
-  --slice-accent-soft: rgba(16, 185, 129, 0.14);
-  --slice-accent-border: rgba(52, 211, 153, 0.34);
-  --slice-market-green: #10b981;
+  --slice-market-green: #16a36f;
   --slice-market-green-bright: #34d399;
-  --slice-market-green-deep: #022c22;
-  --slice-market-lime: #84cc16;
-  --slice-market-cyan: #22d3ee;
+  --slice-market-green-deep: #07533c;
+  --slice-market-lime: #65a30d;
+  --slice-market-cyan: #0891b2;
 }
 
 html {
-  accent-color: var(--slice-market-green);
+  accent-color: var(--slice-accent, var(--slice-market-green));
 }
 
-body {
+html[data-slice-theme="light"] body,
+html[data-slice-appearance="light"] body {
+  background:
+    radial-gradient(circle at 12% -6%, rgba(16, 185, 129, 0.14), transparent 31%),
+    radial-gradient(circle at 88% 8%, rgba(6, 182, 212, 0.075), transparent 28%),
+    linear-gradient(145deg, #f9fdfb 0%, #f2faf5 54%, #e8f6ee 100%);
+}
+
+html[data-slice-theme="dark"] body,
+html[data-slice-appearance="dark"] body {
   background:
     radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.13), transparent 30%),
     radial-gradient(circle at 85% 15%, rgba(34, 211, 238, 0.08), transparent 28%),
@@ -35,28 +40,9 @@ body {
 
 ::selection {
   background: rgba(52, 211, 153, 0.28);
-  color: #ecfdf5;
-}
-
-* {
-  scrollbar-color: rgba(52, 211, 153, 0.4) rgba(2, 44, 34, 0.22);
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: rgba(2, 44, 34, 0.22);
-}
-
-*::-webkit-scrollbar-thumb {
-  border: 2px solid rgba(2, 44, 34, 0.36);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(52, 211, 153, 0.65), rgba(5, 150, 105, 0.65));
+  color: var(--slice-heading);
 }
 
 *:focus-visible {
-  outline-color: rgba(52, 211, 153, 0.9);
+  outline-color: color-mix(in srgb, var(--slice-accent) 84%, white 6%);
 }

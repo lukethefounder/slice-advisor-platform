@@ -1,10 +1,36 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser, publicUser } from "@/lib/auth";
+import { publicAccessContext, getCurrentAccessContext } from "@/lib/access-control";
+import { apiJson, withApiRoute } from "@/lib/api-route";
 
-export async function GET() {
-  const user = await getCurrentUser();
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-  return NextResponse.json({
-    user: user ? publicUser(user) : null,
-  });
-}
+export const GET = withApiRoute(
+  {
+    route: "/api/auth/me",
+    timeoutMs: 10_000,
+  },
+  async () => {
+    const context = await getCurrentAccessContext();
+
+    if (!context) {
+      return apiJson({
+        authenticated: false,
+        user: null,
+        access: null,
+      });
+    }
+
+    const access = publicAccessContext(context);
+
+    return apiJson({
+      authenticated: true,
+      user: access.user,
+      access: {
+        isFounder: access.isFounder,
+        firm: access.firm,
+        membership: access.membership,
+        permissions: access.permissions,
+      },
+    });
+  },
+);

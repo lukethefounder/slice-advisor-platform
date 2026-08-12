@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
+import { apiJson, withApiRoute } from "@/lib/api-route";
 import {
   createSession,
   hashPassword,
@@ -11,14 +12,14 @@ import {
   sessionCookieOptions,
   verifyPassword,
 } from "@/lib/auth";
+import { isFounderEmail } from "@/lib/founder-access";
+import { prisma } from "@/lib/prisma";
 import {
-  isFounderEmail,
-} from "@/lib/founder-access";
+  consumeRateLimit,
+  rateLimitHeaders,
+  resetRateLimit,
+} from "@/lib/rate-limit";
 import {
-  prisma,
-} from "@/lib/prisma";
-import {
-  checkRateLimit,
   getClientIp,
   hashForSecurity,
   isPotentiallyCrossSiteUnsafeRequest,
@@ -29,138 +30,115 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function blockedResponse(
-  message: string,
-  status = 429,
-  retryAfterSeconds?: number,
-) {
-  const response = NextResponse.json(
-    {
-      error: message,
-    },
-    { status },
+const MAX_BODY_BYTES = 8_192;
+const LOGIN_WINDOW_MS = 15 * 60_000;
+
+function invalidLoginResponse(headers?: HeadersInit) {
+  return apiJson(
+    { error: "Invalid email or password." },
+    { status: 401, headers },
   );
-
-  response.headers.set("Cache-Control", "no-store");
-
-  if (retryAfterSeconds) {
-    response.headers.set("Retry-After", String(retryAfterSeconds));
-  }
-
-  return response;
 }
 
-function genericInvalidLogin() {
-  const response = NextResponse.json(
-    {
-      error: "Invalid email or password.",
-    },
-    { status: 401 },
-  );
-
-  response.headers.set("Cache-Control", "no-store");
-  return response;
-}
-
-export async function POST(request: Request) {
-  const ip = getClientIp(request);
-
-  try {
+export const POST = withApiRoute(
+  {
+    route: "/api/auth/login",
+    timeoutMs: 20_000,
+  },
+  async ({ request, log }) => {
     if (isPotentiallyCrossSiteUnsafeRequest(request)) {
       await recordSecurityEvent({
         eventType: "auth.login.cross_site_blocked",
         severity: "High",
         area: "Authentication",
         title: "Cross-site login request blocked",
-        detail:
-          "A login attempt was blocked because it appeared to come from a cross-site request.",
         request,
-      });
+      }).catch((error) => log.error("security_event.failed", error));
 
-      return blockedResponse("Security check failed.", 403);
+      return apiJson({ error: "Security check failed." }, { status: 403 });
     }
 
-    const contentType = request.headers.get("content-type") ?? "";
-
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return blockedResponse("Invalid request format.", 415);
+    if (!(request.headers.get("content-type") ?? "").includes("application/json")) {
+      return apiJson({ error: "Invalid request format." }, { status: 415 });
     }
 
-    const ipLimit = checkRateLimit({
-      key: `login:ip:${hashForSecurity(ip)}`,
-      limit: 25,
-      windowMs: 15 * 60 * 1000,
-    });
-
-    if (!ipLimit.allowed) {
-      await recordSecurityEvent({
-        eventType: "auth.login.ip_rate_limited",
-        severity: "High",
-        area: "Authentication",
-        title: "Login IP rate limit triggered",
-        detail:
-          "Too many login attempts were made from the same IP fingerprint.",
-        metadata: {
-          limit: ipLimit.limit,
-          resetAt: ipLimit.resetAt,
-        },
-        request,
-      });
-
-      return blockedResponse(
-        "Too many login attempts. Try again later.",
-        429,
-        ipLimit.retryAfterSeconds,
-      );
+    const raw = await request.text();
+    if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
+      return apiJson({ error: "Login request is too large." }, { status: 413 });
     }
 
-    const body = (await request.json()) as {
-      email?: string;
-      password?: string;
-    };
-    const email = body.email?.trim().toLowerCase();
-    const password = body.password ?? "";
+    let body: { email?: unknown; password?: unknown };
+    try {
+      body = JSON.parse(raw || "{}") as { email?: unknown; password?: unknown };
+    } catch {
+      return apiJson({ error: "Invalid JSON request body." }, { status: 400 });
+    }
 
-    if (!email || !password) {
-      return NextResponse.json(
-        {
-          error: "Email and password are required.",
-        },
+    const email =
+      typeof body.email === "string"
+        ? body.email.trim().toLowerCase().slice(0, 320)
+        : "";
+    const password = typeof body.password === "string" ? body.password : "";
+
+    if (!email || !password || password.length > 256) {
+      return apiJson(
+        { error: "Email and password are required." },
         { status: 400 },
       );
     }
 
-    const emailLimit = checkRateLimit({
-      key: `login:email:${hashForSecurity(email)}`,
-      limit: 10,
-      windowMs: 15 * 60 * 1000,
-    });
+    const ip = getClientIp(request);
+    const ipKey = hashForSecurity(ip);
+    const emailKey = hashForSecurity(email);
+    const [ipLimit, emailLimit] = await Promise.all([
+      consumeRateLimit({
+        key: ipKey,
+        scope: "auth.login.ip",
+        limit: 25,
+        windowMs: LOGIN_WINDOW_MS,
+      }),
+      consumeRateLimit({
+        key: emailKey,
+        scope: "auth.login.email",
+        limit: 10,
+        windowMs: LOGIN_WINDOW_MS,
+      }),
+    ]);
 
-    if (!emailLimit.allowed) {
+    const blockingLimit = !ipLimit.allowed ? ipLimit : !emailLimit.allowed ? emailLimit : null;
+
+    if (blockingLimit) {
       await recordSecurityEvent({
-        eventType: "auth.login.email_rate_limited",
+        eventType: "auth.login.rate_limited",
         severity: "High",
         area: "Authentication",
-        title: "Login email rate limit triggered",
-        detail: `Too many login attempts were made against ${maskEmail(email)}.`,
+        title: "Login rate limit triggered",
+        detail: `Login attempts were limited for ${maskEmail(email)}.`,
         metadata: {
-          emailHash: hashForSecurity(email),
-          limit: emailLimit.limit,
-          resetAt: emailLimit.resetAt,
+          scope: blockingLimit.scope,
+          limit: blockingLimit.limit,
+          resetAt: blockingLimit.resetAt,
+          source: blockingLimit.source,
         },
         request,
-      });
+      }).catch((error) => log.error("security_event.failed", error));
 
-      return blockedResponse(
-        "Too many login attempts. Try again later.",
-        429,
-        emailLimit.retryAfterSeconds,
+      return apiJson(
+        { error: "Too many login attempts. Try again later." },
+        { status: 429, headers: rateLimitHeaders(blockingLimit) },
       );
     }
 
     const user = await prisma.user.findUnique({
-      where: {
-        email,
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        passwordHash: true,
+        createdAt: true,
+        platformStatus: true,
+        governanceReason: true,
       },
     });
 
@@ -171,58 +149,35 @@ export async function POST(request: Request) {
         severity: user ? "Medium" : "Low",
         area: "Authentication",
         title: "Failed login attempt",
-        detail: user
-          ? `Failed login attempt for known account ${maskEmail(email)}.`
-          : `Failed login attempt for unknown account ${maskEmail(email)}.`,
+        detail: `Failed login attempt for ${maskEmail(email)}.`,
         metadata: {
-          emailHash: hashForSecurity(email),
+          emailHash: emailKey,
           knownAccount: Boolean(user),
-          betaAccess: true,
-          temporaryLogin: false,
+          ipRateSource: ipLimit.source,
+          emailRateSource: emailLimit.source,
         },
         request,
-      });
+      }).catch((error) => log.error("security_event.failed", error));
 
-      return genericInvalidLogin();
+      return invalidLoginResponse(rateLimitHeaders(emailLimit));
     }
 
-    if (user.platformStatus === "Banned") {
+    if (["Banned", "Suspended"].includes(user.platformStatus)) {
       await recordSecurityEvent({
         userId: user.id,
-        eventType: "auth.login.banned_blocked",
-        severity: "Critical",
+        eventType: "auth.login.governed_account_blocked",
+        severity: user.platformStatus === "Banned" ? "Critical" : "High",
         area: "Authentication",
-        title: "Banned account login blocked",
-        detail: user.governanceReason || "Banned user attempted login.",
+        title: `${user.platformStatus} account login blocked`,
+        detail: user.governanceReason || "Governed account attempted login.",
         request,
-      });
+      }).catch((error) => log.error("security_event.failed", error));
 
-      return NextResponse.json(
+      return apiJson(
         {
           error:
             user.governanceReason ||
-            "This account has been banned by platform governance.",
-        },
-        { status: 403 },
-      );
-    }
-
-    if (user.platformStatus === "Suspended") {
-      await recordSecurityEvent({
-        userId: user.id,
-        eventType: "auth.login.suspended_blocked",
-        severity: "High",
-        area: "Authentication",
-        title: "Suspended account login blocked",
-        detail: user.governanceReason || "Suspended user attempted login.",
-        request,
-      });
-
-      return NextResponse.json(
-        {
-          error:
-            user.governanceReason ||
-            "This account has been suspended by platform governance.",
+            "This account is not currently permitted to sign in.",
         },
         { status: 403 },
       );
@@ -233,10 +188,21 @@ export async function POST(request: Request) {
       where: {
         userId: user.id,
         status: "Active",
+        firm: { platformStatus: "Active" },
+      },
+      select: {
+        id: true,
+        firmId: true,
+        role: true,
         firm: {
-          platformStatus: "Active",
+          select: {
+            id: true,
+            name: true,
+            platformStatus: true,
+          },
         },
       },
+      orderBy: { updatedAt: "desc" },
     });
 
     if (!isFounder && !activeMembership) {
@@ -246,15 +212,13 @@ export async function POST(request: Request) {
         severity: "Medium",
         area: "Authentication",
         title: "Login blocked: no active firm workspace",
-        detail:
-          "A non-founder user attempted login without an active firm workspace.",
         request,
-      });
+      }).catch((error) => log.error("security_event.failed", error));
 
-      return NextResponse.json(
+      return apiJson(
         {
           error:
-            "This account is not connected to an active firm workspace. Ask a firm owner to invite or restore access.",
+            "This account is not connected to an active firm workspace. Ask a firm owner to restore access.",
         },
         { status: 403 },
       );
@@ -262,22 +226,14 @@ export async function POST(request: Request) {
 
     if (needsPasswordRehash(user.passwordHash)) {
       await prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          passwordHash: hashPassword(password),
-        },
+        where: { id: user.id },
+        data: { passwordHash: hashPassword(password) },
       });
     }
 
     await prisma.userSecuritySetting.upsert({
-      where: {
-        userId: user.id,
-      },
-      update: {
-        lastSecurityReviewAt: new Date(),
-      },
+      where: { userId: user.id },
+      update: { lastSecurityReviewAt: new Date() },
       create: {
         userId: user.id,
         mfaEnabled: false,
@@ -291,55 +247,46 @@ export async function POST(request: Request) {
 
     const session = await createSession(user.id);
 
-    await recordSecurityEvent({
-      userId: user.id,
-      eventType: "auth.login.success",
-      severity: "Info",
-      area: "Authentication",
-      title: "Successful beta login",
-      detail: `Successful real-account login for ${maskEmail(user.email)}.`,
-      metadata: {
-        isFounder,
-        firmId: activeMembership?.firmId ?? null,
-        sessionExpiresAt: session.expiresAt,
-        betaAccess: true,
-        temporaryLogin: false,
-      },
-      request,
-    });
+    await Promise.all([
+      resetRateLimit({ key: emailKey, scope: "auth.login.email" }),
+      recordSecurityEvent({
+        userId: user.id,
+        eventType: "auth.login.success",
+        severity: "Info",
+        area: "Authentication",
+        title: "Successful login",
+        detail: `Successful login for ${maskEmail(user.email)}.`,
+        metadata: {
+          isFounder,
+          firmId: activeMembership?.firmId ?? null,
+          membershipId: activeMembership?.id ?? null,
+          role: activeMembership?.role ?? null,
+          sessionExpiresAt: session.expiresAt,
+        },
+        request,
+      }),
+    ]).catch((error) => log.error("post_login_audit.failed", error));
 
     const response = NextResponse.json({
       user: publicUser(user),
       isFounder,
-      betaAccess: true,
+      access: activeMembership
+        ? {
+            firm: activeMembership.firm,
+            membership: {
+              id: activeMembership.id,
+              firmId: activeMembership.firmId,
+              role: activeMembership.role,
+            },
+          }
+        : null,
     });
 
-    response.headers.set("Cache-Control", "no-store");
     response.cookies.set(
       SESSION_COOKIE,
       session.token,
       sessionCookieOptions(session.expiresAt),
     );
-
     return response;
-  } catch (error) {
-    await recordSecurityEvent({
-      eventType: "auth.login.exception",
-      severity: "High",
-      area: "Authentication",
-      title: "Login route exception",
-      detail: error instanceof Error ? error.message : "Unknown login exception.",
-      request,
-    });
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? `Login failed: ${error.message}`
-            : "Login failed: Unknown error",
-      },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

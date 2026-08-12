@@ -1,24 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import type {
-  ReactNode,
-} from "react";
 import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { BrandMark } from "@/components/slice-ui";
+  ArrowLeft,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  FileText,
+  Gauge,
+  Loader2,
+  Printer,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-type Tone =
-  | "red"
-  | "green"
-  | "amber"
-  | "purple"
-  | "cyan"
-  | "blue"
-  | "slate";
+import {
+  WorkspaceAlert,
+  WorkspaceButton,
+  WorkspaceEmptyState,
+  WorkspacePill,
+  WorkspaceSurface,
+  cx,
+} from "@/components/workspace/core/workspace-ui";
 
 type ReportSection = {
   title: string;
@@ -36,24 +40,17 @@ type ReportMetric = {
 type ReportChart = {
   title: string;
   subtitle: string;
-  data: Array<{
-    label: string;
-    value: number;
-  }>;
+  data: Array<{ label: string; value: number }>;
 };
 
 type ReportSource = {
-  type:
-    | "web"
-    | "file"
-    | "unknown";
+  type: "web" | "file" | "unknown";
   title: string;
   url: string;
 };
 
 type ReportPayload = {
   ok: boolean;
-
   report: {
     id: string;
     title: string;
@@ -66,7 +63,6 @@ type ReportPayload = {
     pdfUrl: string;
     viewerUrl: string;
     sections: ReportSection[];
-
     design: {
       generatedBy: string;
       preparedFor: string;
@@ -74,9 +70,7 @@ type ReportPayload = {
       confidenceScore: number;
       provider: string;
       model: string;
-      requestId:
-        | string
-        | null;
+      requestId: string | null;
       researchUsed: boolean;
       sourceCount: number;
       sources: ReportSource[];
@@ -88,848 +82,169 @@ type ReportPayload = {
   };
 };
 
-function cx(
-  ...classes: Array<
-    string | false | null | undefined
-  >
-) {
-  return classes
-    .filter(Boolean)
-    .join(" ");
+function dateTime(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? "Not recorded"
+    : parsed.toLocaleString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 }
 
-function toneFor(
-  value:
-    | string
-    | number
-    | null
-    | undefined,
-): Tone {
-  const lower =
-    String(
-      value ?? "",
-    ).toLowerCase();
-
-  const numeric =
-    typeof value ===
-    "number"
-      ? value
-      : Number.NaN;
-
-  if (
-    lower.includes(
-      "failed",
-    ) ||
-    lower.includes(
-      "missing",
-    ) ||
-    lower.includes(
-      "critical",
-    ) ||
-    lower.includes(
-      "invalid",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric < 45)
-  ) {
-    return "red";
-  }
-
-  if (
-    lower.includes(
-      "ready",
-    ) ||
-    lower.includes(
-      "complete",
-    ) ||
-    lower.includes(
-      "active",
-    ) ||
-    lower.includes(
-      "live",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric >= 75)
-  ) {
-    return "green";
-  }
-
-  if (
-    lower.includes(
-      "review",
-    ) ||
-    lower.includes(
-      "required",
-    ) ||
-    lower.includes(
-      "pending",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric >= 45 &&
-      numeric < 75)
-  ) {
-    return "amber";
-  }
-
-  if (
-    lower.includes(
-      "research",
-    ) ||
-    lower.includes(
-      "source",
-    )
-  ) {
-    return "cyan";
-  }
-
-  if (
-    lower.includes("ai") ||
-    lower.includes(
-      "model",
-    )
-  ) {
-    return "purple";
-  }
-
-  return "slate";
-}
-
-function toneClasses(
-  tone: Tone = "slate",
-) {
-  const tones: Record<
-    Tone,
-    string
-  > = {
-    red:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
-
-    green:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
-
-    amber:
-      "border-amber-500/30 bg-amber-500/10 text-amber-100",
-
-    purple:
-      "border-purple-500/30 bg-purple-500/10 text-purple-100",
-
-    cyan:
-      "border-cyan-500/30 bg-cyan-500/10 text-cyan-100",
-
-    blue:
-      "border-blue-500/30 bg-blue-500/10 text-blue-100",
-
-    slate:
-      "border-slate-500/20 bg-slate-500/10 text-slate-100",
-  };
-
-  return tones[tone];
-}
-
-function formatDate(
-  value?: string,
-) {
-  if (!value) {
-    return "Not recorded";
-  }
-
-  const date =
-    new Date(value);
-
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return "Not recorded";
-  }
-
-  return date.toLocaleString(
-    undefined,
-    {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    },
-  );
-}
-
-function domainForUrl(
-  value: string,
-) {
+function domain(value: string) {
   try {
-    return new URL(
-      value,
-    ).hostname.replace(
-      /^www\./,
-      "",
-    );
+    return new URL(value).hostname.replace(/^www\./, "");
   } catch {
     return value;
   }
 }
 
-function Pill({
-  children,
-  tone = "slate",
-}: {
-  children: ReactNode;
-  tone?: Tone;
-}) {
-  return (
-    <span
-      className={cx(
-        "inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
-        toneClasses(
-          tone,
-        ),
-      )}
-    >
-      {children}
-    </span>
-  );
+function metricTone(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("risk") || normalized.includes("warning")) return "amber" as const;
+  if (normalized.includes("source") || normalized.includes("research")) return "cyan" as const;
+  if (normalized.includes("model") || normalized.includes("ai")) return "violet" as const;
+  return "emerald" as const;
 }
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+function ChartCard({ chart }: { chart: ReportChart }) {
+  const maximum = Math.max(1, ...chart.data.map((item) => Math.abs(item.value)));
   return (
-    <div
-      className={cx(
-        "rounded-[2rem] border border-white/10 bg-zinc-950/82 shadow-2xl shadow-emerald-950/20 backdrop-blur-xl",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-function MetricCard({
-  metric,
-}: {
-  metric: ReportMetric;
-}) {
-  const tone =
-    toneFor(
-      metric.tone ||
-        metric.value,
-    );
-
-  return (
-    <div
-      className={cx(
-        "rounded-[1.35rem] border p-4",
-        toneClasses(
-          tone,
-        ),
-      )}
-    >
-      <div className="text-[10px] font-black uppercase tracking-[0.16em] opacity-70">
-        {metric.label ||
-          "Metric"}
-      </div>
-
-      <div className="mt-2 text-3xl font-black text-white print:text-slate-950">
-        {metric.value ??
-          "—"}
-      </div>
-
-      {metric.helper ? (
-        <div className="mt-1 text-xs font-semibold opacity-70">
-          {metric.helper}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ChartCard({
-  chart,
-}: {
-  chart: ReportChart;
-}) {
-  const maximum =
-    Math.max(
-      1,
-      ...chart.data.map(
-        (item) =>
-          item.value,
-      ),
-    );
-
-  return (
-    <div className="rounded-[1.7rem] border border-white/10 bg-white/[0.055] p-6 print:border-slate-200 print:bg-white">
-      <h3 className="text-xl font-black text-white print:text-slate-950">
-        {chart.title}
-      </h3>
-
-      {chart.subtitle ? (
-        <p className="mt-2 text-sm text-slate-400 print:text-slate-600">
-          {chart.subtitle}
-        </p>
-      ) : null}
-
-      <div className="mt-6 grid min-h-[220px] grid-flow-col items-end gap-3 overflow-x-auto rounded-2xl border border-white/10 bg-black/25 p-5 print:border-slate-200 print:bg-slate-50">
-        {chart.data.map(
-          (
-            item,
-            index,
-          ) => {
-            const percentage =
-              Math.max(
-                4,
-                Math.min(
-                  100,
-                  (item.value /
-                    maximum) *
-                    100,
-                ),
-              );
-
-            return (
-              <div
-                key={`${item.label}-${index}`}
-                className="grid min-w-[72px] content-end gap-2 text-center"
-              >
-                <div className="text-xs font-black text-white print:text-slate-950">
-                  {item.value}
-                </div>
-
-                <div className="flex h-36 items-end overflow-hidden rounded-xl border border-white/10 bg-white/5 print:border-slate-200">
-                  <div
-                    className="w-full rounded-t-xl bg-gradient-to-t from-emerald-800 via-emerald-500 to-cyan-300 print:bg-emerald-600"
-                    style={{
-                      height:
-                        `${percentage}%`,
-                    }}
-                  />
-                </div>
-
-                <div className="truncate text-[10px] font-bold text-slate-400 print:text-slate-600">
-                  {item.label}
-                </div>
+    <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-5 print:border-slate-200 print:bg-white">
+      <h3 className="text-lg font-black text-white print:text-slate-950">{chart.title}</h3>
+      {chart.subtitle ? <p className="mt-1 text-xs font-semibold text-slate-500 print:text-slate-600">{chart.subtitle}</p> : null}
+      <div className="mt-5 flex min-h-52 items-end gap-3 overflow-x-auto rounded-xl border border-white/8 bg-black/25 p-4 print:border-slate-200 print:bg-slate-50">
+        {chart.data.map((item, index) => {
+          const height = Math.max(6, (Math.abs(item.value) / maximum) * 100);
+          return (
+            <div key={`${item.label}-${index}`} className="grid min-w-16 flex-1 content-end gap-2 text-center">
+              <span className="text-xs font-black text-white print:text-slate-950">{item.value}</span>
+              <div className="flex h-36 items-end overflow-hidden rounded-lg border border-white/8 bg-white/[0.03] print:border-slate-200">
+                <div className="w-full rounded-t-lg bg-gradient-to-t from-emerald-800 via-emerald-500 to-cyan-300 print:bg-emerald-600" style={{ height: `${height}%` }} />
               </div>
-            );
-          },
-        )}
+              <span className="truncate text-[9px] font-bold text-slate-500 print:text-slate-600">{item.label}</span>
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </article>
   );
 }
 
-function SourceCard({
-  source,
-  index,
-}: {
-  source: ReportSource;
-  index: number;
-}) {
-  return (
-    <a
-      href={source.url}
-      target="_blank"
-      rel="noreferrer"
-      className="rounded-[1.25rem] border border-cyan-500/20 bg-cyan-500/5 p-4 transition hover:border-cyan-400/50 hover:bg-cyan-500/10 print:border-slate-200 print:bg-white"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="line-clamp-2 text-sm font-black text-white print:text-slate-950">
-            {source.title ||
-              `Research source ${
-                index + 1
-              }`}
-          </div>
+export default function PersonalBotReportViewer() {
+  const [payload, setPayload] = useState<ReportPayload | null>(null);
+  const [error, setError] = useState("");
+  const [view, setView] = useState<"client" | "research">("client");
 
-          <div className="mt-2 truncate text-xs text-cyan-300 print:text-slate-600">
-            {domainForUrl(
-              source.url,
-            )}
-          </div>
-        </div>
-
-        <Pill tone="cyan">
-          {source.type}
-        </Pill>
-      </div>
-    </a>
-  );
-}
-
-export default function ReportViewerPage() {
-  const [
-    payload,
-    setPayload,
-  ] =
-    useState<
-      ReportPayload | null
-    >(null);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const token =
-    useMemo(() => {
-      if (
-        typeof window ===
-        "undefined"
-      ) {
-        return "";
-      }
-
-      return (
-        new URLSearchParams(
-          window.location.search,
-        ).get("token") ||
-        ""
-      );
-    }, []);
+  const token = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("token") || "";
+  }, []);
 
   useEffect(() => {
-    async function loadReport() {
-      if (!token) {
-        setError(
-          "Report token is missing.",
-        );
-
-        return;
-      }
-
-      try {
-        const response =
-          await fetch(
-            `/api/personal-bot/report-view?token=${encodeURIComponent(
-              token,
-            )}`,
-            {
-              cache:
-                "no-store",
-            },
-          );
-
-        const data =
-          (await response.json()) as
-            ReportPayload & {
-              error?: string;
-              detail?: string;
-            };
-
-        if (!response.ok) {
-          setError(
-            data.detail ||
-              data.error ||
-              "Report could not be loaded.",
-          );
-
-          return;
-        }
-
-        setPayload(data);
-      } catch (caught) {
-        setError(
-          caught instanceof
-            Error
-            ? caught.message
-            : "Report could not be loaded.",
-        );
-      }
+    if (!token) {
+      setError("Report token is missing.");
+      return;
     }
 
-    void loadReport();
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/personal-bot/report-view?token=${encodeURIComponent(token)}`,
+          { cache: "no-store" },
+        );
+        const data = (await response.json().catch(() => ({}))) as ReportPayload & {
+          error?: string;
+          detail?: string;
+        };
+        if (!response.ok) throw new Error(data.detail || data.error || "Report could not be loaded.");
+        setPayload(data);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Report could not be loaded.");
+      }
+    })();
   }, [token]);
 
-  const report =
-    payload?.report;
-
-  const metrics =
-    report?.design
-      .metrics ?? [];
-
-  const sources =
-    report?.design
-      .sources ?? [];
-
-  const charts =
-    report?.design
-      .charts ?? [];
+  const report = payload?.report;
+  const sections = report?.sections ?? [];
+  const sources = report?.design.sources ?? [];
+  const metrics = report?.design.metrics ?? [];
+  const charts = report?.design.charts ?? [];
+  const clientSections = sections.filter((section) =>
+    !/original request|research sources|advisor review checklist/i.test(section.title),
+  );
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(6,182,212,0.14),_transparent_28%),linear-gradient(135deg,_#020202,_#09090b,_#1f0707)] p-4 text-white print:bg-white print:p-0 print:text-slate-950">
-      <div className="mx-auto max-w-[1180px]">
-        <div className="mb-4 flex flex-col gap-3 print:hidden md:flex-row md:items-center md:justify-between">
-          <BrandMark />
-
+    <main className="min-h-dvh bg-[linear-gradient(145deg,#010604,#06120d_58%,#020806)] p-3 text-white print:bg-white print:p-0 print:text-slate-950 sm:p-6">
+      <div className="mx-auto max-w-[1320px] space-y-4">
+        <header className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/55 p-4 shadow-2xl backdrop-blur-xl print:hidden sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/workspace/personal-bot" className="inline-flex items-center gap-2 text-sm font-black text-slate-300 hover:text-white">
+            <ArrowLeft className="h-4 w-4" /> AI Studio
+          </Link>
           <div className="flex flex-wrap gap-2">
-            <Link
-              href="/workspace/personal-bot"
-              className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-black text-white"
-            >
-              ← AI Studio
-            </Link>
-
-            <button
-              type="button"
-              onClick={() =>
-                window.print()
-              }
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-            >
-              Print / Save PDF
-            </button>
-
-            {report?.pdfUrl ? (
-              <a
-                href={
-                  report.pdfUrl
-                }
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
-              >
-                Open Raw PDF
-              </a>
-            ) : null}
+            <div className="flex rounded-xl border border-white/8 bg-black/25 p-1">
+              <button type="button" onClick={() => setView("client")} className={cx("rounded-lg px-3 py-2 text-xs font-black", view === "client" ? "bg-emerald-600 text-white" : "text-slate-500 hover:text-white")}>Client Preview</button>
+              <button type="button" onClick={() => setView("research")} className={cx("rounded-lg px-3 py-2 text-xs font-black", view === "research" ? "bg-emerald-600 text-white" : "text-slate-500 hover:text-white")}>Research Detail</button>
+            </div>
+            <WorkspaceButton variant="secondary" tone="slate" icon={<Printer className="h-4 w-4" />} onClick={() => window.print()}>Print / Save</WorkspaceButton>
+            {report?.pdfUrl ? <WorkspaceButton href={report.pdfUrl} variant="primary" icon={<Download className="h-4 w-4" />}>Open PDF</WorkspaceButton> : null}
           </div>
-        </div>
+        </header>
 
         {error ? (
-          <Card className="p-8 text-center">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
-              Report Error
-            </div>
-
-            <h1 className="mt-3 text-3xl font-black">
-              Report could not be opened.
-            </h1>
-
-            <p className="mt-3 text-sm text-slate-400">
-              {error}
-            </p>
-
-            <Link
-              href="/workspace/personal-bot"
-              className="mt-6 inline-flex rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-950"
-            >
-              Return to AI Studio
-            </Link>
-          </Card>
+          <WorkspaceSurface className="p-6">
+            <WorkspaceAlert tone="error" title="Report could not be opened">{error}</WorkspaceAlert>
+          </WorkspaceSurface>
         ) : null}
 
-        {!report &&
-        !error ? (
-          <Card className="p-8 text-center">
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
-              Slice Report Viewer
-            </div>
-
-            <h1 className="mt-3 text-3xl font-black">
-              Loading report...
-            </h1>
-          </Card>
+        {!report && !error ? (
+          <WorkspaceSurface className="grid min-h-80 place-items-center p-8 text-center">
+            <div><Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-300" /><h1 className="mt-4 text-2xl font-black">Loading client-ready report…</h1></div>
+          </WorkspaceSurface>
         ) : null}
 
         {report ? (
-          <article className="overflow-hidden rounded-[2.2rem] border border-white/10 bg-zinc-950/88 shadow-2xl shadow-black/30 print:rounded-none print:border-0 print:bg-white print:shadow-none">
-            <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-black to-emerald-800 p-8 print:bg-white print:p-8">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.18),transparent_34%)] print:hidden" />
-
-              <div className="relative">
-                <div className="print:hidden">
-                  <BrandMark />
+          <article className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#030a07] shadow-[0_38px_120px_rgba(0,0,0,0.54)] print:rounded-none print:border-0 print:bg-white print:shadow-none">
+            <section className="relative overflow-hidden border-b border-white/8 p-6 sm:p-10 print:border-slate-200 print:bg-white">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(16,185,129,0.25),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(34,211,238,0.11),transparent_28%)] print:hidden" />
+              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <WorkspacePill tone="emerald"><Sparkles className="h-3 w-3" /> Slice AI Report</WorkspacePill>
+                    <WorkspacePill tone="cyan"><ShieldCheck className="h-3 w-3" /> Advisor review required</WorkspacePill>
+                    <WorkspacePill tone="slate">{report.reportType}</WorkspacePill>
+                  </div>
+                  <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-[-0.045em] text-white print:text-slate-950 sm:text-6xl">{report.title}</h1>
+                  <p className="mt-5 max-w-4xl text-base font-semibold leading-8 text-slate-300 print:text-slate-700">{report.summary}</p>
+                  <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold text-slate-500 print:text-slate-600"><span>Prepared for {report.design.preparedFor}</span><span>{dateTime(report.createdAt)}</span><span>{report.design.provider} · {report.design.model}</span></div>
                 </div>
-
-                <div className="mt-10 flex flex-wrap gap-2">
-                  <Pill tone="red">
-                    {
-                      report.reportType
-                    }
-                  </Pill>
-
-                  <Pill
-                    tone={toneFor(
-                      report.status,
-                    )}
-                  >
-                    {
-                      report.status
-                    }
-                  </Pill>
-
-                  <Pill
-                    tone={
-                      report.design
-                        .researchUsed
-                        ? "green"
-                        : "amber"
-                    }
-                  >
-                    {report.design
-                      .researchUsed
-                      ? "Research used"
-                      : "Internal / unsourced"}
-                  </Pill>
-
-                  <Pill tone="cyan">
-                    {
-                      report.design
-                        .sourceCount
-                    }{" "}
-                    sources
-                  </Pill>
-
-                  <Pill tone="amber">
-                    Advisor review required
-                  </Pill>
-                </div>
-
-                <h1 className="mt-6 max-w-5xl text-5xl font-black tracking-tight text-white print:text-4xl print:text-slate-950">
-                  {report.title}
-                </h1>
-
-                <p className="mt-5 max-w-4xl text-base leading-8 text-emerald-100 print:text-slate-600">
-                  {report.summary}
-                </p>
-
-                <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
-                      Prepared by
-                    </div>
-
-                    <div className="mt-2 text-lg font-black text-white print:text-slate-950">
-                      {
-                        report.design
-                          .generatedBy
-                      }
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
-                      Prepared for
-                    </div>
-
-                    <div className="mt-2 text-lg font-black text-white print:text-slate-950">
-                      {
-                        report.design
-                          .preparedFor
-                      }
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
-                      AI runtime
-                    </div>
-
-                    <div className="mt-2 text-lg font-black text-white print:text-slate-950">
-                      {report.design
-                        .model ||
-                        "Not recorded"}
-                    </div>
-
-                    <div className="mt-1 text-xs text-emerald-100/70 print:text-slate-600">
-                      {
-                        report.design
-                          .provider
-                      }
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.08] p-4 print:border-slate-200 print:bg-slate-50">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 print:text-slate-500">
-                      As of
-                    </div>
-
-                    <div className="mt-2 text-base font-black text-white print:text-slate-950">
-                      {formatDate(
-                        report.createdAt,
-                      )}
-                    </div>
-                  </div>
+                <div className="rounded-[1.6rem] border border-white/10 bg-black/45 p-5 print:border-slate-200 print:bg-slate-50">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Evidence confidence</p>
+                  <p className="mt-3 text-5xl font-black text-white print:text-slate-950">{Math.round(report.design.confidenceScore)}<span className="text-lg text-slate-500">/100</span></p>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.07] print:bg-slate-200"><div className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-cyan-300" style={{ width: `${Math.max(2, Math.min(100, report.design.confidenceScore))}%` }} /></div>
+                  <div className="mt-5 grid grid-cols-2 gap-2"><div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 print:border-slate-200"><p className="text-[8px] uppercase text-slate-500">Sources</p><p className="mt-1 text-lg font-black text-white print:text-slate-950">{report.design.sourceCount}</p></div><div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 print:border-slate-200"><p className="text-[8px] uppercase text-slate-500">Research</p><p className="mt-1 text-sm font-black text-white print:text-slate-950">{report.design.researchUsed ? "Included" : "Internal"}</p></div></div>
                 </div>
               </div>
             </section>
 
-            <section className="p-8 print:p-8">
-              <div className="grid gap-4 md:grid-cols-3">
-                {metrics
-                  .slice(0, 9)
-                  .map(
-                    (
-                      metric,
-                      index,
-                    ) => (
-                      <MetricCard
-                        key={`${metric.label}-${index}`}
-                        metric={
-                          metric
-                        }
-                      />
-                    ),
-                  )}
-              </div>
-            </section>
+            {metrics.length ? <section className="grid gap-3 border-b border-white/8 p-5 print:border-slate-200 sm:grid-cols-2 lg:grid-cols-4 sm:p-8">{metrics.map((metric, index) => <div key={`${metric.label}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.025] p-4 print:border-slate-200 print:bg-white"><div className="flex items-center justify-between"><p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">{metric.label}</p><WorkspacePill tone={metricTone(metric.tone)}>{metric.tone || "Metric"}</WorkspacePill></div><p className="mt-3 text-3xl font-black text-white print:text-slate-950">{metric.value}</p><p className="mt-1 text-xs font-semibold leading-5 text-slate-500 print:text-slate-600">{metric.helper}</p></div>)}</section> : null}
 
-            {sources.length ? (
-              <section className="p-8 pt-0 print:p-8 print:pt-0">
-                <div className="rounded-[1.7rem] border border-cyan-500/20 bg-cyan-500/5 p-6 print:border-slate-200 print:bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300 print:text-cyan-700">
-                        Research Provenance
-                      </div>
-
-                      <h2 className="mt-2 text-3xl font-black text-white print:text-slate-950">
-                        Visible supporting sources
-                      </h2>
-                    </div>
-
-                    <Pill tone="cyan">
-                      {
-                        sources.length
-                      }{" "}
-                      unique sources
-                    </Pill>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                    {sources.map(
-                      (
-                        source,
-                        index,
-                      ) => (
-                        <SourceCard
-                          key={`${source.url}-${index}`}
-                          source={
-                            source
-                          }
-                          index={
-                            index
-                          }
-                        />
-                      ),
-                    )}
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <section className="p-8 pt-0 print:p-8 print:pt-0">
-                <div className="rounded-[1.7rem] border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100 print:border-slate-200 print:bg-white print:text-slate-700">
-                  No external sources were stored with this report. Verify all current factual claims independently before external use.
-                </div>
-              </section>
-            )}
-
-            {charts.length ? (
-              <section className="grid gap-6 p-8 pt-0 print:p-8 print:pt-0">
-                {charts.map(
-                  (
-                    chart,
-                    index,
-                  ) => (
-                    <ChartCard
-                      key={`${chart.title}-${index}`}
-                      chart={
-                        chart
-                      }
-                    />
-                  ),
-                )}
-              </section>
-            ) : null}
-
-            <section className="grid gap-6 p-8 pt-0 print:p-8 print:pt-0">
-              {report.sections.map(
-                (
-                  section,
-                  index,
-                ) => (
-                  <div
-                    key={`${section.title}-${index}`}
-                    className="rounded-[1.7rem] border border-white/10 bg-white/[0.055] p-6 print:border-slate-200 print:bg-white"
-                  >
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300 print:text-emerald-700">
-                      Section{" "}
-                      {index + 1}
-                    </div>
-
-                    <h2 className="mt-2 text-3xl font-black text-white print:text-slate-950">
-                      {
-                        section.title
-                      }
-                    </h2>
-
-                    {section.body ? (
-                      <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-300 print:text-slate-700">
-                        {
-                          section.body
-                        }
-                      </p>
-                    ) : null}
-
-                    {section.bullets
-                      .length ? (
-                      <ul className="mt-4 grid gap-3">
-                        {section.bullets.map(
-                          (
-                            bullet,
-                            bulletIndex,
-                          ) => (
-                            <li
-                              key={`${bullet}-${bulletIndex}`}
-                              className="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-6 text-slate-300 print:border-slate-200 print:bg-slate-50 print:text-slate-700"
-                            >
-                              {
-                                bullet
-                              }
-                            </li>
-                          ),
-                        )}
-                      </ul>
-                    ) : null}
-                  </div>
-                ),
-              )}
-            </section>
-
-            <section className="border-t border-white/10 bg-black/35 p-8 print:border-slate-200 print:bg-slate-50">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300 print:text-emerald-700">
-                Advisor Review Disclosure
+            <div className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-5">
+                {(view === "client" ? clientSections : sections).map((section, index) => <section key={`${section.title}-${index}`} className="rounded-[1.6rem] border border-white/8 bg-white/[0.025] p-5 print:border-slate-200 print:bg-white sm:p-7"><div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-400/20 bg-emerald-500/[0.08] text-emerald-200 print:border-emerald-200 print:bg-emerald-50 print:text-emerald-700"><FileText className="h-4 w-4" /></div><div><p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">Section {String(index + 1).padStart(2, "0")}</p><h2 className="mt-1 text-2xl font-black text-white print:text-slate-950">{section.title}</h2></div></div>{section.body ? <div className="mt-5 whitespace-pre-wrap text-sm font-medium leading-7 text-slate-300 print:text-slate-700">{section.body}</div> : null}{section.bullets?.length ? <ul className="mt-5 space-y-2">{section.bullets.map((bullet, bulletIndex) => <li key={bulletIndex} className="flex gap-3 text-sm font-semibold leading-6 text-slate-300 print:text-slate-700"><CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-300 print:text-emerald-600" />{bullet}</li>)}</ul> : null}</section>)}
+                {charts.map((chart, index) => <ChartCard key={`${chart.title}-${index}`} chart={chart} />)}
               </div>
 
-              <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400 print:text-slate-700">
-                {
-                  report.design
-                    .disclosure
-                }
-              </p>
-
-              {report.design
-                .requestId ? (
-                <div className="mt-4 text-[10px] text-slate-500 print:text-slate-500">
-                  AI request reference:{" "}
-                  {
-                    report.design
-                      .requestId
-                  }
-                </div>
-              ) : null}
-            </section>
+              <aside className="space-y-4 print:hidden">
+                <WorkspaceSurface className="p-5"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-400/20 bg-cyan-500/[0.07] text-cyan-200"><Gauge className="h-4 w-4" /></div><div><p className="text-sm font-black text-white">Report integrity</p><p className="text-[10px] text-slate-500">Backing information retained</p></div></div><div className="mt-4 space-y-3 text-xs font-semibold text-slate-400"><div className="flex justify-between gap-3"><span>Generated by</span><span className="text-right font-black text-white">{report.design.generatedBy}</span></div><div className="flex justify-between gap-3"><span>Investment grade</span><span className="text-right font-black text-white">{report.design.investmentGrade}</span></div><div className="flex justify-between gap-3"><span>Request ID</span><span className="max-w-36 truncate text-right font-black text-white">{report.design.requestId || "Not provided"}</span></div><div className="flex justify-between gap-3"><span>Updated</span><span className="text-right font-black text-white">{dateTime(report.updatedAt)}</span></div></div></WorkspaceSurface>
+                <WorkspaceSurface className="p-5"><div className="flex items-center justify-between"><p className="text-sm font-black text-white">Research sources</p><WorkspacePill tone="cyan">{sources.length}</WorkspacePill></div>{sources.length ? <div className="mt-4 space-y-2">{sources.map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-cyan-400/14 bg-cyan-500/[0.045] p-3 transition hover:border-cyan-300/30"><div className="flex items-start justify-between gap-2"><p className="line-clamp-2 text-xs font-black text-white">{source.title || `Source ${index + 1}`}</p><ExternalLink className="h-3.5 w-3.5 shrink-0 text-cyan-300" /></div><p className="mt-1 truncate text-[9px] font-semibold text-cyan-300/70">{domain(source.url)}</p></a>)}</div> : <WorkspaceEmptyState compact title="No public sources returned" description="Treat time-sensitive claims as unverified until sources are added." />}</WorkspaceSurface>
+                <WorkspaceAlert tone="warning" title="Advisor review required">{report.design.disclosure || "Verify facts, suitability, dates, assumptions, and sources before sharing externally."}</WorkspaceAlert>
+              </aside>
+            </div>
           </article>
         ) : null}
       </div>

@@ -111,6 +111,11 @@ export type SliceAgenticScore = {
     agentCompletionRate: number;
     contradictionPenalty: number;
     freshnessPenalty: number;
+    /** Additive Phase 10 diagnostics; the existing score calculation remains unchanged. */
+    stabilityScore?: number;
+    sourceConcentration?: number;
+    uncertaintyLow?: number;
+    uncertaintyHigh?: number;
   };
   drivers: {
     positive: string[];
@@ -221,6 +226,21 @@ export type ResearchGraphEdge = {
   properties: Record<string, string | number | boolean | null>;
 };
 
+export type ResearchGraphProjectionMode = "overview" | "balanced" | "full";
+
+export type ResearchGraphProjection = {
+  mode: ResearchGraphProjectionMode;
+  originalNodeCount: number;
+  originalEdgeCount: number;
+  renderedNodeCount: number;
+  renderedEdgeCount: number;
+  omittedNodeCount: number;
+  omittedEdgeCount: number;
+  clipped: boolean;
+  selectedNodeId: string | null;
+  generatedAt: string;
+};
+
 export type ResearchKnowledgeGraph = {
   schemaVersion: "slice-research-graph-1.0.0";
   runId: string;
@@ -236,8 +256,27 @@ export type ResearchKnowledgeGraph = {
     nodeCount: number;
     averageScore: number;
   }>;
+  /** Present when the server returns a level-of-detail projection. */
+  projection?: ResearchGraphProjection;
 };
 
+export type ResearchGraphRankedNode = {
+  id: string;
+  label: string;
+  kind: ResearchGraphNodeKind;
+  cohort: ResearchCohort | "shared";
+  score: number;
+};
+
+export type ResearchGraphCommunity = {
+  id: string;
+  label: string;
+  cohort: ResearchCohort | "shared";
+  nodeCount: number;
+  edgeCount: number;
+  averageScore: number;
+  topNodeIds: string[];
+};
 
 export type ResearchGraphAnalytics = {
   density: number;
@@ -266,12 +305,42 @@ export type ResearchGraphAnalytics = {
     contradictionCount: number;
     severity: number;
   }>;
-  clusterPressure: Record<ResearchCohort | "shared", {
-    score: number;
-    confidence: number;
-    pressure: number;
-    nodeCount: number;
+  clusterPressure: Record<
+    ResearchCohort | "shared",
+    {
+      score: number;
+      confidence: number;
+      pressure: number;
+      nodeCount: number;
+    }
+  >;
+  /** Phase 10 advanced diagnostics. Optional for backward compatibility. */
+  algorithmVersion?: "slice-graph-analytics-3.0.0";
+  pagerankTop?: ResearchGraphRankedNode[];
+  betweennessTop?: ResearchGraphRankedNode[];
+  communities?: ResearchGraphCommunity[];
+  componentCount?: number;
+  largestComponentPercent?: number;
+  networkResilience?: number;
+  sourceConcentration?: number;
+  contradictionRatio?: number;
+  averagePathLength?: number;
+  analyzedNodeCount?: number;
+  analyzedEdgeCount?: number;
+  analysisDurationMs?: number;
+};
+
+export type ResearchGraphNodeDetail = {
+  node: ResearchGraphNode;
+  neighbors: Array<{
+    node: ResearchGraphNode;
+    edge: ResearchGraphEdge;
+    direction: "incoming" | "outgoing";
   }>;
+  pathToScore: string[];
+  incomingCount: number;
+  outgoingCount: number;
+  contradictionCount: number;
 };
 
 export type ResearchBotTopology = {
@@ -327,6 +396,32 @@ export type ResearchGraphPersistence =
       detail: string;
     };
 
+export type ResearchSwarmAlgorithmDiagnostics = {
+  version: "slice-swarm-diagnostics-3.0.0";
+  scoreSemanticsPreserved: true;
+  equalThirdWeightingPreserved: true;
+  stabilityScore: number;
+  sourceConcentration: number;
+  uncertaintyBand: {
+    low: number;
+    high: number;
+  };
+  cohortRobustness: Record<
+    ResearchCohort,
+    {
+      median: number;
+      trimmedMean: number;
+      interquartileRange: number;
+      effectiveEvidence: number;
+    }
+  >;
+  cache: {
+    status: "hit" | "miss" | "coalesced" | "not-used";
+    key: string;
+    expiresAt: string | null;
+  };
+};
+
 export type ResearchSwarmResponse = {
   schemaVersion: "slice-research-swarm-1.0.0";
   ok: true;
@@ -372,4 +467,32 @@ export type ResearchSwarmResponse = {
   researchMatrix: ResearchMatrixRow[];
   forecastSnapshot: MarketSnapshot;
   warnings: string[];
+  /** Additive Phase 10 metadata. */
+  algorithm?: ResearchSwarmAlgorithmDiagnostics;
+};
+
+export type ResearchGraphViewResponse = {
+  ok: true;
+  source: "memory" | "neo4j";
+  symbol: string;
+  runId: string;
+  generatedAt: string;
+  graph: ResearchKnowledgeGraph;
+  analytics: ResearchGraphAnalytics;
+  selectedNode: ResearchGraphNodeDetail | null;
+  metadata: {
+    companyName?: string;
+    sector?: string;
+    industry?: string;
+    requestedAgents?: number;
+    activeAgents?: number;
+    score?: number;
+    confidence?: number;
+    providerAsOf?: string | null;
+    durationMs?: number;
+  };
+  persistence: {
+    configured: boolean;
+    status: "available" | "unavailable";
+  };
 };

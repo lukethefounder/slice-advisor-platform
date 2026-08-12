@@ -1,19 +1,30 @@
-import { NextResponse } from "next/server";
-
-import { getCurrentUser } from "@/lib/auth";
-import { getAlphaVantageIntelligence } from "@/lib/intelligence/alpha-vantage-live";
-import { getEconomicResearch } from "@/lib/intelligence/economic-live";
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import { requireCurrentAccessContext } from "@/lib/access-control";
+import type { BackendContext } from "@/lib/backend/config";
+import { enqueueBackendJob } from "@/lib/backend/jobs";
 import {
-  loadLatestResearchKnowledgeGraph,
-  persistResearchKnowledgeGraph,
+  buildResearchSwarmForUser,
+  loadLatestResearchGraphView,
+  type ResearchSwarmDetailMode,
+  type ResearchSwarmGraphMode,
+} from "@/lib/intelligence/research-swarm-service";
+import {
+  getResearchGraphPersistenceConfiguration,
 } from "@/lib/intelligence/research-graph";
-import { runResearchSwarm } from "@/lib/intelligence/research-swarm";
-import type { IntelligenceScanPayload } from "@/lib/intelligence-forecast/live-snapshot";
+import type { ResearchGraphProjectionMode } from "@/lib/intelligence/research-swarm-types";
+import {
+  checkRateLimit,
+  getClientIp,
+  hashForSecurity,
+  isPotentiallyCrossSiteUnsafeRequest,
+} from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 180;
+export const maxDuration = 90;
 
+// Graph persistence remains centralized through persistResearchKnowledgeGraph
+// inside research-swarm-service so existing callers keep one source of truth.
 const MAX_BODY_BYTES = 32_000;
 
 type RequestBody = {
@@ -22,7 +33,11 @@ type RequestBody = {
   simulationPaths?: unknown;
   graphMode?: unknown;
   detailMode?: unknown;
+  projection?: unknown;
+  selectedNodeId?: unknown;
   persistGraph?: unknown;
+  forceRefresh?: unknown;
+  executionMode?: unknown;
 };
 
 function cleanString(value: unknown, maximumLength = 100) {
@@ -31,256 +46,256 @@ function cleanString(value: unknown, maximumLength = 100) {
     : "";
 }
 
-function numberValue(
+function cleanSymbol(value: unknown) {
+  return cleanString(value, 24)
+    .toUpperCase()
+    .replace(/[^A-Z0-9.\-:$]/g, "");
+}
+
+function integer(
   value: unknown,
   fallback: number,
   minimum: number,
   maximum: number,
 ) {
   const parsed = Number(value);
-
   return Number.isFinite(parsed)
-    ? Math.round(Math.max(minimum, Math.min(maximum, parsed)))
+    ? Math.max(minimum, Math.min(maximum, Math.round(parsed)))
     : fallback;
 }
 
-function responseHeaders() {
+function projectionMode(
+  value: unknown,
+  fallback: ResearchGraphProjectionMode = "balanced",
+): ResearchGraphProjectionMode {
+  const clean = cleanString(value, 20).toLowerCase();
+  return clean === "overview" || clean === "balanced" || clean === "full"
+    ? clean
+    : fallback;
+}
+
+function detailMode(value: unknown): ResearchSwarmDetailMode {
+  const clean = cleanString(value, 20).toLowerCase();
+  return clean === "agents" || clean === "graph" || clean === "full"
+    ? clean
+    : "summary";
+}
+
+function graphMode(value: unknown, detail: ResearchSwarmDetailMode): ResearchSwarmGraphMode {
+  return cleanString(value, 20).toLowerCase() === "full" ||
+    detail === "graph" ||
+    detail === "full"
+    ? "full"
+    : "summary";
+}
+
+function backendContext(
+  access: Awaited<ReturnType<typeof requireCurrentAccessContext>>,
+): BackendContext {
   return {
-    "Cache-Control": "no-store, max-age=0",
-    "Content-Type": "application/json; charset=utf-8",
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    userId: access.user.id,
+    firmId: access.firm?.id ?? null,
+    actorName: access.user.name,
+    actorEmail: access.user.email,
   };
 }
 
-async function loadExistingScan(request: Request) {
-  const url = new URL(request.url);
-  const cookie = request.headers.get("cookie") ?? "";
+function enforceRateLimit(input: {
+  request: Request;
+  userId: string;
+  write: boolean;
+}) {
+  const rate = checkRateLimit({
+    key: `research-swarm:${input.write ? "write" : "read"}:${input.userId}:${hashForSecurity(
+      getClientIp(input.request),
+    )}`,
+    limit: input.write ? 12 : 120,
+    windowMs: 60_000,
+  });
 
-  try {
-    const response = await fetch(`${url.origin}/api/intelligence/scan`, {
-      cache: "no-store",
-      headers: {
-        cookie,
+  if (!rate.allowed) {
+    throw new ApiError({
+      status: 429,
+      code: "RESEARCH_SWARM_RATE_LIMITED",
+      message: "Too many intelligence requests. Retry shortly.",
+      expose: true,
+      details: {
+        retryAfterSeconds: rate.retryAfterSeconds,
       },
     });
-
-    if (!response.ok) {
-      return {
-        scan: null,
-        warning: `Existing media-source scan returned HTTP ${response.status}.`,
-      };
-    }
-
-    return {
-      scan: (await response.json()) as IntelligenceScanPayload,
-      warning: null,
-    };
-  } catch (error) {
-    return {
-      scan: null,
-      warning:
-        error instanceof Error
-          ? `Existing media-source scan failed: ${error.message}`
-          : "Existing media-source scan failed.",
-    };
   }
 }
 
-export async function GET(request: Request) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return NextResponse.json(
-      {
-        error: "Unauthorized.",
-      },
-      {
-        status: 401,
-        headers: responseHeaders(),
-      },
+export const GET = withApiRoute(
+  {
+    route: "/api/intelligence/research-swarm",
+    timeoutMs: 30_000,
+  },
+  async ({ request }) => {
+    const access = await requireCurrentAccessContext({ requireFirm: true });
+    enforceRateLimit({ request, userId: access.user.id, write: false });
+    const url = new URL(request.url);
+    const symbol = cleanSymbol(url.searchParams.get("symbol")) || "MSFT";
+    const projection = projectionMode(
+      url.searchParams.get("projection"),
+      url.searchParams.has("projection") ? "balanced" : "full",
     );
-  }
+    const selectedNodeId = cleanString(url.searchParams.get("nodeId"), 220) || null;
+    const runId = cleanString(url.searchParams.get("runId"), 120) || undefined;
+    const view = await loadLatestResearchGraphView({
+      userId: access.user.id,
+      symbol,
+      projection,
+      selectedNodeId,
+      runId,
+    });
 
-  const url = new URL(request.url);
-  const symbol = cleanString(url.searchParams.get("symbol"), 32).toUpperCase();
-  const graph = await loadLatestResearchKnowledgeGraph({
-    userId: user.id,
-    symbol,
-  });
-
-  return NextResponse.json(
-    {
+    return apiJson({
       ok: true,
-      service: "Slice real-time research swarm",
+      service: "Slice research swarm",
       maximumAgents: 2_000,
       allocation: "One third media, one third technical, one third economy",
-      graph,
+      latest: view,
+      // Backward-compatible field used by earlier intelligence surfaces.
+      graph: view?.graph ?? null,
+      graphAnalytics: view?.analytics ?? null,
       safeguards: {
         externalCallsPerAgent: false,
         autonomousTradingEnabled: false,
         equalThirdWeighting: true,
+        scoreSemanticsPreserved: true,
       },
-    },
-    {
-      status: 200,
-      headers: responseHeaders(),
-    },
-  );
-}
+    });
+  },
+);
 
-export async function POST(request: Request) {
-  const user = await getCurrentUser();
+export const POST = withApiRoute(
+  {
+    route: "/api/intelligence/research-swarm",
+    timeoutMs: 85_000,
+  },
+  async ({ request }) => {
+    if (isPotentiallyCrossSiteUnsafeRequest(request)) {
+      throw new ApiError({
+        status: 403,
+        code: "CROSS_SITE_RESEARCH_REQUEST_BLOCKED",
+        message: "Cross-site intelligence requests are not allowed.",
+        expose: true,
+      });
+    }
 
-  if (!user) {
-    return NextResponse.json(
-      {
-        error: "Unauthorized.",
-      },
-      {
-        status: 401,
-        headers: responseHeaders(),
-      },
-    );
-  }
+    const contentType = request.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      throw new ApiError({
+        status: 415,
+        code: "RESEARCH_JSON_REQUIRED",
+        message: "Use application/json for research requests.",
+        expose: true,
+      });
+    }
 
-  try {
+    const access = await requireCurrentAccessContext({ requireFirm: true });
+    enforceRateLimit({ request, userId: access.user.id, write: true });
     const rawBody = await request.text();
 
     if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
-      return NextResponse.json(
-        {
-          error: `Research request exceeds ${MAX_BODY_BYTES} bytes.`,
-        },
-        {
-          status: 413,
-          headers: responseHeaders(),
-        },
-      );
+      throw new ApiError({
+        status: 413,
+        code: "RESEARCH_REQUEST_TOO_LARGE",
+        message: `Research requests may not exceed ${MAX_BODY_BYTES} bytes.`,
+        expose: true,
+      });
     }
 
     let body: RequestBody;
-
     try {
       body = JSON.parse(rawBody || "{}") as RequestBody;
     } catch {
-      return NextResponse.json(
-        {
-          error: "Request body must contain valid JSON.",
-        },
-        {
-          status: 400,
-          headers: responseHeaders(),
-        },
-      );
+      throw new ApiError({
+        status: 400,
+        code: "INVALID_RESEARCH_JSON",
+        message: "Request body must contain valid JSON.",
+        expose: true,
+      });
     }
 
-    const symbol = cleanString(body.symbol, 32).toUpperCase() || "MSFT";
-    const requestedAgents = numberValue(body.agentCount, 2_000, 30, 2_000);
-    const simulationPaths = numberValue(
-      body.simulationPaths,
-      500,
-      100,
-      5_000,
+    const symbol = cleanSymbol(body.symbol) || "MSFT";
+    const requestedAgents = integer(body.agentCount, 1_200, 30, 2_000);
+    const simulationPaths = integer(body.simulationPaths, 500, 100, 5_000);
+    const detail = detailMode(body.detailMode);
+    const graph = graphMode(body.graphMode, detail);
+    const hasProjection = cleanString(body.projection, 20).length > 0;
+    const projection = projectionMode(
+      body.projection,
+      hasProjection ? "balanced" : graph === "full" ? "full" : "overview",
     );
-    const detailModeRaw = cleanString(body.detailMode, 20).toLowerCase();
-    const detailMode =
-      detailModeRaw === "agents" ||
-      detailModeRaw === "graph" ||
-      detailModeRaw === "full"
-        ? detailModeRaw
-        : "summary";
-    const graphMode =
-      detailMode === "graph" ||
-      detailMode === "full" ||
-      cleanString(body.graphMode, 20).toLowerCase() === "full"
-        ? ("full" as const)
-        : ("summary" as const);
+    const selectedNodeId = cleanString(body.selectedNodeId, 220) || null;
     const persistGraph = body.persistGraph !== false;
-    const alpha = await getAlphaVantageIntelligence({
-      symbol,
-      interval: "5min",
-    });
+    const forceRefresh = body.forceRefresh === true;
+    const requestedExecution = cleanString(body.executionMode, 20).toLowerCase();
+    const graphPersistence = getResearchGraphPersistenceConfiguration();
+    const backgroundAvailable = graphPersistence.configured;
+    // Preserve the original synchronous contract for existing intelligence pages.
+    // The enhanced graph page opts into background execution explicitly.
+    const preferredExecution =
+      requestedExecution === "background" ? "background" : "sync";
+    const executionMode =
+      preferredExecution === "background" && backgroundAvailable
+        ? "background"
+        : "sync";
 
-    if (!alpha.ok) {
-      return NextResponse.json(
+    if (executionMode === "background") {
+      const bucket = forceRefresh ? Date.now() : Math.floor(Date.now() / 120_000);
+      const queued = await enqueueBackendJob(
+        backendContext(access),
+        "intelligence_graph_refresh",
         {
-          error: alpha.error || "Alpha Vantage evidence is unavailable.",
-          alpha,
+          payload: {
+            symbol,
+            agentCount: requestedAgents,
+            simulationPaths,
+          },
+          idempotencyKey: `intelligence-graph:${symbol}:${requestedAgents}:${simulationPaths}:${bucket}`,
         },
+      );
+
+      return apiJson(
         {
-          status: 409,
-          headers: responseHeaders(),
+          ok: true,
+          executionMode: "background",
+          duplicate: queued.duplicate,
+          job: queued.job,
+          symbol,
+          requestedAgents,
+          projection,
+          message: queued.duplicate
+            ? "An equivalent full graph is already queued or running."
+            : "Full graph build queued. The page can remain interactive while the research pathways complete.",
         },
+        { status: 202 },
       );
     }
 
-    const [scanResult, economy] = await Promise.all([
-      loadExistingScan(request),
-      getEconomicResearch({
-        sector: alpha.overview?.sector || "Unknown",
-        industry: alpha.overview?.industry || "Unknown",
-      }),
-    ]);
-    const swarm = runResearchSwarm({
+    const result = await buildResearchSwarmForUser({
+      userId: access.user.id,
       symbol,
       requestedAgents,
-      alpha,
-      scan: scanResult.scan,
-      economy,
       simulationPaths,
-      graphMode,
+      graphMode: graph,
+      detailMode: detail,
+      projection,
+      selectedNodeId,
+      persistGraph,
+      forceRefresh,
     });
-    const graphPersistence = persistGraph
-      ? await persistResearchKnowledgeGraph({
-          userId: user.id,
-          graph: swarm.graph,
-        })
-      : {
-          status: "skipped" as const,
-          detail: "Graph persistence was disabled for this request.",
-        };
 
-    const includeAllAgents =
-      detailMode === "agents" || detailMode === "full";
-    const responseSwarm = {
-      ...swarm,
-      agents: includeAllAgents
-        ? swarm.agents
-        : (["media", "technical", "economy"] as const).flatMap(
-            (cohort) =>
-              swarm.agents
-                .filter((agent) => agent.cohort === cohort)
-                .slice(0, 40),
-          ),
-    };
-
-    return NextResponse.json(
-      {
-        ...responseSwarm,
-        graphPersistence,
-        warnings: [
-          ...swarm.warnings,
-          ...(scanResult.warning ? [scanResult.warning] : []),
-        ],
-      },
-      {
-        status: 200,
-        headers: responseHeaders(),
-      },
-    );
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Research swarm failed.",
-        detail:
-          error instanceof Error ? error.message : "Unknown research error.",
-      },
-      {
-        status: 409,
-        headers: responseHeaders(),
-      },
-    );
-  }
-}
+    return apiJson({
+      ...result,
+      executionMode: "sync",
+      executionFallback:
+        preferredExecution === "background" && !backgroundAvailable
+          ? "Neo4j persistence is not configured, so Slice completed this graph in the current request to avoid losing a serverless background result."
+          : null,
+    });
+  },
+);

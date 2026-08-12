@@ -38,14 +38,22 @@ export function toneFor(
   }
 
   if (
+    normalized.includes("failed") ||
+    normalized.includes("rejected") ||
+    normalized.includes("blocked") ||
+    normalized.includes("cancelled") ||
+    normalized.includes("error")
+  ) {
+    return "red";
+  }
+
+  if (
     normalized.includes("high") ||
     normalized.includes("queued") ||
     normalized.includes("pending") ||
     normalized.includes("review") ||
     normalized.includes("needs") ||
-    normalized.includes("routed") ||
-    normalized.includes("risk") ||
-    normalized.includes("blocked")
+    normalized.includes("risk")
   ) {
     return "amber";
   }
@@ -76,10 +84,7 @@ export function percent(value: number) {
 }
 
 export function shortDate(value: string | null | undefined) {
-  if (!value) {
-    return "Not recorded";
-  }
-
+  if (!value) return "Not recorded";
   const date = new Date(value);
 
   return Number.isFinite(date.getTime())
@@ -91,22 +96,38 @@ export function shortDate(value: string | null | undefined) {
     : value;
 }
 
-export function SliceBackground({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020604] text-white">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute left-[-14%] top-[-12%] h-[34rem] w-[34rem] rounded-full bg-emerald-600/24 blur-3xl" />
-        <div className="absolute right-[-12%] top-[10%] h-[35rem] w-[35rem] rounded-full bg-cyan-600/10 blur-3xl" />
-        <div className="absolute bottom-[-18%] left-[26%] h-[31rem] w-[31rem] rounded-full bg-lime-500/8 blur-3xl" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.025)_1px,transparent_1px)] bg-[size:48px_48px]" />
-      </div>
+function toneClasses(tone: SliceTone) {
+  const values: Record<SliceTone, string> = {
+    red:
+      "border-[var(--slice-rose-border)] bg-[var(--slice-rose-bg)] text-[var(--slice-rose-text)]",
+    green:
+      "border-[var(--slice-green-border)] bg-[var(--slice-green-bg)] text-[var(--slice-green-text)]",
+    amber:
+      "border-[var(--slice-amber-border)] bg-[var(--slice-amber-bg)] text-[var(--slice-amber-text)]",
+    purple:
+      "border-[var(--slice-violet-border)] bg-[var(--slice-violet-bg)] text-[var(--slice-violet-text)]",
+    blue:
+      "border-[var(--slice-cyan-border)] bg-[var(--slice-cyan-bg)] text-[var(--slice-cyan-text)]",
+    cyan:
+      "border-[var(--slice-cyan-border)] bg-[var(--slice-cyan-bg)] text-[var(--slice-cyan-text)]",
+    slate:
+      "border-[var(--slice-slate-border)] bg-[var(--slice-slate-bg)] text-[var(--slice-slate-text)]",
+  };
 
+  return values[tone];
+}
+
+export function SliceBackground({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[var(--slice-bg)] text-[var(--slice-text)]">
+      <div className="pointer-events-none fixed inset-0" aria-hidden="true">
+        <div className="absolute -left-40 -top-52 h-[34rem] w-[34rem] rounded-full bg-[var(--slice-accent-soft)] blur-3xl" />
+        <div className="absolute -right-36 top-10 h-[32rem] w-[32rem] rounded-full bg-cyan-400/[0.055] blur-3xl" />
+        <div className="absolute bottom-[-19rem] left-[30%] h-[31rem] w-[31rem] rounded-full bg-emerald-300/[0.09] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(color-mix(in_srgb,var(--slice-accent)_3%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_srgb,var(--slice-accent)_3%,transparent)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_86%)]" />
+      </div>
       <div className="relative">{children}</div>
-    </main>
+    </div>
   );
 }
 
@@ -119,20 +140,19 @@ export function BrandMark({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-600 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
-        <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-950 text-lg font-black text-white shadow-inner">
+      <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[var(--slice-accent-border)] bg-white shadow-[0_12px_30px_var(--slice-shadow)]">
+        <div className="absolute inset-1 rounded-[0.95rem] bg-[linear-gradient(145deg,#effcf5,#ffffff_52%,#ddf6e8)]" />
+        <div className="relative grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(145deg,#54d49d,#16a36f_58%,#07533c)] text-lg font-black text-white shadow-md">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-300" />
+        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-lime-400" />
         <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
       </div>
-
       <div className="min-w-0">
-        <div className="truncate text-2xl font-black tracking-tight text-white">
+        <div className="truncate text-2xl font-black tracking-[-0.045em] text-[var(--slice-heading)]">
           {label}
         </div>
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.28em] text-emerald-300">
+        <div className="truncate text-[9px] font-black uppercase tracking-[0.24em] text-[var(--slice-accent-strong)]">
           {subtitle}
         </div>
       </div>
@@ -150,7 +170,7 @@ export function Card({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[2rem] border border-emerald-300/10 bg-zinc-950/78 shadow-2xl shadow-emerald-950/18 backdrop-blur-xl",
+        "relative overflow-hidden rounded-[1.75rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_22px_70px_var(--slice-shadow)] backdrop-blur-xl",
         className,
       )}
     >
@@ -169,7 +189,7 @@ export function SoftCard({
   return (
     <div
       className={cx(
-        "rounded-[1.5rem] border border-emerald-200/10 bg-white/[0.05] p-4",
+        "rounded-[1.35rem] border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-4 text-[var(--slice-text)]",
         className,
       )}
     >
@@ -185,21 +205,11 @@ export function Pill({
   children: ReactNode;
   tone?: SliceTone;
 }) {
-  const tones: Record<SliceTone, string> = {
-    red: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30",
-    green: "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30",
-    amber: "bg-amber-500/10 text-amber-200 ring-amber-500/30",
-    purple: "bg-violet-500/10 text-violet-200 ring-violet-500/30",
-    blue: "bg-sky-500/10 text-sky-200 ring-sky-500/30",
-    cyan: "bg-cyan-500/10 text-cyan-200 ring-cyan-500/30",
-    slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
-  };
-
   return (
     <span
       className={cx(
-        "inline-flex max-w-full items-center rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ring-1",
-        tones[tone],
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+        toneClasses(tone),
       )}
     >
       <span className="truncate">{children}</span>
@@ -215,8 +225,8 @@ export function Progress({
   tone?: Exclude<SliceTone, "slate">;
 }) {
   const fills: Record<Exclude<SliceTone, "slate">, string> = {
-    red: "from-emerald-700 to-emerald-300",
-    green: "from-emerald-700 to-emerald-300",
+    red: "from-rose-600 to-rose-300",
+    green: "from-emerald-700 via-emerald-500 to-cyan-400",
     amber: "from-amber-700 to-amber-300",
     purple: "from-violet-700 to-violet-300",
     blue: "from-sky-700 to-sky-300",
@@ -224,10 +234,10 @@ export function Progress({
   };
 
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-black/50">
+    <div className="h-2 overflow-hidden rounded-full bg-[var(--slice-slate-bg)]">
       <div
         className={cx(
-          "h-full rounded-full bg-gradient-to-r",
+          "h-full rounded-full bg-gradient-to-r transition-[width] duration-500",
           fills[tone],
         )}
         style={{ width: percent(value) }}
@@ -247,33 +257,33 @@ export function Metric({
   helper?: string;
   tone?: SliceTone;
 }) {
-  const glow: Record<SliceTone, string> = {
-    red: "from-emerald-500/18",
-    green: "from-emerald-500/18",
-    amber: "from-amber-500/18",
-    purple: "from-violet-500/18",
-    blue: "from-sky-500/18",
-    cyan: "from-cyan-500/18",
-    slate: "from-slate-400/10",
-  };
-
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
+    <div className="relative overflow-hidden rounded-[1.35rem] border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-4">
       <div
         className={cx(
-          "pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent",
-          glow[tone],
+          "pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent",
+          tone === "green"
+            ? "from-emerald-400/[0.12]"
+            : tone === "cyan" || tone === "blue"
+              ? "from-cyan-400/[0.10]"
+              : tone === "amber"
+                ? "from-amber-400/[0.10]"
+                : tone === "purple"
+                  ? "from-violet-400/[0.10]"
+                  : tone === "red"
+                    ? "from-rose-400/[0.10]"
+                    : "from-slate-400/[0.07]",
         )}
       />
       <div className="relative">
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+        <div className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
           {label}
         </div>
-        <div className="mt-2 truncate text-2xl font-black text-white">
+        <div className="mt-2 truncate text-2xl font-black text-[var(--slice-heading)]">
           {value}
         </div>
         {helper ? (
-          <div className="mt-1 truncate text-xs font-semibold text-slate-500">
+          <div className="mt-1 truncate text-xs font-semibold text-[var(--slice-muted)]">
             {helper}
           </div>
         ) : null}
@@ -296,20 +306,35 @@ export function SectionHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">
+        <div className="text-xs font-black uppercase tracking-[0.22em] text-[var(--slice-accent-strong)]">
           {eyebrow}
         </div>
-        <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-4xl">
+        <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)] md:text-4xl">
           {title}
         </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-400">
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
           {description}
         </p>
       </div>
-
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   );
+}
+
+function actionVariant(variant: "primary" | "secondary" | "danger" | "light") {
+  if (variant === "primary") {
+    return "border-[var(--slice-accent-border)] bg-[linear-gradient(110deg,var(--slice-accent),var(--slice-accent-strong))] text-white shadow-[0_12px_30px_var(--slice-accent-glow)] hover:brightness-105";
+  }
+
+  if (variant === "danger") {
+    return "border-[var(--slice-rose-border)] bg-[var(--slice-rose-bg)] text-[var(--slice-rose-text)] hover:brightness-98";
+  }
+
+  if (variant === "light") {
+    return "border-[var(--slice-border)] bg-white text-[var(--slice-heading)] shadow-[0_10px_25px_var(--slice-shadow)] hover:bg-emerald-50";
+  }
+
+  return "border-[var(--slice-border)] bg-[var(--slice-surface-strong)] text-[var(--slice-text)] shadow-[0_8px_22px_var(--slice-shadow)] hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]";
 }
 
 export function LinkButton({
@@ -323,25 +348,16 @@ export function LinkButton({
   variant?: "primary" | "secondary" | "danger" | "light";
   className?: string;
 }) {
-  const variantClass =
-    variant === "primary"
-      ? "border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 text-white shadow-lg shadow-emerald-950/40 hover:from-emerald-400 hover:via-emerald-600 hover:to-emerald-900"
-      : variant === "danger"
-        ? "border border-amber-500/35 bg-amber-500/10 text-amber-100 shadow-lg shadow-amber-950/20 hover:bg-amber-500/18 hover:text-white"
-        : variant === "light"
-          ? "border border-white/20 bg-white text-slate-950 shadow-lg shadow-emerald-950/20 hover:bg-emerald-50 hover:text-slate-950"
-          : "border border-white/10 bg-white/[0.05] text-white shadow-lg shadow-black/20 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-white";
-
   return (
     <a
       href={href}
       className={cx(
-        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none transition hover:scale-[1.01] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500",
-        variantClass,
+        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-black transition focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)]",
+        actionVariant(variant),
         className,
       )}
     >
-      <span className="relative z-10 whitespace-nowrap">{children}</span>
+      {children}
     </a>
   );
 }
@@ -359,27 +375,18 @@ export function ActionButton({
   variant?: "primary" | "secondary" | "danger" | "light";
   className?: string;
 }) {
-  const variantClass =
-    variant === "primary"
-      ? "border border-emerald-400/30 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 text-white shadow-emerald-950/40 hover:from-emerald-400 hover:via-emerald-600 hover:to-emerald-900"
-      : variant === "danger"
-        ? "border border-amber-500/35 bg-amber-500/10 text-amber-100 shadow-amber-950/20 hover:bg-amber-500/18 hover:text-white"
-        : variant === "light"
-          ? "border border-white/20 bg-white text-slate-950 shadow-emerald-950/20 hover:bg-emerald-50 hover:text-slate-950"
-          : "border border-white/10 bg-white/[0.05] text-white shadow-black/20 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-white";
-
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "inline-flex items-center justify-center rounded-2xl px-4 py-3 text-center text-sm font-black leading-none shadow-lg transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-500",
-        variantClass,
+        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-black transition focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)] disabled:cursor-not-allowed disabled:opacity-50",
+        actionVariant(variant),
         className,
       )}
     >
-      <span className="relative z-10 whitespace-nowrap">{children}</span>
+      {children}
     </button>
   );
 }
@@ -390,26 +397,17 @@ export function TopNav({
   subtitle?: string;
 }) {
   return (
-    <header className="sticky top-4 z-40 rounded-[1.75rem] border border-emerald-300/10 bg-black/72 p-4 shadow-xl shadow-emerald-950/30 backdrop-blur-xl">
+    <header className="sticky top-4 z-40 rounded-[1.5rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] p-4 shadow-[0_18px_55px_var(--slice-shadow)] backdrop-blur-xl">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <BrandMark subtitle={subtitle} />
-
         <nav className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
-          <LinkButton href="/" variant="secondary" className="w-full sm:w-auto">
+          <LinkButton href="/" className="w-full sm:w-auto">
             Home
           </LinkButton>
-          <LinkButton
-            href="/founder-login"
-            variant="secondary"
-            className="w-full sm:w-auto"
-          >
+          <LinkButton href="/founder-login" className="w-full sm:w-auto">
             Login
           </LinkButton>
-          <LinkButton
-            href="/advisor-signup"
-            variant="primary"
-            className="w-full sm:w-auto"
-          >
+          <LinkButton href="/advisor-signup" variant="primary" className="w-full sm:w-auto">
             Sign Up
           </LinkButton>
         </nav>

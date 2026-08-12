@@ -1,386 +1,369 @@
+import "server-only";
+
+import {
+  clientScopeWhere,
+  hasFirmPermission,
+} from "@/lib/access-control";
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  canManageClientRouting,
-  ensureAdvisorFirmContext,
-} from "@/lib/client-access";
-import { prisma } from "@/lib/prisma";
-import {
-  cleanEmail,
-  cleanNullableText,
-  cleanText,
   hasSensitiveActionConfirmation,
   noStoreJson,
   protectClientDataRoute,
-  redactClientForSummary,
   recordClientMutation,
-  requireClientAccess,
 } from "@/lib/client-data-security";
+import { dispatchClientMutation } from "@/lib/clients/mutations";
 import {
-  decryptClientProfile,
-  encryptSensitiveText,
-  vaultStatus,
-} from "@/lib/data-vault";
+  getClientCompatibilityDetail,
+  getClientDetail,
+  requireClientRepositoryContext,
+} from "@/lib/clients/repository";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function protectedRouteResponse(
+type RouteContext = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+async function authenticatedUser() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    throw new ApiError({
+      status: 401,
+      code: "AUTHENTICATION_REQUIRED",
+      message: "Authentication required.",
+      expose: true,
+    });
+  }
+
+  return user;
+}
+
+function protectedResponse(
   protection: Awaited<ReturnType<typeof protectClientDataRoute>>,
 ) {
   return (
     protection.response ??
     noStoreJson(
-      {
-        error: "Security policy blocked this client request.",
-      },
+      { error: "Security policy blocked this client-data request." },
       { status: 403 },
     )
   );
 }
 
-function clientAccessResponse(
-  access: Awaited<ReturnType<typeof requireClientAccess>>,
-) {
-  return (
-    access.response ??
-    noStoreJson(
-      {
-        error: "Client access denied.",
-      },
-      { status: 404 },
-    )
+async function exposeClientErrors(operation: () => Promise<Response>) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof ApiError && error.expose) {
+      return apiJson(
+        {
+          ok: false,
+          error: error.message,
+          code: error.code,
+        },
+        { status: error.status },
+      );
+    }
+
+    throw error;
+  }
+}
+
+export const GET = async (request: Request, routeContext: RouteContext) => {
+  const handler = withApiRoute(
+    {
+      route: "/api/clients/[id]",
+      timeoutMs: 12_000,
+      cacheControl: "private, no-store, max-age=0",
+    },
+    async () =>
+      exposeClientErrors(async () => {
+        const user = await authenticatedUser();
+        const protection = await protectClientDataRoute({
+          request,
+          user,
+          area: "Client Data",
+          eventType: "client.read",
+          title: "Client profile read",
+          limit: 120,
+          windowMs: 60 * 1000,
+        });
+
+        if (!protection.allowed) return protectedResponse(protection);
+
+        const { id } = await routeContext.params;
+        const clientId = id.trim();
+
+        if (!clientId) {
+          throw new ApiError({
+            status: 400,
+            code: "CLIENT_ID_REQUIRED",
+            message: "Client ID is required.",
+            expose: true,
+          });
+        }
+
+        const context = await requireClientRepositoryContext(user.id);
+        const view = new URL(request.url).searchParams.get("view") ?? "overview";
+
+        if (view === "compat") {
+          return apiJson({
+            ok: true,
+            client: await getClientCompatibilityDetail({
+              context,
+              clientId,
+            }),
+            compatibility: {
+              bounded: true,
+              childCollectionLimit: 25,
+            },
+          });
+        }
+
+        if (view !== "overview") {
+          throw new ApiError({
+            status: 400,
+            code: "INVALID_CLIENT_VIEW",
+            message: "view must be overview or compat.",
+            expose: true,
+          });
+        }
+
+        return apiJson({
+          ok: true,
+          client: await getClientDetail({
+            context,
+            clientId,
+          }),
+          sections: [
+            "holdings",
+            "notes",
+            "tasks",
+            "documents",
+            "risk-reviews",
+            "briefings",
+          ],
+          sectionPageSize: 25,
+        });
+      }),
   );
-}
 
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const user = await getCurrentUser();
+  return handler(request);
+};
 
-  if (!user) {
-    return noStoreJson({ error: "Unauthorized." }, { status: 401 });
-  }
+export const PATCH = async (request: Request, routeContext: RouteContext) => {
+  const handler = withApiRoute(
+    {
+      route: "/api/clients/[id]",
+      timeoutMs: 15_000,
+      cacheControl: "private, no-store, max-age=0",
+    },
+    async () =>
+      exposeClientErrors(async () => {
+        const user = await authenticatedUser();
+        const protection = await protectClientDataRoute({
+          request,
+          user,
+          area: "Client Data",
+          eventType: "client.update",
+          title: "Client profile update",
+          limit: 50,
+          windowMs: 60 * 1000,
+        });
 
-  const protection = await protectClientDataRoute({
-    request,
-    user,
-    area: "Client Data",
-    eventType: "client.read",
-    title: "Client profile read",
-    limit: 120,
-    windowMs: 60 * 1000,
-  });
+        if (!protection.allowed) return protectedResponse(protection);
 
-  if (!protection.allowed) {
-    return protectedRouteResponse(protection);
-  }
+        const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
 
-  try {
-    const { id } = await context.params;
+        if (!contentType.includes("application/json")) {
+          throw new ApiError({
+            status: 415,
+            code: "JSON_REQUIRED",
+            message: "This endpoint requires an application/json request body.",
+            expose: true,
+          });
+        }
 
-    const access = await requireClientAccess({
-      user,
-      clientId: id,
-      scope: "read",
-      request,
-    });
+        const { id } = await routeContext.params;
+        let body: Record<string, unknown>;
 
-    if (!access.allowed) {
-      return clientAccessResponse(access);
-    }
+        try {
+          body = (await request.json()) as Record<string, unknown>;
+        } catch {
+          throw new ApiError({
+            status: 400,
+            code: "INVALID_JSON",
+            message: "The request body is not valid JSON.",
+            expose: true,
+          });
+        }
 
-    const url = new URL(request.url);
-    const view = url.searchParams.get("view") ?? "full";
-
-    const rawClient = await prisma.clientProfile.findFirst({
-      where: {
-        id,
-      },
-      include: {
-        holdings: true,
-        notesList: {
-          orderBy: { createdAt: "desc" },
-        },
-        tasks: {
-          orderBy: { createdAt: "desc" },
-        },
-        reviews: {
-          orderBy: { createdAt: "desc" },
-        },
-        documents: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
-
-    if (!rawClient) {
-      return noStoreJson({ error: "Client not found." }, { status: 404 });
-    }
-
-    const client = decryptClientProfile(rawClient);
-
-    return noStoreJson({
-      client: view === "summary" ? redactClientForSummary(client) : client,
-      view,
-      redacted: view === "summary",
-      vault: vaultStatus(),
-    });
-  } catch (error) {
-    return noStoreJson(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to load client profile.",
-      },
-      { status: 500 },
-    );
-  }
-}
-
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return noStoreJson({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const protection = await protectClientDataRoute({
-    request,
-    user,
-    area: "Client Data",
-    eventType: "client.update",
-    title: "Client profile update",
-    limit: 50,
-    windowMs: 60 * 1000,
-  });
-
-  if (!protection.allowed) {
-    return protectedRouteResponse(protection);
-  }
-
-  try {
-    const { id } = await context.params;
-
-    const access = await requireClientAccess({
-      user,
-      clientId: id,
-      scope: "write",
-      request,
-    });
-
-    if (!access.allowed) {
-      return clientAccessResponse(access);
-    }
-
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-
-    let email: string | null | undefined = undefined;
-
-    if (typeof body.email === "string") {
-      email = body.email.trim() ? cleanEmail(body.email) : null;
-
-      if (body.email.trim() && !email) {
-        return noStoreJson(
-          { error: "Client email is invalid." },
-          { status: 400 },
+        return apiJson(
+          await dispatchClientMutation({
+            user,
+            request,
+            body: {
+              ...body,
+              action: "updateClient",
+              clientId: id,
+            },
+          }),
         );
-      }
-    }
+      }),
+  );
 
-    await prisma.clientProfile.updateMany({
-      where: {
-        id,
-      },
-      data: {
-        fullName:
-          typeof body.fullName === "string"
-            ? cleanText(body.fullName)
-            : undefined,
-        email:
-          typeof body.email === "string"
-            ? encryptSensitiveText(email)
-            : undefined,
-        householdName:
-          typeof body.householdName === "string"
-            ? cleanNullableText(body.householdName)
-            : undefined,
-        clientType:
-          typeof body.clientType === "string"
-            ? cleanText(body.clientType)
-            : undefined,
-        riskProfile:
-          typeof body.riskProfile === "string"
-            ? cleanText(body.riskProfile)
-            : undefined,
-        liquidityNeeds:
-          typeof body.liquidityNeeds === "string"
-            ? cleanText(body.liquidityNeeds)
-            : undefined,
-        timeHorizon:
-          typeof body.timeHorizon === "string"
-            ? cleanText(body.timeHorizon)
-            : undefined,
-        objective:
-          typeof body.objective === "string"
-            ? cleanText(body.objective)
-            : undefined,
-        portfolioValue:
-          typeof body.portfolioValue === "string"
-            ? encryptSensitiveText(cleanNullableText(body.portfolioValue))
-            : undefined,
-        status:
-          typeof body.status === "string"
-            ? cleanText(body.status)
-            : undefined,
-        notes:
-          typeof body.notes === "string"
-            ? encryptSensitiveText(cleanNullableText(body.notes))
-            : undefined,
-      },
-    });
+  return handler(request);
+};
 
-    const rawClient = await prisma.clientProfile.findFirst({
-      where: {
-        id,
-      },
-    });
+export const DELETE = async (request: Request, routeContext: RouteContext) => {
+  const handler = withApiRoute(
+    {
+      route: "/api/clients/[id]",
+      timeoutMs: 15_000,
+      cacheControl: "private, no-store, max-age=0",
+    },
+    async () =>
+      exposeClientErrors(async () => {
+        const user = await authenticatedUser();
+        const protection = await protectClientDataRoute({
+          request,
+          user,
+          area: "Client Data",
+          eventType: "client.delete",
+          title: "Client profile deletion",
+          limit: 10,
+          windowMs: 60 * 1000,
+        });
 
-    await recordClientMutation({
-      user,
-      request,
-      clientId: id,
-      action: "update",
-      title: "Client profile updated",
-      detail:
-        "A client profile was updated through the protected client-data API.",
-      metadata: {
-        changedFields: Object.keys(body).filter(
-          (key) => typeof body[key] !== "undefined",
-        ),
-        vault: vaultStatus(),
-      },
-    });
+        if (!protection.allowed) return protectedResponse(protection);
 
-    return noStoreJson({
-      client: rawClient ? decryptClientProfile(rawClient) : null,
-      vault: vaultStatus(),
-    });
-  } catch (error) {
-    return noStoreJson(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to update client profile.",
-      },
-      { status: 500 },
-    );
-  }
-}
+        const { id } = await routeContext.params;
+        const clientId = id.trim();
+        const context = await requireClientRepositoryContext(user.id);
 
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const user = await getCurrentUser();
+        if (
+          !hasFirmPermission(context, "clients.assign") &&
+          !hasFirmPermission(context, "firm.manage")
+        ) {
+          throw new ApiError({
+            status: 403,
+            code: "CLIENT_DELETE_PERMISSION_REQUIRED",
+            message:
+              "Lead-advisor or firm-management access is required to delete a client profile.",
+            expose: true,
+          });
+        }
 
-  if (!user) {
-    return noStoreJson({ error: "Unauthorized." }, { status: 401 });
-  }
+        if (!hasSensitiveActionConfirmation(request, "confirm-delete-client")) {
+          throw new ApiError({
+            status: 403,
+            code: "SENSITIVE_CONFIRMATION_REQUIRED",
+            message:
+              "Sensitive action confirmation is required. Send x-slice-sensitive-action: confirm-delete-client.",
+            expose: true,
+          });
+        }
 
-  const protection = await protectClientDataRoute({
-    request,
-    user,
-    area: "Client Data",
-    eventType: "client.delete",
-    title: "Client profile deletion",
-    limit: 10,
-    windowMs: 60 * 1000,
-  });
+        const existing = await prisma.clientProfile.findFirst({
+          where: {
+            id: clientId,
+            ...clientScopeWhere(context),
+          },
+          select: {
+            id: true,
+            fullName: true,
+          },
+        });
 
-  if (!protection.allowed) {
-    return protectedRouteResponse(protection);
-  }
+        if (!existing) {
+          throw new ApiError({
+            status: 404,
+            code: "CLIENT_NOT_FOUND",
+            message: "Client not found.",
+            expose: true,
+          });
+        }
 
-  try {
-    const { id } = await context.params;
-    const membership = await ensureAdvisorFirmContext(user.id);
+        const activeDocumentCount = await prisma.documentVaultItem.count({
+          where: {
+            clientId,
+            deletedAt: null,
+          },
+        });
 
-    if (!canManageClientRouting(membership)) {
-      return noStoreJson(
-        {
-          error:
-            "Lead-advisor or firm-management access is required to delete a client profile.",
-        },
-        { status: 403 },
-      );
-    }
+        if (activeDocumentCount > 0) {
+          throw new ApiError({
+            status: 409,
+            code: "CLIENT_DOCUMENT_RETENTION_REVIEW_REQUIRED",
+            message:
+              "Resolve the client’s active secure documents before deleting the client profile.",
+            expose: true,
+            details: {
+              activeDocumentCount,
+              actionUrl: `/workspace/documents?clientId=${encodeURIComponent(clientId)}`,
+            },
+          });
+        }
 
-    const access = await requireClientAccess({
-      user,
-      clientId: id,
-      scope: "delete",
-      request,
-    });
+        const [, result] = await prisma.$transaction([
+          prisma.documentVaultItem.updateMany({
+            where: {
+              clientId,
+              deletedAt: {
+                not: null,
+              },
+            },
+            data: {
+              clientId: null,
+            },
+          }),
+          prisma.clientProfile.deleteMany({
+            where: {
+              id: clientId,
+              ...clientScopeWhere(context),
+            },
+          }),
+        ]);
 
-    if (!access.allowed) {
-      return clientAccessResponse(access);
-    }
+        if (!result.count) {
+          throw new ApiError({
+            status: 404,
+            code: "CLIENT_NOT_FOUND",
+            message: "Client not found.",
+            expose: true,
+          });
+        }
 
-    if (!hasSensitiveActionConfirmation(request, "confirm-delete-client")) {
-      await recordClientMutation({
-        user,
-        request,
-        clientId: id,
-        action: "delete.blocked_missing_confirmation",
-        title: "Client deletion blocked",
-        detail:
-          "A client deletion was blocked because the required sensitive-action confirmation header was missing.",
-      });
+        await recordClientMutation({
+          user,
+          request,
+          clientId,
+          action: "delete",
+          title: "Client profile deleted",
+          detail:
+            "An authorized firm manager deleted the client profile after secure-document retention checks passed.",
+          metadata: {
+            clientName: existing.fullName,
+            deletedCount: result.count,
+            firmId: context.firm?.id ?? null,
+            activeDocumentCount,
+            retainedDocumentAuditRecords: true,
+          },
+        });
 
-      return noStoreJson(
-        {
-          error:
-            "Sensitive action confirmation is required. Send x-slice-sensitive-action: confirm-delete-client.",
-        },
-        { status: 403 },
-      );
-    }
+        return apiJson({
+          ok: true,
+          clientId,
+          deleted: true,
+        });
+      }),
+  );
 
-    await prisma.clientProfile.deleteMany({
-      where: {
-        id,
-      },
-    });
-
-    await recordClientMutation({
-      user,
-      request,
-      clientId: id,
-      action: "delete",
-      title: "Client profile deleted",
-      detail:
-        "A client profile was deleted through the protected client-data API.",
-    });
-
-    return noStoreJson({ ok: true });
-  } catch (error) {
-    return noStoreJson(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to delete client profile.",
-      },
-      { status: 500 },
-    );
-  }
-}
+  return handler(request);
+};

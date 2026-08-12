@@ -72,6 +72,8 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, expiresAt], map: "Session_userId_expiresAt_idx")
+  @@index([expiresAt], map: "Session_expiresAt_idx")
 }
 
 model WatchAsset {
@@ -215,6 +217,8 @@ model ClientProfile {
   @@index([assignedAdvisorMembershipId])
   @@index([portalInviteCodeHash])
   @@index([fullName])
+  @@index([firmId, status, fullName], map: "ClientProfile_firm_status_fullName_idx")
+  @@index([firmId, assignedAdvisorMembershipId, status, fullName], map: "ClientProfile_firm_advisor_status_name_idx")
 }
 
 model PortfolioHolding {
@@ -234,6 +238,7 @@ model PortfolioHolding {
 
   @@index([clientId])
   @@index([symbol])
+  @@index([clientId, createdAt(sort: Desc)], map: "PortfolioHolding_client_createdAt_idx")
 }
 
 model AdvisorNote {
@@ -250,6 +255,7 @@ model AdvisorNote {
 
   @@index([userId])
   @@index([clientId])
+  @@index([clientId, createdAt(sort: Desc)], map: "AdvisorNote_client_createdAt_idx")
 }
 
 model MeetingTask {
@@ -269,6 +275,8 @@ model MeetingTask {
   @@index([userId])
   @@index([clientId])
   @@index([status])
+  @@index([userId, status, dueDate], map: "MeetingTask_user_status_dueDate_idx")
+  @@index([clientId, createdAt(sort: Desc)], map: "MeetingTask_client_createdAt_idx")
 }
 
 model RiskReview {
@@ -283,23 +291,76 @@ model RiskReview {
   client ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+  @@index([clientId, createdAt(sort: Desc)], map: "RiskReview_client_createdAt_idx")
 }
 
 model DocumentVaultItem {
-  id           String   @id @default(cuid())
-  userId       String
-  clientId     String?
-  fileName     String
-  documentType String   @default("General")
-  status       String   @default("Needs Review")
-  notes        String?
-  createdAt    DateTime @default(now())
+  id                     String    @id @default(cuid())
+  userId                 String
+  firmId                 String?
+  clientId               String?
+  fileName               String
+  fileExtension          String?
+  documentType           String    @default("General")
+  status                 String    @default("Needs Review")
+  notes                  String?
+  storageProvider        String    @default("Vercel Blob")
+  storagePath            String?   @unique(map: "DocumentVault_storagePath_key")
+  storageUrl             String?
+  contentType            String?
+  sizeBytes              Int?
+  etag                   String?
+  claimedSha256          String?
+  sha256                 String?
+  visibility             String    @default("AdvisorOnly")
+  uploadedByType         String    @default("Advisor")
+  uploadedByClientId     String?
+  processingStatus       String    @default("Not Required")
+  processingError        String?
+  securityStatus         String    @default("Not Checked")
+  classificationJson     String    @default("{}")
+  metadataJson           String    @default("{}")
+  extractedTextEncrypted String?
+  approvedAt             DateTime?
+  approvedByUserId       String?
+  lastViewedAt           DateTime?
+  viewCount              Int       @default(0)
+  deletedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client ClientProfile? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client      ClientProfile?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  auditEvents DocumentAuditEvent[]
 
   @@index([userId])
   @@index([clientId])
+  @@index([userId, status, createdAt(sort: Desc)], map: "DocumentVault_user_status_createdAt_idx")
+  @@index([clientId, createdAt(sort: Desc)], map: "DocumentVault_client_createdAt_idx")
+  @@index([firmId, status, createdAt(sort: Desc)], map: "DocumentVault_firm_status_createdAt_idx")
+  @@index([firmId, clientId, createdAt(sort: Desc)], map: "DocumentVault_firm_client_createdAt_idx")
+  @@index([sha256], map: "DocumentVault_sha256_idx")
+  @@index([processingStatus, createdAt], map: "DocumentVault_processing_createdAt_idx")
+}
+
+model DocumentAuditEvent {
+  id            String   @id @default(cuid())
+  documentId    String
+  firmId        String?
+  clientId      String?
+  actorType     String
+  actorUserId   String?
+  actorClientId String?
+  action        String
+  detail        String?
+  metadataJson  String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  document DocumentVaultItem @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@index([documentId, createdAt(sort: Desc)], map: "DocumentAudit_document_createdAt_idx")
+  @@index([firmId, createdAt(sort: Desc)], map: "DocumentAudit_firm_createdAt_idx")
+  @@index([actorUserId, createdAt(sort: Desc)], map: "DocumentAudit_actorUser_createdAt_idx")
 }
 
 model InvestorGoal {
@@ -366,6 +427,7 @@ model AlertEvent {
   @@index([status])
   @@index([score])
   @@index([createdAt])
+  @@index([userId, status, createdAt(sort: Desc)], map: "AlertEvent_user_status_createdAt_idx")
 }
 
 model InvestorInsight {
@@ -548,6 +610,8 @@ model NotificationDelivery {
   @@index([alertEventId])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, status, createdAt(sort: Desc)], map: "NotificationDelivery_user_status_createdAt_idx")
+  @@index([status, createdAt], map: "NotificationDelivery_status_createdAt_idx")
 }
 
 model DigestReport {
@@ -723,6 +787,7 @@ model AuditLog {
   @@index([userId])
   @@index([severity])
   @@index([createdAt])
+  @@index([userId, createdAt(sort: Desc)], map: "AuditLog_user_createdAt_idx")
 }
 
 model DisclosureAcceptance {
@@ -870,6 +935,8 @@ model FirmMembership {
   @@unique([firmId, userId])
   @@index([userId])
   @@index([firmId])
+  @@index([userId, status, createdAt(sort: Desc)], map: "FirmMembership_user_status_createdAt_idx")
+  @@index([firmId, status, createdAt(sort: Desc)], map: "FirmMembership_firm_status_createdAt_idx")
 }
 
 model FirmInvite {
@@ -2498,6 +2565,8 @@ model RealtimePriceSnapshot {
   @@index([isRealtime])
   @@index([qualityScore])
   @@index([createdAt])
+  @@index([symbol, provider, createdAt(sort: Desc)], map: "RealtimePrice_symbol_provider_createdAt_idx")
+  @@index([userId, symbol, createdAt(sort: Desc)], map: "RealtimePrice_user_symbol_createdAt_idx")
 }
 
 model RealtimeInvestorNotification {
@@ -2522,6 +2591,7 @@ model RealtimeInvestorNotification {
   @@index([score])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, status, createdAt(sort: Desc)], map: "RealtimeInvestorNotification_user_status_createdAt_idx")
 }
 
 model IntelligenceForecastRun {
@@ -2751,23 +2821,23 @@ model IntelligenceForecastDriftAlert {
 }
 
 model AdvisorClientInboxItem {
-  id                          String   @id @default(cuid())
+  id                          String    @id @default(cuid())
   firmId                      String
   clientId                    String
   assignedAdvisorMembershipId String
-  kind                        String   @default("Message")
+  kind                        String    @default("Message")
   title                       String
   body                        String
-  status                      String   @default("Unread")
-  priority                    String   @default("Medium")
+  status                      String    @default("Unread")
+  priority                    String    @default("Medium")
   sourceEventId               String
   senderName                  String?
   senderEmail                 String?
-  metadataJson                String   @default("{}")
+  metadataJson                String    @default("{}")
   readAt                      DateTime?
   resolvedAt                  DateTime?
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
   @@unique([firmId, sourceEventId])
   @@index([firmId])
@@ -2775,6 +2845,8 @@ model AdvisorClientInboxItem {
   @@index([assignedAdvisorMembershipId])
   @@index([status])
   @@index([createdAt])
+  @@index([firmId, assignedAdvisorMembershipId, createdAt(sort: Desc)], map: "AdvisorInbox_firm_advisor_createdAt_idx")
+  @@index([firmId, clientId, status, createdAt(sort: Desc)], map: "AdvisorInbox_firm_client_status_createdAt_idx")
 }
 
 model AdvisorClientInboxReply {
@@ -2788,6 +2860,7 @@ model AdvisorClientInboxReply {
   @@index([inboxItemId])
   @@index([advisorMembershipId])
   @@index([createdAt])
+  @@index([inboxItemId, createdAt], map: "AdvisorInboxReply_item_createdAt_idx")
 }
 
 model ClientAdvisorAssignmentAudit {
@@ -2804,6 +2877,7 @@ model ClientAdvisorAssignmentAudit {
   @@index([clientId])
   @@index([nextAdvisorMembershipId])
   @@index([createdAt])
+  @@index([clientId, createdAt(sort: Desc)], map: "ClientAssignmentAudit_client_createdAt_idx")
 }
 
 model ClientPortalSession {
@@ -2815,4 +2889,38 @@ model ClientPortalSession {
 
   @@index([clientId])
   @@index([expiresAt])
+}
+
+model SecurityRateLimitBucket {
+  keyHash   String   @id
+  scope     String
+  count     Int      @default(0)
+  limit     Int
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scope, resetAt], map: "SecurityRateLimit_scope_resetAt_idx")
+  @@index([resetAt], map: "SecurityRateLimit_resetAt_idx")
+}
+
+model WebVitalSample {
+  id             String   @id @default(cuid())
+  metricId       String
+  name           String
+  value          Float
+  rating         String
+  route          String
+  navigationType String?
+  sessionHash    String?
+  deviceClass    String?
+  connectionType String?
+  environment    String   @default("unknown")
+  deploymentId   String?
+  createdAt      DateTime @default(now())
+
+  @@unique([metricId, name], map: "WebVitalSample_metricId_name_key")
+  @@index([name, createdAt(sort: Desc)], map: "WebVitalSample_name_createdAt_idx")
+  @@index([route, name, createdAt(sort: Desc)], map: "WebVitalSample_route_name_createdAt_idx")
+  @@index([createdAt], map: "WebVitalSample_createdAt_idx")
 }

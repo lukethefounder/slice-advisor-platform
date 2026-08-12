@@ -1,504 +1,169 @@
-import { getCurrentClientPortalSession } from "@/lib/client-portal-auth";
+import { ApiError, withApiRoute } from "@/lib/api-route";
+import { requireCurrentClientPortalSession } from "@/lib/client-portal-auth";
 import {
-  cleanEmail,
-  cleanText,
-  noStoreJson,
-} from "@/lib/client-data-security";
-import { encryptSensitiveText } from "@/lib/data-vault";
-import { prisma } from "@/lib/prisma";
+  type ClientPortalEventInput,
+  loadClientPortalRoutingPayload,
+  routeClientPortalEvent,
+  routeClientPortalEvents,
+} from "@/lib/client-portal/events";
+import { noStoreJson } from "@/lib/client-data-security";
+import {
+  checkRateLimit,
+  getClientIp,
+  hashForSecurity,
+  isPotentiallyCrossSiteUnsafeRequest,
+} from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const db = prisma as any;
-
-const ALLOWED_KINDS = new Set([
-  "Message",
-  "Request",
-  "Document",
-  "Risk Update",
-  "Holding Update",
-  "Meeting",
-  "Approval",
-  "Profile Update",
-]);
-
-function crossSiteBlocked(request: Request) {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-
-  if (!origin || !host) return false;
-
-  try {
-    return new URL(origin).host !== host;
-  } catch {
-    return true;
-  }
-}
-
-function cleanPriority(value: unknown) {
-  const priority = cleanText(value, "Medium");
-
-  if (
-    ["Critical", "High", "Medium", "Low"].includes(
-      priority,
-    )
-  ) {
-    return priority;
-  }
-
-  if (priority === "Urgent") return "Critical";
-  if (priority === "Normal") return "Medium";
-
-  return "Medium";
-}
-
-function cleanKind(value: unknown) {
-  const kind = cleanText(value, "Message");
-
-  return ALLOWED_KINDS.has(kind) ? kind : "Message";
-}
-
-function safeMetadata(value: unknown) {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(
-      value as Record<string, unknown>,
-    )
-      .slice(0, 40)
-      .map(([key, item]) => [
-        cleanText(key).slice(0, 100),
-        typeof item === "string"
-          ? cleanText(item).slice(0, 2000)
-          : typeof item === "number" ||
-              typeof item === "boolean"
-            ? item
-            : Array.isArray(item)
-              ? item.slice(0, 25)
-              : item && typeof item === "object"
-                ? item
-                : null,
-      ]),
-  );
-}
-
-async function currentRoutingContext() {
-  const current = await getCurrentClientPortalSession();
-
-  if (!current) return null;
-
-  const assignment =
-    current.client.firmId &&
-    current.client.assignedAdvisorMembershipId
-      ? await db.firmMembership.findFirst({
-          where: {
-            id: current.client
-              .assignedAdvisorMembershipId,
-            firmId: current.client.firmId,
-            status: "Active",
-          },
-          include: {
-            user: true,
-            firm: true,
-          },
-        })
-      : null;
-
-  if (!assignment) return null;
-
-  return {
-    ...current,
-    assignment,
-  };
-}
-
-async function loadRoutingPayload() {
-  const current = await currentRoutingContext();
-
-  if (!current) return null;
-
-  const inboxItems =
-    await db.advisorClientInboxItem.findMany({
-      where: {
-        firmId: current.assignment.firmId,
-        clientId: current.client.id,
+function compatibleError(error: unknown) {
+  if (error instanceof ApiError) {
+    return noStoreJson(
+      {
+        ok: false,
+        error: error.expose
+          ? error.message
+          : "The portal routing request could not be completed.",
+        code: error.code,
+        ...(error.expose && error.details
+          ? {
+              details: error.details,
+            }
+          : {}),
       },
-      select: {
-        id: true,
-        title: true,
-        metadataJson: true,
+      {
+        status: error.status,
       },
-    });
+    );
+  }
 
-  const replies = inboxItems.length
-    ? await db.advisorClientInboxReply.findMany({
-        where: {
-          inboxItemId: {
-            in: inboxItems.map(
-              (item: any) => item.id,
-            ),
-          },
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      })
-    : [];
+  throw error;
+}
 
-  const authorIds = Array.from(
-    new Set(
-      replies.map(
-        (reply: any) =>
-          reply.advisorMembershipId,
-      ),
-    ),
-  );
+export const GET = withApiRoute(
+  {
+    route: "/api/client-portal/routing",
+    timeoutMs: 15_000,
+  },
+  async ({ request }) => {
+    try {
+      const current = await requireCurrentClientPortalSession();
+      const url = new URL(request.url);
 
-  const replyAuthors = authorIds.length
-    ? await db.firmMembership.findMany({
-        where: {
-          id: { in: authorIds },
-          firmId: current.assignment.firmId,
-        },
-        include: {
-          user: true,
-        },
-      })
-    : [];
-
-  const authorById = new Map(
-    replyAuthors.map((member: any) => [
-      member.id,
-      member.user?.name ||
-        member.user?.email ||
-        "Advisor",
-    ]),
-  );
-
-  const itemById = new Map<
-    string,
-    {
-      id: string;
-      title: string;
-      metadataJson: string;
+      return noStoreJson(
+        await loadClientPortalRoutingPayload({
+          current,
+          after: url.searchParams.get("after"),
+        }),
+      );
+    } catch (error) {
+      return compatibleError(error);
     }
-  >(
-    inboxItems.map((item: any) => [
-      item.id,
-      item,
-    ]),
-  );
+  },
+);
 
-  return {
-    ok: true,
-    client: {
-      id: current.client.id,
-      name: current.client.fullName,
-    },
-    firm: {
-      id: current.assignment.firm.id,
-      name: current.assignment.firm.name,
-    },
-    advisor: {
-      membershipId: current.assignment.id,
-      name:
-        current.assignment.user?.name ||
-        current.assignment.user?.email ||
-        "Advisor",
-      email:
-        current.assignment.user?.email || "",
-      role: current.assignment.role,
-      calendlyUrl:
-        current.assignment.calendlyEnabled &&
-        current.assignment.calendlyUrl
-          ? current.assignment.calendlyUrl
-          : null,
-      calendlyLabel:
-        current.assignment.calendlyLabel ||
-        "Schedule a meeting",
-    },
-    outboundMessages: replies.map(
-      (reply: any) => {
-        const item = itemById.get(
-          reply.inboxItemId,
-        );
+export const POST = withApiRoute(
+  {
+    route: "/api/client-portal/routing",
+    timeoutMs: 30_000,
+  },
+  async ({ request }) => {
+    try {
+      if (isPotentiallyCrossSiteUnsafeRequest(request)) {
+        throw new ApiError({
+          status: 403,
+          code: "CROSS_SITE_REQUEST_BLOCKED",
+          message: "Security policy blocked this portal request.",
+          expose: true,
+        });
+      }
 
-        let metadata: Record<
-          string,
-          unknown
-        > = {};
+      const contentType = request.headers.get("content-type") ?? "";
 
-        try {
-          metadata = JSON.parse(
-            item?.metadataJson || "{}",
-          );
-        } catch {
-          metadata = {};
-        }
+      if (!contentType.toLowerCase().includes("application/json")) {
+        throw new ApiError({
+          status: 415,
+          code: "INVALID_CONTENT_TYPE",
+          message: "Invalid request format.",
+          expose: true,
+        });
+      }
 
-        return {
-          id: reply.id,
-          inboxItemId: reply.inboxItemId,
-          threadId:
-            typeof metadata.threadId ===
-            "string"
-              ? metadata.threadId
-              : null,
-          title:
-            item?.title ||
-            "Message from your advisor",
-          advisorName:
-            authorById.get(
-              reply.advisorMembershipId,
-            ) || "Advisor",
-          body: reply.body,
-          createdAt: reply.createdAt,
-        };
-      },
-    ),
-  };
-}
-
-export async function GET() {
-  const payload = await loadRoutingPayload();
-
-  if (!payload) {
-    return noStoreJson(
-      {
-        error:
-          "An active assigned-advisor portal session is required.",
-      },
-      { status: 401 },
-    );
-  }
-
-  return noStoreJson(payload);
-}
-
-export async function POST(request: Request) {
-  if (crossSiteBlocked(request)) {
-    return noStoreJson(
-      {
-        error:
-          "Security policy blocked this portal request.",
-      },
-      { status: 403 },
-    );
-  }
-
-  const current = await currentRoutingContext();
-
-  if (!current) {
-    return noStoreJson(
-      {
-        error:
-          "An active assigned-advisor portal session is required.",
-      },
-      { status: 401 },
-    );
-  }
-
-  let body: Record<string, unknown>;
-
-  try {
-    body = (await request.json()) as Record<
-      string,
-      unknown
-    >;
-  } catch {
-    return noStoreJson(
-      { error: "Invalid JSON request body." },
-      { status: 400 },
-    );
-  }
-
-  const sourceEventId = cleanText(
-    body.sourceEventId,
-  ).slice(0, 300);
-
-  const title = cleanText(body.title).slice(
-    0,
-    500,
-  );
-
-  const itemBody = cleanText(body.body).slice(
-    0,
-    5000,
-  );
-
-  if (!sourceEventId || !title || !itemBody) {
-    return noStoreJson(
-      {
-        error:
-          "Source event, title, and message body are required.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const existing =
-    await db.advisorClientInboxItem.findUnique({
-      where: {
-        firmId_sourceEventId: {
-          firmId: current.assignment.firmId,
-          sourceEventId,
-        },
-      },
-    });
-
-  if (existing) {
-    const updated =
-      await db.advisorClientInboxItem.update({
-        where: { id: existing.id },
-        data: {
-          assignedAdvisorMembershipId:
-            current.assignment.id,
-          title,
-          body: itemBody,
-          kind: cleanKind(body.kind),
-          priority: cleanPriority(
-            body.priority,
-          ),
-          metadataJson: JSON.stringify(
-            safeMetadata(body.metadata),
-          ),
-        },
+      const current = await requireCurrentClientPortalSession();
+      const rate = checkRateLimit({
+        key: `client-portal-routing:${current.client.id}:${hashForSecurity(
+          getClientIp(request),
+        )}`,
+        limit: 40,
+        windowMs: 60 * 1_000,
       });
 
-    return noStoreJson({
-      ok: true,
-      created: false,
-      item: updated,
-    });
-  }
-
-  const senderEmail = cleanEmail(
-    body.senderEmail,
-  );
-
-  const kind = cleanKind(body.kind);
-  const priority = cleanPriority(body.priority);
-  const now = new Date();
-
-  try {
-    const item = await db.$transaction(
-      async (tx: any) => {
-        const created =
-          await tx.advisorClientInboxItem.create({
-            data: {
-              firmId:
-                current.assignment.firmId,
-              clientId: current.client.id,
-              assignedAdvisorMembershipId:
-                current.assignment.id,
-              kind,
-              title,
-              body: itemBody,
-              status: "Unread",
-              priority,
-              sourceEventId,
-              senderName: cleanText(
-                body.senderName,
-                current.client.fullName,
-              ).slice(0, 240),
-              senderEmail:
-                encryptSensitiveText(
-                  senderEmail,
-                ),
-              metadataJson: JSON.stringify(
-                safeMetadata(
-                  body.metadata,
-                ),
-              ),
-            },
-          });
-
-        await tx.notificationDelivery.create({
-          data: {
-            userId:
-              current.assignment.userId,
-            alertEventId: null,
-            channel: "Dashboard",
-            destination:
-              current.assignment.user
-                ?.email ?? null,
-            status: "Delivered",
-            urgency:
-              priority === "Critical"
-                ? "Critical"
-                : priority === "High"
-                  ? "High"
-                  : "Medium",
-            score:
-              priority === "Critical"
-                ? 95
-                : priority === "High"
-                  ? 85
-                  : 72,
-            title,
-            body: `${current.client.fullName}: ${itemBody}`.slice(
-              0,
-              5000,
-            ),
-            reason:
-              "Routed exclusively to the advisor currently assigned to this client.",
-            simulated: false,
-            deliveredAt: now,
-          },
-        });
-
-        return created;
-      },
-    );
-
-    return noStoreJson({
-      ok: true,
-      created: true,
-      item,
-    });
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: unknown })
-        .code === "P2002"
-    ) {
-      const item =
-        await db.advisorClientInboxItem.findUnique(
+      if (!rate.allowed) {
+        const response = noStoreJson(
           {
-            where: {
-              firmId_sourceEventId: {
-                firmId:
-                  current.assignment.firmId,
-                sourceEventId,
-              },
-            },
+            ok: false,
+            error: "Too many portal requests. Try again shortly.",
+            code: "CLIENT_PORTAL_RATE_LIMITED",
+          },
+          {
+            status: 429,
           },
         );
+        response.headers.set("Retry-After", String(rate.retryAfterSeconds));
+        return response;
+      }
+
+      let body: Record<string, unknown>;
+
+      try {
+        body = (await request.json()) as Record<string, unknown>;
+      } catch {
+        throw new ApiError({
+          status: 400,
+          code: "INVALID_JSON",
+          message: "Invalid JSON request body.",
+          expose: true,
+        });
+      }
+
+      if (Array.isArray(body.events)) {
+        const events = body.events
+          .filter(
+            (value): value is ClientPortalEventInput =>
+              Boolean(value && typeof value === "object" && !Array.isArray(value)),
+          )
+          .slice(0, 51);
+        const results = await routeClientPortalEvents({
+          current,
+          events,
+          request,
+        });
+
+        return noStoreJson({
+          ok: results.every((result) => result.ok),
+          batch: true,
+          accepted: results.filter((result) => result.ok).length,
+          failed: results.filter((result) => !result.ok).length,
+          results,
+        });
+      }
+
+      const result = await routeClientPortalEvent({
+        current,
+        event: body,
+        request,
+      });
 
       return noStoreJson({
         ok: true,
-        created: false,
-        item,
+        batch: false,
+        created: result.created,
+        notificationQueued: result.notificationQueued,
+        item: result.item,
       });
+    } catch (error) {
+      return compatibleError(error);
     }
-
-    return noStoreJson(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to route the client portal update.",
-      },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

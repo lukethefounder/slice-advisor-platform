@@ -1,42 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import type {
-  ChangeEvent,
-  FormEvent,
-  KeyboardEvent,
-  ReactNode,
+import {
+  Activity,
+  ArrowUpRight,
+  Bot,
+  BrainCircuit,
+  CircleStop,
+  Database,
+  FileChartColumnIncreasing,
+  Gauge,
+  Headphones,
+  Loader2,
+  Mail,
+  Mic,
+  Radio,
+  RefreshCw,
+  Search,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Waves,
+  Zap,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+
 import {
   BrandMark,
   Card,
-  Metric,
-  Pill,
   SliceBackground,
-  SoftCard,
-  cx,
-  type SliceTone,
 } from "@/components/slice-ui";
+import {
+  WorkspaceAlert,
+  WorkspaceButton,
+  WorkspacePill,
+  WorkspaceSurface,
+  WorkspaceTextarea,
+  cx,
+} from "@/components/workspace/core/workspace-ui";
 
-type StudioTab = "command" | "voice" | "tasks" | "reports";
+type StudioTab = "brain" | "voice" | "reports" | "autonomy";
 type AnswerMode = "quick" | "balanced" | "deep";
-type OperatingMode =
-  | "Research"
-  | "Platform Ops"
-  | "Advisor Brief"
-  | "Client Safe";
-type SourcePolicy = "Primary First" | "Balanced" | "Fast";
-type VoiceLanguage = "en-US" | "en-GB" | "es-US";
-type VoiceRate = "Slow" | "Normal" | "Fast";
-type Priority = "Critical" | "High" | "Medium" | "Low";
-type TaskStatus =
-  | "Backlog"
-  | "To Do"
-  | "In Progress"
-  | "Review"
-  | "Blocked"
-  | "Complete";
 
 type AiSource = {
   type?: string;
@@ -60,26 +75,18 @@ type BotMessage = {
   createdAt: string;
   metadata?: {
     clientAction?: ClientAction;
-    universalAiProvider?: string;
-    universalAiStatus?: string;
-    universalAiError?: string;
-    universalAiModel?: string;
-    universalAiLatencyMs?: number;
-    researchUsed?: boolean;
     sources?: AiSource[];
+    researchUsed?: boolean;
     fastRouterUsed?: boolean;
-    fastRouterConfidence?: number;
+    fastRouterConfidence?: number | null;
+    universalAiLatencyMs?: number | null;
+    universalAiModel?: string | null;
+    executionStatus?: string;
+    resultSummary?: string;
+    executionLane?: string;
+    evidenceScore?: number;
     [key: string]: unknown;
   };
-};
-
-type BotCommand = {
-  id: string;
-  commandText: string;
-  commandType: string;
-  status: string;
-  resultSummary: string | null;
-  createdAt: string;
 };
 
 type PdfReport = {
@@ -96,41 +103,23 @@ type PdfReport = {
     model?: string;
     researchUsed?: boolean;
     sourceCount?: number;
+    confidenceScore?: number;
+    advisorReviewRequired?: boolean;
     sources?: AiSource[];
+    [key: string]: unknown;
   };
 };
 
-type AiHealth = {
-  ok: boolean;
-  configured: boolean;
-  status: string;
-  provider: string;
-  model: string;
-  latencyMs: number;
-  error?: string;
-  checkedAt: string;
-};
-
-type AudioRuntime = {
-  configured: boolean;
-  provider: string;
-  transcriptionModel: string;
-  speechModel: string;
-  speechVoice: string;
-  speechFormat: string;
-};
-
-type PlatformCapability = {
-  key?: string;
-  label?: string;
-  route?: string;
-  category?: string;
+type MemoryPolicy = {
+  maximumSearches: number;
+  storedSearches: number;
+  reportsPreserved?: boolean;
+  auditHistoryPreserved?: boolean;
   description?: string;
-  capabilities?: string[];
-  exampleCommands?: string[];
 };
 
-type BotPayload = {
+type StudioBootstrap = {
+  ok?: boolean;
   profile: {
     id: string;
     botName: string;
@@ -141,156 +130,140 @@ type BotPayload = {
     customInstructions: string | null;
     capabilities: string[];
   };
-
   aiEngine?: {
     provider: string;
     configured: boolean;
-    health?: AiHealth;
     model: string;
     fastModel?: string;
     qualityModel?: string;
     webSearchEnabled?: boolean;
-    audio?: AudioRuntime;
+    health?: {
+      ok: boolean;
+      status: string;
+      latencyMs: number;
+      error?: string;
+    };
+    audio?: {
+      configured: boolean;
+      provider: string;
+      transcriptionModel: string;
+      speechModel: string;
+      speechVoice: string;
+      speechFormat: string;
+    };
   };
-
   platformContext?: {
     generatedAt?: string;
-
     firm?: {
       id?: string | null;
       name?: string | null;
       role?: string | null;
-    };
-
-    metrics?: Record<string, number>;
-
-    privacy?: {
-      note?: string;
-    };
-
-    capabilities?: PlatformCapability[];
+    } | null;
   } | null;
-
   messages: BotMessage[];
-  commands: BotCommand[];
-
-  tabs: Array<{
-    id: string;
-    tabName: string;
-    pinnedCommands: string[];
-    status: string;
-  }>;
-
   pdfReports?: PdfReport[];
-
-  approvals?: Array<{
-    id: string;
-    title: string;
-    status: string;
-  }>;
-
-  backendApprovals?: Array<{
-    id: string;
-    title: string;
-    status: string;
-  }>;
-
-  voiceSessions?: Array<{
-    id: string;
-    sessionKey: string;
-    language: string;
-    transcript: string;
-    finalTranscript?: string | null;
-    status: string;
-    confidenceScore: number;
-    createdAt: string;
-  }>;
-
+  approvals?: Array<{ id: string; title: string; status: string }>;
+  backendApprovals?: Array<{ id: string; title: string; status: string }>;
   lastExecution?: {
-    intent: string;
     status: string;
     resultSummary: string;
     clientAction?: ClientAction;
     sources?: AiSource[];
     researchUsed?: boolean;
   } | null;
-};
-
-type FirmWorkspacePayload = {
-  firm: {
-    id: string;
-    name: string;
-  } | null;
-
-  membership: {
-    id: string;
-    role: string;
-    canManageProjects: boolean;
-    canManageFirm: boolean;
-  } | null;
-
-  members: Array<{
-    id: string;
-    role: string;
-    status: string;
-
-    user?: {
-      id: string;
-      name: string;
-      email: string;
-    };
-  }>;
-
-  projects: Array<{
-    id: string;
-    title: string;
-    status: string;
-    priority: string;
-  }>;
-
-  operations?: {
-    allTasks: Array<{
-      id: string;
-      title: string;
-      status: string;
-      priority: string;
-      dueDate?: string | null;
-      ownerName?: string;
-    }>;
-
-    sprintMetrics?: {
-      total: number;
-      open: number;
-      inProgress: number;
-      review: number;
-      blocked: number;
-      complete: number;
-      overdue: number;
-    };
-  };
-};
-
-type VoiceRouteResponse = {
-  ok: boolean;
+  memoryPolicy: MemoryPolicy;
   error?: string;
-  detail?: string;
-  sessionKey?: string;
-  transcript?: string;
+};
 
-  result?: {
-    answer?: string;
-    status?: string;
+type InstantResponse = {
+  ok: boolean;
+  latencyMs: number;
+  transcriptionMs?: number | null;
+  transcript?: string | null;
+  userMessage: BotMessage;
+  assistantMessage: BotMessage;
+  result: {
+    intent: string;
+    status: string;
+    answer: string;
+    resultSummary: string;
     clientAction?: ClientAction;
-    sources?: AiSource[];
-    researchUsed?: boolean;
-  } | null;
-
-  performance?: {
-    totalMs?: number;
-    transcriptionMs?: number;
-    executionMs?: number;
-    fastRouterUsed?: boolean;
+    fastRouterUsed: boolean;
+    fastRouterConfidence: number | null;
+    sources: AiSource[];
+    researchUsed: boolean;
+    provider: string;
+    model: string | null;
+    providerLatencyMs: number | null;
+    executionLane: string;
+    evidenceScore: number;
   };
+  memoryPolicy: MemoryPolicy;
+  error?: string;
+};
+
+type AdvisorBriefPayload = {
+  preference?: {
+    enabled: boolean;
+    emailEnabled: boolean;
+    emailAddress: string;
+    lastSentAt: string | null;
+  };
+  schedule?: {
+    label: string;
+    nextRunAt: string | null;
+    emailReady: boolean;
+  };
+  jobs?: Array<{
+    id: string;
+    status: string;
+    progress: { value: number; message: string | null };
+    error: string | null;
+  }>;
+  delivery?: {
+    status: string;
+    destination: string | null;
+  } | null;
+};
+
+type WatchlistsPayload = {
+  state?: {
+    schedulerEnabled: boolean;
+    lastSchedulerTick: string | null;
+  };
+  metrics?: {
+    listCount: number;
+    enabledCount: number;
+    readyCount: number;
+    eventCount: number;
+    criticalEventCount: number;
+    activeJobCount: number;
+  };
+};
+
+type EmailPayload = {
+  metrics?: {
+    draftCount: number;
+    generatingCount: number;
+    pendingApprovalCount: number;
+    scheduledCount: number;
+    sendingCount: number;
+    failedCount: number;
+  };
+  jobs?: Array<{
+    id: string;
+    status: string;
+    progress: { value: number; message: string | null };
+    error: string | null;
+  }>;
+};
+
+type AutonomyState = {
+  brief: AdvisorBriefPayload | null;
+  watchlists: WatchlistsPayload | null;
+  email: EmailPayload | null;
+  loadedAt: string | null;
+  loading: boolean;
 };
 
 type SpeechRecognitionAlternativeLike = {
@@ -307,7 +280,7 @@ type SpeechRecognitionEventLike = {
   results: ArrayLike<SpeechRecognitionResultLike>;
 };
 
-type SpeechRecognitionInstance = {
+type SpeechRecognitionLike = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
@@ -320,5080 +293,2128 @@ type SpeechRecognitionInstance = {
   onerror: ((event?: unknown) => void) | null;
 };
 
-type SpeechRecognitionConstructor =
-  new () => SpeechRecognitionInstance;
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
-type TaskDraft = {
-  title: string;
-  detail: string;
-  priority: Priority;
-  status: TaskStatus;
-  dueDate: string;
-  reminderAt: string;
-  reminderNote: string;
-  projectId: string;
-  notifyEmail: boolean;
+type SpeechWindow = {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-type StudioPreferences = {
-  operatingMode: OperatingMode;
-  sourcePolicy: SourcePolicy;
-  autoOpenActions: boolean;
-  compactSources: boolean;
-  showExecutionTrace: boolean;
-  autoReadReplies: boolean;
-  voiceAutoSend: boolean;
-  voiceLanguage: VoiceLanguage;
-  voiceRate: VoiceRate;
-  reportDepth: "Balanced" | "Full";
-  includeAssumptions: boolean;
-  includeRiskNotes: boolean;
-  includeReviewChecklist: boolean;
-};
+const PREFERENCES_KEY = "slice-ai-studio-cockpit-v11";
+const MEMORY_TURNS = 10;
 
-type PlatformRoute = {
-  label: string;
-  href: string;
-  category: string;
-  description: string;
-};
+const QUICK_PROMPTS = [
+  "Summarize what needs my attention across Slice right now.",
+  "Show the most important watchlist, briefing, email, and document automation issues.",
+  "Research NVDA with current sources, valuation context, catalysts, and downside risks.",
+  "Prepare a client-safe explanation of current market volatility with sources.",
+  "Open the Client Email Center and prepare a market update workflow.",
+] as const;
 
-const PREFERENCES_KEY =
-  "slice-ai-studio-page-v9";
+const ROUTE_ACTIONS = [
+  {
+    label: "Clients",
+    href: "/workspace/clients",
+    helper: "Profiles and assignments",
+  },
+  {
+    label: "Email Center",
+    href: "/workspace/client-emails",
+    helper: "Draft, approve, deliver",
+  },
+  {
+    label: "Watchlists",
+    href: "/workspace/watchlists",
+    helper: "Rules and scanning",
+  },
+  {
+    label: "Advisor Brief",
+    href: "/workspace/brief",
+    helper: "Scheduled intelligence",
+  },
+  {
+    label: "Settings",
+    href: "/workspace/settings",
+    helper: "Appearance and AI defaults",
+  },
+] as const;
 
-const DEFAULT_PREFERENCES: StudioPreferences = {
-  operatingMode: "Research",
-  sourcePolicy: "Primary First",
-  autoOpenActions: true,
-  compactSources: false,
-  showExecutionTrace: true,
-  autoReadReplies: false,
-  voiceAutoSend: false,
-  voiceLanguage: "en-US",
-  voiceRate: "Normal",
-  reportDepth: "Balanced",
-  includeAssumptions: true,
-  includeRiskNotes: true,
-  includeReviewChecklist: true,
-};
+const REPORT_TEMPLATES = [
+  {
+    label: "Investment memo",
+    helper: "Thesis, valuation, catalysts, risks, sources.",
+    prompt:
+      "Create a source-backed investment research memo with an executive summary, valuation context, catalysts, downside risks, assumptions, visible sources, and an advisor review checklist.",
+  },
+  {
+    label: "Client review packet",
+    helper: "Client-ready context and next actions.",
+    prompt:
+      "Create a client-ready portfolio review packet with market context, plain-English talking points, risks, follow-ups, assumptions, visible sources, and an advisor review checklist.",
+  },
+  {
+    label: "Volatility brief",
+    helper: "Current drivers, behavior, and portfolio questions.",
+    prompt:
+      "Create a client-ready market volatility briefing with exact dates, verified drivers, behavioral guidance, portfolio review questions, risks, sources, and advisor review notes.",
+  },
+  {
+    label: "Firm operating review",
+    helper: "Priorities, automation, approvals, bottlenecks.",
+    prompt:
+      "Create a visual firm operating review from accessible Slice data with priorities, approvals, automation health, client-service risks, bottlenecks, next actions, and evidence sources.",
+  },
+] as const;
 
-const TABS: Array<{
+const TAB_DEFINITIONS: Array<{
   id: StudioTab;
   label: string;
   helper: string;
+  icon: typeof BrainCircuit;
 }> = [
   {
-    id: "command",
-    label: "Command",
-    helper: "Research and operate",
+    id: "brain",
+    label: "Brain",
+    helper: "Ask and operate",
+    icon: BrainCircuit,
   },
   {
     id: "voice",
-    label: "Voice Ops",
-    helper: "Speak and execute",
-  },
-  {
-    id: "tasks",
-    label: "Tasks",
-    helper: "Assign real work",
+    label: "Voice",
+    helper: "Transcribe to action",
+    icon: Mic,
   },
   {
     id: "reports",
     label: "Reports",
-    helper: "Source-backed output",
+    helper: "Client-ready output",
+    icon: FileChartColumnIncreasing,
+  },
+  {
+    id: "autonomy",
+    label: "Autonomy",
+    helper: "Always-on systems",
+    icon: Activity,
   },
 ];
 
-const OPERATING_MODES: Array<{
-  id: OperatingMode;
-  helper: string;
-}> = [
-  {
-    id: "Research",
-    helper:
-      "Current facts, sources, catalysts, and risks",
-  },
-  {
-    id: "Platform Ops",
-    helper:
-      "Fast navigation and verified platform actions",
-  },
-  {
-    id: "Advisor Brief",
-    helper:
-      "Decision-ready summaries with next steps",
-  },
-  {
-    id: "Client Safe",
-    helper:
-      "Plain language prepared for advisor review",
-  },
-];
+function formatDate(value?: string | null) {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
 
-const QUICK_PROMPTS = [
-  "Research NVDA with current primary sources, valuation context, catalysts, and downside risks.",
-  "Summarize what needs my attention across Slice today.",
-  "Search the firm for Apple exposure and related client-service tasks.",
-  "Create a high-priority task to review the latest client briefing tomorrow.",
-  "Create a source-backed report explaining current market volatility.",
-  "Run backend vendor health and explain any failures.",
-];
-
-const REPORT_TEMPLATES = [
-  {
-    title:
-      "Investment Research Memo",
-
-    helper:
-      "Thesis, valuation, catalysts, risks, and sources.",
-
-    prompt:
-      "Create a source-backed investment research memo with current facts, valuation context, bull and bear cases, catalysts, downside risks, data limitations, assumptions, visible sources, and advisor next steps.",
-  },
-  {
-    title:
-      "Client Review Packet",
-
-    helper:
-      "Market context, talking points, and follow-ups.",
-
-    prompt:
-      "Create a source-backed client portfolio review packet with an executive summary, current market context, risk discussion, advisor talking points, follow-up tasks, assumptions, visible sources, and an advisor review checklist.",
-  },
-  {
-    title:
-      "Market Volatility Brief",
-
-    helper:
-      "Current drivers, exact dates, and behavioral guidance.",
-
-    prompt:
-      "Create a current market-volatility report with verified drivers, exact dates, portfolio review questions, behavioral coaching, risk considerations, visible sources, and a compliance-conscious advisor checklist.",
-  },
-  {
-    title:
-      "Firm Operating Review",
-
-    helper:
-      "Priorities, tasks, approvals, and bottlenecks.",
-
-    prompt:
-      "Create an internal Slice firm operating review using accessible platform data, including priorities, tasks, approvals, client-service risks, workflow bottlenecks, action owners, and next steps. Do not invent external facts.",
-  },
-];
-
-const FALLBACK_ROUTES: PlatformRoute[] = [
-  {
-    label: "Workspace",
-    href: "/workspace",
-    category: "Home",
-    description:
-      "Central Slice workspace",
-  },
-  {
-    label: "Custom Board",
-    href:
-      "/workspace/custom-board",
-    category: "Markets",
-    description:
-      "Advisor-owned security analysis board",
-  },
-  {
-    label: "Watchlists",
-    href:
-      "/workspace/watchlists",
-    category: "Markets",
-    description:
-      "Tracked securities, rules, and thresholds",
-  },
-  {
-    label: "Market Visuals",
-    href: "/market-visuals",
-    category: "Markets",
-    description:
-      "Presentation-ready charts and market views",
-  },
-  {
-    label: "Intelligence",
-    href:
-      "/workspace/intelligence",
-    category:
-      "Intelligence",
-    description:
-      "Technical and news monitoring",
-  },
-  {
-    label: "Triage",
-    href: "/triage",
-    category:
-      "Intelligence",
-    description:
-      "Review and prioritize market intelligence",
-  },
-  {
-    label:
-      "Opportunity Radar",
-    href:
-      "/opportunity-radar",
-    category:
-      "Intelligence",
-    description:
-      "Rank opportunities and supporting evidence",
-  },
-  {
-    label:
-      "Client Portal Inbox",
-    href:
-      "/workspace/client-portal-inbox",
-    category: "Clients",
-    description:
-      "Client requests and portal activity",
-  },
-  {
-    label:
-      "Client Profiles",
-    href:
-      "/workspace/clients",
-    category: "Clients",
-    description:
-      "Household, objective, and relationship context",
-  },
-  {
-    label:
-      "Client Email Center",
-    href:
-      "/workspace/client-emails",
-    category:
-      "Communication",
-    description:
-      "Advisor-reviewed communication drafts",
-  },
-  {
-    label:
-      "Client Briefings",
-    href:
-      "/workspace/client-briefings",
-    category: "Reports",
-    description:
-      "Client-facing briefing workflows",
-  },
-  {
-    label: "Team Board",
-    href:
-      "/workspace/team-board",
-    category: "Team",
-    description:
-      "Tasks, projects, calendars, and documents",
-  },
-  {
-    label:
-      "Firm Command Center",
-    href:
-      "/workspace/firm-command-center",
-    category: "Firm",
-    description:
-      "Firm oversight and operating metrics",
-  },
-  {
-    label: "Portfolio Lab",
-    href: "/portfolio-lab",
-    category: "Portfolio",
-    description:
-      "Portfolio and allocation analysis",
-  },
-  {
-    label: "Venture Monitor",
-    href:
-      "/alternative-investments?view=venture",
-    category:
-      "Alternatives",
-    description:
-      "Startup and venture tracking",
-  },
-  {
-    label: "Penny Stocks",
-    href:
-      "/alternative-investments?view=penny-stocks",
-    category:
-      "Alternatives",
-    description:
-      "Speculative equity monitoring",
-  },
-  {
-    label: "Crypto Markets",
-    href:
-      "/alternative-investments?view=crypto",
-    category:
-      "Alternatives",
-    description:
-      "Digital asset monitoring",
-  },
-  {
-    label:
-      "Watchlist Alerts",
-    href:
-      "/watchlist-alerts",
-    category: "Alerts",
-    description:
-      "Price thresholds and alert status",
-  },
-  {
-    label:
-      "Backend Kernel",
-    href: "/backend-kernel",
-    category: "System",
-    description:
-      "Providers, jobs, queues, and integrations",
-  },
-  {
-    label:
-      "Backend Readiness",
-    href:
-      "/backend-readiness",
-    category: "System",
-    description:
-      "Health, approvals, roles, and isolation",
-  },
-  {
-    label: "Briefings",
-    href: "/briefings",
-    category: "Reports",
-    description:
-      "Advisor and client report center",
-  },
-  {
-    label:
-      "Security Center",
-    href: "/security",
-    category:
-      "Governance",
-    description:
-      "Security, audit, and compliance controls",
-  },
-  {
-    label:
-      "Compliance Center",
-    href:
-      "/security?panel=compliance",
-    category:
-      "Governance",
-    description:
-      "Review gates and advisor guardrails",
-  },
-  {
-    label:
-      "Platform Settings",
-    href:
-      "/workspace/settings",
-    category: "Settings",
-    description:
-      "Appearance, privacy, and platform preferences",
-  },
-];
-
-function addDays(
-  days: number,
-) {
-  const date =
-    new Date();
-
-  date.setDate(
-    date.getDate() +
-      days,
-  );
-
-  return date
-    .toISOString()
-    .slice(0, 10);
+  return Number.isNaN(date.getTime())
+    ? "Not recorded"
+    : date.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 }
 
-function statusTone(
-  value:
-    | string
-    | number
-    | null
-    | undefined,
-): SliceTone {
-  const normalized =
-    String(
-      value ?? "",
-    ).toLowerCase();
+function trimToTurns(messages: BotMessage[], maximumTurns = MEMORY_TURNS) {
+  let userTurns = 0;
+  let startIndex = 0;
 
-  const numeric =
-    typeof value ===
-    "number"
-      ? value
-      : Number.NaN;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") {
+      userTurns += 1;
+    }
 
-  if (
-    normalized.includes(
-      "failed",
-    ) ||
-    normalized.includes(
-      "error",
-    ) ||
-    normalized.includes(
-      "blocked",
-    ) ||
-    normalized.includes(
-      "invalid",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric < 40)
-  ) {
-    return "red";
+    if (userTurns > maximumTurns) {
+      startIndex = index + 1;
+      break;
+    }
   }
 
-  if (
-    normalized.includes(
-      "ready",
-    ) ||
-    normalized.includes(
-      "complete",
-    ) ||
-    normalized.includes(
-      "active",
-    ) ||
-    normalized.includes(
-      "live",
-    ) ||
-    normalized.includes(
-      "verified",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric >= 75)
-  ) {
-    return "green";
-  }
-
-  if (
-    normalized.includes(
-      "pending",
-    ) ||
-    normalized.includes(
-      "review",
-    ) ||
-    normalized.includes(
-      "approval",
-    ) ||
-    normalized.includes(
-      "queued",
-    ) ||
-    (!Number.isNaN(
-      numeric,
-    ) &&
-      numeric >= 40 &&
-      numeric < 75)
-  ) {
-    return "amber";
-  }
-
-  if (
-    normalized.includes(
-      "voice",
-    ) ||
-    normalized.includes(
-      "model",
-    )
-  ) {
-    return "purple";
-  }
-
-  if (
-    normalized.includes(
-      "research",
-    ) ||
-    normalized.includes(
-      "source",
-    )
-  ) {
-    return "cyan";
-  }
-
-  return "slate";
+  return messages.slice(startIndex);
 }
 
-function formatDate(
-  value?: string | null,
-) {
-  if (!value) {
-    return "—";
-  }
-
-  const date =
-    new Date(value);
+function statusTone(value: string | null | undefined) {
+  const normalized = String(value ?? "").toLowerCase();
 
   if (
-    Number.isNaN(
-      date.getTime(),
-    )
+    normalized.includes("complete") ||
+    normalized.includes("ready") ||
+    normalized.includes("sent") ||
+    normalized.includes("active") ||
+    normalized.includes("healthy")
   ) {
-    return "—";
+    return "emerald" as const;
   }
-
-  return date.toLocaleString(
-    undefined,
-    {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    },
-  );
-}
-
-function relativeTime(
-  value?: string | null,
-) {
-  if (!value) {
-    return "Never";
-  }
-
-  const date =
-    new Date(value);
 
   if (
-    Number.isNaN(
-      date.getTime(),
-    )
+    normalized.includes("processing") ||
+    normalized.includes("queued") ||
+    normalized.includes("running") ||
+    normalized.includes("generating")
   ) {
-    return "Unknown";
+    return "cyan" as const;
   }
 
-  const minutes =
-    Math.max(
-      0,
-      Math.round(
-        (Date.now() -
-          date.getTime()) /
-          60_000,
-      ),
-    );
-
-  if (minutes < 1) {
-    return "Just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours =
-    Math.round(
-      minutes / 60,
-    );
-
-  return hours < 24
-    ? `${hours}h ago`
-    : `${Math.round(
-        hours / 24,
-      )}d ago`;
-}
-
-function reportViewerHref(
-  report: PdfReport,
-) {
-  if (report.viewerUrl) {
-    return report.viewerUrl;
-  }
-
-  try {
-    const base =
-      typeof window ===
-      "undefined"
-        ? "http://localhost"
-        : window.location
-            .origin;
-
-    const token =
-      new URL(
-        report.downloadUrl,
-        base,
-      ).searchParams.get(
-        "token",
-      );
-
-    return token
-      ? `/workspace/personal-bot/reports?token=${encodeURIComponent(
-          token,
-        )}`
-      : report.downloadUrl;
-  } catch {
-    return report.downloadUrl;
-  }
-}
-
-function stripForSpeech(
-  value: string,
-) {
-  return value
-    .replace(
-      /https?:\/\/\S+/g,
-      "A supporting link is available in the written response.",
-    )
-    .replace(
-      /[`*_>#]/g,
-      "",
-    )
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 12_000);
-}
-
-function recorderMimeType() {
   if (
-    typeof MediaRecorder ===
-      "undefined" ||
-    typeof MediaRecorder
-      .isTypeSupported !==
-      "function"
+    normalized.includes("failed") ||
+    normalized.includes("error") ||
+    normalized.includes("blocked") ||
+    normalized.includes("review")
   ) {
-    return "";
+    return "amber" as const;
   }
 
-  return (
-    [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/mp4",
-      "audio/ogg;codecs=opus",
-    ].find((value) =>
-      MediaRecorder.isTypeSupported(
-        value,
-      ),
-    ) ?? ""
-  );
+  return "slate" as const;
 }
 
-function Surface({
-  children,
-  className,
-  accent = "red",
-}: {
-  children: ReactNode;
-  className?: string;
-  accent?:
-    | "red"
-    | "cyan"
-    | "purple"
-    | "amber"
-    | "green";
+function executionStage(input: {
+  busy: boolean;
+  elapsedMs: number;
+  mode: AnswerMode;
+  transcribing: boolean;
 }) {
-  const gradients: Record<
-    typeof accent,
-    string
-  > = {
-    red:
-      "from-emerald-950/[0.12]",
-    cyan:
-      "from-cyan-950/[0.09]",
-    purple:
-      "from-purple-950/[0.09]",
-    amber:
-      "from-amber-950/[0.08]",
-    green:
-      "from-emerald-950/[0.08]",
-  };
+  if (input.transcribing) {
+    return "Transcribing voice and preserving financial terms";
+  }
 
-  return (
-    <Card
-      className={cx(
-        "relative overflow-hidden !border-white/[0.10] !bg-[#050505]/95 shadow-[0_24px_80px_rgba(0,0,0,0.55)]",
-        className,
-      )}
-    >
-      <div
-        className={cx(
-          "pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent",
-          gradients[accent],
-        )}
-      />
+  if (!input.busy) {
+    return "Ready for the next command";
+  }
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+  if (input.elapsedMs < 450) {
+    return "Interpreting intent and checking the fast command router";
+  }
 
-      <div className="relative">
-        {children}
-      </div>
-    </Card>
-  );
+  if (input.elapsedMs < 1_400) {
+    return "Loading only the permission-scoped context this command needs";
+  }
+
+  if (input.mode === "deep") {
+    return "Researching current sources and building a verified response";
+  }
+
+  return "Executing the platform action and verifying the result";
 }
 
-function Heading({
-  eyebrow,
-  title,
-  helper,
-}: {
-  eyebrow: string;
-  title: string;
-  helper?: string;
-}) {
+function SourceList({ sources }: { sources: AiSource[] }) {
+  if (!sources.length) {
+    return (
+      <p className="text-xs font-semibold leading-5 text-slate-600">
+        No public source links were required for the latest platform action.
+      </p>
+    );
+  }
+
   return (
-    <div>
-      <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
-        {eyebrow}
-      </div>
-
-      <h2 className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
-        {title}
-      </h2>
-
-      {helper ? (
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-          {helper}
-        </p>
-      ) : null}
+    <div className="grid gap-2">
+      {sources.slice(0, 8).map((source, index) => (
+        <a
+          key={`${source.url}-${index}`}
+          href={source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group min-w-0 rounded-xl border border-cyan-400/16 bg-cyan-500/[0.045] p-3 transition hover:border-cyan-300/35 hover:bg-cyan-500/[0.08]"
+        >
+          <p className="line-clamp-2 text-xs font-black text-white">
+            {source.title || `Source ${index + 1}`}
+          </p>
+          <p className="mt-1 truncate text-[10px] font-semibold text-cyan-300/70">
+            {source.url}
+          </p>
+        </a>
+      ))}
     </div>
   );
 }
 
-function Button({
-  children,
-  onClick,
-  disabled,
-  variant = "primary",
-  type = "button",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?:
-    | "primary"
-    | "secondary"
-    | "ghost"
-    | "danger";
-  type?:
-    | "button"
-    | "submit";
-}) {
-  const styles = {
-    primary:
-      "border-white/20 bg-white text-slate-950 hover:bg-emerald-50 shadow-lg shadow-black/40",
-
-    secondary:
-      "border-emerald-400/25 bg-emerald-950/20 text-emerald-100 hover:border-emerald-300/40 hover:bg-emerald-950/30",
-
-    ghost:
-      "border-white/10 bg-white/[0.04] text-slate-200 hover:border-white/20 hover:bg-white/[0.07]",
-
-    danger:
-      "border-emerald-500/30 bg-emerald-950/25 text-emerald-100 hover:bg-emerald-900/30",
-  };
+function RichMessage({ value }: { value: string }) {
+  const blocks = value
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
 
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={cx(
-        "rounded-2xl border px-4 py-2.5 text-xs font-black transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45",
-        styles[variant],
-      )}
-    >
-      {children}
-    </button>
+    <div className="space-y-3 text-sm font-semibold leading-6 text-slate-200">
+      {blocks.map((block, index) => {
+        const lines = block.split("\n").map((line) => line.trim());
+        const bullets = lines.filter((line) => /^[-*•]\s+/.test(line));
+
+        if (bullets.length === lines.length && bullets.length) {
+          return (
+            <ul key={`${block.slice(0, 24)}-${index}`} className="space-y-1.5 pl-5">
+              {bullets.map((line) => (
+                <li key={line} className="list-disc">
+                  {line.replace(/^[-*•]\s+/, "")}
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        return (
+          <p key={`${block.slice(0, 24)}-${index}`} className="whitespace-pre-wrap">
+            {block}
+          </p>
+        );
+      })}
+    </div>
   );
 }
 
-function Field({
+function MiniMetric({
   label,
-  children,
+  value,
+  helper,
+  icon,
 }: {
   label: string;
-  children: ReactNode;
+  value: string | number;
+  helper: string;
+  icon: ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">
-        {label}
-      </span>
-
-      <div className="mt-2">
-        {children}
-      </div>
-    </label>
-  );
-}
-
-function Sources({
-  sources,
-  compact,
-}: {
-  sources: AiSource[];
-  compact: boolean;
-}) {
-  if (!sources.length) {
-    return null;
-  }
-
-  return (
-    <div className="mt-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
-          Supporting sources
+    <div className="rounded-2xl border border-white/8 bg-white/[0.028] p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[8px] font-black uppercase tracking-[0.15em] text-slate-600">
+            {label}
+          </p>
+          <p className="mt-1 truncate text-xl font-black text-white">{value}</p>
+          <p className="mt-1 truncate text-[10px] font-semibold text-slate-600">
+            {helper}
+          </p>
         </div>
-
-        <Pill tone="cyan">
-          {sources.length} links
-        </Pill>
-      </div>
-
-      <div className="mt-3 grid gap-2 md:grid-cols-2">
-        {sources
-          .slice(
-            0,
-            compact ? 4 : 8,
-          )
-          .map(
-            (
-              source,
-              index,
-            ) => (
-              <a
-                key={`${source.url}-${index}`}
-                href={source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-2xl border border-cyan-500/20 bg-[#080b0c] p-3 transition hover:border-cyan-300/40 hover:bg-cyan-950/20"
-              >
-                <div className="line-clamp-2 text-xs font-black text-white">
-                  {source.title ||
-                    `Source ${
-                      index + 1
-                    }`}
-                </div>
-
-                <div className="mt-1 truncate text-[10px] text-cyan-200/70">
-                  {source.url}
-                </div>
-              </a>
-            ),
-          )}
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] text-[var(--slice-accent)]">
+          {icon}
+        </div>
       </div>
     </div>
   );
 }
 
-function ExecutionTrace({
-  message,
-  action,
-  sourceCount,
+function CognitiveMap({
+  lane,
+  researchUsed,
+  busy,
 }: {
-  message?: BotMessage;
-  action?: ClientAction;
-  sourceCount: number;
+  lane: string;
+  researchUsed: boolean;
+  busy: boolean;
 }) {
-  const steps: Array<{
-    label: string;
-    status: string;
-    helper: string;
-    tone: SliceTone;
-  }> = [
+  const nodes = [
     {
       label: "Interpret",
-
-      status: message
-        ? "Complete"
-        : "Waiting",
-
-      helper:
-        message?.intent ||
-        "Classify the request",
-
-      tone: message
-        ? "green"
-        : "slate",
+      active: true,
+      icon: <BrainCircuit className="h-3.5 w-3.5" />,
     },
     {
-      label: "Research",
-
-      status: message
-        ?.metadata
-        ?.researchUsed
-        ? "Complete"
-        : "Not required",
-
-      helper: message
-        ?.metadata
-        ?.researchUsed
-        ? `${sourceCount} visible source${
-            sourceCount === 1
-              ? ""
-              : "s"
-          }`
-        : "Platform context only",
-
-      tone: message
-        ?.metadata
-        ?.researchUsed
-        ? "cyan"
-        : "slate",
+      label: "Route",
+      active: Boolean(lane),
+      icon: <Zap className="h-3.5 w-3.5" />,
     },
     {
-      label: "Execute",
-
-      status: action?.href
-        ? "Ready"
-        : "No route",
-
-      helper: action?.href
-        ? String(
-            action.type ||
-              "Verified result",
-          )
-        : "Answer completed",
-
-      tone: action?.href
-        ? "green"
-        : "slate",
+      label: researchUsed ? "Research" : "Context",
+      active: researchUsed || !busy,
+      icon: researchUsed ? <Search className="h-3.5 w-3.5" /> : <Database className="h-3.5 w-3.5" />,
     },
     {
-      label: "Audit",
-
-      status: message
-        ? "Stored"
-        : "Waiting",
-
-      helper:
-        "Message and command metadata",
-
-      tone: message
-        ? "purple"
-        : "slate",
+      label: "Verify",
+      active: !busy,
+      icon: <ShieldCheck className="h-3.5 w-3.5" />,
+    },
+    {
+      label: "Act",
+      active: !busy,
+      icon: <ArrowUpRight className="h-3.5 w-3.5" />,
     },
   ];
 
   return (
-    <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {steps.map(
-        (
-          step,
-          index,
-        ) => (
-          <div
-            key={step.label}
-            className="rounded-2xl border border-white/10 bg-black/55 p-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-300">
-                {String(
-                  index + 1,
-                ).padStart(
-                  2,
-                  "0",
-                )}{" "}
-                · {step.label}
-              </span>
-
-              <Pill
-                tone={
-                  step.tone
-                }
-              >
-                {step.status}
-              </Pill>
-            </div>
-
-            <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-slate-300">
-              {step.helper}
+    <WorkspaceSurface className="relative overflow-hidden p-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,var(--slice-accent-soft),transparent_56%),linear-gradient(rgba(52,211,153,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,.025)_1px,transparent_1px)] bg-[size:auto,20px_20px,20px_20px]" />
+      <div className="relative">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+              Cognitive fabric
             </p>
+            <p className="mt-1 text-sm font-black text-white">{lane}</p>
           </div>
-        ),
-      )}
+          <span className={cx(
+            "relative grid h-9 w-9 place-items-center rounded-full border border-[var(--slice-accent-border)] bg-black/45 text-[var(--slice-accent)]",
+            busy && "animate-pulse",
+          )}>
+            <span className="absolute inset-1 rounded-full border border-[var(--slice-accent-border)]" />
+            <BrainCircuit className="relative h-4 w-4" />
+          </span>
+        </div>
+
+        <div className="relative mt-4 grid grid-cols-5 gap-1">
+          <div className="pointer-events-none absolute left-[9%] right-[9%] top-4 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
+          {nodes.map((node, index) => (
+            <div key={node.label} className="relative z-10 text-center">
+              <div
+                className={cx(
+                  "mx-auto grid h-8 w-8 place-items-center rounded-xl border transition",
+                  node.active
+                    ? "border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] text-[var(--slice-accent)] shadow-[0_0_24px_var(--slice-accent-glow)]"
+                    : "border-white/8 bg-black/40 text-slate-700",
+                  busy && index <= 2 && "animate-pulse",
+                )}
+              >
+                {node.icon}
+              </div>
+              <p className="mt-1.5 truncate text-[7px] font-black uppercase tracking-[0.08em] text-slate-600">
+                {node.label}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </WorkspaceSurface>
+  );
+}
+
+function EmptyPanel({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="grid min-h-56 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-7 text-center">
+      <div className="max-w-md">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] text-[var(--slice-accent)]">
+          {icon}
+        </div>
+        <h3 className="mt-4 text-lg font-black text-white">{title}</h3>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }
 
 export default function PersonalBotPage() {
-  const [
-    data,
-    setData,
-  ] =
-    useState<
-      BotPayload | null
-    >(null);
-
-  const [
-    workspace,
-    setWorkspace,
-  ] =
-    useState<
-      FirmWorkspacePayload | null
-    >(null);
-
-  const [
-    activeTab,
-    setActiveTab,
-  ] =
-    useState<StudioTab>(
-      "command",
-    );
-
-  const [
-    answerMode,
-    setAnswerMode,
-  ] =
-    useState<AnswerMode>(
-      "balanced",
-    );
-
-  const [
-    prompt,
-    setPrompt,
-  ] = useState("");
-
-  const [
-    voiceDraft,
-    setVoiceDraft,
-  ] = useState("");
-
-  const [
-    reportPrompt,
-    setReportPrompt,
-  ] = useState(
-    REPORT_TEMPLATES[0]
-      .prompt,
-  );
-
-  const [
-    notice,
-    setNotice,
-  ] = useState("");
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    busy,
-    setBusy,
-  ] = useState(false);
-
-  const [
-    verifying,
-    setVerifying,
-  ] = useState(false);
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
-  const [
-    recording,
-    setRecording,
-  ] = useState(false);
-
-  const [
-    transcribing,
-    setTranscribing,
-  ] = useState(false);
-
-  const [
-    listening,
-    setListening,
-  ] = useState(false);
-
-  const [
-    speaking,
-    setSpeaking,
-  ] = useState(false);
-
-  const [
-    elapsedSeconds,
-    setElapsedSeconds,
-  ] = useState(0);
-
-  const [
-    requestStartedAt,
-    setRequestStartedAt,
-  ] =
-    useState<
-      number | null
-    >(null);
-
-  const [
-    recorderSupported,
-    setRecorderSupported,
-  ] = useState(false);
-
-  const [
-    browserSpeechSupported,
-    setBrowserSpeechSupported,
-  ] = useState(false);
-
-  const [
-    voiceSessionKey,
-    setVoiceSessionKey,
-  ] = useState("");
-
-  const [
-    selectedMemberId,
-    setSelectedMemberId,
-  ] = useState("");
-
-  const [
-    preferences,
-    setPreferences,
-  ] =
-    useState<StudioPreferences>(
-      DEFAULT_PREFERENCES,
-    );
-
-  const [
-    task,
-    setTask,
-  ] =
-    useState<TaskDraft>({
-      title: "",
-      detail: "",
-      priority: "Medium",
-      status: "To Do",
-      dueDate:
-        addDays(1),
-      reminderAt: "",
-      reminderNote: "",
-      projectId: "",
-      notifyEmail: true,
-    });
-
-  const recognitionRef =
-    useRef<
-      SpeechRecognitionInstance | null
-    >(null);
-
-  const recorderRef =
-    useRef<
-      MediaRecorder | null
-    >(null);
-
-  const streamRef =
-    useRef<
-      MediaStream | null
-    >(null);
-
-  const chunksRef =
-    useRef<Blob[]>([]);
-
-  const audioRef =
-    useRef<
-      HTMLAudioElement | null
-    >(null);
-
-  const audioUrlRef =
-    useRef<
-      string | null
-    >(null);
-
-  const requestControllerRef =
-    useRef<
-      AbortController | null
-    >(null);
-
-  const health =
-    data?.aiEngine
-      ?.health;
-
-  const audio =
-    data?.aiEngine
-      ?.audio;
-
-  const messages =
-    data?.messages ?? [];
-
-  const commands =
-    data?.commands ?? [];
-
-  const reports =
-    data?.pdfReports ?? [];
-
-  const voiceSessions =
-    data?.voiceSessions ??
-    [];
-
-  const metrics =
-    data?.platformContext
-      ?.metrics ?? {};
-
-  const approvals = [
-    ...(data?.approvals ??
-      []),
-
-    ...(data?.backendApprovals ??
-      []),
-  ];
-
-  const latestAssistant =
-    useMemo(
-      () =>
-        [...messages]
-          .reverse()
-          .find(
-            (item) =>
-              item.role ===
-              "assistant",
-          ),
-      [messages],
-    );
-
-  const latestUser =
-    useMemo(
-      () =>
-        [...messages]
-          .reverse()
-          .find(
-            (item) =>
-              item.role ===
-              "user",
-          ),
-      [messages],
-    );
-
-  const latestSources =
-    latestAssistant
-      ?.metadata
-      ?.sources ??
-    data?.lastExecution
-      ?.sources ??
-    [];
-
-  const latestAction =
-    latestAssistant
-      ?.metadata
-      ?.clientAction ??
-    data?.lastExecution
-      ?.clientAction;
-
-  const pinnedCommands =
-    useMemo(() => {
-      const tab =
-        data?.tabs.find(
-          (item) =>
-            item.tabName ===
-              "AI Studio" ||
-            item.tabName ===
-              "My Bot",
-        );
-
-      return tab
-        ?.pinnedCommands
-        ?.length
-        ? tab.pinnedCommands
-        : QUICK_PROMPTS;
-    }, [data?.tabs]);
-
-  const platformRoutes =
-    useMemo<
-      PlatformRoute[]
-    >(() => {
-      const supplied =
-        data?.platformContext
-          ?.capabilities
-          ?.filter(
-            (item) =>
-              item.label &&
-              item.route,
-          )
-          .map(
-            (item) => ({
-              label:
-                item.label as string,
-
-              href:
-                item.route as string,
-
-              category:
-                item.category ||
-                "Platform",
-
-              description:
-                item.description ||
-                item.capabilities?.join(
-                  ", ",
-                ) ||
-                "Slice platform capability",
-            }),
-          );
-
-      return supplied?.length
-        ? supplied
-        : FALLBACK_ROUTES;
-    }, [
-      data?.platformContext
-        ?.capabilities,
-    ]);
-
-  const readiness =
-    useMemo(() => {
-      let score = 30;
-
-      if (health?.ok) {
-        score += 30;
-      }
-
-      if (
-        data?.aiEngine
-          ?.webSearchEnabled
-      ) {
-        score += 12;
-      }
-
-      if (
-        audio?.configured
-      ) {
-        score += 10;
-      }
-
-      if (workspace?.firm) {
-        score += 8;
-      }
-
-      if (reports.length) {
-        score += 5;
-      }
-
-      if (
-        !approvals.length
-      ) {
-        score += 5;
-      }
-
-      return Math.min(
-        100,
-        score,
-      );
-    }, [
-      approvals.length,
-      audio?.configured,
-      data?.aiEngine
-        ?.webSearchEnabled,
-      health?.ok,
-      reports.length,
-      workspace?.firm,
-    ]);
-
-  async function loadBot() {
-    const response =
-      await fetch(
-        "/api/personal-bot",
-        {
-          cache:
-            "no-store",
-        },
-      );
-
-    const payload =
-      (await response.json()) as
-        BotPayload & {
-          error?: string;
-          detail?: string;
-        };
-
-    if (!response.ok) {
-      throw new Error(
-        payload.detail ||
-          payload.error ||
-          "AI Studio could not load.",
-      );
-    }
-
-    setData({
-      ...payload,
-
-      messages:
-        payload.messages
-          .length > 12
-          ? payload.messages.slice(
-              -12,
-            )
-          : payload.messages,
-    });
-  }
-
-  async function loadWorkspace() {
-    const response =
-      await fetch(
-        "/api/firm-workspace",
-        {
-          cache:
-            "no-store",
-        },
-      );
-
-    if (!response.ok) {
-      setWorkspace(null);
-      return;
-    }
-
-    const payload =
-      (await response.json()) as
-        FirmWorkspacePayload;
-
-    setWorkspace(payload);
-
-    if (
-      !selectedMemberId &&
-      payload.members[0]
-    ) {
-      setSelectedMemberId(
-        payload.members[0].id,
-      );
-    }
-  }
-
-  async function refreshAll() {
-    setRefreshing(true);
-    setNotice("");
+  const [activeTab, setActiveTab] = useState<StudioTab>("brain");
+  const [data, setData] = useState<StudioBootstrap | null>(null);
+  const [messages, setMessages] = useState<BotMessage[]>([]);
+  const [prompt, setPrompt] = useState("");
+  const [answerMode, setAnswerMode] = useState<AnswerMode>("balanced");
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [browserVoiceAvailable, setBrowserVoiceAvailable] = useState(false);
+  const [recordingAvailable, setRecordingAvailable] = useState(false);
+  const [autoExecuteVoice, setAutoExecuteVoice] = useState(true);
+  const [autoOpenActions, setAutoOpenActions] = useState(true);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [reportPrompt, setReportPrompt] = useState<string>(REPORT_TEMPLATES[0].prompt);
+  const [selectedReportId, setSelectedReportId] = useState("");
+  const [lastLatencyMs, setLastLatencyMs] = useState<number | null>(null);
+  const [lastExecutionLane, setLastExecutionLane] = useState("Adaptive Analysis");
+  const [lastEvidenceScore, setLastEvidenceScore] = useState(0);
+  const [requestElapsedMs, setRequestElapsedMs] = useState(0);
+  const [autonomy, setAutonomy] = useState<AutonomyState>({
+    brief: null,
+    watchlists: null,
+    email: null,
+    loadedAt: null,
+    loading: false,
+  });
+
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const conversationRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const requestStartedAtRef = useRef<number | null>(null);
+
+  const loadStudio = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
 
     try {
-      await Promise.all([
-        loadBot(),
-        loadWorkspace(),
-      ]);
-
-      setNotice(
-        "AI Studio context refreshed from current Slice records.",
-      );
-    } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Context refresh failed.",
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  function openClientAction(
-    action?: ClientAction,
-  ) {
-    if (!action?.href) {
-      return;
-    }
-
-    if (
-      action.type ===
-        "report" ||
-      action.type ===
-        "source"
-    ) {
-      window.open(
-        action.href,
-        "_blank",
-        "noopener,noreferrer",
-      );
-
-      return;
-    }
-
-    window.location.assign(
-      action.href,
-    );
-  }
-
-  function maybeAutoOpen(
-    action?: ClientAction,
-  ) {
-    if (
-      preferences.autoOpenActions &&
-      action?.autoRun
-    ) {
-      openClientAction(
-        action,
-      );
-    }
-  }
-
-  async function verifyAi() {
-    setVerifying(true);
-    setNotice("");
-
-    try {
-      const response =
-        await fetch(
-          "/api/personal-bot",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                action:
-                  "verifyAi",
-              }),
-          },
-        );
-
-      const payload =
-        (await response.json()) as
-          BotPayload & {
-            error?: string;
-            detail?: string;
-          };
+      const response = await fetch("/api/personal-bot/instant", {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as StudioBootstrap;
 
       if (!response.ok) {
-        throw new Error(
-          payload.detail ||
-            payload.error ||
-            "AI verification failed.",
-        );
+        throw new Error(payload.error || "AI Studio could not load.");
       }
 
       setData(payload);
-
-      setNotice(
-        payload.aiEngine
-          ?.health?.ok
-          ? `OpenAI verified through ${payload.aiEngine.health.model}.`
-          : payload.aiEngine
-                ?.health
-                ?.error ||
-              "AI verification failed.",
+      const nextMessages = trimToTurns(payload.messages ?? []);
+      setMessages(nextMessages);
+      const latestLoadedAssistant = [...nextMessages]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      setLastExecutionLane(
+        typeof latestLoadedAssistant?.metadata?.executionLane === "string"
+          ? latestLoadedAssistant.metadata.executionLane
+          : latestLoadedAssistant?.metadata?.researchUsed
+            ? "Research"
+            : "Adaptive Analysis",
+      );
+      setLastEvidenceScore(
+        typeof latestLoadedAssistant?.metadata?.evidenceScore === "number"
+          ? latestLoadedAssistant.metadata.evidenceScore
+          : 0,
+      );
+      setSelectedReportId(
+        (current) => current || payload.pdfReports?.[0]?.id || "",
       );
     } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "AI verification failed.",
-      );
+      if (!silent) {
+        setNotice(error instanceof Error ? error.message : "AI Studio could not load.");
+      }
     } finally {
-      setVerifying(false);
+      if (!silent) setLoading(false);
     }
-  }
+  }, []);
 
-  async function sendCommand(
-    command = prompt,
-    voiceTranscript?: string,
-    mode:
-      AnswerMode =
-      answerMode,
-  ) {
-    const clean =
-      command.trim();
+  const loadAutonomy = useCallback(async () => {
+    setAutonomy((current) => ({ ...current, loading: true }));
 
-    if (!clean) {
+    const [brief, watchlists, email] = await Promise.allSettled([
+      fetch("/api/advisor-brief", { cache: "no-store" }).then((response) =>
+        response.ok ? (response.json() as Promise<AdvisorBriefPayload>) : null,
+      ),
+      fetch("/api/workspace/watchlists", { cache: "no-store" }).then(
+        (response) =>
+          response.ok ? (response.json() as Promise<WatchlistsPayload>) : null,
+      ),
+      fetch("/api/client-emails", { cache: "no-store" }).then((response) =>
+        response.ok ? (response.json() as Promise<EmailPayload>) : null,
+      ),
+    ]);
+
+    setAutonomy({
+      brief: brief.status === "fulfilled" ? brief.value : null,
+      watchlists: watchlists.status === "fulfilled" ? watchlists.value : null,
+      email: email.status === "fulfilled" ? email.value : null,
+      loadedAt: new Date().toISOString(),
+      loading: false,
+    });
+  }, []);
+
+  useEffect(() => {
+    void loadStudio();
+
+    const browser = window as unknown as SpeechWindow;
+    setBrowserVoiceAvailable(
+      Boolean(browser.SpeechRecognition || browser.webkitSpeechRecognition),
+    );
+    setRecordingAvailable(
+      typeof MediaRecorder !== "undefined" &&
+        typeof navigator.mediaDevices?.getUserMedia === "function",
+    );
+
+    try {
+      const stored = JSON.parse(
+        window.localStorage.getItem(PREFERENCES_KEY) || "{}",
+      ) as Partial<{
+        answerMode: AnswerMode;
+        autoExecuteVoice: boolean;
+        autoOpenActions: boolean;
+      }>;
+
+      if (
+        stored.answerMode === "quick" ||
+        stored.answerMode === "balanced" ||
+        stored.answerMode === "deep"
+      ) {
+        setAnswerMode(stored.answerMode);
+      }
+
+      if (typeof stored.autoExecuteVoice === "boolean") {
+        setAutoExecuteVoice(stored.autoExecuteVoice);
+      }
+
+      if (typeof stored.autoOpenActions === "boolean") {
+        setAutoOpenActions(stored.autoOpenActions);
+      }
+    } catch {
+      // Local Studio preferences are optional.
+    }
+  }, [loadStudio]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PREFERENCES_KEY,
+      JSON.stringify({
+        answerMode,
+        autoExecuteVoice,
+        autoOpenActions,
+      }),
+    );
+  }, [answerMode, autoExecuteVoice, autoOpenActions]);
+
+  useEffect(() => {
+    if (activeTab !== "autonomy") return;
+
+    void loadAutonomy();
+    const interval = window.setInterval(() => void loadAutonomy(), 20_000);
+    return () => window.clearInterval(interval);
+  }, [activeTab, loadAutonomy]);
+
+  useEffect(() => {
+    if (!busy || !requestStartedAtRef.current) {
+      setRequestElapsedMs(0);
       return;
     }
 
-    requestControllerRef.current
-      ?.abort();
+    const interval = window.setInterval(() => {
+      setRequestElapsedMs(Date.now() - (requestStartedAtRef.current ?? Date.now()));
+    }, 200);
 
-    const controller =
-      new AbortController();
+    return () => window.clearInterval(interval);
+  }, [busy]);
 
-    requestControllerRef.current =
-      controller;
+  useEffect(() => {
+    conversationRef.current?.scrollTo({
+      top: conversationRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, busy]);
 
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const editing =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.getAttribute("contenteditable") === "true";
+
+      if (event.key === "/" && !editing) {
+        event.preventDefault();
+        promptRef.current?.focus();
+      }
+
+      if (event.key === "Escape" && requestControllerRef.current) {
+        event.preventDefault();
+        requestControllerRef.current.abort();
+      }
+    }
+
+    document.addEventListener("keydown", shortcut);
+    return () => document.removeEventListener("keydown", shortcut);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort?.();
+      requestControllerRef.current?.abort();
+
+      if (recorderRef.current?.state !== "inactive") {
+        recorderRef.current?.stop();
+      }
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const reports = data?.pdfReports ?? [];
+  const selectedReport =
+    reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null;
+  const latestAssistant = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant"),
+    [messages],
+  );
+  const latestSources = latestAssistant?.metadata?.sources ?? [];
+  const latestAction = latestAssistant?.metadata?.clientAction;
+  const pendingApprovals = [
+    ...(data?.approvals ?? []),
+    ...(data?.backendApprovals ?? []),
+  ].filter((approval) => approval.status === "Pending").length;
+  const memoryPolicy = data?.memoryPolicy ?? {
+    maximumSearches: MEMORY_TURNS,
+    storedSearches: Math.min(MEMORY_TURNS, messages.filter((message) => message.role === "user").length),
+  };
+  const aiReady = Boolean(data?.aiEngine?.configured);
+  const stage = executionStage({
+    busy,
+    elapsedMs: requestElapsedMs,
+    mode: answerMode,
+    transcribing,
+  });
+
+  function maybeOpenAction(action?: ClientAction) {
+    if (!autoOpenActions || !action?.href || action.autoRun !== true) return;
+
+    if (/^https?:\/\//i.test(action.href)) {
+      window.open(action.href, "_blank", "noopener,noreferrer");
+    } else {
+      window.location.assign(action.href);
+    }
+  }
+
+  function mergeCompletedResponse(
+    optimisticId: string | null,
+    payload: InstantResponse,
+  ) {
+    setMessages((current) => {
+      const withoutOptimistic = optimisticId
+        ? current.filter((message) => message.id !== optimisticId)
+        : current;
+
+      return trimToTurns([
+        ...withoutOptimistic,
+        payload.userMessage,
+        payload.assistantMessage,
+      ]);
+    });
+
+    setData((current) =>
+      current
+        ? {
+            ...current,
+            memoryPolicy: payload.memoryPolicy,
+            lastExecution: {
+              status: payload.result.status,
+              resultSummary: payload.result.resultSummary,
+              clientAction: payload.result.clientAction,
+              sources: payload.result.sources,
+              researchUsed: payload.result.researchUsed,
+            },
+          }
+        : current,
+    );
+    setLastLatencyMs(payload.latencyMs);
+    setLastExecutionLane(payload.result.executionLane || "Adaptive Analysis");
+    setLastEvidenceScore(payload.result.evidenceScore || 0);
+    maybeOpenAction(payload.result.clientAction);
+  }
+
+  async function runCommand(
+    command = prompt,
+    mode: AnswerMode = answerMode,
+    transcript?: string,
+  ): Promise<InstantResponse | null> {
+    const clean = command.trim();
+    if (!clean || busy || transcribing) return null;
+
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
+    requestStartedAtRef.current = Date.now();
+
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimistic: BotMessage = {
+      id: optimisticId,
+      role: "user",
+      content: clean,
+      intent: transcript ? "Voice Command" : "Command",
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages((current) => trimToTurns([...current, optimistic]));
+    setPrompt("");
     setBusy(true);
     setNotice("");
-    setPrompt("");
-
-    setRequestStartedAt(
-      Date.now(),
-    );
+    setLastLatencyMs(null);
 
     try {
-      const response =
-        await fetch(
-          "/api/personal-bot",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            signal:
-              controller.signal,
-
-            body:
-              JSON.stringify({
-                action:
-                  "sendMessage",
-
-                prompt: clean,
-
-                answerMode:
-                  mode,
-
-                voiceTranscript,
-
-                currentPath:
-                  "/workspace/personal-bot",
-
-                pageTitle:
-                  "Slice AI Studio",
-
-                advancedSettings:
-                  preferences,
-              }),
+      const response = await fetch("/api/personal-bot/instant", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          prompt: clean,
+          voiceTranscript: transcript,
+          answerMode: mode,
+          currentPath: "/workspace/personal-bot",
+          pageTitle: "Slice AI Studio",
+          advancedSettings: {
+            autoOpenActions,
+            adaptiveRouting: true,
+            operatingMode: mode === "quick" ? "Platform Ops" : "Research",
+            sourcePolicy:
+              mode === "quick"
+                ? "Fast"
+                : mode === "deep"
+                  ? "Primary First"
+                  : "Balanced",
           },
-        );
+        }),
+      });
+      const payload = (await response.json()) as InstantResponse;
 
-      const payload =
-        (await response.json()) as
-          BotPayload & {
-            error?: string;
-            detail?: string;
-          };
-
-      if (!response.ok) {
-        throw new Error(
-          payload.detail ||
-            payload.error ||
-            "The command failed.",
-        );
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Slice AI could not complete the request.");
       }
 
-      setData(payload);
-
-      maybeAutoOpen(
-        payload.lastExecution
-          ?.clientAction,
-      );
-
-      const reply =
-        [...payload.messages]
-          .reverse()
-          .find(
-            (item) =>
-              item.role ===
-              "assistant",
-          );
+      mergeCompletedResponse(optimisticId, payload);
 
       if (
-        preferences.autoReadReplies &&
-        reply?.content
+        payload.result.clientAction?.type === "report" ||
+        payload.result.clientAction?.pdfHref
       ) {
-        await speak(
-          reply.content,
-        );
+        window.setTimeout(() => void loadStudio(true), 500);
       }
+
+      return payload;
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.name ===
-          "AbortError"
-      ) {
-        setNotice(
-          "The request was stopped before completion.",
-        );
+      setMessages((current) => current.filter((message) => message.id !== optimisticId));
+
+      if (error instanceof Error && error.name === "AbortError") {
+        setNotice("The current AI request was stopped.");
       } else {
         setNotice(
           error instanceof Error
             ? error.message
-            : "The command failed.",
+            : "Slice AI could not complete the request.",
+        );
+      }
+
+      return null;
+    } finally {
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
+      requestStartedAtRef.current = null;
+      setBusy(false);
+    }
+  }
+
+  async function runRecordedAudio(blob: Blob) {
+    if (busy || transcribing) return;
+
+    const controller = new AbortController();
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = controller;
+    requestStartedAtRef.current = Date.now();
+    setTranscribing(true);
+    setBusy(true);
+    setNotice("");
+
+    try {
+      const form = new FormData();
+      form.set(
+        "audio",
+        new File([blob], "slice-command.webm", {
+          type: blob.type || "audio/webm",
+        }),
+      );
+      form.set("language", "en-US");
+      form.set("answerMode", "quick");
+      form.set("currentPath", "/workspace/personal-bot");
+      form.set("pageTitle", "Slice AI Studio Voice");
+      form.set(
+        "advancedSettings",
+        JSON.stringify({
+          autoOpenActions,
+          adaptiveRouting: true,
+          operatingMode: "Platform Ops",
+          sourcePolicy: "Fast",
+        }),
+      );
+
+      const response = await fetch("/api/personal-bot/instant", {
+        method: "POST",
+        body: form,
+        signal: controller.signal,
+      });
+      const payload = (await response.json()) as InstantResponse;
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Voice command could not be completed.");
+      }
+
+      setVoiceTranscript(payload.transcript ?? "");
+      mergeCompletedResponse(null, payload);
+      setActiveTab("brain");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setNotice("The voice request was stopped.");
+      } else {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "Voice command could not be completed.",
         );
       }
     } finally {
-      if (
-        requestControllerRef.current ===
-        controller
-      ) {
-        requestControllerRef.current =
-          null;
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
       }
-
+      requestStartedAtRef.current = null;
+      setTranscribing(false);
       setBusy(false);
-
-      setRequestStartedAt(
-        null,
-      );
     }
   }
 
   function stopRequest() {
-    requestControllerRef.current
-      ?.abort();
-
-    requestControllerRef.current =
-      null;
-
-    setBusy(false);
-
-    setRequestStartedAt(
-      null,
-    );
+    requestControllerRef.current?.abort();
   }
 
-  async function executeVoiceTranscript(
-    transcript: string,
-  ) {
-    const clean =
-      transcript.trim();
+  function startBrowserVoice() {
+    const browser = window as unknown as SpeechWindow;
+    const Recognition =
+      browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
 
-    if (!clean) {
+    if (!Recognition) {
+      setNotice(
+        "Instant browser transcription is unavailable here. Use high-accuracy recording instead.",
+      );
       return;
     }
 
-    setTranscribing(true);
-    setNotice("");
+    recognitionRef.current?.abort?.();
+    const recognition = new Recognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    let finalText = "";
+
+    recognition.onstart = () => {
+      setListening(true);
+      setActiveTab("voice");
+      setNotice("");
+    };
+
+    recognition.onresult = (event) => {
+      let interim = "";
+
+      for (
+        let index = event.resultIndex ?? 0;
+        index < event.results.length;
+        index += 1
+      ) {
+        const result = event.results[index];
+        const text = result?.[0]?.transcript ?? "";
+
+        if (result?.isFinal) finalText += text;
+        else interim += text;
+      }
+
+      const current = (finalText || interim).trim();
+      setVoiceTranscript(current);
+      setPrompt(current);
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      const clean = finalText.trim();
+
+      if (clean && autoExecuteVoice) {
+        void runCommand(clean, "quick", clean).then(() => setActiveTab("brain"));
+      }
+    };
+
+    recognition.onerror = () => {
+      setListening(false);
+      setNotice(
+        "Browser voice recognition stopped. High-accuracy recording remains available.",
+      );
+    };
+
+    recognitionRef.current = recognition;
 
     try {
-      const response =
-        await fetch(
-          "/api/personal-bot/voice",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                action:
-                  "transcribeAndExecute",
-
-                transcript:
-                  clean,
-
-                fallbackTranscript:
-                  clean,
-
-                sessionKey:
-                  voiceSessionKey ||
-                  undefined,
-
-                language:
-                  preferences.voiceLanguage,
-
-                answerMode,
-
-                currentPath:
-                  "/workspace/personal-bot",
-
-                pageTitle:
-                  "Slice AI Studio Voice Ops",
-
-                recentMessages:
-                  messages
-                    .slice(-8)
-                    .map(
-                      (item) => ({
-                        role:
-                          item.role,
-
-                        content:
-                          item.content,
-                      }),
-                    ),
-
-                advancedSettings:
-                  preferences,
-              }),
-          },
-        );
-
-      const payload =
-        (await response.json()) as
-          VoiceRouteResponse;
-
-      if (
-        !response.ok ||
-        !payload.ok
-      ) {
-        throw new Error(
-          payload.detail ||
-            payload.error ||
-            "Voice command failed.",
-        );
-      }
-
-      if (
-        payload.sessionKey
-      ) {
-        setVoiceSessionKey(
-          payload.sessionKey,
-        );
-      }
-
-      if (
-        payload.transcript
-      ) {
-        setVoiceDraft(
-          payload.transcript,
-        );
-      }
-
-      await loadBot();
-
-      maybeAutoOpen(
-        payload.result
-          ?.clientAction,
-      );
-
-      if (
-        preferences.autoReadReplies &&
-        payload.result?.answer
-      ) {
-        await speak(
-          payload.result.answer,
-        );
-      }
-
-      if (
-        payload.performance
-          ?.totalMs
-      ) {
-        setNotice(
-          `Voice command completed in ${payload.performance.totalMs} ms.`,
-        );
-      }
+      recognition.start();
     } catch (error) {
+      setListening(false);
       setNotice(
         error instanceof Error
           ? error.message
-          : "Voice command failed.",
+          : "Browser voice recognition could not start.",
       );
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  async function executeAudio(
-    blob: Blob,
-  ) {
-    setTranscribing(true);
-    setNotice("");
-
-    try {
-      const form =
-        new FormData();
-
-      form.set(
-        "audio",
-
-        new File(
-          [blob],
-          "slice-command.webm",
-          {
-            type:
-              blob.type ||
-              "audio/webm",
-          },
-        ),
-      );
-
-      form.set(
-        "action",
-        "transcribeAndExecute",
-      );
-
-      form.set(
-        "language",
-        preferences.voiceLanguage,
-      );
-
-      form.set(
-        "answerMode",
-        answerMode,
-      );
-
-      form.set(
-        "currentPath",
-        "/workspace/personal-bot",
-      );
-
-      form.set(
-        "pageTitle",
-        "Slice AI Studio Voice Ops",
-      );
-
-      form.set(
-        "advancedSettings",
-
-        JSON.stringify(
-          preferences,
-        ),
-      );
-
-      form.set(
-        "recentMessages",
-
-        JSON.stringify(
-          messages
-            .slice(-8)
-            .map(
-              (item) => ({
-                role:
-                  item.role,
-
-                content:
-                  item.content,
-              }),
-            ),
-        ),
-      );
-
-      if (voiceSessionKey) {
-        form.set(
-          "sessionKey",
-          voiceSessionKey,
-        );
-      }
-
-      const response =
-        await fetch(
-          "/api/personal-bot/voice",
-          {
-            method: "POST",
-            body: form,
-          },
-        );
-
-      const payload =
-        (await response.json()) as
-          VoiceRouteResponse;
-
-      if (
-        !response.ok ||
-        !payload.ok
-      ) {
-        throw new Error(
-          payload.detail ||
-            payload.error ||
-            payload.result
-              ?.answer ||
-            "Voice command failed.",
-        );
-      }
-
-      if (
-        payload.sessionKey
-      ) {
-        setVoiceSessionKey(
-          payload.sessionKey,
-        );
-      }
-
-      if (
-        payload.transcript
-      ) {
-        setVoiceDraft(
-          payload.transcript,
-        );
-      }
-
-      await loadBot();
-
-      maybeAutoOpen(
-        payload.result
-          ?.clientAction,
-      );
-
-      if (
-        preferences.autoReadReplies &&
-        payload.result?.answer
-      ) {
-        await speak(
-          payload.result.answer,
-        );
-      }
-
-      if (
-        payload.performance
-          ?.totalMs
-      ) {
-        setNotice(
-          `Voice command completed in ${payload.performance.totalMs} ms.`,
-        );
-      }
-    } catch (error) {
-      setNotice(
-        error instanceof Error
-          ? error.message
-          : "Voice command failed.",
-      );
-    } finally {
-      setTranscribing(false);
     }
   }
 
   async function startRecording() {
+    if (!recordingAvailable || busy || transcribing) {
+      setNotice("High-accuracy recording is not available in this browser.");
+      return;
+    }
+
     try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            audio: {
-              echoCancellation:
-                true,
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
+      streamRef.current = stream;
+      chunksRef.current = [];
 
-              noiseSuppression:
-                true,
+      const recorder = new MediaRecorder(stream, {
+        audioBitsPerSecond: 64_000,
+      });
+      recorderRef.current = recorder;
 
-              autoGainControl:
-                true,
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
 
-              channelCount: 1,
-            },
-          },
-        );
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
 
-      streamRef.current =
-        stream;
-
-      chunksRef.current =
-        [];
-
-      const mimeType =
-        recorderMimeType();
-
-      const recorder =
-        mimeType
-          ? new MediaRecorder(
-              stream,
-              {
-                mimeType,
-
-                audioBitsPerSecond:
-                  64_000,
-              },
-            )
-          : new MediaRecorder(
-              stream,
-            );
-
-      recorderRef.current =
-        recorder;
-
-      recorder.ondataavailable =
-        (
-          event: BlobEvent,
-        ) => {
-          if (
-            event.data.size >
-            0
-          ) {
-            chunksRef.current.push(
-              event.data,
-            );
-          }
-        };
-
-      recorder.onstop =
-        () => {
-          const blob =
-            new Blob(
-              chunksRef.current,
-              {
-                type:
-                  recorder.mimeType ||
-                  "audio/webm",
-              },
-            );
-
-          streamRef.current
-            ?.getTracks()
-            .forEach(
-              (track) =>
-                track.stop(),
-            );
-
-          streamRef.current =
-            null;
-
-          setRecording(false);
-
-          void executeAudio(
-            blob,
-          );
-        };
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        setRecording(false);
+        void runRecordedAudio(blob);
+      };
 
       recorder.start(200);
-
-      setActiveTab("voice");
       setRecording(true);
+      setActiveTab("voice");
+      setNotice("");
     } catch (error) {
       setNotice(
-        error instanceof Error
-          ? error.message
-          : "Microphone access failed.",
+        error instanceof Error ? error.message : "Microphone access failed.",
       );
     }
   }
 
   function stopRecording() {
-    if (
-      recorderRef.current
-        ?.state !==
-      "inactive"
-    ) {
-      recorderRef.current
-        ?.stop();
+    if (recorderRef.current?.state !== "inactive") {
+      recorderRef.current?.stop();
     }
   }
 
-  function stopSpeaking() {
-    audioRef.current?.pause();
-
-    audioRef.current =
-      null;
-
-    if (
-      audioUrlRef.current
-    ) {
-      URL.revokeObjectURL(
-        audioUrlRef.current,
-      );
-
-      audioUrlRef.current =
-        null;
-    }
-
-    window.speechSynthesis
-      ?.cancel();
-
-    setSpeaking(false);
-  }
-
-  async function speak(
-    value: string,
-  ) {
-    const text =
-      stripForSpeech(
-        value,
-      );
-
-    if (!text) {
+  async function clearWorkingMemory() {
+    if (!window.confirm("Clear the rolling AI working memory? Reports and audit records will remain.")) {
       return;
     }
-
-    stopSpeaking();
 
     try {
-      const response =
-        await fetch(
-          "/api/personal-bot/speech",
-          {
-            method: "POST",
+      const response = await fetch("/api/personal-bot/instant", {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        memoryPolicy?: MemoryPolicy;
+      };
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                text,
-
-                voice:
-                  audio?.speechVoice,
-
-                model:
-                  audio?.speechModel,
-
-                format:
-                  audio?.speechFormat ||
-                  "mp3",
-
-                speed:
-                  preferences.voiceRate ===
-                  "Slow"
-                    ? 0.86
-                    : preferences.voiceRate ===
-                        "Fast"
-                      ? 1.08
-                      : 0.96,
-              }),
-          },
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          "OpenAI speech was unavailable.",
-        );
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Working memory could not be cleared.");
       }
 
-      const blob =
-        await response.blob();
-
-      const url =
-        URL.createObjectURL(
-          blob,
-        );
-
-      audioUrlRef.current =
-        url;
-
-      const player =
-        new Audio(url);
-
-      audioRef.current =
-        player;
-
-      player.onended =
-        () =>
-          setSpeaking(false);
-
-      player.onerror =
-        () =>
-          setSpeaking(false);
-
-      setSpeaking(true);
-
-      await player.play();
-    } catch {
-      if (
-        !window.speechSynthesis
-      ) {
-        return;
-      }
-
-      const utterance =
-        new SpeechSynthesisUtterance(
-          text.slice(
-            0,
-            2200,
-          ),
-        );
-
-      utterance.lang =
-        preferences.voiceLanguage;
-
-      utterance.rate =
-        preferences.voiceRate ===
-        "Slow"
-          ? 0.84
-          : preferences.voiceRate ===
-              "Fast"
-            ? 1.05
-            : 0.94;
-
-      utterance.onstart =
-        () =>
-          setSpeaking(true);
-
-      utterance.onend =
-        () =>
-          setSpeaking(false);
-
-      utterance.onerror =
-        () =>
-          setSpeaking(false);
-
-      window.speechSynthesis.speak(
-        utterance,
+      setMessages([]);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              messages: [],
+              memoryPolicy: {
+                maximumSearches: MEMORY_TURNS,
+                storedSearches: 0,
+                reportsPreserved: true,
+                auditHistoryPreserved: true,
+              },
+            }
+          : current,
       );
-    }
-  }
-
-  function startBrowserListening(
-    target:
-      | "prompt"
-      | "voice",
-  ) {
-    const browser =
-      window as unknown as {
-        SpeechRecognition?: SpeechRecognitionConstructor;
-        webkitSpeechRecognition?: SpeechRecognitionConstructor;
-      };
-
-    const Recognition =
-      browser.SpeechRecognition ||
-      browser.webkitSpeechRecognition;
-
-    if (!Recognition) {
-      return;
-    }
-
-    const recognition =
-      new Recognition();
-
-    recognition.continuous =
-      false;
-
-    recognition.interimResults =
-      true;
-
-    recognition.lang =
-      preferences.voiceLanguage;
-
-    let finalTranscript =
-      "";
-
-    recognition.onstart =
-      () =>
-        setListening(true);
-
-    recognition.onresult =
-      (
-        event: SpeechRecognitionEventLike,
-      ) => {
-        let interim = "";
-
-        for (
-          let index =
-            event.resultIndex ??
-            0;
-          index <
-          event.results
-            .length;
-          index += 1
-        ) {
-          const result =
-            event.results[
-              index
-            ];
-
-          const transcript =
-            result?.[0]
-              ?.transcript ??
-            "";
-
-          if (
-            result?.isFinal
-          ) {
-            finalTranscript +=
-              transcript;
-          } else {
-            interim +=
-              transcript;
-          }
-        }
-
-        const current =
-          (
-            finalTranscript ||
-            interim
-          ).trim();
-
-        if (
-          target === "voice"
-        ) {
-          setVoiceDraft(
-            current,
-          );
-        } else {
-          setPrompt(
-            current,
-          );
-        }
-      };
-
-    recognition.onend =
-      () => {
-        setListening(false);
-
-        const current =
-          finalTranscript.trim();
-
-        if (!current) {
-          return;
-        }
-
-        if (
-          target === "voice"
-        ) {
-          setVoiceDraft(
-            current,
-          );
-
-          if (
-            preferences.voiceAutoSend
-          ) {
-            void executeVoiceTranscript(
-              current,
-            );
-          }
-        } else {
-          setPrompt(
-            current,
-          );
-        }
-      };
-
-    recognition.onerror =
-      () => {
-        setListening(false);
-
-        setNotice(
-          "Browser speech recognition stopped. OpenAI recording remains available.",
-        );
-      };
-
-    recognitionRef.current =
-      recognition;
-
-    recognition.start();
-  }
-
-  async function createTask(
-    event:
-      FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    if (
-      !workspace?.firm ||
-      !selectedMemberId ||
-      !task.title.trim()
-    ) {
-      setNotice(
-        "A connected firm, owner, and task title are required.",
-      );
-
-      return;
-    }
-
-    setBusy(true);
-    setNotice("");
-
-    try {
-      const response =
-        await fetch(
-          "/api/firm-workspace",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                firmId:
-                  workspace.firm.id,
-
-                action:
-                  "createDelegatedTask",
-
-                targetMembershipId:
-                  selectedMemberId,
-
-                ...task,
-              }),
-          },
-        );
-
-      const payload =
-        (await response.json()) as
-          FirmWorkspacePayload & {
-            error?: string;
-          };
-
-      if (!response.ok) {
-        throw new Error(
-          payload.error ||
-            "Task creation failed.",
-        );
-      }
-
-      setWorkspace(payload);
-
-      setTask(
-        (current) => ({
-          ...current,
-          title: "",
-          detail: "",
-          reminderAt: "",
-          reminderNote: "",
-        }),
-      );
-
-      setNotice(
-        "Task created and assigned on the Team Board.",
-      );
+      setNotice("AI working memory cleared. Reports and audit history were preserved.");
     } catch (error) {
       setNotice(
         error instanceof Error
           ? error.message
-          : "Task creation failed.",
+          : "Working memory could not be cleared.",
       );
-    } finally {
-      setBusy(false);
     }
   }
 
-  function generateReport(
-    sourceText?: string,
-  ) {
-    const title =
-      reportPrompt.trim() ||
-      "Advisor Intelligence Report";
+  async function generateReport() {
+    const request = reportPrompt.trim();
+    if (!request) return;
 
-    const command =
-      `Create a source-backed Slice report.
-
-Report request:
-${sourceText?.trim() || title}
-
-Report controls:
-- Depth: ${preferences.reportDepth}
-- Source policy: ${preferences.sourcePolicy}
-- Include assumptions: ${preferences.includeAssumptions ? "Yes" : "No"}
-- Include risk notes: ${preferences.includeRiskNotes ? "Yes" : "No"}
-- Include advisor review checklist: ${preferences.includeReviewChecklist ? "Yes" : "No"}
-
-Requirements:
-- Use current authoritative sources for time-sensitive market, company, economic, legal, regulatory, product, or news claims.
-- Separate facts, internal Slice records, assumptions, estimates, scenarios, and recommendations.
-- Include exact dates, visible source links, data limitations, financial implications, downside risks, next actions, and advisor review notes.
-- Do not use private client identifiers in public research queries.`;
-
-    setActiveTab(
-      "reports",
-    );
-
-    void sendCommand(
-      command,
-      undefined,
+    setActiveTab("brain");
+    const result = await runCommand(
+      `${request}\n\nRequirements:\n- Build a premium client-ready visual report.\n- Separate verified facts, assumptions, scenarios, risks, and advisor next actions.\n- Include exact dates for time-sensitive claims.\n- Include visible source links and data limitations.\n- Do not include private client identifiers in public research queries.\n- Require advisor review before external use.`,
       "deep",
     );
+
+    if (result) {
+      window.setTimeout(() => {
+        void loadStudio(true).then(() => setActiveTab("reports"));
+      }, 500);
+    }
   }
 
-  useEffect(() => {
-    setLoading(true);
-
-    Promise.all([
-      loadBot(),
-      loadWorkspace(),
-    ])
-      .catch(
-        (
-          error: unknown,
-        ) => {
-          setNotice(
-            error instanceof Error
-              ? error.message
-              : "AI Studio failed to load.",
-          );
-        },
-      )
-      .finally(() =>
-        setLoading(false),
-      );
-
-    const browser =
-      window as unknown as {
-        SpeechRecognition?: SpeechRecognitionConstructor;
-        webkitSpeechRecognition?: SpeechRecognitionConstructor;
-      };
-
-    setBrowserSpeechSupported(
-      Boolean(
-        browser.SpeechRecognition ||
-          browser.webkitSpeechRecognition,
-      ),
-    );
-
-    setRecorderSupported(
-      typeof MediaRecorder !==
-        "undefined" &&
-        typeof navigator
-          .mediaDevices
-          ?.getUserMedia ===
-          "function",
-    );
-
-    try {
-      const saved =
-        window.localStorage.getItem(
-          PREFERENCES_KEY,
-        );
-
-      if (saved) {
-        setPreferences({
-          ...DEFAULT_PREFERENCES,
-
-          ...(JSON.parse(
-            saved,
-          ) as Partial<StudioPreferences>),
-        });
-      }
-    } catch {
-      setPreferences(
-        DEFAULT_PREFERENCES,
-      );
+  function handlePromptKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      void runCommand();
     }
-
-    return () => {
-      recognitionRef.current
-        ?.abort?.();
-
-      requestControllerRef.current
-        ?.abort();
-
-      streamRef.current
-        ?.getTracks()
-        .forEach(
-          (track) =>
-            track.stop(),
-        );
-
-      audioRef.current
-        ?.pause();
-
-      window.speechSynthesis
-        ?.cancel();
-
-      if (
-        audioUrlRef.current
-      ) {
-        URL.revokeObjectURL(
-          audioUrlRef.current,
-        );
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        PREFERENCES_KEY,
-
-        JSON.stringify(
-          preferences,
-        ),
-      );
-    } catch {
-      // Local preferences are optional.
-    }
-  }, [preferences]);
-
-  useEffect(() => {
-    if (
-      !busy ||
-      !requestStartedAt
-    ) {
-      setElapsedSeconds(0);
-
-      return;
-    }
-
-    const timer =
-      window.setInterval(
-        () => {
-          setElapsedSeconds(
-            Math.floor(
-              (Date.now() -
-                requestStartedAt) /
-                1000,
-            ),
-          );
-        },
-        1000,
-      );
-
-    return () =>
-      window.clearInterval(
-        timer,
-      );
-  }, [
-    busy,
-    requestStartedAt,
-  ]);
-
-  if (
-    loading ||
-    !data
-  ) {
-    return (
-      <SliceBackground>
-        <div className="mx-auto flex min-h-screen max-w-5xl items-center justify-center p-6">
-          <Surface className="w-full p-8">
-            <div className="flex flex-col items-center text-center">
-              <BrandMark
-                label="Slice"
-                subtitle="Advisor Intelligence Platform"
-              />
-
-              <div className="mt-8 flex gap-1">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
-
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
-
-                <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300" />
-              </div>
-
-              <h1 className="mt-5 text-3xl font-black text-white">
-                Loading AI Studio
-              </h1>
-
-              <p className="mt-2 text-sm text-slate-300">
-                Connecting research, Voice Ops, reports, and platform commands.
-              </p>
-
-              {notice ? (
-                <p className="mt-4 text-sm text-emerald-300">
-                  {notice}
-                </p>
-              ) : null}
-            </div>
-          </Surface>
-        </div>
-      </SliceBackground>
-    );
   }
 
-  const activeAi =
-    busy ||
-    recording ||
-    transcribing ||
-    listening ||
-    speaking;
-
-  const lastCommand =
-    commands[0];
+  const activeBriefJobs = (autonomy.brief?.jobs ?? []).filter((job) =>
+    ["Queued", "Retrying", "Processing"].includes(job.status),
+  ).length;
+  const activeEmailJobs = (autonomy.email?.jobs ?? []).filter((job) =>
+    ["Queued", "Retrying", "Processing"].includes(job.status),
+  ).length;
+  const activeAutomationJobs =
+    activeBriefJobs +
+    activeEmailJobs +
+    (autonomy.watchlists?.metrics?.activeJobCount ?? 0);
 
   return (
     <SliceBackground>
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-black/65" />
+      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-[1920px] flex-col gap-2 p-2.5 sm:p-3 lg:h-[calc(100dvh-4rem)] lg:min-h-0 lg:overflow-hidden">
+        <header className="flex shrink-0 items-center justify-between gap-3 rounded-[1.35rem] border border-white/[0.09] bg-[#050807]/92 px-3 py-2.5 shadow-[0_18px_60px_rgba(0,0,0,.42)] backdrop-blur-xl">
+          <div className="flex min-w-0 items-center gap-3">
+            <BrandMark
+              label={data?.profile.botName || "Slice AI Studio"}
+              subtitle="Platform Brain · Advisor Intelligence"
+            />
+            <div className="hidden h-8 w-px bg-white/10 xl:block" />
+            <div className="hidden min-w-0 xl:block">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-accent)]">
+                Command intelligence cockpit
+              </p>
+              <p className="mt-1 truncate text-[10px] font-semibold text-slate-600">
+                Research, act, speak, report, and monitor autonomous work from one screen.
+              </p>
+            </div>
+          </div>
 
-        <div className="absolute -left-48 -top-48 h-[34rem] w-[34rem] rounded-full bg-emerald-950/15 blur-[120px]" />
+          <div className="hidden min-w-0 items-center gap-2 md:flex">
+            <span className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+              <span className={cx("h-2 w-2 rounded-full", aiReady ? "bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,.8)]" : "bg-amber-300")} />
+              <span className="text-[10px] font-black text-white">{aiReady ? "Brain online" : "Review setup"}</span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300">
+              <Database className="h-3.5 w-3.5 text-cyan-300" />
+              {memoryPolicy.storedSearches}/{memoryPolicy.maximumSearches}
+            </span>
+            <span className="hidden items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-[10px] font-black text-slate-300 2xl:inline-flex">
+              <Zap className="h-3.5 w-3.5 text-[var(--slice-accent)]" />
+              {data?.aiEngine?.fastModel || data?.aiEngine?.model || "Model pending"}
+            </span>
+          </div>
 
-        <div className="absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-emerald-950/10 blur-[120px]" />
-      </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <WorkspaceButton
+              variant="quiet"
+              size="sm"
+              icon={<RefreshCw className={cx("h-4 w-4", loading && "animate-spin")} />}
+              onClick={() => void loadStudio()}
+              disabled={loading || busy}
+            >
+              <span className="hidden sm:inline">Refresh</span>
+            </WorkspaceButton>
+            <WorkspaceButton
+              href="/workspace/settings"
+              variant="quiet"
+              size="sm"
+              icon={<Settings2 className="h-4 w-4" />}
+            >
+              <span className="hidden sm:inline">Settings</span>
+            </WorkspaceButton>
+          </div>
+        </header>
 
-      <div className="relative mx-auto grid max-w-[1900px] gap-4 p-3 md:p-5">
-        <Surface className="p-5 md:p-7">
-          <div className="flex flex-col gap-6 2xl:flex-row 2xl:items-start 2xl:justify-between">
-            <div>
-              <BrandMark
-                label="Slice"
-                subtitle="Advisor Intelligence Platform"
-              />
-
-              <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-center">
-                <div className="relative grid h-20 w-20 shrink-0 place-items-center rounded-full border border-emerald-300/20 bg-black shadow-2xl shadow-black">
-                  {activeAi ? (
-                    <div className="absolute inset-0 animate-ping rounded-full border border-emerald-400/20" />
-                  ) : null}
-
-                  <div className="grid h-12 w-12 place-items-center rounded-full border border-emerald-300/20 bg-emerald-950/25 text-xs font-black text-emerald-100">
-                    AI
-                  </div>
+        <Card className="z-30 shrink-0 !overflow-visible !rounded-[1.55rem] !border-[var(--slice-accent-border)] !bg-[#020806]/96 p-2.5 shadow-[0_20px_70px_rgba(0,0,0,.58)] backdrop-blur-2xl sm:p-3">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,var(--slice-accent-soft),transparent_34%),radial-gradient(circle_at_92%_20%,rgba(6,182,212,.10),transparent_28%),linear-gradient(rgba(52,211,153,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,.025)_1px,transparent_1px)] bg-[size:auto,auto,28px_28px,28px_28px]" />
+          <div className="relative">
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div className="min-w-0">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <WorkspacePill tone="emerald">
+                    <Zap className="h-3 w-3" aria-hidden="true" />
+                    Command cockpit
+                  </WorkspacePill>
+                  <span className="hidden text-[9px] font-semibold text-slate-600 lg:inline">
+                    Press <strong className="text-slate-300">/</strong> to focus · Ctrl/⌘ + Enter to run
+                  </span>
                 </div>
+                <span className="text-[9px] font-semibold text-slate-600">{stage}</span>
+              </div>
 
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    <Pill
-                      tone={
-                        health?.ok
-                          ? "green"
-                          : "red"
-                      }
-                    >
-                      {health?.ok
-                        ? "OpenAI verified"
-                        : "AI needs attention"}
-                    </Pill>
+              <WorkspaceTextarea
+                ref={promptRef}
+                value={prompt}
+                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setPrompt(event.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                rows={1}
+                className="min-h-[58px] max-h-28 resize-none border-white/12 bg-black/42 text-[14px] font-semibold leading-5 shadow-inner shadow-black/30 placeholder:text-slate-700"
+                placeholder="Ask a question, research a security, open a workflow, create a report, or tell Slice exactly what to do…"
+                aria-label="Slice AI command prompt"
+              />
+            </div>
 
-                    <Pill
-                      tone={
-                        data.aiEngine
-                          ?.webSearchEnabled
-                          ? "cyan"
-                          : "amber"
-                      }
-                    >
-                      {data.aiEngine
-                        ?.webSearchEnabled
-                        ? "Live research"
-                        : "Research disabled"}
-                    </Pill>
+            <div className="grid grid-cols-[auto_auto_auto] gap-1.5">
+              <div className="grid grid-cols-3 rounded-xl border border-white/10 bg-black/35 p-1">
+                {(["quick", "balanced", "deep"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setAnswerMode(mode)}
+                    className={cx(
+                      "rounded-lg px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.11em] transition",
+                      answerMode === mode
+                        ? "bg-[var(--slice-accent-strong)] text-white shadow-lg shadow-black/30"
+                        : "text-slate-500 hover:bg-white/[0.05] hover:text-white",
+                    )}
+                    aria-pressed={answerMode === mode}
+                  >
+                    {mode === "quick" ? "Instant" : mode === "balanced" ? "Adaptive" : "Deep"}
+                  </button>
+                ))}
+              </div>
 
-                    <Pill
-                      tone={
-                        audio?.configured
-                          ? "purple"
-                          : "amber"
-                      }
-                    >
-                      {audio?.configured
-                        ? "OpenAI audio"
-                        : "Browser audio fallback"}
-                    </Pill>
-                  </div>
+              <WorkspaceButton
+                variant={listening ? "danger" : "secondary"}
+                icon={listening ? <CircleStop className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                onClick={
+                  listening
+                    ? () => recognitionRef.current?.stop()
+                    : startBrowserVoice
+                }
+                disabled={!browserVoiceAvailable || busy || transcribing}
+              >
+                {listening ? "Finish voice" : "Voice"}
+              </WorkspaceButton>
 
-                  <h1 className="mt-3 text-4xl font-black tracking-tight text-white md:text-6xl">
-                    AI Studio
-                  </h1>
+              <WorkspaceButton
+                variant="primary"
+                icon={
+                  busy || transcribing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )
+                }
+                onClick={() => void runCommand()}
+                disabled={!prompt.trim() || busy || transcribing || loading}
+              >
+                {busy || transcribing ? "Working" : "Run"}
+              </WorkspaceButton>
+            </div>
+          </div>
 
-                  <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-300 md:text-base">
-                    Financial research, platform actions, Voice Ops, team execution, and secure advisor reports in one permission-aware workspace.
-                  </p>
+          <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+            {QUICK_PROMPTS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  setPrompt(item);
+                  promptRef.current?.focus();
+                }}
+                className="shrink-0 rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 text-[9px] font-bold text-slate-600 transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)] hover:text-white"
+              >
+                {item.length > 48 ? `${item.slice(0, 48)}…` : item}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-1.5 hidden grid-cols-5 gap-1.5 lg:grid" aria-label="AI cognitive routing status">
+            {[
+              {
+                label: "Cognitive lane",
+                value: lastExecutionLane,
+                helper: busy ? "Routing current request" : "Adaptive task classification",
+                icon: <Zap className="h-3.5 w-3.5" />,
+              },
+              {
+                label: "Research policy",
+                value:
+                  answerMode === "quick"
+                    ? "Only when required"
+                    : answerMode === "deep"
+                      ? "Primary-source depth"
+                      : "Adaptive verification",
+                helper: "Web tools activate selectively",
+                icon: <Search className="h-3.5 w-3.5" />,
+              },
+              {
+                label: "Evidence quality",
+                value: latestSources.length ? `${lastEvidenceScore}/100` : "Standby",
+                helper: `${latestSources.length} visible source${latestSources.length === 1 ? "" : "s"}`,
+                icon: <ShieldCheck className="h-3.5 w-3.5" />,
+              },
+              {
+                label: "Working context",
+                value: `${memoryPolicy.storedSearches}/${memoryPolicy.maximumSearches} turns`,
+                helper: "Permission-scoped rolling memory",
+                icon: <Database className="h-3.5 w-3.5" />,
+              },
+              {
+                label: "Model path",
+                value:
+                  answerMode === "deep"
+                    ? data?.aiEngine?.qualityModel || data?.aiEngine?.model || "Quality"
+                    : data?.aiEngine?.fastModel || data?.aiEngine?.model || "Fast",
+                helper: lastLatencyMs ? `${lastLatencyMs} ms last response` : "Ready",
+                icon: <BrainCircuit className="h-3.5 w-3.5" />,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border border-white/[0.065] bg-black/28 px-2.5 py-1.5"
+              >
+                <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">
+                  <span className="text-[var(--slice-accent)]">{item.icon}</span>
+                  {item.label}
+                </div>
+                <p className="mt-1 truncate text-[10px] font-black text-white">{item.value}</p>
+                <p className="mt-0.5 truncate text-[8px] font-semibold text-slate-700">{item.helper}</p>
+              </div>
+            ))}
+          </div>
+
+          {(busy || transcribing) && (
+            <div className="mt-1.5 flex items-center gap-3 rounded-lg border border-cyan-400/15 bg-cyan-500/[0.045] px-3 py-1.5" role="status">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-cyan-300" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-[10px] font-black text-cyan-100">{stage}</p>
+                  <span className="shrink-0 text-[9px] font-bold text-cyan-300/70">
+                    {(requestElapsedMs / 1000).toFixed(1)}s
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-black/35">
+                  <div className="h-full w-1/3 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-cyan-400 via-[var(--slice-accent)] to-emerald-300" />
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={stopRequest}
+                className="rounded-lg border border-white/10 px-2.5 py-1 text-[9px] font-black text-slate-300 hover:bg-white/[0.06] hover:text-white"
+              >
+                Stop
+              </button>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() =>
-                  void refreshAll()
-                }
-                disabled={
-                  refreshing
-                }
-                variant="ghost"
-              >
-                {refreshing
-                  ? "Refreshing..."
-                  : "Refresh Context"}
-              </Button>
-
-              <Button
-                onClick={() =>
-                  void verifyAi()
-                }
-                disabled={
-                  verifying
-                }
-                variant="secondary"
-              >
-                {verifying
-                  ? "Verifying..."
-                  : "Verify AI"}
-              </Button>
-
-              <Link
-                href="/workspace/settings"
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
-              >
-                Platform Settings
-              </Link>
-
-              <Link
-                href="/workspace"
-                className="rounded-2xl border border-white/20 bg-white px-4 py-2.5 text-xs font-black text-slate-950 transition hover:bg-emerald-50"
-              >
-                Return to Workspace
-              </Link>
-            </div>
+          )}
           </div>
-
-          <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <Metric
-              label="AI Health"
-              value={
-                health?.status ??
-                "Unknown"
-              }
-              helper={
-                health?.model ??
-                data.aiEngine
-                  ?.model
-              }
-              tone={statusTone(
-                health?.status,
-              )}
-            />
-
-            <Metric
-              label="Research"
-              value={
-                data.aiEngine
-                  ?.webSearchEnabled
-                  ? "Live"
-                  : "Off"
-              }
-              helper="Visible sources"
-              tone={
-                data.aiEngine
-                  ?.webSearchEnabled
-                  ? "cyan"
-                  : "amber"
-              }
-            />
-
-            <Metric
-              label="Studio Score"
-              value={`${readiness}%`}
-              helper="Operational readiness"
-              tone={statusTone(
-                readiness,
-              )}
-            />
-
-            <Metric
-              label="Clients"
-              value={
-                metrics.accessibleClients ??
-                0
-              }
-              helper="Permission scoped"
-              tone="purple"
-            />
-
-            <Metric
-              label="Reports"
-              value={
-                reports.length
-              }
-              helper="Secure outputs"
-              tone="green"
-            />
-
-            <Metric
-              label="Last Command"
-              value={relativeTime(
-                lastCommand?.createdAt,
-              )}
-              helper={
-                lastCommand
-                  ?.status ??
-                "No command yet"
-              }
-              tone={statusTone(
-                lastCommand
-                  ?.status,
-              )}
-            />
-          </div>
-        </Surface>
-
-        <Surface className="p-2">
-          <div className="grid gap-2 md:grid-cols-4">
-            {TABS.map(
-              (
-                tab,
-                index,
-              ) => {
-                const active =
-                  activeTab ===
-                  tab.id;
-
-                return (
-                  <button
-                    key={
-                      tab.id
-                    }
-                    type="button"
-                    onClick={() =>
-                      setActiveTab(
-                        tab.id,
-                      )
-                    }
-                    className={cx(
-                      "rounded-[1.3rem] border p-4 text-left transition",
-
-                      active
-                        ? "border-emerald-300/25 bg-white/[0.07]"
-                        : "border-white/10 bg-black/60 hover:border-white/20 hover:bg-white/[0.04]",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-black text-white">
-                          {
-                            tab.label
-                          }
-                        </div>
-
-                        <div className="mt-1 text-[10px] font-bold text-slate-300">
-                          {
-                            tab.helper
-                          }
-                        </div>
-                      </div>
-
-                      <span
-                        className={cx(
-                          "text-xs font-black",
-
-                          active
-                            ? "text-emerald-300"
-                            : "text-slate-400",
-                        )}
-                      >
-                        {String(
-                          index +
-                            1,
-                        ).padStart(
-                          2,
-                          "0",
-                        )}
-                      </span>
-                    </div>
-                  </button>
-                );
-              },
-            )}
-          </div>
-        </Surface>
+        </Card>
 
         {notice ? (
-          <div className="rounded-2xl border border-emerald-400/20 bg-[#090505] p-4 text-sm font-bold text-slate-100">
+          <WorkspaceAlert
+            tone="info"
+            className="fixed bottom-4 right-4 z-[100] max-w-[min(92vw,480px)] py-2.5 shadow-2xl"
+            action={
+              <button
+                type="button"
+                onClick={() => setNotice("")}
+                className="text-[10px] font-black text-cyan-100"
+              >
+                Dismiss
+              </button>
+            }
+          >
             {notice}
-          </div>
+          </WorkspaceAlert>
         ) : null}
 
-        {activeTab ===
-        "command" ? (
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <Surface className="p-5 md:p-6">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <Heading
-                  eyebrow="Unified Intelligence"
-                  title="Ask the market. Operate Slice."
-                  helper="Research uses current sources when needed. Deterministic platform commands use the fast router and execute through permission-aware tools."
-                />
-
-                <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-black/60 p-1">
-                  {(
-                    [
-                      "quick",
-                      "balanced",
-                      "deep",
-                    ] as AnswerMode[]
-                  ).map(
-                    (mode) => (
-                      <button
-                        key={
-                          mode
-                        }
-                        type="button"
-                        onClick={() =>
-                          setAnswerMode(
-                            mode,
-                          )
-                        }
-                        className={cx(
-                          "rounded-xl px-3 py-2 text-[10px] font-black uppercase",
-
-                          answerMode ===
-                            mode
-                            ? "bg-white text-slate-950"
-                            : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
-                        )}
-                      >
-                        {mode}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-black/55 p-3">
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  {OPERATING_MODES.map(
-                    (mode) => (
-                      <button
-                        key={
-                          mode.id
-                        }
-                        type="button"
-                        onClick={() =>
-                          setPreferences(
-                            (
-                              current,
-                            ) => ({
-                              ...current,
-
-                              operatingMode:
-                                mode.id,
-                            }),
-                          )
-                        }
-                        className={cx(
-                          "rounded-xl border p-3 text-left transition",
-
-                          preferences.operatingMode ===
-                            mode.id
-                            ? "border-emerald-300/25 bg-white/[0.07]"
-                            : "border-white/5 bg-black/50 hover:border-white/15",
-                        )}
-                      >
-                        <div className="text-[10px] font-black text-white">
-                          {
-                            mode.id
-                          }
-                        </div>
-
-                        <div className="mt-1 text-[9px] leading-4 text-slate-300">
-                          {
-                            mode.helper
-                          }
-                        </div>
-                      </button>
-                    ),
-                  )}
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-[10px] font-bold text-slate-200">
-                    Auto-open verified actions
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        preferences.autoOpenActions
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            autoOpenActions:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-[10px] font-bold text-slate-200">
-                    Execution trace
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        preferences.showExecutionTrace
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            showExecutionTrace:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/50 px-3 py-2 text-[10px] font-bold text-slate-200">
-                    Compact sources
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        preferences.compactSources
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            compactSources:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="rounded-xl border border-white/10 bg-black/50 px-3 py-2">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-300">
-                      Source policy
-                    </span>
-
-                    <select
-                      value={
-                        preferences.sourcePolicy
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            sourcePolicy:
-                              event
-                                .target
-                                .value as SourcePolicy,
-                          }),
-                        )
-                      }
-                      className="mt-1 w-full bg-transparent text-[10px] font-bold text-white outline-none"
-                    >
-                      {(
-                        [
-                          "Primary First",
-                          "Balanced",
-                          "Fast",
-                        ] as SourcePolicy[]
-                      ).map(
-                        (
-                          policy,
-                        ) => (
-                          <option
-                            key={
-                              policy
-                            }
-                            value={
-                              policy
-                            }
-                            className="bg-black"
-                          >
-                            {
-                              policy
-                            }
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              <form
-                className="mt-5 rounded-[1.6rem] border border-white/10 bg-black/70 p-4"
-                onSubmit={(
-                  event: FormEvent<HTMLFormElement>,
-                ) => {
-                  event.preventDefault();
-
-                  void sendCommand();
-                }}
-              >
-                <textarea
-                  value={prompt}
-                  onChange={(
-                    event: ChangeEvent<HTMLTextAreaElement>,
-                  ) =>
-                    setPrompt(
-                      event.target
-                        .value,
-                    )
-                  }
-                  onKeyDown={(
-                    event: KeyboardEvent<HTMLTextAreaElement>,
-                  ) => {
-                    if (
-                      event.key ===
-                        "Enter" &&
-                      !event.shiftKey
-                    ) {
-                      event.preventDefault();
-
-                      void sendCommand();
-                    }
-                  }}
-                  placeholder="Research an investment, search firm records, create a task, open a workflow, generate a report, or run a platform command..."
-                  className="min-h-[260px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-base leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35 focus:ring-4 focus:ring-emerald-950/30"
-                />
-
-                <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    {recorderSupported ? (
-                      <Button
-                        onClick={
-                          recording
-                            ? stopRecording
-                            : () =>
-                                void startRecording()
-                        }
-                        variant="secondary"
-                      >
-                        {recording
-                          ? "Stop Recording"
-                          : "Record Voice"}
-                      </Button>
-                    ) : null}
-
-                    {browserSpeechSupported ? (
-                      <Button
-                        onClick={() =>
-                          startBrowserListening(
-                            "prompt",
-                          )
-                        }
-                        variant="ghost"
-                      >
-                        Browser Voice
-                      </Button>
-                    ) : null}
-
-                    <Button
-                      onClick={() =>
-                        setPrompt("")
-                      }
-                      variant="ghost"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={
-                      busy ||
-                      !prompt.trim()
-                    }
-                  >
-                    {busy
-                      ? "Researching and executing..."
-                      : "Execute Command"}
-                  </Button>
-                </div>
-              </form>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
-                    Pinned intelligence
-                  </span>
-
-                  <Pill tone="red">
-                    One click
-                  </Pill>
-                </div>
-
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {pinnedCommands
-                    .slice(0, 8)
-                    .map(
-                      (
-                        command,
-                      ) => (
-                        <button
-                          key={
-                            command
-                          }
-                          type="button"
-                          onClick={() =>
-                            setPrompt(
-                              command,
-                            )
-                          }
-                          className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-emerald-300/25 hover:bg-white/[0.05]"
-                        >
-                          {
-                            command
-                          }
-                        </button>
-                      ),
-                    )}
-                </div>
-              </div>
-
-              <details className="group mt-5 rounded-[1.35rem] border border-white/10 bg-black/55 p-4">
-                <summary className="cursor-pointer list-none text-xs font-black text-white">
-                  Full platform action directory
-
-                  <span className="ml-2 text-slate-300 group-open:hidden">
-                    +
-                  </span>
-
-                  <span className="ml-2 hidden text-slate-300 group-open:inline">
-                    −
-                  </span>
-                </summary>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {platformRoutes.map(
-                    (route) => (
-                      <Link
-                        key={`${route.href}-${route.label}`}
-                        href={
-                          route.href
-                        }
-                        className="rounded-xl border border-white/10 bg-[#050505] p-3 transition hover:border-emerald-300/25 hover:bg-white/[0.04]"
-                      >
-                        <div className="text-[11px] font-black text-white">
-                          {
-                            route.label
-                          }
-                        </div>
-
-                        <div className="mt-1 text-[9px] font-bold text-emerald-300">
-                          {
-                            route.category
-                          }
-                        </div>
-
-                        <div className="mt-1 line-clamp-2 text-[9px] leading-4 text-slate-300">
-                          {
-                            route.description
-                          }
-                        </div>
-                      </Link>
-                    ),
-                  )}
-                </div>
-              </details>
-
-              <details className="group mt-3 rounded-[1.35rem] border border-white/10 bg-black/55 p-4">
-                <summary className="cursor-pointer list-none text-xs font-black text-white">
-                  Recent command history
-
-                  <span className="ml-2 text-slate-300 group-open:hidden">
-                    +
-                  </span>
-
-                  <span className="ml-2 hidden text-slate-300 group-open:inline">
-                    −
-                  </span>
-                </summary>
-
-                <div className="mt-3 grid gap-2">
-                  {commands
-                    .slice(0, 7)
-                    .map(
-                      (
-                        command,
-                      ) => (
-                        <button
-                          key={
-                            command.id
-                          }
-                          type="button"
-                          onClick={() => {
-                            setPrompt(
-                              command.commandText,
-                            );
-
-                            window.scrollTo(
-                              {
-                                top: 0,
-                                behavior:
-                                  "smooth",
-                              },
-                            );
-                          }}
-                          className="rounded-xl border border-white/10 bg-[#050505] p-3 text-left transition hover:border-emerald-300/25"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="line-clamp-2 text-[11px] font-bold text-white">
-                                {
-                                  command.commandText
-                                }
-                              </div>
-
-                              <div className="mt-1 text-[9px] text-slate-300">
-                                {command.resultSummary ||
-                                  command.commandType}
-                              </div>
-                            </div>
-
-                            <Pill
-                              tone={statusTone(
-                                command.status,
-                              )}
-                            >
-                              {
-                                command.status
-                              }
-                            </Pill>
-                          </div>
-                        </button>
-                      ),
-                    )}
-
-                  {!commands.length ? (
-                    <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-slate-300">
-                      No commands stored yet.
-                    </div>
-                  ) : null}
-                </div>
-              </details>
-            </Surface>
-
-            <Surface
-              className="p-5 md:p-6"
-              accent="cyan"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <Heading
-                  eyebrow="Advisor Response"
-                  title="Research, evidence, and execution."
-                  helper="Review the latest result, supporting sources, tool path, and any verified platform action."
-                />
-
-                {latestAssistant ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={
-                        speaking
-                          ? stopSpeaking
-                          : () =>
-                              void speak(
-                                latestAssistant.content,
-                              )
-                      }
-                      variant="secondary"
-                    >
-                      {speaking
-                        ? "Stop Audio"
-                        : "Read Response"}
-                    </Button>
-
-                    <Button
-                      onClick={() =>
-                        void navigator.clipboard.writeText(
-                          latestAssistant.content,
-                        )
-                      }
-                      variant="ghost"
-                    >
-                      Copy
-                    </Button>
-
-                    <Button
-                      onClick={() =>
-                        generateReport(
-                          latestAssistant.content,
-                        )
-                      }
-                      variant="ghost"
-                    >
-                      Make Report
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-
-              {busy ? (
-                <div className="mt-6 rounded-[1.4rem] border border-emerald-400/20 bg-[#090505] p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.3s]" />
-
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300 [animation-delay:-0.15s]" />
-
-                      <span className="h-2 w-2 animate-bounce rounded-full bg-emerald-300" />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-black text-white">
-                        Researching and operating...
-                      </div>
-
-                      <div className="mt-1 text-xs text-slate-300">
-                        Elapsed:{" "}
-                        {elapsedSeconds}s
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={
-                        stopRequest
-                      }
-                      variant="danger"
-                    >
-                      Stop
-                    </Button>
-                  </div>
-                </div>
-              ) : latestAssistant ? (
-                <div className="mt-6">
-                  <div className="flex flex-wrap gap-2">
-                    <Pill
-                      tone={statusTone(
-                        latestAssistant
-                          .metadata
-                          ?.universalAiStatus ||
-                          latestAssistant.intent,
-                      )}
-                    >
-                      {latestAssistant
-                        .metadata
-                        ?.universalAiStatus ||
-                        latestAssistant.intent}
-                    </Pill>
-
-                    <Pill
-                      tone={
-                        latestAssistant
-                          .metadata
-                          ?.researchUsed
-                          ? "green"
-                          : "slate"
-                      }
-                    >
-                      {latestAssistant
-                        .metadata
-                        ?.researchUsed
-                        ? "Research used"
-                        : "Platform / internal"}
-                    </Pill>
-
-                    {latestAssistant
-                      .metadata
-                      ?.fastRouterUsed ? (
-                      <Pill tone="cyan">
-                        Fast command path
-                      </Pill>
-                    ) : null}
-
-                    {latestAssistant
-                      .metadata
-                      ?.universalAiModel ? (
-                      <Pill tone="purple">
-                        {
-                          latestAssistant
-                            .metadata
-                            .universalAiModel
-                        }
-                      </Pill>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 rounded-[1.4rem] border border-white/10 bg-[#020202] p-5">
-                    <div className="whitespace-pre-wrap text-sm leading-7 text-slate-100">
-                      {
-                        latestAssistant.content
-                      }
-                    </div>
-                  </div>
-
-                  {latestAssistant
-                    .metadata
-                    ?.universalAiError ? (
-                    <div className="mt-3 rounded-2xl border border-amber-400/25 bg-amber-950/25 p-3 text-xs leading-5 text-amber-100">
-                      {
-                        latestAssistant
-                          .metadata
-                          .universalAiError
-                      }
-                    </div>
-                  ) : null}
-
-                  <Sources
-                    sources={
-                      latestSources
-                    }
-                    compact={
-                      preferences.compactSources
-                    }
-                  />
-
-                  {preferences.showExecutionTrace ? (
-                    <ExecutionTrace
-                      message={
-                        latestAssistant
-                      }
-                      action={
-                        latestAction
-                      }
-                      sourceCount={
-                        latestSources.length
-                      }
-                    />
-                  ) : null}
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {latestAction
-                      ?.href ? (
-                      <Button
-                        onClick={() =>
-                          openClientAction(
-                            latestAction,
-                          )
-                        }
-                      >
-                        {latestAction.type ===
-                        "report"
-                          ? "Open Report"
-                          : latestAction.type ===
-                              "source"
-                            ? "Open Source"
-                            : "Open Result"}
-                      </Button>
-                    ) : null}
-
-                    {latestAction
-                      ?.pdfHref ? (
-                      <a
-                        href={
-                          latestAction.pdfHref
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 px-4 py-2.5 text-xs font-black text-emerald-100"
-                      >
-                        Open Raw PDF
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-6 rounded-[1.4rem] border border-dashed border-white/15 bg-black/50 p-8 text-center">
-                  <div className="text-xl font-black text-white">
-                    Ready for the first command.
-                  </div>
-
-                  <p className="mt-2 text-sm text-slate-300">
-                    Ask a financial question or describe a Slice outcome.
-                  </p>
-                </div>
-              )}
-
-              {latestUser ? (
-                <SoftCard className="mt-5 !border-white/10 !bg-black/55">
-                  <div className="flex items-center justify-between gap-3">
-                    <Pill tone="red">
-                      Latest request
-                    </Pill>
-
-                    <span className="text-[10px] font-bold text-slate-300">
-                      {formatDate(
-                        latestUser.createdAt,
-                      )}
-                    </span>
-                  </div>
-
-                  <p className="mt-3 text-xs leading-6 text-slate-200">
-                    {
-                      latestUser.content
-                    }
-                  </p>
-                </SoftCard>
-              ) : null}
-            </Surface>
-          </section>
-        ) : null}
-
-        {activeTab ===
-        "voice" ? (
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <Surface
-              className="p-6"
-              accent="purple"
-            >
-              <div className="text-center">
-                <Heading
-                  eyebrow="Low-Latency Voice Ops"
-                  title="Speak the outcome."
-                  helper="Noise-reduced recording, fast OpenAI transcription, deterministic command routing, and full AI research fallback use the same execution layer as typed commands."
-                />
-
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Pill
-                    tone={
-                      audio?.configured
-                        ? "green"
-                        : "amber"
-                    }
-                  >
-                    {audio?.configured
-                      ? "OpenAI audio ready"
-                      : "Browser fallback"}
-                  </Pill>
-
-                  <Pill
-                    tone={
-                      recorderSupported
-                        ? "purple"
-                        : "red"
-                    }
-                  >
-                    {recorderSupported
-                      ? "Microphone ready"
-                      : "Recorder unavailable"}
-                  </Pill>
-
-                  <Pill tone="cyan">
-                    Fast command router
-                  </Pill>
-                </div>
-
-                <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                  <label className="rounded-xl border border-white/10 bg-black/55 p-3 text-left">
-                    <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-300">
-                      Language
-                    </span>
-
-                    <select
-                      value={
-                        preferences.voiceLanguage
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            voiceLanguage:
-                              event
-                                .target
-                                .value as VoiceLanguage,
-                          }),
-                        )
-                      }
-                      className="mt-1 w-full bg-transparent text-xs font-bold text-white outline-none"
-                    >
-                      {(
-                        [
-                          "en-US",
-                          "en-GB",
-                          "es-US",
-                        ] as VoiceLanguage[]
-                      ).map(
-                        (
-                          value,
-                        ) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                            className="bg-black"
-                          >
-                            {value}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-
-                  <label className="rounded-xl border border-white/10 bg-black/55 p-3 text-left">
-                    <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-300">
-                      Speech rate
-                    </span>
-
-                    <select
-                      value={
-                        preferences.voiceRate
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            voiceRate:
-                              event
-                                .target
-                                .value as VoiceRate,
-                          }),
-                        )
-                      }
-                      className="mt-1 w-full bg-transparent text-xs font-bold text-white outline-none"
-                    >
-                      {(
-                        [
-                          "Slow",
-                          "Normal",
-                          "Fast",
-                        ] as VoiceRate[]
-                      ).map(
-                        (
-                          value,
-                        ) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                            className="bg-black"
-                          >
-                            {value}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-
-                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/55 p-3 text-xs font-bold text-slate-200">
-                    Auto-read reply
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        preferences.autoReadReplies
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            autoReadReplies:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/55 p-3 text-xs font-bold text-slate-200">
-                    Auto-send transcript
-
-                    <input
-                      type="checkbox"
-                      checked={
-                        preferences.voiceAutoSend
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setPreferences(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            voiceAutoSend:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    recording
-                      ? stopRecording
-                      : () =>
-                          void startRecording()
-                  }
-                  disabled={
-                    !recorderSupported ||
-                    transcribing
-                  }
-                  className={cx(
-                    "mt-7 rounded-full border px-10 py-5 text-base font-black shadow-2xl transition hover:-translate-y-1 disabled:opacity-45",
-
-                    recording
-                      ? "border-emerald-300/40 bg-emerald-700 text-white"
-                      : "border-white/20 bg-white text-slate-950",
-                  )}
-                >
-                  {recording
-                    ? "Stop and Execute"
-                    : transcribing
-                      ? "Transcribing and executing..."
-                      : "Start Voice Command"}
-                </button>
-
-                {browserSpeechSupported ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      startBrowserListening(
-                        "voice",
-                      )
-                    }
-                    className="mt-3 block w-full text-xs font-black text-slate-300 hover:text-emerald-200"
-                  >
-                    Use browser speech recognition instead
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="mt-7 rounded-[1.4rem] border border-white/10 bg-black/60 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
-                    Live transcript
-                  </span>
-
-                  {voiceSessionKey ? (
-                    <Pill tone="slate">
-                      Session active
-                    </Pill>
-                  ) : null}
-                </div>
-
-                <textarea
-                  value={voiceDraft}
-                  onChange={(
-                    event: ChangeEvent<HTMLTextAreaElement>,
-                  ) =>
-                    setVoiceDraft(
-                      event.target
-                        .value,
-                    )
-                  }
-                  placeholder="The transcript appears here and can be edited before execution."
-                  className="mt-3 min-h-[180px] w-full resize-none rounded-[1.2rem] border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
-                />
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    onClick={() =>
-                      void executeVoiceTranscript(
-                        voiceDraft,
-                      )
-                    }
-                    disabled={
-                      !voiceDraft.trim() ||
-                      transcribing
-                    }
-                  >
-                    Execute Transcript
-                  </Button>
-
-                  <Button
-                    onClick={() =>
-                      setVoiceDraft("")
-                    }
-                    variant="ghost"
-                  >
-                    Clear
-                  </Button>
-
-                  {latestAssistant ? (
-                    <Button
-                      onClick={
-                        speaking
-                          ? stopSpeaking
-                          : () =>
-                              void speak(
-                                latestAssistant.content,
-                              )
-                      }
-                      variant="secondary"
-                    >
-                      {speaking
-                        ? "Stop Reply"
-                        : "Read Latest Reply"}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-2 md:grid-cols-2">
-                {QUICK_PROMPTS
-                  .slice(0, 4)
-                  .map(
-                    (value) => (
-                      <button
-                        key={
-                          value
-                        }
-                        type="button"
-                        onClick={() =>
-                          setVoiceDraft(
-                            value,
-                          )
-                        }
-                        className="rounded-2xl border border-white/10 bg-black/55 p-3 text-left text-xs font-bold leading-5 text-slate-200 transition hover:border-emerald-300/25"
-                      >
-                        {value}
-                      </button>
-                    ),
-                  )}
-              </div>
-            </Surface>
-
-            <Surface className="p-6">
-              <Heading
-                eyebrow="Voice Audit Trail"
-                title="Every spoken command is reviewable."
-                helper="Review transcripts, language, confidence, completion state, and the resulting platform execution."
-              />
-
-              <div className="mt-5 grid gap-3">
-                {voiceSessions
-                  .slice(0, 8)
-                  .map(
-                    (
-                      session,
-                    ) => (
-                      <SoftCard
-                        key={
-                          session.id
-                        }
-                        className="!border-white/10 !bg-black/55"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Pill
-                              tone={statusTone(
-                                session.status,
-                              )}
-                            >
-                              {
-                                session.status
-                              }
-                            </Pill>
-
-                            <Pill tone="purple">
-                              {
-                                session.language
-                              }
-                            </Pill>
-
-                            <Pill tone="slate">
-                              {
-                                session.confidenceScore
-                              }
-                              % confidence
-                            </Pill>
-                          </div>
-
-                          <span className="text-[10px] text-slate-300">
-                            {formatDate(
-                              session.createdAt,
-                            )}
-                          </span>
-                        </div>
-
-                        <p className="mt-3 text-sm leading-6 text-slate-100">
-                          {session.finalTranscript ||
-                            session.transcript ||
-                            "No transcript stored."}
-                        </p>
-                      </SoftCard>
-                    ),
-                  )}
-
-                {!voiceSessions.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-sm text-slate-300">
-                    No voice sessions yet.
-                  </div>
-                ) : null}
-              </div>
-            </Surface>
-          </section>
-        ) : null}
-
-        {activeTab ===
-        "tasks" ? (
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
-            <Surface
-              className="p-6"
-              accent="green"
-            >
-              <Heading
-                eyebrow="Team Execution"
-                title="Create and assign real work."
-                helper="Tasks created here are written to the connected firm workspace and remain visible on the Team Board."
-              />
-
-              <form
-                onSubmit={
-                  createTask
-                }
-                className="mt-6 grid gap-4"
-              >
-                <Field label="Task title">
-                  <input
-                    value={
-                      task.title
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLInputElement>,
-                    ) =>
-                      setTask(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          title:
-                            event
-                              .target
-                              .value,
-                        }),
-                      )
-                    }
-                    placeholder="Review client briefing before Friday meeting"
-                    className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
-                  />
-                </Field>
-
-                <Field label="Task detail">
-                  <textarea
-                    value={
-                      task.detail
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLTextAreaElement>,
-                    ) =>
-                      setTask(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          detail:
-                            event
-                              .target
-                              .value,
-                        }),
-                      )
-                    }
-                    placeholder="Expected outcome, context, and review requirements"
-                    className="min-h-[140px] w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
-                  />
-                </Field>
-
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <Field label="Owner">
-                    <select
-                      value={
-                        selectedMemberId
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setSelectedMemberId(
-                          event.target
-                            .value,
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    >
-                      <option value="">
-                        Select owner
-                      </option>
-
-                      {(
-                        workspace
-                          ?.members ??
-                        []
-                      ).map(
-                        (
-                          member,
-                        ) => (
-                          <option
-                            key={
-                              member.id
-                            }
-                            value={
-                              member.id
-                            }
-                          >
-                            {member.user
-                              ?.name ||
-                              member.user
-                                ?.email ||
-                              member.role}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </Field>
-
-                  <Field label="Project">
-                    <select
-                      value={
-                        task.projectId
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            projectId:
-                              event
-                                .target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    >
-                      <option value="">
-                        No project
-                      </option>
-
-                      {(
-                        workspace
-                          ?.projects ??
-                        []
-                      ).map(
-                        (
-                          project,
-                        ) => (
-                          <option
-                            key={
-                              project.id
-                            }
-                            value={
-                              project.id
-                            }
-                          >
-                            {
-                              project.title
-                            }
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </Field>
-
-                  <Field label="Priority">
-                    <select
-                      value={
-                        task.priority
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            priority:
-                              event
-                                .target
-                                .value as Priority,
-                          }),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    >
-                      {(
-                        [
-                          "Critical",
-                          "High",
-                          "Medium",
-                          "Low",
-                        ] as Priority[]
-                      ).map(
-                        (
-                          value,
-                        ) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                          >
-                            {value}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </Field>
-
-                  <Field label="Status">
-                    <select
-                      value={
-                        task.status
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLSelectElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            status:
-                              event
-                                .target
-                                .value as TaskStatus,
-                          }),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    >
-                      {(
-                        [
-                          "Backlog",
-                          "To Do",
-                          "In Progress",
-                          "Review",
-                          "Blocked",
-                          "Complete",
-                        ] as TaskStatus[]
-                      ).map(
-                        (
-                          value,
-                        ) => (
-                          <option
-                            key={
-                              value
-                            }
-                            value={
-                              value
-                            }
-                          >
-                            {value}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </Field>
-
-                  <Field label="Due date">
-                    <input
-                      type="date"
-                      value={
-                        task.dueDate
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            dueDate:
-                              event
-                                .target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    />
-                  </Field>
-
-                  <Field label="Reminder">
-                    <input
-                      type="datetime-local"
-                      value={
-                        task.reminderAt
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            reminderAt:
-                              event
-                                .target
-                                .value,
-                          }),
-                        )
-                      }
-                      className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none"
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Reminder note">
-                  <input
-                    value={
-                      task.reminderNote
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLInputElement>,
-                    ) =>
-                      setTask(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          reminderNote:
-                            event
-                              .target
-                              .value,
-                        }),
-                      )
-                    }
-                    placeholder="Optional reminder context"
-                    className="w-full rounded-2xl border border-white/15 bg-[#020202] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400"
-                  />
-                </Field>
-
-                <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/55 p-4 md:flex-row md:items-center md:justify-between">
-                  <label className="flex items-center gap-3 text-xs font-bold text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={
-                        task.notifyEmail
-                      }
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>,
-                      ) =>
-                        setTask(
-                          (
-                            current,
-                          ) => ({
-                            ...current,
-
-                            notifyEmail:
-                              event
-                                .target
-                                .checked,
-                          }),
-                        )
-                      }
-                    />
-
-                    Notify the assigned team member when available
-                  </label>
-
-                  <Button
-                    type="submit"
-                    disabled={
-                      busy
-                    }
-                  >
-                    {busy
-                      ? "Creating task..."
-                      : "Create Team Board Task"}
-                  </Button>
-                </div>
-              </form>
-            </Surface>
-
-            <div className="grid gap-4">
-              <Surface
-                className="p-5"
-                accent="green"
-              >
-                <Heading
-                  eyebrow="Firm Pulse"
-                  title={
-                    workspace
-                      ?.firm
-                      ?.name ||
-                    "No firm connected"
-                  }
-                />
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Metric
-                    label="Total"
-                    value={
-                      workspace
-                        ?.operations
-                        ?.sprintMetrics
-                        ?.total ??
-                      0
-                    }
-                    helper="All tasks"
-                    tone="slate"
-                  />
-
-                  <Metric
-                    label="Open"
-                    value={
-                      workspace
-                        ?.operations
-                        ?.sprintMetrics
-                        ?.open ??
-                      0
-                    }
-                    helper="Needs action"
-                    tone="amber"
-                  />
-
-                  <Metric
-                    label="In Progress"
-                    value={
-                      workspace
-                        ?.operations
-                        ?.sprintMetrics
-                        ?.inProgress ??
-                      0
-                    }
-                    helper="Active work"
-                    tone="purple"
-                  />
-
-                  <Metric
-                    label="Complete"
-                    value={
-                      workspace
-                        ?.operations
-                        ?.sprintMetrics
-                        ?.complete ??
-                      0
-                    }
-                    helper="Finished"
-                    tone="green"
-                  />
-                </div>
-
-                <Link
-                  href="/workspace/team-board"
-                  className="mt-4 inline-flex rounded-2xl border border-emerald-400/25 bg-emerald-950/25 px-4 py-2.5 text-xs font-black text-emerald-100"
-                >
-                  Open Team Board
-                </Link>
-              </Surface>
-
-              <Surface className="p-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
-                    Recent work
-                  </span>
-
-                  <Pill tone="red">
-                    {workspace
-                      ?.operations
-                      ?.allTasks
-                      ?.length ??
-                      0}
-                  </Pill>
-                </div>
-
-                <div className="mt-4 grid gap-2">
-                  {(
-                    workspace
-                      ?.operations
-                      ?.allTasks ??
-                    []
-                  )
-                    .slice(0, 7)
-                    .map(
-                      (
-                        item,
-                      ) => (
-                        <SoftCard
-                          key={
-                            item.id
-                          }
-                          className="!border-white/10 !bg-black/55"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="line-clamp-2 text-sm font-black text-white">
-                                {
-                                  item.title
-                                }
-                              </div>
-
-                              <div className="mt-1 text-[10px] text-slate-300">
-                                {item.ownerName ||
-                                  "Team"}{" "}
-                                ·{" "}
-                                {item.dueDate ||
-                                  "No due date"}
-                              </div>
-                            </div>
-
-                            <Pill
-                              tone={statusTone(
-                                item.priority,
-                              )}
-                            >
-                              {
-                                item.priority
-                              }
-                            </Pill>
-                          </div>
-                        </SoftCard>
-                      ),
-                    )}
-                </div>
-              </Surface>
-            </div>
-          </section>
-        ) : null}
-
-        {activeTab ===
-        "reports" ? (
-          <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_480px]">
-            <Surface
-              className="p-6"
-              accent="amber"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <Heading
-                  eyebrow="Advisor Report Studio"
-                  title="Research becomes presentation-ready."
-                  helper="Create source-backed browser reports and secure PDFs with assumptions, risks, and advisor review controls."
-                />
-
-                <Pill tone="amber">
-                  {reports.length} reports
-                </Pill>
-              </div>
-
-              <textarea
-                value={reportPrompt}
-                onChange={(
-                  event: ChangeEvent<HTMLTextAreaElement>,
-                ) =>
-                  setReportPrompt(
-                    event.target
-                      .value,
-                  )
-                }
-                placeholder="Describe the report you need"
-                className="mt-6 min-h-[220px] w-full resize-none rounded-[1.3rem] border border-white/15 bg-[#020202] px-5 py-4 text-sm leading-7 text-white outline-none placeholder:text-slate-400 focus:border-emerald-300/35"
-              />
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="rounded-xl border border-white/10 bg-black/55 p-3">
-                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-300">
-                    Depth
-                  </span>
-
-                  <select
-                    value={
-                      preferences.reportDepth
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLSelectElement>,
-                    ) =>
-                      setPreferences(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          reportDepth:
-                            event
-                              .target
-                              .value as
-                              | "Balanced"
-                              | "Full",
-                        }),
-                      )
-                    }
-                    className="mt-1 w-full bg-transparent text-xs font-bold text-white outline-none"
-                  >
-                    <option
-                      value="Balanced"
-                      className="bg-black"
-                    >
-                      Balanced
-                    </option>
-
-                    <option
-                      value="Full"
-                      className="bg-black"
-                    >
-                      Full
-                    </option>
-                  </select>
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/55 p-3 text-xs font-bold text-slate-200">
-                  Assumptions
-
-                  <input
-                    type="checkbox"
-                    checked={
-                      preferences.includeAssumptions
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLInputElement>,
-                    ) =>
-                      setPreferences(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          includeAssumptions:
-                            event
-                              .target
-                              .checked,
-                        }),
-                      )
-                    }
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/55 p-3 text-xs font-bold text-slate-200">
-                  Risk notes
-
-                  <input
-                    type="checkbox"
-                    checked={
-                      preferences.includeRiskNotes
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLInputElement>,
-                    ) =>
-                      setPreferences(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          includeRiskNotes:
-                            event
-                              .target
-                              .checked,
-                        }),
-                      )
-                    }
-                  />
-                </label>
-
-                <label className="flex items-center justify-between rounded-xl border border-white/10 bg-black/55 p-3 text-xs font-bold text-slate-200">
-                  Review checklist
-
-                  <input
-                    type="checkbox"
-                    checked={
-                      preferences.includeReviewChecklist
-                    }
-                    onChange={(
-                      event: ChangeEvent<HTMLInputElement>,
-                    ) =>
-                      setPreferences(
-                        (
-                          current,
-                        ) => ({
-                          ...current,
-
-                          includeReviewChecklist:
-                            event
-                              .target
-                              .checked,
-                        }),
-                      )
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {REPORT_TEMPLATES.map(
-                  (
-                    template,
-                  ) => (
-                    <button
-                      key={
-                        template.title
-                      }
-                      type="button"
-                      onClick={() =>
-                        setReportPrompt(
-                          template.prompt,
-                        )
-                      }
-                      className="rounded-2xl border border-white/10 bg-black/55 p-4 text-left transition hover:border-emerald-300/25"
-                    >
-                      <div className="text-sm font-black text-white">
-                        {
-                          template.title
-                        }
-                      </div>
-
-                      <p className="mt-2 text-xs leading-5 text-slate-300">
-                        {
-                          template.helper
-                        }
-                      </p>
-                    </button>
-                  ),
+        <nav className="grid shrink-0 grid-cols-4 gap-1 rounded-xl border border-white/8 bg-black/30 p-1" aria-label="AI Studio sections">
+          {TAB_DEFINITIONS.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cx(
+                  "flex min-w-0 items-center justify-center gap-2 rounded-lg px-2 py-1.5 text-left transition sm:px-3",
+                  active
+                    ? "border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] text-white shadow-lg shadow-black/20"
+                    : "border border-transparent text-slate-600 hover:bg-white/[0.04] hover:text-white",
                 )}
-              </div>
+                aria-current={active ? "page" : undefined}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em] sm:text-xs sm:normal-case sm:tracking-normal">
+                    {tab.label}
+                  </span>
+                  <span className="hidden truncate text-[8px] font-semibold text-slate-600 xl:block">
+                    {tab.helper}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  onClick={() =>
-                    generateReport()
-                  }
-                  disabled={
-                    busy
-                  }
-                >
-                  {busy
-                    ? "Generating report..."
-                    : "Generate Source-Backed Report"}
-                </Button>
-
-                {latestAssistant ? (
-                  <Button
-                    onClick={() =>
-                      generateReport(
-                        latestAssistant.content,
-                      )
-                    }
-                    disabled={
-                      busy
-                    }
-                    variant="secondary"
-                  >
-                    Use Latest Answer
-                  </Button>
-                ) : null}
-              </div>
-            </Surface>
-
-            <Surface className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-400">
-                    Report library
-                  </div>
-
-                  <h2 className="mt-2 text-2xl font-black text-white">
-                    Recent intelligence
+        <div className="min-h-0 flex-1 lg:overflow-hidden">
+          {activeTab === "brain" ? (
+            <section className="grid h-full min-h-0 gap-2 lg:grid-cols-[205px_minmax(0,1fr)_300px]">
+              <WorkspaceSurface as="aside" className="hidden min-h-0 overflow-y-auto p-4 lg:block">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-[var(--slice-accent)]" />
+                  <h2 className="text-xs font-black uppercase tracking-[0.14em] text-white">
+                    Operate Slice
                   </h2>
                 </div>
 
-                <Pill tone="red">
-                  {reports.length}
-                </Pill>
-              </div>
+                <div className="mt-3 grid gap-2">
+                  {ROUTE_ACTIONS.map((action) => (
+                    <Link
+                      key={action.href}
+                      href={action.href}
+                      prefetch={false}
+                      className="group rounded-xl border border-white/8 bg-white/[0.025] p-3 transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-black text-white">{action.label}</p>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-[var(--slice-accent)]" />
+                      </div>
+                      <p className="mt-1 text-[10px] font-semibold text-slate-600">
+                        {action.helper}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
 
-              <div className="mt-4 grid gap-3">
-                {reports
-                  .slice(0, 10)
-                  .map(
-                    (report) => {
-                      const sourceCount =
-                        report.design
-                          ?.sources
-                          ?.length ??
-                        report.design
-                          ?.sourceCount ??
-                        0;
+                <div className="mt-5 border-t border-white/8 pt-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-600">
+                      Rolling memory
+                    </p>
+                    <WorkspacePill tone="cyan">
+                      {memoryPolicy.storedSearches}/{memoryPolicy.maximumSearches}
+                    </WorkspacePill>
+                  </div>
+                  <p className="mt-2 text-[10px] font-semibold leading-5 text-slate-600">
+                    Only the latest ten searches remain in working memory. Reports and audit history remain separate.
+                  </p>
+                  <WorkspaceButton
+                    className="mt-3 w-full"
+                    variant="quiet"
+                    size="sm"
+                    icon={<Trash2 className="h-4 w-4" />}
+                    onClick={() => void clearWorkingMemory()}
+                    disabled={busy || !messages.length}
+                  >
+                    Clear working memory
+                  </WorkspaceButton>
+                </div>
+              </WorkspaceSurface>
+
+              <WorkspaceSurface className="flex min-h-0 flex-col overflow-hidden">
+                <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+                      Live workspace
+                    </p>
+                    <h2 className="mt-0.5 text-sm font-black text-white">
+                      Conversation and verified actions
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lastLatencyMs ? (
+                      <WorkspacePill tone={lastLatencyMs < 1_500 ? "emerald" : "cyan"}>
+                        {lastLatencyMs} ms
+                      </WorkspacePill>
+                    ) : null}
+                    <WorkspacePill tone={answerMode === "deep" ? "violet" : "slate"}>
+                      {answerMode === "balanced" ? "adaptive" : answerMode}
+                    </WorkspacePill>
+                  </div>
+                </div>
+
+                <div ref={conversationRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                  {loading ? (
+                    <div className="space-y-3">
+                      {[0, 1, 2].map((item) => (
+                        <div key={item} className="h-24 animate-pulse rounded-2xl border border-white/6 bg-white/[0.025]" />
+                      ))}
+                    </div>
+                  ) : !messages.length ? (
+                    <EmptyPanel
+                      icon={<BrainCircuit className="h-5 w-5" />}
+                      title="The command cockpit is ready."
+                      description="Ask a question, open a workflow, create a source-backed report, or use voice. Your prompt stays permanently visible above."
+                    />
+                  ) : (
+                    messages.map((message) => {
+                      const assistant = message.role === "assistant";
+                      const action = message.metadata?.clientAction;
+                      const sources = message.metadata?.sources ?? [];
 
                       return (
-                        <SoftCard
-                          key={
-                            report.id
-                          }
-                          className="!border-white/10 !bg-black/55"
+                        <article
+                          key={message.id}
+                          className={cx(
+                            "rounded-2xl border p-4",
+                            assistant
+                              ? "border-[var(--slice-accent-border)] bg-[linear-gradient(145deg,var(--slice-accent-soft),rgba(255,255,255,.018))]"
+                              : "ml-auto max-w-[88%] border-white/10 bg-white/[0.05]",
+                          )}
                         >
-                          <div className="flex flex-wrap gap-2">
-                            <Pill
-                              tone={statusTone(
-                                report.status,
-                              )}
-                            >
-                              {
-                                report.status
-                              }
-                            </Pill>
-
-                            <Pill tone="red">
-                              {
-                                report.reportType
-                              }
-                            </Pill>
-
-                            <Pill
-                              tone={
-                                report
-                                  .design
-                                  ?.researchUsed
-                                  ? "green"
-                                  : "amber"
-                              }
-                            >
-                              {report
-                                .design
-                                ?.researchUsed
-                                ? "Researched"
-                                : "Internal"}
-                            </Pill>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={cx(
+                                  "grid h-8 w-8 place-items-center rounded-xl border",
+                                  assistant
+                                    ? "border-[var(--slice-accent-border)] bg-black/30 text-[var(--slice-accent)]"
+                                    : "border-white/10 bg-black/25 text-slate-300",
+                                )}
+                              >
+                                {assistant ? (
+                                  <Bot className="h-4 w-4" />
+                                ) : (
+                                  <Zap className="h-4 w-4" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
+                                  {assistant ? data?.profile.botName || "Slice AI" : "You"}
+                                </p>
+                                <p className="text-[9px] font-semibold text-slate-700">
+                                  {formatDate(message.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                            {assistant ? (
+                              <WorkspacePill tone={message.metadata?.researchUsed ? "cyan" : "emerald"}>
+                                {message.metadata?.researchUsed ? "Researched" : "Verified"}
+                              </WorkspacePill>
+                            ) : null}
                           </div>
 
-                          <h3 className="mt-3 line-clamp-2 text-sm font-black text-white">
-                            {
-                              report.title
-                            }
-                          </h3>
+                          <div className="mt-3">
+                            {assistant ? (
+                              <RichMessage value={message.content} />
+                            ) : (
+                              <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-white">
+                                {message.content}
+                              </p>
+                            )}
+                          </div>
 
-                          {report.summary ? (
-                            <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">
-                              {
-                                report.summary
-                              }
-                            </p>
+                          {assistant && action?.href ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <WorkspaceButton
+                                href={action.href}
+                                variant="primary"
+                                size="sm"
+                                icon={<ArrowUpRight className="h-4 w-4" />}
+                              >
+                                Open verified action
+                              </WorkspaceButton>
+                              {action.pdfHref ? (
+                                <WorkspaceButton
+                                  href={String(action.pdfHref)}
+                                  variant="secondary"
+                                  size="sm"
+                                  icon={<FileChartColumnIncreasing className="h-4 w-4" />}
+                                >
+                                  Open report
+                                </WorkspaceButton>
+                              ) : null}
+                            </div>
                           ) : null}
 
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <Pill tone="cyan">
-                              {sourceCount} sources
-                            </Pill>
-
-                            {report.design
-                              ?.model ? (
-                              <Pill tone="purple">
-                                {
-                                  report
-                                    .design
-                                    .model
-                                }
-                              </Pill>
-                            ) : null}
-
-                            <Pill tone="slate">
-                              {formatDate(
-                                report.createdAt,
-                              )}
-                            </Pill>
-                          </div>
-
-                          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                            <a
-                              href={reportViewerHref(
-                                report,
-                              )}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-2xl border border-white/20 bg-white px-4 py-2.5 text-center text-xs font-black text-slate-950"
-                            >
-                              Open Browser Report
-                            </a>
-
-                            <a
-                              href={
-                                report.downloadUrl
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-2xl border border-emerald-400/25 bg-emerald-950/20 px-4 py-2.5 text-center text-xs font-black text-emerald-100"
-                            >
-                              Open Raw PDF
-                            </a>
-                          </div>
-                        </SoftCard>
+                          {assistant && sources.length ? (
+                            <details className="mt-4 rounded-xl border border-white/8 bg-black/20 p-3">
+                              <summary className="cursor-pointer text-[10px] font-black uppercase tracking-[0.13em] text-cyan-300">
+                                {sources.length} supporting source{sources.length === 1 ? "" : "s"}
+                              </summary>
+                              <div className="mt-3">
+                                <SourceList sources={sources} />
+                              </div>
+                            </details>
+                          ) : null}
+                        </article>
                       );
-                    },
+                    })
                   )}
 
-                {!reports.length ? (
-                  <div className="rounded-2xl border border-dashed border-white/15 p-8 text-center text-sm text-slate-300">
-                    No reports yet. Generate the first source-backed report.
+                  {busy ? (
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.04] p-4">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
+                        <div>
+                          <p className="text-xs font-black text-cyan-100">{stage}</p>
+                          <p className="mt-1 text-[10px] font-semibold text-cyan-300/65">
+                            The interface remains usable while the request completes.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </WorkspaceSurface>
+
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto">
+                <CognitiveMap
+                  lane={lastExecutionLane}
+                  researchUsed={Boolean(latestAssistant?.metadata?.researchUsed)}
+                  busy={busy || transcribing}
+                />
+
+                <WorkspaceSurface className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+                        Latest result
+                      </p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {latestAssistant?.intent || "Waiting for a command"}
+                      </p>
+                    </div>
+                    <WorkspacePill tone={statusTone(data?.lastExecution?.status)}>
+                      {data?.lastExecution?.status || "Ready"}
+                    </WorkspacePill>
                   </div>
-                ) : null}
+
+                  <p className="mt-3 line-clamp-5 text-xs font-semibold leading-5 text-slate-500">
+                    {data?.lastExecution?.resultSummary ||
+                      latestAssistant?.content ||
+                      "The next verified answer or action summary will appear here."}
+                  </p>
+
+                  {latestAction?.href ? (
+                    <WorkspaceButton
+                      className="mt-3 w-full"
+                      href={latestAction.href}
+                      variant="primary"
+                      size="sm"
+                      icon={<ArrowUpRight className="h-4 w-4" />}
+                    >
+                      Open action
+                    </WorkspaceButton>
+                  ) : null}
+                </WorkspaceSurface>
+
+                <WorkspaceSurface className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4 w-4 text-cyan-300" />
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                        Intelligence fabric
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {latestSources.length ? (
+                        <WorkspacePill tone={lastEvidenceScore >= 80 ? "emerald" : "cyan"}>
+                          {lastEvidenceScore}/100
+                        </WorkspacePill>
+                      ) : null}
+                      <WorkspacePill tone="cyan">{latestSources.length}</WorkspacePill>
+                    </div>
+                  </div>
+                  <div className="mt-3 max-h-72 overflow-y-auto">
+                    <SourceList sources={latestSources} />
+                  </div>
+                </WorkspaceSurface>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <MiniMetric
+                    label="Model"
+                    value={data?.aiEngine?.fastModel || data?.aiEngine?.model || "Pending"}
+                    helper="Adaptive model selection"
+                    icon={<BrainCircuit className="h-4 w-4" />}
+                  />
+                  <MiniMetric
+                    label="Approvals"
+                    value={pendingApprovals}
+                    helper="Awaiting review"
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                  />
+                </div>
               </div>
-            </Surface>
-          </section>
-        ) : null}
+            </section>
+          ) : null}
+
+          {activeTab === "voice" ? (
+            <section className="grid h-full min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <WorkspaceSurface className="flex min-h-0 flex-col overflow-y-auto p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[var(--slice-accent)]">
+                      Voice command center
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-white sm:text-3xl">
+                      Speak naturally. Watch the transcript become an action.
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+                      Browser transcription is immediate. High-accuracy recording uses the existing OpenAI audio adapter and then executes through the same permission-scoped command route.
+                    </p>
+                  </div>
+                  <WorkspacePill tone={browserVoiceAvailable ? "emerald" : "amber"}>
+                    {browserVoiceAvailable ? "Instant voice ready" : "Recording fallback"}
+                  </WorkspacePill>
+                </div>
+
+                <div className="mt-6 grid flex-1 place-items-center rounded-[2rem] border border-[var(--slice-accent-border)] bg-[radial-gradient(circle_at_center,var(--slice-accent-soft),transparent_66%)] p-6 text-center">
+                  <div>
+                    <div
+                      className={cx(
+                        "mx-auto grid h-32 w-32 place-items-center rounded-full border border-[var(--slice-accent-border)] bg-black/45 shadow-[0_0_80px_var(--slice-accent-glow)]",
+                        (listening || recording || transcribing) && "animate-pulse",
+                      )}
+                    >
+                      {transcribing ? (
+                        <Loader2 className="h-12 w-12 animate-spin text-cyan-300" />
+                      ) : recording ? (
+                        <Radio className="h-12 w-12 text-amber-300" />
+                      ) : listening ? (
+                        <Waves className="h-12 w-12 text-[var(--slice-accent)]" />
+                      ) : (
+                        <Headphones className="h-12 w-12 text-[var(--slice-accent)]" />
+                      )}
+                    </div>
+
+                    <h3 className="mt-5 text-2xl font-black text-white">
+                      {transcribing
+                        ? "Transcribing and executing"
+                        : recording
+                          ? "High-accuracy recording active"
+                          : listening
+                            ? "Listening in real time"
+                            : "Voice operations ready"}
+                    </h3>
+                    <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
+                      Try “open client profiles”, “research Apple exposure”, “create a client-ready volatility report”, or “show autonomous scanning status”.
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
+                      <WorkspaceButton
+                        variant={listening ? "danger" : "primary"}
+                        icon={listening ? <CircleStop className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                        onClick={
+                          listening
+                            ? () => recognitionRef.current?.stop()
+                            : startBrowserVoice
+                        }
+                        disabled={!browserVoiceAvailable || recording || transcribing || busy}
+                      >
+                        {listening ? "Finish command" : "Instant voice"}
+                      </WorkspaceButton>
+                      <WorkspaceButton
+                        variant={recording ? "danger" : "secondary"}
+                        icon={recording ? <CircleStop className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
+                        onClick={recording ? stopRecording : () => void startRecording()}
+                        disabled={!recordingAvailable || listening || transcribing || busy}
+                      >
+                        {recording ? "Stop recording" : "High-accuracy recording"}
+                      </WorkspaceButton>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/8 bg-black/30 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-600">
+                        Live transcript
+                      </p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {voiceTranscript || "Your words appear here as you speak."}
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
+                      <input
+                        type="checkbox"
+                        checked={autoExecuteVoice}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) => setAutoExecuteVoice(event.target.checked)}
+                        className="h-4 w-4 accent-emerald-500"
+                      />
+                      Execute final transcript automatically
+                    </label>
+                  </div>
+                </div>
+              </WorkspaceSurface>
+
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto">
+                <WorkspaceSurface className="p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+                    Voice performance
+                  </p>
+                  <div className="mt-3 grid gap-2">
+                    <MiniMetric
+                      label="Last command"
+                      value={lastLatencyMs ? `${lastLatencyMs} ms` : "Waiting"}
+                      helper="Transcription + execution"
+                      icon={<Gauge className="h-4 w-4" />}
+                    />
+                    <MiniMetric
+                      label="Browser voice"
+                      value={browserVoiceAvailable ? "Ready" : "Unavailable"}
+                      helper="Live interim transcript"
+                      icon={<Mic className="h-4 w-4" />}
+                    />
+                    <MiniMetric
+                      label="Audio model"
+                      value={data?.aiEngine?.audio?.transcriptionModel || "Fallback"}
+                      helper="Higher-accuracy path"
+                      icon={<Waves className="h-4 w-4" />}
+                    />
+                  </div>
+                </WorkspaceSurface>
+
+                <WorkspaceSurface className="p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                    Execution safeguards
+                  </p>
+                  <div className="mt-3 space-y-2 text-xs font-semibold leading-5 text-slate-500">
+                    <p>• Voice uses the same server authorization as typed commands.</p>
+                    <p>• Client communication and high-impact actions retain approval gates.</p>
+                    <p>• Financial terms, tickers, dates, and client workflow names are preserved during transcription.</p>
+                  </div>
+                </WorkspaceSurface>
+              </div>
+            </section>
+          ) : null}
+
+          {activeTab === "reports" ? (
+            <section className="grid h-full min-h-0 gap-2 xl:grid-cols-[340px_minmax(0,1fr)]">
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto">
+                <WorkspaceSurface className="p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-accent)]">
+                    Report builder
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-white">
+                    Client-ready visuals backed by evidence.
+                  </h2>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                    Choose a report pattern, customize the request, and generate through the same research and source layer used by the platform brain.
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {REPORT_TEMPLATES.map((template) => (
+                      <button
+                        key={template.label}
+                        type="button"
+                        onClick={() => setReportPrompt(template.prompt)}
+                        className="rounded-xl border border-white/8 bg-white/[0.025] p-3 text-left transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]"
+                      >
+                        <p className="text-xs font-black text-white">{template.label}</p>
+                        <p className="mt-1 line-clamp-2 text-[9px] font-semibold leading-4 text-slate-600">
+                          {template.helper}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <WorkspaceTextarea
+                    value={reportPrompt}
+                    onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setReportPrompt(event.target.value)}
+                    className="mt-4 min-h-40 bg-black/35"
+                    aria-label="Report request"
+                  />
+                  <WorkspaceButton
+                    className="mt-3 w-full"
+                    variant="primary"
+                    icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    onClick={() => void generateReport()}
+                    disabled={busy || !reportPrompt.trim()}
+                  >
+                    Generate visual report
+                  </WorkspaceButton>
+                </WorkspaceSurface>
+
+                <WorkspaceSurface className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-600">
+                        Report library
+                      </p>
+                      <p className="mt-1 text-lg font-black text-white">
+                        {reports.length} recent reports
+                      </p>
+                    </div>
+                    <WorkspaceButton
+                      variant="quiet"
+                      size="sm"
+                      icon={<RefreshCw className="h-4 w-4" />}
+                      onClick={() => void loadStudio(true)}
+                    >
+                      Refresh
+                    </WorkspaceButton>
+                  </div>
+
+                  <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+                    {reports.length ? (
+                      reports.map((report) => (
+                        <button
+                          key={report.id}
+                          type="button"
+                          onClick={() => setSelectedReportId(report.id)}
+                          className={cx(
+                            "w-full rounded-xl border p-3 text-left transition",
+                            selectedReport?.id === report.id
+                              ? "border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)]"
+                              : "border-white/8 bg-white/[0.025] hover:border-white/15",
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="truncate text-xs font-black text-white">{report.title}</p>
+                            <WorkspacePill tone={statusTone(report.status)}>{report.status}</WorkspacePill>
+                          </div>
+                          <p className="mt-1 truncate text-[9px] font-semibold text-slate-600">
+                            {report.reportType} · {formatDate(report.createdAt)}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-xs font-semibold text-slate-600">
+                        No reports have been created yet.
+                      </p>
+                    )}
+                  </div>
+                </WorkspaceSurface>
+              </div>
+
+              <WorkspaceSurface className="min-h-0 overflow-y-auto p-4">
+                {selectedReport ? (
+                  <div className="mx-auto max-w-5xl">
+                    <div className="overflow-hidden rounded-[2rem] border border-[var(--slice-accent-border)] bg-[linear-gradient(145deg,#020806,#052e16_58%,#0f766e)] p-6 shadow-2xl shadow-black/40 sm:p-8">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <WorkspacePill tone="emerald">Client-ready preview</WorkspacePill>
+                        <WorkspacePill tone={selectedReport.design?.researchUsed ? "cyan" : "amber"}>
+                          {selectedReport.design?.researchUsed ? "Source backed" : "Internal context"}
+                        </WorkspacePill>
+                      </div>
+                      <h2 className="mt-7 max-w-4xl text-3xl font-black tracking-[-0.045em] text-white sm:text-5xl">
+                        {selectedReport.title}
+                      </h2>
+                      <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-emerald-50/75 sm:text-base">
+                        {selectedReport.summary || "Slice AI report prepared for advisor review."}
+                      </p>
+                      <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                        <MiniMetric
+                          label="Confidence"
+                          value={`${selectedReport.design?.confidenceScore ?? "—"}`}
+                          helper="Advisor review still required"
+                          icon={<Gauge className="h-4 w-4" />}
+                        />
+                        <MiniMetric
+                          label="Sources"
+                          value={selectedReport.design?.sourceCount ?? selectedReport.design?.sources?.length ?? 0}
+                          helper="Visible evidence links"
+                          icon={<Database className="h-4 w-4" />}
+                        />
+                        <MiniMetric
+                          label="Model"
+                          value={selectedReport.design?.model || "Slice AI"}
+                          helper="Generation provider"
+                          icon={<BrainCircuit className="h-4 w-4" />}
+                        />
+                      </div>
+                      <div className="mt-7 flex flex-wrap gap-2">
+                        <WorkspaceButton
+                          href={selectedReport.viewerUrl || selectedReport.downloadUrl}
+                          variant="primary"
+                          icon={<ArrowUpRight className="h-4 w-4" />}
+                        >
+                          Open client preview
+                        </WorkspaceButton>
+                        <WorkspaceButton
+                          href={selectedReport.downloadUrl}
+                          variant="secondary"
+                          icon={<FileChartColumnIncreasing className="h-4 w-4" />}
+                        >
+                          Open raw PDF
+                        </WorkspaceButton>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.025] p-5">
+                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+                          Advisor review context
+                        </p>
+                        <p className="mt-3 text-sm font-semibold leading-6 text-slate-400">
+                          {selectedReport.summary || "Review the report for factual accuracy, source freshness, client suitability, and firm approval before external distribution."}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.025] p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[9px] font-black uppercase tracking-[0.15em] text-cyan-300">
+                            Evidence backing
+                          </p>
+                          <WorkspacePill tone="cyan">
+                            {selectedReport.design?.sources?.length ?? 0}
+                          </WorkspacePill>
+                        </div>
+                        <div className="mt-3 max-h-60 overflow-y-auto">
+                          <SourceList sources={selectedReport.design?.sources ?? []} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyPanel
+                    icon={<FileChartColumnIncreasing className="h-5 w-5" />}
+                    title="Choose or create a report."
+                    description="The selected report appears here as a client-ready visual preview with evidence, confidence, and download controls."
+                  />
+                )}
+              </WorkspaceSurface>
+            </section>
+          ) : null}
+
+          {activeTab === "autonomy" ? (
+            <section className="grid h-full min-h-0 gap-2 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <WorkspaceSurface className="min-h-0 overflow-y-auto p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.17em] text-[var(--slice-accent)]">
+                      Always-on control plane
+                    </p>
+                    <h2 className="mt-2 max-w-4xl text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl">
+                      The platform keeps scanning, briefing, and delivering approved work without an open browser.
+                    </h2>
+                    <p className="mt-3 max-w-4xl text-sm font-semibold leading-6 text-slate-500">
+                      Vercel cron schedules the work, PostgreSQL stores durable jobs, and every workflow exposes progress, failures, cancellation, retry, and last-update information.
+                    </p>
+                  </div>
+                  <WorkspaceButton
+                    variant="secondary"
+                    icon={<RefreshCw className={cx("h-4 w-4", autonomy.loading && "animate-spin")} />}
+                    onClick={() => void loadAutonomy()}
+                    disabled={autonomy.loading}
+                  >
+                    Refresh status
+                  </WorkspaceButton>
+                </div>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                  <Link
+                    href="/workspace/brief"
+                    prefetch={false}
+                    className="group rounded-2xl border border-white/8 bg-white/[0.025] p-5 transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Mail className="h-6 w-6 text-[var(--slice-accent)]" />
+                      <WorkspacePill tone={autonomy.brief?.preference?.enabled ? "emerald" : "amber"}>
+                        {autonomy.brief?.preference?.enabled ? "Automatic" : "Paused"}
+                      </WorkspacePill>
+                    </div>
+                    <h3 className="mt-4 text-xl font-black text-white">Advisor Brief</h3>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                      {autonomy.brief?.schedule?.label || "Schedule not loaded"}
+                    </p>
+                    <div className="mt-4 flex items-center justify-between text-[10px] font-bold text-slate-600">
+                      <span>Next run</span>
+                      <span>{formatDate(autonomy.brief?.schedule?.nextRunAt)}</span>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/workspace/watchlists"
+                    prefetch={false}
+                    className="group rounded-2xl border border-white/8 bg-white/[0.025] p-5 transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Search className="h-6 w-6 text-cyan-300" />
+                      <WorkspacePill tone={autonomy.watchlists?.state?.schedulerEnabled ? "emerald" : "amber"}>
+                        {autonomy.watchlists?.state?.schedulerEnabled ? "Scanning" : "Paused"}
+                      </WorkspacePill>
+                    </div>
+                    <h3 className="mt-4 text-xl font-black text-white">Watchlist Scanning</h3>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                      {autonomy.watchlists?.metrics?.readyCount ?? 0} ready lists · {autonomy.watchlists?.metrics?.eventCount ?? 0} retained events
+                    </p>
+                    <div className="mt-4 flex items-center justify-between text-[10px] font-bold text-slate-600">
+                      <span>Last tick</span>
+                      <span>{formatDate(autonomy.watchlists?.state?.lastSchedulerTick)}</span>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/workspace/client-emails"
+                    prefetch={false}
+                    className="group rounded-2xl border border-white/8 bg-white/[0.025] p-5 transition hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <Send className="h-6 w-6 text-amber-300" />
+                      <WorkspacePill tone={(autonomy.email?.metrics?.failedCount ?? 0) ? "amber" : "emerald"}>
+                        {(autonomy.email?.metrics?.failedCount ?? 0) ? "Review" : "Healthy"}
+                      </WorkspacePill>
+                    </div>
+                    <h3 className="mt-4 text-xl font-black text-white">Approved Email Delivery</h3>
+                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                      {autonomy.email?.metrics?.scheduledCount ?? 0} scheduled · {autonomy.email?.metrics?.pendingApprovalCount ?? 0} awaiting approval
+                    </p>
+                    <div className="mt-4 flex items-center justify-between text-[10px] font-bold text-slate-600">
+                      <span>Active work</span>
+                      <span>{activeEmailJobs}</span>
+                    </div>
+                  </Link>
+                </div>
+
+                <WorkspaceAlert tone="info" className="mt-5" title="Autonomy boundary">
+                  Slice can autonomously scan, generate advisor briefings, refine drafts, process documents, and execute already approved or scheduled deliveries. New AI-created client emails retain advisor approval unless a future firm policy explicitly permits another workflow.
+                </WorkspaceAlert>
+              </WorkspaceSurface>
+
+              <div className="grid min-h-0 content-start gap-3 overflow-y-auto">
+                <WorkspaceSurface className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--slice-accent)]">
+                        Runtime health
+                      </p>
+                      <p className="mt-1 text-lg font-black text-white">Durable and recoverable</p>
+                    </div>
+                    <WorkspacePill tone={activeAutomationJobs ? "cyan" : "emerald"}>
+                      {activeAutomationJobs} active
+                    </WorkspacePill>
+                  </div>
+
+                  <div className="mt-4 grid gap-2">
+                    {[
+                      ["Brief jobs", activeBriefJobs, autonomy.brief?.jobs?.[0]?.status || "Idle"],
+                      ["Watchlist jobs", autonomy.watchlists?.metrics?.activeJobCount ?? 0, autonomy.watchlists?.state?.schedulerEnabled ? "Enabled" : "Paused"],
+                      ["Email jobs", activeEmailJobs, (autonomy.email?.metrics?.failedCount ?? 0) ? "Failures visible" : "Healthy"],
+                    ].map(([label, count, status]) => (
+                      <div key={String(label)} className="rounded-xl border border-white/8 bg-white/[0.025] p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">
+                              {label}
+                            </p>
+                            <p className="mt-1 text-lg font-black text-white">{String(count)}</p>
+                          </div>
+                          <WorkspacePill tone={statusTone(String(status))}>{String(status)}</WorkspacePill>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[10px] font-semibold text-slate-600">
+                    Last refresh: {formatDate(autonomy.loadedAt)}
+                  </p>
+                </WorkspaceSurface>
+
+                <WorkspaceSurface className="p-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    Configure at the source
+                  </p>
+                  <div className="mt-3 grid gap-2">
+                    {ROUTE_ACTIONS.slice(1).map((action) => (
+                      <Link
+                        key={action.href}
+                        href={action.href}
+                        prefetch={false}
+                        className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.025] px-3 py-3 text-xs font-black text-slate-300 hover:border-[var(--slice-accent-border)] hover:text-white"
+                      >
+                        {action.label}
+                        <ArrowUpRight className="h-4 w-4 text-[var(--slice-accent)]" />
+                      </Link>
+                    ))}
+                  </div>
+                </WorkspaceSurface>
+              </div>
+            </section>
+          ) : null}
+        </div>
       </div>
     </SliceBackground>
   );

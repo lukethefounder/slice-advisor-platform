@@ -1,4 +1,11 @@
+import "server-only";
+
 import { getOptionalEnv } from "@/lib/env";
+import { alphaVantageRequest } from "@/lib/integrations/alpha-vantage";
+import {
+  getIntegrationCircuitSnapshot,
+  publicIntegrationFailure,
+} from "@/lib/integrations/core";
 
 export type MarketQuoteResult = {
   symbol: string;
@@ -11,6 +18,14 @@ export type MarketQuoteResult = {
   provider: string;
   isLive: boolean;
   note: string;
+  latencyMs?: number;
+  requestId?: string;
+  errorCode?: string;
+  retryable?: boolean;
+};
+
+type GlobalQuotePayload = {
+  "Global Quote"?: Record<string, unknown>;
 };
 
 function round(value: number, places = 2) {
@@ -18,87 +33,157 @@ function round(value: number, places = 2) {
   return Math.round(value * multiplier) / multiplier;
 }
 
-export async function fetchMarketQuote(symbol: string): Promise<MarketQuoteResult> {
-  const apiKey = getOptionalEnv("ALPHA_VANTAGE_API_KEY");
-  const cleanSymbol = symbol.trim().toUpperCase();
+function numberOrNull(value: unknown) {
+  const parsed = Number(String(value ?? "").replace(/[,%]/g, "").trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
-  if (!apiKey) {
-    return {
-      symbol: cleanSymbol,
-      price: null,
-      change: null,
-      changePct: null,
-      previousClose: null,
-      volume: null,
-      latestTradingDay: null,
-      provider: "No live provider",
-      isLive: false,
-      note: "ALPHA_VANTAGE_API_KEY is missing.",
-    };
+function normalizeSymbol(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/^\$/, "")
+    .replace(/[^A-Z0-9.-]/g, "")
+    .slice(0, 20);
+}
+
+function emptyResult(
+  symbol: string,
+  input: {
+    note: string;
+    errorCode?: string;
+    retryable?: boolean;
+    latencyMs?: number;
+    requestId?: string;
+  },
+): MarketQuoteResult {
+  return {
+    symbol,
+    price: null,
+    change: null,
+    changePct: null,
+    previousClose: null,
+    volume: null,
+    latestTradingDay: null,
+    provider: "Alpha Vantage",
+    isLive: false,
+    note: input.note,
+    errorCode: input.errorCode,
+    retryable: input.retryable,
+    latencyMs: input.latencyMs,
+    requestId: input.requestId,
+  };
+}
+
+export async function fetchMarketQuote(
+  symbol: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<MarketQuoteResult> {
+  const cleanSymbol = normalizeSymbol(symbol);
+
+  if (!cleanSymbol) {
+    return emptyResult("", {
+      note: "A valid market symbol is required.",
+      errorCode: "INVALID_SYMBOL",
+      retryable: false,
+    });
   }
 
-  const url = new URL("https://www.alphavantage.co/query");
-  url.searchParams.set("function", "GLOBAL_QUOTE");
-  url.searchParams.set("symbol", cleanSymbol);
-  url.searchParams.set("apikey", apiKey);
+  if (!getOptionalEnv("ALPHA_VANTAGE_API_KEY")) {
+    return emptyResult(cleanSymbol, {
+      note: "Alpha Vantage is not configured.",
+      errorCode: "INTEGRATION_NOT_CONFIGURED",
+      retryable: false,
+    });
+  }
+
+  const entitlement = String(process.env.ALPHA_VANTAGE_ENTITLEMENT ?? "")
+    .trim()
+    .toLowerCase();
 
   try {
-    const response = await fetch(url.toString(), {
-      cache: "no-store",
-    });
-
-    const payload = await response.json();
-    const raw = payload?.["Global Quote"] ?? {};
-
-    const price = Number(raw["05. price"]);
-    const change = Number(raw["09. change"]);
-    const changePct = Number(String(raw["10. change percent"] ?? "").replace("%", ""));
-    const previousClose = Number(raw["08. previous close"]);
-    const volume = Number(raw["06. volume"]);
-
-    if (!Number.isFinite(price)) {
-      return {
+    const result = await alphaVantageRequest(
+      "GLOBAL_QUOTE",
+      {
         symbol: cleanSymbol,
-        price: null,
-        change: null,
-        changePct: null,
-        previousClose: null,
-        volume: null,
-        latestTradingDay: null,
-        provider: "Alpha Vantage",
-        isLive: false,
-        note:
-          payload?.Note ||
-          payload?.Information ||
-          payload?.["Error Message"] ||
-          "Provider did not return a valid quote.",
-      };
+        ...(entitlement === "realtime" || entitlement === "delayed"
+          ? { entitlement }
+          : {}),
+      },
+      {
+        timeoutMs: 12_000,
+        maxAttempts: 2,
+        maxResponseBytes: 512 * 1024,
+        signal: options.signal,
+      },
+    );
+    const payload = result.data as GlobalQuotePayload;
+    const raw = payload["Global Quote"] ?? {};
+    const price = numberOrNull(raw["05. price"]);
+    const change = numberOrNull(raw["09. change"]);
+    const changePct = numberOrNull(raw["10. change percent"]);
+    const previousClose = numberOrNull(raw["08. previous close"]);
+    const volume = numberOrNull(raw["06. volume"]);
+
+    if (price === null || price <= 0) {
+      return emptyResult(cleanSymbol, {
+        note: "Alpha Vantage did not return a usable quote.",
+        errorCode: "PROVIDER_INVALID_RESPONSE",
+        retryable: false,
+        latencyMs: result.meta.durationMs,
+        requestId: result.meta.requestId,
+      });
     }
 
+    const isLive = entitlement === "realtime";
+
     return {
       symbol: cleanSymbol,
-      price: round(price),
-      change: Number.isFinite(change) ? round(change) : null,
-      changePct: Number.isFinite(changePct) ? round(changePct) : null,
-      previousClose: Number.isFinite(previousClose) ? round(previousClose) : null,
-      volume: Number.isFinite(volume) ? volume : null,
-      latestTradingDay: raw["07. latest trading day"] ?? null,
+      price: round(price, 4),
+      change: change === null ? null : round(change, 4),
+      changePct: changePct === null ? null : round(changePct, 4),
+      previousClose: previousClose === null ? null : round(previousClose, 4),
+      volume,
+      latestTradingDay:
+        typeof raw["07. latest trading day"] === "string"
+          ? raw["07. latest trading day"]
+          : null,
       provider: "Alpha Vantage",
-      isLive: true,
-      note: "Live quote loaded.",
+      isLive,
+      note: isLive
+        ? "Alpha Vantage real-time entitlement returned a quote."
+        : "Quote loaded, but the configured entitlement is not marked real-time.",
+      latencyMs: result.meta.durationMs,
+      requestId: result.meta.requestId,
     };
-  } catch {
-    return {
-      symbol: cleanSymbol,
-      price: null,
-      change: null,
-      changePct: null,
-      previousClose: null,
-      volume: null,
-      latestTradingDay: null,
-      provider: "Alpha Vantage",
-      isLive: false,
-      note: "Quote fetch failed.",
-    };
+  } catch (error) {
+    const failure = publicIntegrationFailure(
+      error,
+      "Alpha Vantage could not return a quote.",
+    );
+
+    return emptyResult(cleanSymbol, {
+      note: failure.message,
+      errorCode: failure.code,
+      retryable: failure.retryable,
+      requestId: failure.requestId,
+    });
   }
+}
+
+export function getMarketIntegrationStatus() {
+  const entitlement = String(process.env.ALPHA_VANTAGE_ENTITLEMENT ?? "")
+    .trim()
+    .toLowerCase();
+
+  return {
+    provider: "Alpha Vantage",
+    configured: Boolean(getOptionalEnv("ALPHA_VANTAGE_API_KEY")),
+    entitlement:
+      entitlement === "realtime" || entitlement === "delayed"
+        ? entitlement
+        : "unspecified",
+    strictRealtimeClaiming: true,
+    circuits: getIntegrationCircuitSnapshot("alpha-vantage"),
+  };
 }

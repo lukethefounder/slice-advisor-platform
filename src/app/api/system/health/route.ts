@@ -1,30 +1,29 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { apiJson, withApiRoute } from "@/lib/api-route";
+import { buildReadinessReport } from "@/lib/health";
 
-export async function GET() {
-  try {
-    const userCount = await prisma.user.count();
-    const alertCount = await prisma.alertEvent.count();
-    const decisionCount = await prisma.headlineDecision.count();
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-    return NextResponse.json({
-      ok: true,
-      database: "connected",
-      timestamp: new Date().toISOString(),
-      counts: {
-        users: userCount,
-        alerts: alertCount,
-        retainedDecisions: decisionCount,
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
+export const GET = withApiRoute(
+  {
+    route: "/api/system/health",
+    timeoutMs: 8_000,
+    cacheControl: "no-store, max-age=0",
+  },
+  async ({ requestId }) => {
+    const report = await buildReadinessReport(requestId);
+
+    return apiJson(
       {
-        ok: false,
-        database: "error",
-        detail: error instanceof Error ? error.message : "Unknown health error",
+        ...report,
+        // Compatibility fields used by the existing /system page.
+        database:
+          report.checks.database.state === "ok" ? "connected" : "error",
+        timestamp: report.checkedAt,
       },
-      { status: 500 }
+      {
+        status: report.ok ? 200 : 503,
+      },
     );
-  }
-}
+  },
+);

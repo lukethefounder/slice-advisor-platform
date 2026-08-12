@@ -215,11 +215,36 @@ export type AdvisorBriefEmailResult = {
   error?: string;
 };
 
+export type AdvisorBriefJobView = {
+  id: string;
+  status: string;
+  attempt: number;
+  maxAttempts: number;
+  progress: {
+    value: number;
+    message: string | null;
+    updatedAt: string | null;
+  };
+  availableAt: string;
+  completedAt: string | null;
+  error: string | null;
+  output: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdvisorBriefApiPayload = {
   ok: boolean;
   preference: AdvisorBriefPreference;
   latest: AdvisorMarketBriefRecord | null;
   history: AdvisorMarketBriefRecord[];
+  schedule: {
+    label: string;
+    nextRunAt: string | null;
+    emailReady: boolean;
+    cronCadence: "Every 5 minutes";
+  };
+  jobs: AdvisorBriefJobView[];
   delivery: {
     status: string;
     destination: string | null;

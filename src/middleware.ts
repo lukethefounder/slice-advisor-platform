@@ -1,40 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SESSION_COOKIE = "slice_session";
+import { securityHeadersForRequest } from "@/lib/security-headers";
+
+const ADVISOR_SESSION_COOKIE = "slice_session";
+const CLIENT_SESSION_COOKIE = "slice_client_portal_session";
 
 const PUBLIC_PAGE_PREFIXES = [
-  "/",
+  "/blog",
   "/portal",
   "/founder-login",
   "/founder-bootstrap",
+  "/advisor-signup",
+  "/team-invite",
+  "/client-login",
+  "/client-signup",
   "/bot-onboarding",
-];
-
-const PUBLIC_API_PREFIXES = [
-  "/api/auth/login",
-  "/api/auth/register",
-  "/api/founder-bootstrap",
-  "/api/cron",
-  "/api/personal-bot/pdf-report",
-];
-
-const BLOCKED_PATH_PATTERNS = [
-  ".env",
-  ".git",
-  ".svn",
-  ".htaccess",
-  "wp-admin",
-  "wp-login",
-  "phpmyadmin",
-  "server-status",
-  "config.php",
-  "composer.json",
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-  "/../",
-  "%2e%2e",
-];
+] as const;
 
 const SENSITIVE_APP_PREFIXES = [
   "/workspace",
@@ -55,23 +36,40 @@ const SENSITIVE_APP_PREFIXES = [
   "/intelligence-settings",
   "/command",
   "/founder-portal",
-];
+] as const;
+
+const BLOCKED_PATH_PATTERNS = [
+  ".env",
+  ".git",
+  ".svn",
+  ".htaccess",
+  "wp-admin",
+  "wp-login",
+  "phpmyadmin",
+  "server-status",
+  "config.php",
+  "composer.json",
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "/../",
+  "%2e%2e",
+  "%252e%252e",
+] as const;
 
 function isStaticAsset(pathname: string) {
   return (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.startsWith("/robots.txt") ||
-    pathname.startsWith("/sitemap.xml") ||
-    Boolean(
-      pathname.match(
-        /\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|map|txt|xml|woff|woff2)$/i
-      )
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    /\.(png|jpg|jpeg|gif|webp|avif|svg|ico|css|js|map|txt|xml|woff|woff2)$/i.test(
+      pathname,
     )
   );
 }
 
-function safeDecodePath(pathname: string) {
+function decodedPath(pathname: string) {
   try {
     return decodeURIComponent(pathname).toLowerCase();
   } catch {
@@ -80,208 +78,238 @@ function safeDecodePath(pathname: string) {
 }
 
 function isBlockedPath(pathname: string) {
-  const lower = safeDecodePath(pathname);
+  const lower = decodedPath(pathname);
   return BLOCKED_PATH_PATTERNS.some((pattern) => lower.includes(pattern));
 }
 
+
 function isPublicPage(pathname: string) {
-  if (pathname === "/") return true;
-
-  return PUBLIC_PAGE_PREFIXES.some(
-    (prefix) => prefix !== "/" && pathname.startsWith(prefix)
+  return (
+    pathname === "/" ||
+    PUBLIC_PAGE_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )
   );
 }
 
-function isPublicApi(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  /*
-   * Expose only the lightweight forecast contract/health check.
-   * POST forecast generation remains protected by the Slice session.
-   */
-  if (
-    request.method === "GET" &&
-    pathname === "/api/intelligence/forecast"
-  ) {
-    return true;
-  }
-
-  return PUBLIC_API_PREFIXES.some((prefix) =>
-    pathname.startsWith(prefix)
-  );
-}
-
-function isSensitiveAppRoute(pathname: string) {
-  return SENSITIVE_APP_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-}
-
-function hasSessionCookie(request: NextRequest) {
-  return Boolean(request.cookies.get(SESSION_COOKIE)?.value);
+function isClientPortalPage(pathname: string) {
+  return pathname === "/client-portal" || pathname.startsWith("/client-portal/");
 }
 
 function isUnsafeMethod(method: string) {
   return ["POST", "PUT", "PATCH", "DELETE"].includes(method.toUpperCase());
 }
 
+function isServiceCallback(pathname: string) {
+  return (
+    pathname === "/api/security/csp-report" ||
+    pathname === "/api/documents/upload" ||
+    pathname.startsWith("/api/cron/")
+  );
+}
+
 function isCrossSiteUnsafeRequest(request: NextRequest) {
   if (!isUnsafeMethod(request.method)) return false;
+  if (isServiceCallback(request.nextUrl.pathname)) return false;
 
-  const secFetchSite = request.headers.get("sec-fetch-site");
-
-  if (secFetchSite === "cross-site") {
-    return true;
-  }
+  const site = request.headers.get("sec-fetch-site")?.toLowerCase();
+  if (site === "cross-site") return true;
 
   const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-
-  if (!origin || !host) return false;
+  const referer = request.headers.get("referer");
+  const expectedOrigin = request.nextUrl.origin;
 
   try {
-    return new URL(origin).host !== host;
+    if (origin && new URL(origin).origin !== expectedOrigin) return true;
+    if (!origin && referer && new URL(referer).origin !== expectedOrigin) {
+      return true;
+    }
   } catch {
     return true;
   }
+
+  return false;
 }
 
-function buildSecurityHeaders(request: NextRequest) {
-  const isDev = process.env.NODE_ENV !== "production";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
-
-  const connectSrc = [
-    "'self'",
-    "https://api.openai.com",
-    "https://api.resend.com",
-    "https://*.vercel.app",
-    appUrl ? new URL(appUrl).origin : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const csp = [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-    `connect-src ${connectSrc}`,
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    isDev
-      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-      : "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "media-src 'self' blob:",
-    "worker-src 'self' blob:",
-    "upgrade-insecure-requests",
-  ].join("; ");
-
-  return {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy":
-      "camera=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), clipboard-read=(), clipboard-write=(self), microphone=(self)",
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "Cross-Origin-Resource-Policy": "same-origin",
-    "X-DNS-Prefetch-Control": "off",
-    "X-Permitted-Cross-Domain-Policies": "none",
-    "Content-Security-Policy-Report-Only": csp,
-    ...(request.nextUrl.protocol === "https:"
-      ? {
-          "Strict-Transport-Security":
-            "max-age=63072000; includeSubDomains; preload",
-        }
-      : {}),
-  };
+function hasAdvisorSession(request: NextRequest) {
+  return Boolean(request.cookies.get(ADVISOR_SESSION_COOKIE)?.value);
 }
 
-function withSecurityHeaders(response: NextResponse, request: NextRequest) {
-  const headers = buildSecurityHeaders(request);
+function hasClientSession(request: NextRequest) {
+  return Boolean(request.cookies.get(CLIENT_SESSION_COOKIE)?.value);
+}
 
-  for (const [key, value] of Object.entries(headers)) {
+function isPublicApi(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const method = request.method.toUpperCase();
+
+  if (pathname.startsWith("/api/cron/")) return true;
+  if (pathname === "/api/security/csp-report") return method === "POST";
+  if (pathname === "/api/documents/upload") return method === "POST";
+  if (pathname === "/api/operations/web-vitals") return method === "POST";
+
+  if (pathname === "/api/auth/me") return method === "GET";
+  if (pathname === "/api/auth/login") return method === "POST";
+  if (pathname === "/api/auth/register") return method === "POST";
+  if (pathname === "/api/founder-bootstrap") return method === "POST";
+
+  if (pathname === "/api/client-portal/access") {
+    return method === "GET" || method === "POST";
+  }
+
+  if (
+    method === "GET" &&
+    (pathname === "/api/health" ||
+      pathname.startsWith("/api/health/") ||
+      pathname === "/api/system/health" ||
+      pathname === "/api/market/realtime" ||
+      pathname === "/api/intelligence/daily" ||
+      pathname === "/api/intelligence/alpha-vantage" ||
+      pathname === "/api/intelligence/forecast")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function requestId(request: NextRequest) {
+  const incoming = request.headers.get("x-request-id")?.trim();
+  if (incoming && /^[A-Za-z0-9._:-]{8,128}$/.test(incoming)) return incoming;
+  return crypto.randomUUID();
+}
+
+function securityHeaders(request: NextRequest) {
+  return securityHeadersForRequest({
+    development: process.env.NODE_ENV !== "production",
+    https: request.nextUrl.protocol === "https:",
+  });
+}
+
+function decorate(
+  response: NextResponse,
+  request: NextRequest,
+  id: string,
+  options: { sensitive?: boolean } = {},
+) {
+  for (const [key, value] of Object.entries(securityHeaders(request))) {
     response.headers.set(key, value);
   }
 
-  response.headers.set("X-Slice-Security-Layer", "middleware-v2");
+  response.headers.set("X-Request-Id", id);
+  response.headers.set("X-Slice-Security-Layer", "middleware-v3");
+
+  if (options.sensitive) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.append("Vary", "Cookie");
+  }
+
   return response;
 }
 
-function unauthorizedApi(request: NextRequest) {
-  const response = NextResponse.json(
-    {
-      error: "Unauthorized.",
-    },
-    { status: 401 }
+function jsonError(
+  request: NextRequest,
+  id: string,
+  status: number,
+  code: string,
+  message: string,
+) {
+  return decorate(
+    NextResponse.json(
+      {
+        ok: false,
+        error: { code, message, requestId: id },
+      },
+      { status },
+    ),
+    request,
+    id,
+    { sensitive: true },
   );
-
-  response.headers.set("Cache-Control", "no-store");
-  return withSecurityHeaders(response, request);
 }
 
-function blockedSecurityResponse(
+function redirectToLogin(
   request: NextRequest,
-  reason: string,
-  status = 403
+  id: string,
+  pathname: "/founder-login" | "/client-login",
 ) {
-  const response = NextResponse.json(
-    {
-      error: "Security policy blocked this request.",
-      reason,
-    },
-    { status }
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = "";
+  url.searchParams.set(
+    "next",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`.slice(0, 1_500),
   );
 
-  response.headers.set("Cache-Control", "no-store");
-  return withSecurityHeaders(response, request);
+  return decorate(NextResponse.redirect(url), request, id, { sensitive: true });
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const pathname = request.nextUrl.pathname;
+  const id = requestId(request);
 
-  if (isStaticAsset(pathname)) {
-    return NextResponse.next();
-  }
+  if (isStaticAsset(pathname)) return NextResponse.next();
 
   if (isBlockedPath(pathname)) {
-    return blockedSecurityResponse(request, "Blocked suspicious path.", 404);
+    return jsonError(request, id, 404, "NOT_FOUND", "The requested resource was not found.");
   }
 
   if (isCrossSiteUnsafeRequest(request)) {
-    return blockedSecurityResponse(
+    return jsonError(
       request,
-      "Cross-site unsafe request blocked.",
-      403
+      id,
+      403,
+      "CROSS_SITE_REQUEST_BLOCKED",
+      "Security policy blocked this request.",
     );
   }
 
-  const sessionPresent = hasSessionCookie(request);
+  const advisorSession = hasAdvisorSession(request);
+  const clientSession = hasClientSession(request);
 
-  if (pathname.startsWith("/api")) {
-    if (!isPublicApi(request) && !sessionPresent) {
-      return unauthorizedApi(request);
+  if (pathname.startsWith("/api/")) {
+    if (isPublicApi(request)) {
+      return decorate(NextResponse.next(), request, id, { sensitive: true });
     }
 
-    const response = NextResponse.next();
-    response.headers.set("Cache-Control", "no-store");
-    return withSecurityHeaders(response, request);
+    if (pathname.startsWith("/api/client-portal/")) {
+      return clientSession
+        ? decorate(NextResponse.next(), request, id, { sensitive: true })
+        : jsonError(request, id, 401, "CLIENT_SESSION_REQUIRED", "Client login is required.");
+    }
+
+    if (pathname === "/api/documents" || pathname.startsWith("/api/documents/")) {
+      return advisorSession || clientSession
+        ? decorate(NextResponse.next(), request, id, { sensitive: true })
+        : jsonError(request, id, 401, "SESSION_REQUIRED", "Authentication is required.");
+    }
+
+    return advisorSession
+      ? decorate(NextResponse.next(), request, id, { sensitive: true })
+      : jsonError(request, id, 401, "UNAUTHORIZED", "Authentication is required.");
   }
 
-  if (isSensitiveAppRoute(pathname) && !sessionPresent && !isPublicPage(pathname)) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/portal";
-    loginUrl.searchParams.set("next", pathname);
-
-    return withSecurityHeaders(NextResponse.redirect(loginUrl), request);
+  if (isClientPortalPage(pathname) && !clientSession) {
+    return redirectToLogin(request, id, "/client-login");
   }
 
-  const response = NextResponse.next();
-
-  if (isSensitiveAppRoute(pathname)) {
-    response.headers.set("Cache-Control", "no-store");
+  if (
+    SENSITIVE_APP_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    ) &&
+    !advisorSession &&
+    !isPublicPage(pathname)
+  ) {
+    return redirectToLogin(request, id, "/founder-login");
   }
 
-  return withSecurityHeaders(response, request);
+  return decorate(NextResponse.next(), request, id, {
+    sensitive:
+      isClientPortalPage(pathname) ||
+      SENSITIVE_APP_PREFIXES.some(
+        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+      ),
+  });
 }
 
 export const config = {

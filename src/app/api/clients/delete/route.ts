@@ -1,112 +1,161 @@
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  canManageClientRouting,
-  ensureAdvisorFirmContext,
-} from "@/lib/client-access";
-import { prisma } from "@/lib/prisma";
+  clientScopeWhere,
+  hasFirmPermission,
+  requireCurrentAccessContext,
+} from "@/lib/access-control";
 import {
   cleanText,
-  noStoreJson,
+  hasSensitiveActionConfirmation,
   protectClientDataRoute,
   recordClientMutation,
-  requireClientAccess,
 } from "@/lib/client-data-security";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type CurrentUserShape = {
-  id: string;
-  name: string;
-  email: string;
-};
+/**
+ * Compatibility endpoint retained for older client screens.
+ * Newer code should use DELETE /api/clients/[id].
+ */
+export const POST = withApiRoute(
+  {
+    route: "/api/clients/delete",
+    timeoutMs: 20_000,
+  },
+  async ({ request }) => {
+    const user = await getCurrentUser();
 
-function protectedRouteResponse(
-  protection: Awaited<ReturnType<typeof protectClientDataRoute>>,
-) {
-  return (
-    protection.response ??
-    noStoreJson(
-      {
-        error: "Security policy blocked this client delete request.",
-      },
-      { status: 403 },
-    )
-  );
-}
-
-export async function POST(request: Request) {
-  const user = (await getCurrentUser()) as CurrentUserShape | null;
-
-  if (!user) {
-    return noStoreJson({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const protection = await protectClientDataRoute({
-    request,
-    user,
-    area: "Client Data",
-    eventType: "client.delete",
-    title: "Client profile deletion",
-    limit: 20,
-    windowMs: 60 * 1000,
-  });
-
-  if (!protection.allowed) {
-    return protectedRouteResponse(protection);
-  }
-
-  try {
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-
-    const clientId = cleanText(body.clientId);
-
-    if (!clientId) {
-      return noStoreJson(
-        { error: "Client ID is required." },
-        { status: 400 },
-      );
+    if (!user) {
+      throw new ApiError({
+        status: 401,
+        code: "AUTHENTICATION_REQUIRED",
+        message: "Authentication required.",
+        expose: true,
+      });
     }
 
-    const membership = await ensureAdvisorFirmContext(user.id);
-
-    if (!canManageClientRouting(membership)) {
-      return noStoreJson(
-        {
-          error:
-            "Lead-advisor or firm-management access is required to delete a client profile.",
-        },
-        { status: 403 },
-      );
-    }
-
-    const access = await requireClientAccess({
-      user,
+    const protection = await protectClientDataRoute({
       request,
-      clientId,
-      scope: "delete",
+      user,
+      area: "Client Data",
+      eventType: "client.delete",
+      title: "Client profile deletion",
+      limit: 10,
+      windowMs: 60_000,
     });
 
-    if (!access.allowed) {
-      return access.response!;
+    if (!protection.allowed) return protection.response!;
+
+    if (!hasSensitiveActionConfirmation(request, "confirm-delete-client")) {
+      throw new ApiError({
+        status: 403,
+        code: "SENSITIVE_CONFIRMATION_REQUIRED",
+        message:
+          "Sensitive action confirmation is required. Send x-slice-sensitive-action: confirm-delete-client.",
+        expose: true,
+      });
     }
 
-    const client = await prisma.clientProfile.findFirst({
+    const body = (await request.json().catch(() => null)) as
+      | Record<string, unknown>
+      | null;
+    const clientId = cleanText(body?.clientId);
+
+    if (!clientId) {
+      throw new ApiError({
+        status: 400,
+        code: "CLIENT_ID_REQUIRED",
+        message: "Client ID is required.",
+        expose: true,
+      });
+    }
+
+    const context = await requireCurrentAccessContext();
+
+    if (
+      !hasFirmPermission(context, "clients.assign") &&
+      !hasFirmPermission(context, "firm.manage")
+    ) {
+      throw new ApiError({
+        status: 403,
+        code: "CLIENT_DELETE_PERMISSION_REQUIRED",
+        message:
+          "Lead-advisor or firm-management access is required to delete a client profile.",
+        expose: true,
+      });
+    }
+
+    const existing = await prisma.clientProfile.findFirst({
       where: {
         id: clientId,
+        ...clientScopeWhere(context),
       },
       select: {
         id: true,
         fullName: true,
-        email: true,
       },
     });
 
-    if (!client) {
-      return noStoreJson({ error: "Client not found." }, { status: 404 });
+    if (!existing) {
+      throw new ApiError({
+        status: 404,
+        code: "CLIENT_NOT_FOUND",
+        message: "Client not found.",
+        expose: true,
+      });
+    }
+
+    const activeDocumentCount = await prisma.documentVaultItem.count({
+      where: {
+        clientId,
+        deletedAt: null,
+      },
+    });
+
+    if (activeDocumentCount > 0) {
+      throw new ApiError({
+        status: 409,
+        code: "CLIENT_DOCUMENT_RETENTION_REVIEW_REQUIRED",
+        message:
+          "Resolve the client’s active secure documents before deleting the client profile.",
+        expose: true,
+        details: {
+          activeDocumentCount,
+          actionUrl: `/workspace/documents?clientId=${encodeURIComponent(clientId)}`,
+        },
+      });
+    }
+
+    const [, result] = await prisma.$transaction([
+      prisma.documentVaultItem.updateMany({
+        where: {
+          clientId,
+          deletedAt: {
+            not: null,
+          },
+        },
+        data: {
+          clientId: null,
+        },
+      }),
+      prisma.clientProfile.deleteMany({
+        where: {
+          id: clientId,
+          ...clientScopeWhere(context),
+        },
+      }),
+    ]);
+
+    if (!result.count) {
+      throw new ApiError({
+        status: 404,
+        code: "CLIENT_NOT_FOUND",
+        message: "Client not found.",
+        expose: true,
+      });
     }
 
     await recordClientMutation({
@@ -116,60 +165,20 @@ export async function POST(request: Request) {
       action: "delete",
       title: "Client profile deleted",
       detail:
-        "A client profile and related client records were deleted through the protected client-data API.",
+        "An authorized firm manager deleted the client profile after secure-document retention checks passed.",
       metadata: {
-        fullName: client.fullName,
+        clientName: existing.fullName,
+        deletedCount: result.count,
+        firmId: context.firm?.id ?? null,
+        activeDocumentCount,
+        retainedDocumentAuditRecords: true,
       },
     });
 
-    await prisma.$transaction([
-      prisma.portfolioHolding.deleteMany({
-        where: {
-          clientId,
-        },
-      }),
-      prisma.advisorNote.deleteMany({
-        where: {
-          clientId,
-        },
-      }),
-      prisma.meetingTask.deleteMany({
-        where: {
-          clientId,
-        },
-      }),
-      prisma.riskReview.deleteMany({
-        where: {
-          clientId,
-        },
-      }),
-      prisma.documentVaultItem.deleteMany({
-        where: {
-          clientId,
-        },
-      }),
-      prisma.clientProfile.deleteMany({
-        where: {
-          id: clientId,
-        },
-      }),
-    ]);
-
-    return noStoreJson({
+    return apiJson({
       ok: true,
-      deletedClientId: clientId,
-      deletedClientName: client.fullName,
+      clientId,
+      deleted: true,
     });
-  } catch (error) {
-    return noStoreJson(
-      {
-        ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Client deletion failed.",
-      },
-      { status: 500 },
-    );
-  }
-}
+  },
+);

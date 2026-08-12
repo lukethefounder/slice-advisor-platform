@@ -1,104 +1,100 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { BackendContext } from "@/lib/backend/config";
-import { runBackendJob } from "@/lib/backend/jobs";
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import {
+  processBackgroundJobBatch,
+  scheduleDueBackgroundJobs,
+} from "@/lib/background-jobs/worker";
+import { constantTimeEqual } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
-function isAuthorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
+function clampInteger(
+  value: string | null,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.max(minimum, Math.min(maximum, parsed));
+}
+
+function authorizedCron(request: Request) {
+  const secret = String(process.env.CRON_SECRET ?? "").trim();
 
   if (!secret) {
     return process.env.NODE_ENV !== "production";
   }
 
-  const url = new URL(request.url);
-  const querySecret = url.searchParams.get("secret");
-  const auth = request.headers.get("authorization");
+  const authorization = request.headers.get("authorization")?.trim() ?? "";
+  const candidate = authorization.replace(/^Bearer\s+/i, "");
 
-  return querySecret === secret || auth === `Bearer ${secret}`;
+  return Boolean(candidate) && constantTimeEqual(candidate, secret);
 }
 
-async function contextForUser(user: { id: string; name: string; email: string }): Promise<BackendContext> {
-  const membership = await prisma.firmMembership.findFirst({
-    where: {
-      userId: user.id,
-      status: "Active",
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-
-  return {
-    userId: user.id,
-    firmId: membership?.firmId ?? null,
-    actorName: user.name,
-    actorEmail: user.email,
-  };
-}
-
-export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized cron request." }, { status: 401 });
-  }
-
-  const url = new URL(request.url);
-  const requestedJob = url.searchParams.get("job");
-
-  const jobKeys = requestedJob
-    ? [requestedJob]
-    : [
-        "vendor_health",
-        "watchlist_price_check",
-        "notification_delivery",
-        "data_quality_sweep",
-        "advisor_day",
-      ];
-
-  const users = await prisma.user.findMany({
-    orderBy: {
-      createdAt: "asc",
-    },
-    take: 100,
-  });
-
-  const results = [];
-
-  for (const user of users) {
-    const context = await contextForUser(user);
-
-    for (const jobKey of jobKeys) {
-      try {
-        const result = await runBackendJob(context, jobKey);
-
-        results.push({
-          userId: user.id,
-          email: user.email,
-          jobKey,
-          status: "Complete",
-          result,
-        });
-      } catch (error) {
-        results.push({
-          userId: user.id,
-          email: user.email,
-          jobKey,
-          status: "Failed",
-          error: error instanceof Error ? error.message : "Job failed.",
-        });
-      }
+const handler = withApiRoute(
+  {
+    route: "/api/cron/backend",
+    timeoutMs: 290_000,
+  },
+  async ({ request }) => {
+    if (!authorizedCron(request)) {
+      throw new ApiError({
+        status: 401,
+        code: "UNAUTHORIZED_CRON_REQUEST",
+        message: "Unauthorized cron request.",
+        expose: true,
+      });
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    jobs: jobKeys,
-    users: users.length,
-    results,
-  });
-}
+    const url = new URL(request.url);
+    const mode = url.searchParams.get("mode") ?? "both";
 
-export async function POST(request: Request) {
-  return GET(request);
-}
+    if (!["schedule", "work", "both"].includes(mode)) {
+      throw new ApiError({
+        status: 400,
+        code: "INVALID_CRON_MODE",
+        message: "mode must be schedule, work, or both.",
+        expose: true,
+      });
+    }
+
+    const schedule =
+      mode === "schedule" || mode === "both"
+        ? await scheduleDueBackgroundJobs({
+            userLimit: clampInteger(url.searchParams.get("users"), 50, 1, 100),
+            onlyJobKey: url.searchParams.get("job"),
+          })
+        : null;
+    const work =
+      mode === "work" || mode === "both"
+        ? await processBackgroundJobBatch({
+            batchSize: clampInteger(url.searchParams.get("batch"), 8, 1, 20),
+            maxRuntimeMs: 45_000,
+          })
+        : null;
+
+    return apiJson({
+      ok: true,
+      mode,
+      scheduled: schedule,
+      worker: work
+        ? {
+            attempted: work.attempted,
+            completed: work.completed,
+            retrying: work.retrying,
+            failed: work.failed,
+            cancelled: work.cancelled,
+            recovered: work.recovered,
+            durationMs: work.durationMs,
+          }
+        : null,
+      checkedAt: new Date().toISOString(),
+    });
+  },
+);
+
+export const GET = handler;
+export const POST = handler;
