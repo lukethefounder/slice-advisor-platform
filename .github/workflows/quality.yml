@@ -115,6 +115,7 @@ jobs:
         run: npm run build
 
       - name: Run production smoke test
+        timeout-minutes: 3
         run: npm run test:smoke
 
       - name: Create and verify PostgreSQL backup
