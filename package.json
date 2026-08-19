@@ -27,7 +27,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:phase3:prepare": "node scripts/apply-phase-3-schema-indexes.mjs",
     "db:phase3:check": "node scripts/check-phase-3-database.mjs",
-    "audit:production": "npm audit --omit=dev --audit-level=high",
+    "audit:production": "node scripts/production/audit-production.mjs",
     "backup:database": "node scripts/production/backup-postgres.mjs",
     "verify:backup": "node scripts/production/verify-backup.mjs",
     "restore:database": "node scripts/production/restore-postgres.mjs",
