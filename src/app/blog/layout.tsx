@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Slice Intelligence Journal | Sourced Market Articles",
+  title:
+    "Slice Intelligence Journal | Six Daily Sourced Articles",
   description:
-    "The day’s most relevant sourced market, technology, economic, policy, and client-impact articles ranked by the Slice intelligence engine.",
+    "Six sourced market, technology, economic, policy, and client-impact articles selected by the Slice intelligence engine each day at 6:00 AM Eastern Time.",
 };
 
 export default function BlogLayout({

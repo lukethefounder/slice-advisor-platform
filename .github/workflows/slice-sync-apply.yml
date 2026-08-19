@@ -1,0 +1,68 @@
+name: Apply Slice platform sync
+
+on:
+  push:
+    branches:
+      - agent/platform-contrast-daily-intelligence-forecast-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[slice-sync-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out staged branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply packaged Slice files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          apply_payload() {
+            local pattern="$1"
+            local target="$2"
+            mkdir -p "$(dirname "$target")"
+            cat $pattern | base64 -d | gzip -d > "$target"
+          }
+
+          apply_payload ".slice-sync/src-app-page.tsx.part-*" "src/app/page.tsx"
+          apply_payload ".slice-sync/public-intelligence.ts.part-*" "src/lib/public-intelligence.ts"
+          apply_payload ".slice-sync/blog-page.tsx.part-*" "src/app/blog/page.tsx"
+          apply_payload ".slice-sync/market-green.css.part-*" "src/app/market-green.css"
+
+          rm -rf .slice-sync
+          rm -f .github/workflows/slice-sync-apply.yml
+
+      - name: Validate reconstructed sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s src/app/page.tsx
+          test -s src/lib/public-intelligence.ts
+          test -s src/app/blog/page.tsx
+          test -s src/app/market-green.css
+          grep -q "PUBLIC_INTELLIGENCE_ARTICLE_LIMIT = 6" src/app/page.tsx
+          grep -q "function Reveal" src/app/page.tsx
+          grep -q "DAILY_ARTICLE_LIMIT = 6" src/app/blog/page.tsx
+          grep -q "allowRefresh" src/lib/public-intelligence.ts
+          grep -q "data-slice-color-lock" src/app/page.tsx
+          grep -q "data-slice-color-lock" src/app/blog/page.tsx
+
+      - name: Commit applied changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No reconstructed changes to commit."
+            exit 0
+          fi
+          git commit -m "Improve platform contrast, daily intelligence, and forecast visuals [slice-sync-applied]"
+          git push origin HEAD:agent/platform-contrast-daily-intelligence-forecast-v2
