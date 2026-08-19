@@ -704,7 +704,7 @@ runCommand(
 if (!skipAudit) {
   runCommand(
     "Production dependency audit",
-    "npm audit --omit=dev --audit-level=high",
+    "npx --yes npm@10.9.8 run audit:production",
   );
 }
 
