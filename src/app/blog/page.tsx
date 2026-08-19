@@ -54,9 +54,7 @@ type Category = {
   icon: LucideIcon;
 };
 
-const DAILY_ARTICLE_LIMIT = 6;
-const DAILY_REFRESH_CADENCE = "Published daily at 6:00 AM Eastern Time";
-const MARKET_TIME_ZONE = "America/New_York";
+const REFRESH_MS = 5 * 60_000;
 
 const EMPTY_SNAPSHOT: PublicIntelligenceSnapshot = {
   schemaVersion: "slice-public-intelligence-2.0.0",
@@ -64,7 +62,7 @@ const EMPTY_SNAPSHOT: PublicIntelligenceSnapshot = {
   dateKey: "",
   marketTimeZone: "America/New_York",
   provider: "Slice Public Intelligence Mesh",
-  refreshCadence: DAILY_REFRESH_CADENCE,
+  refreshCadence: "Scheduled every four hours",
   storage: "fresh",
   sources: [],
   items: [],
@@ -79,21 +77,19 @@ const CATEGORIES: Category[] = [
   {
     id: "all",
     label: "Top intelligence",
-    description: "All six selected stories in today’s completed intelligence edition.",
+    description: "Highest-ranked sourced items across the complete market mesh.",
     icon: Sparkles,
   },
   {
     id: "markets",
     label: "Markets",
-    description:
-      "Equities, bonds, commodities, currencies, market structure, and trading events.",
+    description: "Equities, bonds, commodities, currencies, market structure, and trading events.",
     icon: LineChart,
   },
   {
     id: "technology",
     label: "Technology",
-    description:
-      "AI, semiconductors, cloud, software, cybersecurity, and innovation.",
+    description: "AI, semiconductors, cloud, software, cybersecurity, and innovation.",
     icon: BrainCircuit,
   },
   {
@@ -105,8 +101,7 @@ const CATEGORIES: Category[] = [
   {
     id: "policy",
     label: "Policy and regulation",
-    description:
-      "The Federal Reserve, government policy, exchanges, SEC activity, and regulation.",
+    description: "The Federal Reserve, government policy, exchanges, SEC activity, and regulation.",
     icon: Landmark,
   },
   {
@@ -118,14 +113,13 @@ const CATEGORIES: Category[] = [
   {
     id: "client",
     label: "Client relevance",
-    description:
-      "Risk, portfolios, investor behavior, communication, planning, and suitability context.",
+    description: "Risk, portfolios, investor behavior, communication, planning, and suitability context.",
     icon: Target,
   },
   {
     id: "alerts",
     label: "Priority alerts",
-    description: "Selected stories that cleared the faster advisor-review threshold.",
+    description: "Items that cleared the faster advisor-review threshold.",
     icon: BellRing,
   },
 ];
@@ -150,7 +144,7 @@ function OriginalBrandMark() {
         <div className="truncate text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-300 sm:truncate">
+        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-400 sm:truncate">
           Advisor Intelligence Platform
         </div>
       </div>
@@ -158,115 +152,29 @@ function OriginalBrandMark() {
   );
 }
 
-function marketDateKey(value?: string) {
-  if (!value || !Number.isFinite(Date.parse(value))) return "";
-
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: MARKET_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(value));
-  const read = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-
-  return `${read("year")}-${read("month")}-${read("day")}`;
-}
-
-function activeEditionDateKey(now = new Date()) {
-  const hourParts = new Intl.DateTimeFormat("en-US", {
-    timeZone: MARKET_TIME_ZONE,
-    hour: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
-  const easternHour = Number(
-    hourParts.find((part) => part.type === "hour")?.value ?? "0",
-  );
-
-  /*
-   * Before 6:00 AM Eastern, yesterday's completed publication remains the
-   * active edition. Subtracting twelve hours safely crosses the date boundary
-   * without relying on the browser's local time zone.
-   */
-  const editionMoment =
-    easternHour < 6 ? new Date(now.getTime() - 12 * 60 * 60_000) : now;
-
-  return marketDateKey(editionMoment.toISOString());
-}
-
-function dedupeAndSort(items: PublicArticle[]) {
-  const seen = new Set<string>();
-  const result: PublicArticle[] = [];
-
-  for (const article of items) {
-    const key = (article.link || `${article.sourceName}:${article.title}`)
-      .toLowerCase()
-      .trim();
-
-    if (!key || seen.has(key)) continue;
-
-    seen.add(key);
-    result.push(article);
-  }
-
-  return result.sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-
-    return (
-      Date.parse(right.publishedAt ?? "") -
-      Date.parse(left.publishedAt ?? "")
-    );
-  });
-}
-
-function buildTopicCounts(
-  articles: PublicArticle[],
-): PublicIntelligenceSnapshot["topicCounts"] {
-  const counts = new Map<string, number>();
-
-  for (const article of articles) {
-    for (const rawTopic of article.matchedThemes) {
-      const topic = rawTopic.trim();
-
-      if (!topic) continue;
-
-      counts.set(topic, (counts.get(topic) ?? 0) + 1);
-    }
-  }
-
-  return [...counts.entries()]
-    .map(([topic, count]) => ({ topic, count }))
-    .sort(
-      (left, right) =>
-        right.count - left.count || left.topic.localeCompare(right.topic),
-    )
-    .slice(0, 12);
-}
-
 function normalizeSnapshot(
   value: Partial<PublicIntelligenceSnapshot>,
 ): PublicIntelligenceSnapshot {
-  const items = Array.isArray(value.items)
-    ? dedupeAndSort(value.items).slice(0, DAILY_ARTICLE_LIMIT)
-    : [];
+  const items = Array.isArray(value.items) ? value.items : [];
 
   return {
     schemaVersion: "slice-public-intelligence-2.0.0",
     generatedAt: value.generatedAt ?? EMPTY_SNAPSHOT.generatedAt,
-    dateKey:
-      value.dateKey || marketDateKey(value.generatedAt) || EMPTY_SNAPSHOT.dateKey,
+    dateKey: value.dateKey ?? "",
     marketTimeZone: "America/New_York",
     provider: "Slice Public Intelligence Mesh",
-    refreshCadence: DAILY_REFRESH_CADENCE,
+    refreshCadence: value.refreshCadence ?? "Scheduled every four hours",
     storage: value.storage ?? "fresh",
     sources: Array.isArray(value.sources) ? value.sources : [],
     items,
-    alertCandidates: items.filter((item) => item.shouldAlert),
-    digestCandidates: items.filter(
-      (item) => !item.shouldAlert && item.score >= 55,
-    ),
-    suppressed: items.filter((item) => item.score < 55),
-    topicCounts: buildTopicCounts(items),
+    alertCandidates: Array.isArray(value.alertCandidates)
+      ? value.alertCandidates
+      : items.filter((item) => item.shouldAlert),
+    digestCandidates: Array.isArray(value.digestCandidates)
+      ? value.digestCandidates
+      : items.filter((item) => !item.shouldAlert),
+    suppressed: Array.isArray(value.suppressed) ? value.suppressed : [],
+    topicCounts: Array.isArray(value.topicCounts) ? value.topicCounts : [],
     warnings: Array.isArray(value.warnings) ? value.warnings : [],
   };
 }
@@ -294,9 +202,23 @@ function formatDateTime(value?: string) {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: MARKET_TIME_ZONE,
     timeZoneName: "short",
   }).format(new Date(value));
+}
+
+function marketDateKey(value?: string) {
+  if (!value || !Number.isFinite(Date.parse(value))) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${read("year")}-${read("month")}-${read("day")}`;
 }
 
 function safeUrl(value?: string) {
@@ -408,6 +330,25 @@ function categoryMatches(article: PublicArticle, category: CategoryId) {
   return groups[category].some((term) => text.includes(term));
 }
 
+function dedupeAndSort(items: PublicArticle[]) {
+  const seen = new Set<string>();
+  const result: PublicArticle[] = [];
+
+  for (const article of items) {
+    const key = (article.link || `${article.sourceName}:${article.title}`)
+      .toLowerCase()
+      .trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(article);
+  }
+
+  return result.sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    return Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? "");
+  });
+}
+
 function useDailyIntelligence() {
   const [snapshot, setSnapshot] = useState(EMPTY_SNAPSHOT);
   const [loading, setLoading] = useState(true);
@@ -417,20 +358,13 @@ function useDailyIntelligence() {
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return;
-
     requestInFlight.current = true;
     setRefreshing(true);
 
     try {
-      const response = await fetch(
-        `/api/intelligence/daily?limit=${DAILY_ARTICLE_LIMIT}`,
-        {
-          cache: "default",
-          headers: {
-            Accept: "application/json",
-          },
-        },
-      );
+      const response = await fetch("/api/intelligence/daily?limit=140", {
+        cache: "no-store",
+      });
       const data = (await response.json()) as Partial<PublicIntelligenceSnapshot> & {
         error?: string;
       };
@@ -456,32 +390,34 @@ function useDailyIntelligence() {
     }
   }, []);
 
-  /*
-   * Load one stored edition. There is intentionally no five-minute polling
-   * loop and no page-visit provider scan.
-   */
   useEffect(() => {
     void refresh();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, REFRESH_MS);
+
+    return () => window.clearInterval(interval);
   }, [refresh]);
 
-  const stories = useMemo(
-    () => dedupeAndSort(snapshot.items).slice(0, DAILY_ARTICLE_LIMIT),
+  const allStories = useMemo(
+    () => dedupeAndSort(snapshot.items),
     [snapshot.items],
   );
-  const expectedEditionDate = activeEditionDateKey();
-  const isRecentFallback = Boolean(
-    stories.length &&
-      snapshot.dateKey &&
-      expectedEditionDate &&
-      snapshot.dateKey !== expectedEditionDate,
+  const todaysStories = useMemo(
+    () =>
+      allStories.filter(
+        (article) => marketDateKey(article.publishedAt) === snapshot.dateKey,
+      ),
+    [allStories, snapshot.dateKey],
   );
+  const stories = todaysStories.length ? todaysStories : allStories;
+  const isRecentFallback = Boolean(allStories.length && !todaysStories.length);
   const health = useMemo(() => {
     const online = snapshot.sources.filter((source) => source.ok).length;
     const fetched = snapshot.sources.reduce(
       (sum, source) => sum + source.fetched,
       0,
     );
-
     return {
       online,
       total: snapshot.sources.length,
@@ -495,7 +431,7 @@ function useDailyIntelligence() {
   return {
     snapshot,
     stories,
-    allStoryCount: stories.length,
+    allStoryCount: allStories.length,
     isRecentFallback,
     health,
     loading,
@@ -517,16 +453,16 @@ function Metric({
   helper: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[1.45rem] border border-white/[0.11] bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/55 to-transparent" />
-      <Icon className="h-4 w-4 text-emerald-200" />
+    <div className="relative overflow-hidden rounded-[1.45rem] border border-white/[0.075] bg-white/[0.04] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.2)] backdrop-blur-xl">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent" />
+      <Icon className="h-4 w-4 text-emerald-300" />
       <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-white">
         {value}
       </div>
-      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-300">
+      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-600">
         {label}
       </div>
-      <div className="mt-2 text-[10px] leading-4 text-slate-400">
+      <div className="mt-2 text-[10px] leading-4 text-slate-600">
         {helper}
       </div>
     </div>
@@ -536,12 +472,12 @@ function Metric({
 function UrgencyBadge({ article }: { article: PublicArticle }) {
   const style =
     article.urgency === "Critical"
-      ? "border-rose-300/35 bg-rose-400/14 text-rose-100"
+      ? "border-rose-300/25 bg-rose-400/10 text-rose-200"
       : article.urgency === "High"
-        ? "border-amber-300/35 bg-amber-400/14 text-amber-100"
+        ? "border-amber-300/25 bg-amber-400/10 text-amber-200"
         : article.urgency === "Medium"
-          ? "border-cyan-300/30 bg-cyan-400/[0.12] text-cyan-100"
-          : "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100";
+          ? "border-cyan-300/20 bg-cyan-400/[0.08] text-cyan-200"
+          : "border-emerald-300/15 bg-emerald-400/[0.07] text-emerald-200";
 
   return (
     <span
@@ -568,14 +504,14 @@ function StoryCard({
   return (
     <article
       className={cx(
-        "group flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] shadow-[0_25px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30 hover:bg-white/[0.07]",
+        "group flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-white/[0.08] bg-white/[0.04] shadow-[0_25px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/20",
         featured && "lg:col-span-2",
       )}
     >
       {article.bannerImage ? (
         <div
           className={cx(
-            "relative overflow-hidden border-b border-white/[0.1]",
+            "relative overflow-hidden border-b border-white/[0.07]",
             featured ? "h-60 sm:h-72" : "h-44",
           )}
         >
@@ -583,29 +519,29 @@ function StoryCard({
           <img
             src={article.bannerImage}
             alt=""
-            className="h-full w-full object-cover opacity-65 saturate-75 transition duration-700 group-hover:scale-105 group-hover:opacity-80"
+            className="h-full w-full object-cover opacity-55 saturate-75 transition duration-700 group-hover:scale-105 group-hover:opacity-70"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#06100b] via-[#06100b]/35 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#06100b] via-[#06100b]/30 to-transparent" />
         </div>
       ) : (
         <div
           className={cx(
-            "relative overflow-hidden border-b border-white/[0.1] bg-[radial-gradient(circle_at_30%_35%,rgba(16,185,129,0.26),transparent_42%),linear-gradient(135deg,#07140e,#020604)]",
+            "relative overflow-hidden border-b border-white/[0.07] bg-[radial-gradient(circle_at_30%_35%,rgba(16,185,129,0.22),transparent_42%),linear-gradient(135deg,#07140e,#020604)]",
             featured ? "h-44" : "h-32",
           )}
         >
           <div className="slice-blog-sweep absolute inset-0 opacity-60" />
-          <Newspaper className="absolute bottom-5 left-6 h-7 w-7 text-emerald-200" />
+          <Newspaper className="absolute bottom-5 left-6 h-7 w-7 text-emerald-300/75" />
         </div>
       )}
 
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <UrgencyBadge article={article} />
-          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-300">
+          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
             {article.sourceName}
           </span>
-          <span className="text-[9px] font-bold text-slate-400">
+          <span className="text-[9px] font-bold text-slate-600">
             {relativeTime(article.publishedAt)}
           </span>
         </div>
@@ -620,7 +556,7 @@ function StoryCard({
         </h2>
         <p
           className={cx(
-            "mt-4 line-clamp-3 leading-7 text-slate-300",
+            "mt-4 line-clamp-3 leading-7 text-slate-500",
             featured ? "text-sm sm:text-base" : "text-sm",
           )}
         >
@@ -635,7 +571,7 @@ function StoryCard({
           ].map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-white/[0.12] bg-black/30 px-2.5 py-1 text-[8px] font-black text-slate-300"
+              className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-[8px] font-black text-slate-400"
             >
               {tag}
             </span>
@@ -643,9 +579,9 @@ function StoryCard({
         </div>
 
         <div className="mt-auto pt-6">
-          <div className="grid grid-cols-3 gap-3 border-t border-white/[0.1] pt-4">
+          <div className="grid grid-cols-3 gap-3 border-t border-white/[0.065] pt-4">
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">
                 Relevance
               </div>
               <div className="mt-1 text-lg font-black text-white">
@@ -653,23 +589,23 @@ function StoryCard({
               </div>
             </div>
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">
                 Sentiment
               </div>
               <div
                 className={cx(
                   "mt-1 truncate text-xs font-black",
-                  sentimentPositive ? "text-emerald-200" : "text-rose-200",
+                  sentimentPositive ? "text-emerald-300" : "text-rose-300",
                 )}
               >
                 {article.sentimentLabel || "Contextual"}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">
                 Feed
               </div>
-              <div className="mt-1 text-[9px] font-black text-slate-200">
+              <div className="mt-1 text-[9px] font-black text-slate-300">
                 {article.sourceKind === "alpha-vantage-news"
                   ? "Alpha Vantage"
                   : "Official"}
@@ -682,7 +618,7 @@ function StoryCard({
               href={external}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 text-xs font-black text-emerald-200 transition hover:text-white"
+              className="mt-5 inline-flex items-center gap-2 text-xs font-black text-emerald-300 transition hover:text-emerald-100"
             >
               Read original source
               <ExternalLink className="h-3.5 w-3.5" />
@@ -696,27 +632,27 @@ function StoryCard({
 
 function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
   return (
-    <div className="overflow-hidden rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl">
-      <div className="border-b border-white/[0.1] p-5">
+    <div className="overflow-hidden rounded-[1.8rem] border border-white/[0.08] bg-white/[0.04] shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <div className="border-b border-white/[0.07] p-5">
         <div className="flex items-center gap-3">
-          <Radar className="h-5 w-5 text-emerald-200" />
+          <Radar className="h-5 w-5 text-emerald-300" />
           <div>
             <h3 className="text-lg font-black text-white">Source health</h3>
-            <p className="mt-1 text-[10px] text-slate-400">
-              Status retained from the latest 6:00 AM Eastern publication
+            <p className="mt-1 text-[10px] text-slate-600">
+              Status retained from the latest scheduled scan
             </p>
           </div>
         </div>
       </div>
-      <div className="max-h-[560px] divide-y divide-white/[0.09] overflow-y-auto">
+      <div className="max-h-[560px] divide-y divide-white/[0.06] overflow-y-auto">
         {sources.map((source) => (
           <div key={source.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-xs font-black text-slate-100">
+                <div className="truncate text-xs font-black text-slate-200">
                   {source.name}
                 </div>
-                <div className="mt-1 text-[9px] font-bold text-slate-400">
+                <div className="mt-1 text-[9px] font-bold text-slate-600">
                   {source.provider} · {source.fetched} items
                 </div>
               </div>
@@ -724,8 +660,8 @@ function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
                 className={cx(
                   "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.13em]",
                   source.ok
-                    ? "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-200"
-                    : "border-amber-300/30 bg-amber-400/[0.11] text-amber-100",
+                    ? "border-emerald-300/15 bg-emerald-400/[0.07] text-emerald-300"
+                    : "border-amber-300/20 bg-amber-400/[0.07] text-amber-200",
                 )}
               >
                 <CircleDot className="h-2.5 w-2.5" />
@@ -733,14 +669,14 @@ function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
               </span>
             </div>
             {source.error ? (
-              <p className="mt-2 line-clamp-2 text-[9px] leading-4 text-amber-100/80">
+              <p className="mt-2 line-clamp-2 text-[9px] leading-4 text-amber-200/55">
                 {source.error}
               </p>
             ) : null}
           </div>
         ))}
         {!sources.length ? (
-          <div className="p-6 text-center text-xs font-bold text-slate-400">
+          <div className="p-6 text-center text-xs font-bold text-slate-600">
             Source status will appear after the first completed edition.
           </div>
         ) : null}
@@ -771,91 +707,37 @@ export default function BlogPage() {
   const topTopics = intelligence.snapshot.topicCounts.slice(0, 12);
 
   return (
-    <main
-      data-slice-color-lock="true"
-      data-slice-tone="dark"
-      className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white"
-    >
+    <main className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white">
       <style jsx global>{`
-        html {
-          background: #010403;
-        }
-
+        html { background: #010403; }
         body {
           background:
-            radial-gradient(
-              circle at 12% 0%,
-              rgba(16, 185, 129, 0.11),
-              transparent 30%
-            ),
-            radial-gradient(
-              circle at 88% 13%,
-              rgba(34, 211, 238, 0.055),
-              transparent 27%
-            ),
-            linear-gradient(180deg, #010403 0%, #020705 45%, #010403 100%);
+            radial-gradient(circle at 12% 0%, rgba(16,185,129,0.11), transparent 30%),
+            radial-gradient(circle at 88% 13%, rgba(34,211,238,0.055), transparent 27%),
+            linear-gradient(180deg,#010403 0%,#020705 45%,#010403 100%);
         }
-
         @keyframes slice-blog-float {
-          0%,
-          100% {
-            transform: translate3d(0, 0, 0);
-            opacity: 0.22;
-          }
-          50% {
-            transform: translate3d(8px, -20px, 0);
-            opacity: 0.7;
-          }
+          0%,100% { transform: translate3d(0,0,0); opacity: .22; }
+          50% { transform: translate3d(8px,-20px,0); opacity: .7; }
         }
-
         @keyframes slice-blog-sweep {
-          from {
-            background-position:
-              0 0,
-              0 0;
-          }
-          to {
-            background-position:
-              95px 65px,
-              -120px 0;
-          }
+          from { background-position: 0 0, 0 0; }
+          to { background-position: 95px 65px, -120px 0; }
         }
-
-        .slice-blog-dot {
-          animation: slice-blog-float 8s ease-in-out infinite;
-        }
-
+        .slice-blog-dot { animation: slice-blog-float 8s ease-in-out infinite; }
         .slice-blog-sweep {
           background-image:
-            radial-gradient(
-              circle,
-              rgba(167, 243, 208, 0.2) 1px,
-              transparent 1.5px
-            ),
-            linear-gradient(
-              110deg,
-              transparent 0%,
-              rgba(52, 211, 153, 0.08) 46%,
-              transparent 58%
-            );
-          background-size:
-            28px 28px,
-            220px 100%;
+            radial-gradient(circle,rgba(167,243,208,.2) 1px,transparent 1.5px),
+            linear-gradient(110deg,transparent 0%,rgba(52,211,153,.08) 46%,transparent 58%);
+          background-size: 28px 28px,220px 100%;
           animation: slice-blog-sweep 16s linear infinite;
         }
-
         @media (prefers-reduced-motion: reduce) {
-          .slice-blog-dot,
-          .slice-blog-sweep {
-            animation: none !important;
-          }
+          .slice-blog-dot,.slice-blog-sweep { animation: none !important; }
         }
       `}</style>
 
-      <div
-        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-        aria-hidden="true"
-      >
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div className="absolute -left-48 -top-56 h-[42rem] w-[42rem] rounded-full bg-emerald-500/10 blur-[130px]" />
         <div className="absolute -right-40 top-[12%] h-[38rem] w-[38rem] rounded-full bg-cyan-500/[0.055] blur-[140px]" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.022)_1px,transparent_1px)] [background-size:58px_58px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
@@ -872,7 +754,7 @@ export default function BlogPage() {
         ))}
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-emerald-300/15 bg-[#020705]/90 shadow-[0_12px_40px_rgba(0,0,0,0.26)] backdrop-blur-2xl">
+      <header className="sticky top-0 z-50 border-b border-emerald-300/10 bg-[#020705]/86 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
         <div className="mx-auto flex h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" prefetch={false} aria-label="Slice homepage">
             <OriginalBrandMark />
@@ -881,7 +763,7 @@ export default function BlogPage() {
             <Link
               href="/"
               prefetch={false}
-              className="hidden items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-emerald-300/30 hover:bg-white/[0.09] hover:text-white sm:inline-flex"
+              className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-slate-300 transition hover:border-emerald-300/20 hover:text-white sm:inline-flex"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Platform
@@ -889,7 +771,7 @@ export default function BlogPage() {
             <Link
               href="/founder-login"
               prefetch={false}
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-black text-white shadow-[0_12px_30px_rgba(5,150,105,0.24)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/25 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-black text-white shadow-[0_12px_30px_rgba(5,150,105,0.22)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
             >
               Founder login
               <ArrowRight className="h-3.5 w-3.5" />
@@ -902,49 +784,47 @@ export default function BlogPage() {
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1fr)_430px]">
             <div>
-              <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/[0.11] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 backdrop-blur-xl">
+              <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.075] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200 backdrop-blur-xl">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-300 opacity-50" />
                   <span className="relative h-2 w-2 rounded-full bg-emerald-300" />
                 </span>
-                Six-article daily edition
-                <span className="h-3 w-px bg-white/20" />
+                Daily intelligence edition
+                <span className="h-3 w-px bg-white/15" />
                 {intelligence.isRecentFallback
-                  ? "Prior completed edition"
+                  ? "Latest sourced fallback"
                   : intelligence.snapshot.storage}
               </div>
               <h1 className="mt-7 max-w-5xl text-balance text-5xl font-black leading-[0.96] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
-                Six articles selected for today—
-                <span className="bg-gradient-to-r from-emerald-100 via-emerald-300 to-cyan-200 bg-clip-text text-transparent">
+                The day&apos;s most useful sourced articles—
+                <span className="bg-gradient-to-r from-emerald-200 via-emerald-400 to-cyan-300 bg-clip-text text-transparent">
                   connected to what matters.
                 </span>
               </h1>
-              <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg sm:leading-9">
-                At 6:00 AM Eastern Time, Slice scouts official market and
-                regulatory feeds plus Alpha Vantage Market News &amp; Sentiment.
-                It removes duplicates, ranks the results, selects six articles,
-                and stores one edition for the entire day. Visitors read that
-                completed edition rather than launching another source scan.
+              <p className="mt-6 max-w-3xl text-base leading-8 text-slate-400 sm:text-lg sm:leading-9">
+                Slice scouts official market and regulatory feeds plus Alpha Vantage
+                Market News &amp; Sentiment, then ranks the results by recency,
+                relevance, materiality, source evidence, tickers, and connected themes.
+                This is an advisor intelligence surface—not an anonymous stream of headlines.
               </p>
             </div>
 
-            <div className="rounded-[1.9rem] border border-emerald-300/20 bg-white/[0.06] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.3)] backdrop-blur-xl">
+            <div className="rounded-[1.9rem] border border-emerald-300/10 bg-white/[0.04] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">
                     Edition state
                   </div>
                   <div className="mt-2 text-xl font-black text-white">
-                    {intelligence.snapshot.dateKey || "Awaiting first publication"}
+                    {intelligence.snapshot.dateKey || "Awaiting first scan"}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void intelligence.refresh()}
                   disabled={intelligence.refreshing}
-                  className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 bg-white/[0.06] text-emerald-200 transition hover:border-emerald-300/35 hover:bg-emerald-400/[0.12] disabled:opacity-50"
-                  aria-label="Reload stored daily intelligence edition"
-                  title="Reload the stored edition without generating new articles"
+                  className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-emerald-300 transition hover:border-emerald-300/25 hover:bg-emerald-400/[0.08] disabled:opacity-50"
+                  aria-label="Refresh daily intelligence"
                 >
                   <RefreshCcw
                     className={cx(
@@ -954,16 +834,16 @@ export default function BlogPage() {
                   />
                 </button>
               </div>
-              <div className="mt-5 space-y-3 border-t border-white/[0.11] pt-5 text-[11px] text-slate-300">
+              <div className="mt-5 space-y-3 border-t border-white/[0.07] pt-5 text-[11px] text-slate-500">
                 <div className="flex items-center justify-between gap-4">
                   <span>Generated</span>
-                  <span className="font-bold text-slate-100">
+                  <span className="font-bold text-slate-300">
                     {formatDateTime(intelligence.snapshot.generatedAt)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <span>Cadence</span>
-                  <span className="text-right font-bold text-slate-100">
+                  <span className="text-right font-bold text-slate-300">
                     {intelligence.snapshot.refreshCadence}
                   </span>
                 </div>
@@ -973,8 +853,8 @@ export default function BlogPage() {
                     className={cx(
                       "font-bold",
                       intelligence.health.alphaOnline
-                        ? "text-emerald-200"
-                        : "text-amber-200",
+                        ? "text-emerald-300"
+                        : "text-amber-300",
                     )}
                   >
                     {intelligence.health.alphaOnline ? "Online" : "Unavailable"}
@@ -987,19 +867,19 @@ export default function BlogPage() {
           <div className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Metric
               icon={Newspaper}
-              label="Daily stories"
+              label="Retained stories"
               value={intelligence.stories.length || "—"}
               helper={
                 intelligence.isRecentFallback
-                  ? `${intelligence.allStoryCount} articles from the prior completed edition`
-                  : "Up to six articles selected at 6:00 AM ET"
+                  ? `${intelligence.allStoryCount} recent sourced items available`
+                  : "Published in today’s market-date edition"
               }
             />
             <Metric
               icon={Radar}
               label="Sources online"
               value={`${intelligence.health.online}/${intelligence.health.total || 0}`}
-              helper={`${intelligence.health.fetched} raw items evaluated during publication`}
+              helper={`${intelligence.health.fetched} raw items scanned`}
             />
             <Metric
               icon={BellRing}
@@ -1011,58 +891,52 @@ export default function BlogPage() {
               icon={Link2}
               label="Connected themes"
               value={intelligence.snapshot.topicCounts.length}
-              helper="Relationships across the six stories"
+              helper="Graph relationships surfaced"
             />
             <Metric
               icon={Database}
               label="Durable storage"
               value={intelligence.snapshot.storage}
-              helper="Latest completed database edition"
+              helper="Latest completed database batch"
             />
           </div>
 
           {intelligence.error ? (
-            <div
-              className="mt-5 rounded-2xl border border-amber-300/25 bg-amber-400/[0.1] p-4 text-xs leading-6 text-amber-100"
-              role="status"
-            >
+            <div className="mt-5 rounded-2xl border border-amber-300/15 bg-amber-400/[0.055] p-4 text-xs leading-6 text-amber-100/75">
               <div className="flex items-start gap-3">
-                <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
+                <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                 <div>
-                  <span className="font-black text-amber-100">Feed status:</span>{" "}
-                  {intelligence.error}. The interface does not insert placeholder
-                  articles or start an unplanned provider scan.
+                  <span className="font-black text-amber-200">Feed status:</span>{" "}
+                  {intelligence.error}. The interface does not insert placeholder articles.
                 </div>
               </div>
             </div>
           ) : null}
 
           {intelligence.isRecentFallback && !intelligence.error ? (
-            <div className="mt-5 rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.09] p-4 text-xs leading-6 text-cyan-100">
-              Today’s scheduled edition has not completed, so Slice is showing the
-              prior confirmed six-article edition with its original generation
-              time instead of presenting an empty or fabricated journal.
+            <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.045] p-4 text-xs leading-6 text-cyan-100/70">
+              No article in the latest stored scan carried today’s New York market-date stamp, so Slice is showing the most recent sourced edition instead of presenting an empty or fabricated journal.
             </div>
           ) : null}
         </div>
       </section>
 
-      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#040a07]/72 py-6">
+      <section className="relative z-10 border-y border-emerald-300/[0.07] bg-[#040a07]/62 py-6">
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600" />
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search the six articles by title, source, ticker, company, theme, or reason…"
-                className="w-full rounded-2xl border border-white/[0.15] bg-black/35 py-3.5 pl-11 pr-11 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-emerald-300/40 focus:ring-2 focus:ring-emerald-400/15"
+                onChange={(event: { target: { value: string } }) => setQuery(event.target.value)}
+                placeholder="Search titles, sources, tickers, companies, themes, or reasons…"
+                className="w-full rounded-2xl border border-white/[0.09] bg-black/25 py-3.5 pl-11 pr-11 text-sm font-bold text-white outline-none placeholder:text-slate-700 focus:border-emerald-300/30 focus:ring-2 focus:ring-emerald-400/10"
               />
               {query ? (
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-300 hover:bg-white/[0.08] hover:text-white"
+                  className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-white/[0.05] hover:text-white"
                   aria-label="Clear search"
                 >
                   <X className="h-4 w-4" />
@@ -1072,7 +946,7 @@ export default function BlogPage() {
             <button
               type="button"
               onClick={() => setMobileFilters((value) => !value)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.15] bg-white/[0.06] px-4 py-3.5 text-xs font-black text-slate-200 lg:hidden"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3.5 text-xs font-black text-slate-300 lg:hidden"
             >
               <Filter className="h-4 w-4" /> Filters
             </button>
@@ -1085,8 +959,8 @@ export default function BlogPage() {
                   className={cx(
                     "rounded-full border px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.13em] transition",
                     category === item.id
-                      ? "border-emerald-300/35 bg-emerald-400/[0.15] text-emerald-100"
-                      : "border-white/[0.13] bg-white/[0.05] text-slate-300 hover:border-emerald-300/28 hover:bg-white/[0.08] hover:text-white",
+                      ? "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100"
+                      : "border-white/[0.08] bg-white/[0.03] text-slate-600 hover:border-emerald-300/18 hover:text-white",
                   )}
                 >
                   {item.label}
@@ -1108,8 +982,8 @@ export default function BlogPage() {
                   className={cx(
                     "rounded-xl border px-3 py-3 text-[9px] font-black uppercase tracking-[0.12em]",
                     category === item.id
-                      ? "border-emerald-300/35 bg-emerald-400/[0.15] text-emerald-100"
-                      : "border-white/[0.13] bg-white/[0.05] text-slate-300",
+                      ? "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100"
+                      : "border-white/[0.08] bg-white/[0.03] text-slate-500",
                   )}
                 >
                   {item.label}
@@ -1126,15 +1000,14 @@ export default function BlogPage() {
             <div>
               <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                     {CATEGORIES.find((item) => item.id === category)?.label}
                   </div>
                   <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white">
-                    {filtered.length} sourced{" "}
-                    {filtered.length === 1 ? "article" : "articles"}
+                    {filtered.length} sourced {filtered.length === 1 ? "article" : "articles"}
                   </h2>
                 </div>
-                <p className="max-w-xl text-xs leading-6 text-slate-300 sm:text-right">
+                <p className="max-w-xl text-xs leading-6 text-slate-600 sm:text-right">
                   {CATEGORIES.find((item) => item.id === category)?.description}
                 </p>
               </div>
@@ -1147,21 +1020,21 @@ export default function BlogPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-[2rem] border border-dashed border-white/15 bg-white/[0.04] p-12 text-center">
+                <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.025] p-12 text-center">
                   {intelligence.loading ? (
-                    <RefreshCcw className="mx-auto h-8 w-8 animate-spin text-emerald-200" />
+                    <RefreshCcw className="mx-auto h-8 w-8 animate-spin text-emerald-300" />
                   ) : (
-                    <Search className="mx-auto h-8 w-8 text-emerald-200" />
+                    <Search className="mx-auto h-8 w-8 text-emerald-300" />
                   )}
                   <h3 className="mt-4 text-xl font-black text-white">
                     {intelligence.loading
-                      ? "Loading the completed daily edition"
+                      ? "Loading the latest stored edition"
                       : "No articles match the current filter"}
                   </h3>
-                  <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-300">
+                  <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
                     {intelligence.loading
-                      ? "Slice is retrieving the latest completed six-article intelligence batch."
-                      : "Clear the search or choose a broader category. Slice does not create placeholder stories when the selected daily edition has no match."}
+                      ? "Slice is retrieving the latest completed intelligence batch."
+                      : "Clear the search or choose a broader category. Slice does not create placeholder stories when the source set has no match."}
                   </p>
                 </div>
               )}
@@ -1170,9 +1043,9 @@ export default function BlogPage() {
             <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
               <SourceHealth sources={intelligence.snapshot.sources} />
 
-              <div className="rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+              <div className="rounded-[1.8rem] border border-white/[0.08] bg-white/[0.04] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
                 <div className="flex items-center gap-3">
-                  <Link2 className="h-5 w-5 text-cyan-200" />
+                  <Link2 className="h-5 w-5 text-cyan-300" />
                   <h3 className="text-lg font-black text-white">Connected themes</h3>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -1181,29 +1054,26 @@ export default function BlogPage() {
                       key={topic.topic}
                       type="button"
                       onClick={() => setQuery(topic.topic)}
-                      className="rounded-full border border-white/[0.12] bg-black/30 px-3 py-1.5 text-[9px] font-bold text-slate-300 transition hover:border-emerald-300/30 hover:text-emerald-100"
+                      className="rounded-full border border-white/[0.08] bg-black/20 px-3 py-1.5 text-[9px] font-bold text-slate-400 transition hover:border-emerald-300/20 hover:text-emerald-200"
                     >
                       {topic.topic} · {topic.count}
                     </button>
                   ))}
                   {!topTopics.length ? (
-                    <p className="text-xs leading-6 text-slate-400">
-                      Theme counts will appear after the first completed
-                      six-article publication.
+                    <p className="text-xs leading-6 text-slate-600">
+                      Theme counts will appear after the first completed scan.
                     </p>
                   ) : null}
                 </div>
               </div>
 
-              <div className="rounded-[1.8rem] border border-emerald-300/20 bg-gradient-to-br from-emerald-400/[0.12] to-white/[0.04] p-5">
-                <ShieldCheck className="h-5 w-5 text-emerald-200" />
+              <div className="rounded-[1.8rem] border border-emerald-300/10 bg-gradient-to-br from-emerald-400/[0.08] to-white/[0.025] p-5">
+                <ShieldCheck className="h-5 w-5 text-emerald-300" />
                 <h3 className="mt-4 text-lg font-black text-white">
                   Advisor review remains required
                 </h3>
-                <p className="mt-3 text-xs leading-6 text-slate-300">
-                  Scores indicate intelligence priority, not a buy or sell
-                  instruction. Review the original source, affected exposures,
-                  client facts, and firm policy before client-specific use.
+                <p className="mt-3 text-xs leading-6 text-slate-500">
+                  Scores indicate intelligence priority, not a buy or sell instruction. Review the original source, affected exposures, client facts, and firm policy before client-specific use.
                 </p>
               </div>
             </aside>
@@ -1211,7 +1081,7 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#040a07]/72 py-16 sm:py-20">
+      <section className="relative z-10 border-y border-emerald-300/[0.07] bg-[#040a07]/62 py-16 sm:py-20">
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <button
             type="button"
@@ -1220,14 +1090,14 @@ export default function BlogPage() {
             aria-expanded={methodOpen}
           >
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
                 Editorial and technical methodology
               </div>
               <h2 className="mt-3 text-3xl font-black tracking-[-0.045em] text-white sm:text-5xl">
-                Why Slice selected these six articles.
+                Why Slice surfaced these articles.
               </h2>
             </div>
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/[0.06] text-emerald-200">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-emerald-300">
               <ChevronDown
                 className={cx(
                   "h-5 w-5 transition-transform",
@@ -1253,7 +1123,7 @@ export default function BlogPage() {
                 {
                   icon: Link2,
                   title: "Graph relationships",
-                  text: "Matched tickers, companies, topics, risk concepts, and macro themes explain why an article entered the six-story edition.",
+                  text: "Matched tickers, companies, topics, risk concepts, and macro themes show why an article entered the intelligence surface.",
                 },
                 {
                   icon: FileCheck2,
@@ -1262,17 +1132,16 @@ export default function BlogPage() {
                 },
               ].map((item) => {
                 const Icon = item.icon;
-
                 return (
                   <div
                     key={item.title}
-                    className="rounded-[1.6rem] border border-white/[0.12] bg-white/[0.055] p-6"
+                    className="rounded-[1.6rem] border border-white/[0.08] bg-white/[0.035] p-6"
                   >
-                    <Icon className="h-5 w-5 text-emerald-200" />
+                    <Icon className="h-5 w-5 text-emerald-300" />
                     <h3 className="mt-5 text-lg font-black text-white">
                       {item.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                    <p className="mt-3 text-sm leading-7 text-slate-500">
                       {item.text}
                     </p>
                   </div>
@@ -1284,19 +1153,17 @@ export default function BlogPage() {
       </section>
 
       <section className="relative z-10 px-4 py-20 sm:px-6 lg:px-8">
-        <div className="slice-blog-sweep relative mx-auto max-w-[1500px] overflow-hidden rounded-[2.4rem] border border-emerald-300/25 bg-gradient-to-br from-emerald-500/25 via-emerald-900/40 to-[#020604] px-6 py-12 shadow-[0_40px_125px_rgba(5,150,105,0.2)] sm:px-10 sm:py-14 lg:px-14">
+        <div className="slice-blog-sweep relative mx-auto max-w-[1500px] overflow-hidden rounded-[2.4rem] border border-emerald-300/20 bg-gradient-to-br from-emerald-500/20 via-emerald-900/35 to-[#020604] px-6 py-12 shadow-[0_40px_125px_rgba(5,150,105,0.18)] sm:px-10 sm:py-14 lg:px-14">
           <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.19em] text-emerald-100">
+              <div className="text-[10px] font-black uppercase tracking-[0.19em] text-emerald-200">
                 Continue into Slice
               </div>
               <h2 className="mt-4 max-w-4xl text-balance text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl">
                 Turn sourced intelligence into connected advisor work.
               </h2>
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-emerald-50/85 sm:text-base">
-                Open the platform to connect an article to market movement,
-                portfolios, clients, documents, tasks, drafts, approvals, and
-                firm memory.
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-emerald-50/70 sm:text-base">
+                Open the platform to connect the article to market movement, portfolios, clients, documents, tasks, drafts, approvals, and firm memory.
               </p>
             </div>
             <div className="flex min-w-[240px] flex-col gap-3">
@@ -1311,7 +1178,7 @@ export default function BlogPage() {
               <Link
                 href="/"
                 prefetch={false}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-black/30 px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.1]"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/20 px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.08]"
               >
                 Platform overview
                 <ArrowLeft className="h-4 w-4" />
@@ -1321,47 +1188,20 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-emerald-300/[0.12] bg-[#010403]/90 py-10 backdrop-blur-xl">
+      <footer className="relative z-10 border-t border-emerald-300/[0.08] bg-[#010403]/85 py-10 backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1500px] gap-7 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-8">
           <Link href="/" prefetch={false} className="justify-self-start">
             <OriginalBrandMark />
           </Link>
-          <div className="flex flex-wrap gap-x-5 gap-y-3 text-[10px] font-black uppercase tracking-[0.13em] text-slate-300 lg:justify-center">
-            <Link href="/" prefetch={false} className="hover:text-emerald-100">
-              Platform
-            </Link>
-            <Link
-              href="/intelligence"
-              prefetch={false}
-              className="hover:text-emerald-100"
-            >
-              Workspace intelligence
-            </Link>
-            <Link
-              href="/security"
-              prefetch={false}
-              className="hover:text-emerald-100"
-            >
-              Security
-            </Link>
-            <Link
-              href="/client-login"
-              prefetch={false}
-              className="hover:text-emerald-100"
-            >
-              Client portal
-            </Link>
-            <Link
-              href="/founder-login"
-              prefetch={false}
-              className="hover:text-emerald-100"
-            >
-              Founder login
-            </Link>
+          <div className="flex flex-wrap gap-x-5 gap-y-3 text-[10px] font-black uppercase tracking-[0.13em] text-slate-600 lg:justify-center">
+            <Link href="/" prefetch={false} className="hover:text-emerald-300">Platform</Link>
+            <Link href="/intelligence" prefetch={false} className="hover:text-emerald-300">Workspace intelligence</Link>
+            <Link href="/security" prefetch={false} className="hover:text-emerald-300">Security</Link>
+            <Link href="/client-login" prefetch={false} className="hover:text-emerald-300">Client portal</Link>
+            <Link href="/founder-login" prefetch={false} className="hover:text-emerald-300">Founder login</Link>
           </div>
-          <p className="max-w-md text-[9px] font-bold uppercase leading-5 tracking-[0.11em] text-slate-400 lg:justify-self-end lg:text-right">
-            Source-linked market intelligence and workflow support. Not
-            investment advice or an automated recommendation.
+          <p className="max-w-md text-[9px] font-bold uppercase leading-5 tracking-[0.11em] text-slate-700 lg:justify-self-end lg:text-right">
+            Source-linked market intelligence and workflow support. Not investment advice or an automated recommendation.
           </p>
         </div>
       </footer>

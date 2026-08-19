@@ -21,11 +21,9 @@ const ALPHA_VANTAGE_ENDPOINT = "https://www.alphavantage.co/query";
 const SNAPSHOT_TITLE = "__SLICE_PUBLIC_INTELLIGENCE_SNAPSHOT_V2__";
 const CHECKPOINT_ID = "slice-public-intelligence-v2";
 const RETENTION_MS = 30 * 24 * 60 * 60_000;
-const DEFAULT_MAX_AGE_MS = 24 * 60 * 60_000;
+const DEFAULT_MAX_AGE_MS = 6 * 60 * 60_000;
 const DEFAULT_ALPHA_NEWS_LIMIT = 200;
 const MARKET_TIME_ZONE = "America/New_York" as const;
-const DAILY_REFRESH_CADENCE =
-  "Published daily at 6:00 AM Eastern Time; the prior completed edition remains available if a scheduled scan fails";
 
 type AlphaNewsTicker = {
   ticker?: unknown;
@@ -95,10 +93,7 @@ declare global {
     | undefined;
   // eslint-disable-next-line no-var
   var __slicePublicIntelligenceRefresh:
-    | Promise<{
-        snapshot: PublicIntelligenceSnapshot;
-        persistence: PersistenceResult;
-      }>
+    | Promise<{ snapshot: PublicIntelligenceSnapshot; persistence: PersistenceResult }>
     | undefined;
 }
 
@@ -230,11 +225,7 @@ function scoreAlphaArticle(input: {
 }) {
   const hours = ageHours(input.publishedAt);
   const freshness = clamp(100 - hours * 2.4, 0, 100);
-  const sentimentMagnitude = clamp(
-    Math.abs(input.overallSentiment) * 100,
-    0,
-    100,
-  );
+  const sentimentMagnitude = clamp(Math.abs(input.overallSentiment) * 100, 0, 100);
   const relevance = clamp(input.tickerRelevance * 100, 0, 100);
   const topic = clamp(input.topicRelevance * 100, 0, 100);
   const breadth = clamp(input.tickerCount * 4 + input.themeCount * 3, 0, 18);
@@ -269,10 +260,7 @@ function alphaNewsLimit() {
     : DEFAULT_ALPHA_NEWS_LIMIT;
 }
 
-function parseAlphaArticle(
-  item: AlphaNewsFeedItem,
-  index: number,
-): PublicArticle | null {
+function parseAlphaArticle(item: AlphaNewsFeedItem, index: number): PublicArticle | null {
   const title = cleanString(item.title, 1_000);
   const link = normalizeUrl(item.url);
 
@@ -319,15 +307,11 @@ function parseAlphaArticle(
     themeCount: matchedThemes.length,
   });
   const urgency = urgencyForScore(score, tickerRelevance);
-  const shouldAlert =
-    urgency === "Critical" ||
-    (urgency === "High" && tickerRelevance >= 0.35);
+  const shouldAlert = urgency === "Critical" || (urgency === "High" && tickerRelevance >= 0.35);
   const hours = ageHours(publishedAt);
   const reasons = unique([
     publishedAt
-      ? `Published ${
-          hours < 1 ? "within the last hour" : `${Math.round(hours)} hours ago`
-        }.`
+      ? `Published ${hours < 1 ? "within the last hour" : `${Math.round(hours)} hours ago`}.`
       : "Publication time was not supplied by the provider.",
     tickerRelevance > 0
       ? `Highest ticker relevance: ${Math.round(tickerRelevance * 100)}%.`
@@ -335,12 +319,8 @@ function parseAlphaArticle(
     topicRelevance > 0
       ? `Highest topic relevance: ${Math.round(topicRelevance * 100)}%.`
       : "Provider topic relevance was not available.",
-    sentimentLabel
-      ? `Provider sentiment: ${sentimentLabel}.`
-      : "Sentiment label unavailable.",
-    matchedThemes.length
-      ? `Themes: ${matchedThemes.slice(0, 4).join(", ")}.`
-      : null,
+    sentimentLabel ? `Provider sentiment: ${sentimentLabel}.` : "Sentiment label unavailable.",
+    matchedThemes.length ? `Themes: ${matchedThemes.slice(0, 4).join(", ")}.` : null,
   ]);
   const authors = Array.isArray(item.authors)
     ? unique(item.authors.map((author) => cleanString(author, 200)), 10)
@@ -393,8 +373,7 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
         error: "ALPHA_VANTAGE_API_KEY is not configured.",
         checkedAt,
       },
-      warning:
-        "Alpha Vantage news was skipped because the API key is not configured.",
+      warning: "Alpha Vantage news was skipped because the API key is not configured.",
     };
   }
 
@@ -419,9 +398,7 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Alpha Vantage NEWS_SENTIMENT returned HTTP ${response.status}.`,
-      );
+      throw new Error(`Alpha Vantage NEWS_SENTIMENT returned HTTP ${response.status}.`);
     }
 
     const payload = (await response.json()) as AlphaNewsPayload;
@@ -449,10 +426,7 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
       },
     };
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown Alpha Vantage news error.";
+    const message = error instanceof Error ? error.message : "Unknown Alpha Vantage news error.";
 
     return {
       articles: [],
@@ -478,8 +452,7 @@ function mapOfficialArticle(item: ScoredNewsItem): PublicArticle {
     id: `official-${item.id}`,
     sourceName: item.sourceName,
     sourceKind:
-      item.sourceTier === "advisor-paid" ||
-      item.sourceTier === "advisor-authorized"
+      item.sourceTier === "advisor-paid" || item.sourceTier === "advisor-authorized"
         ? "advisor-source"
         : "official-feed",
     sourceTier: item.sourceTier,
@@ -501,10 +474,7 @@ function mapOfficialArticle(item: ScoredNewsItem): PublicArticle {
   };
 }
 
-function sourceStatuses(
-  result: ScanResult,
-  checkedAt: string,
-): PublicSourceStatus[] {
+function sourceStatuses(result: ScanResult, checkedAt: string): PublicSourceStatus[] {
   return result.sources.map((source) => ({
     id: source.id,
     name: source.name,
@@ -548,28 +518,20 @@ function topicCounts(articles: PublicArticle[]): PublicTopicCount[] {
 
   return [...counts.entries()]
     .map(([topic, count]) => ({ topic, count }))
-    .sort(
-      (left, right) =>
-        right.count - left.count || left.topic.localeCompare(right.topic),
-    )
+    .sort((left, right) => right.count - left.count || left.topic.localeCompare(right.topic))
     .slice(0, 18);
 }
 
 function sortArticles(articles: PublicArticle[]) {
   return [...articles].sort((left, right) => {
     if (right.score !== left.score) return right.score - left.score;
-    return (
-      Date.parse(right.publishedAt ?? "") -
-      Date.parse(left.publishedAt ?? "")
-    );
+    return Date.parse(right.publishedAt ?? "") - Date.parse(left.publishedAt ?? "");
   });
 }
 
 function snapshotAge(snapshot: PublicIntelligenceSnapshot) {
   const parsed = Date.parse(snapshot.generatedAt);
-  return Number.isFinite(parsed)
-    ? Date.now() - parsed
-    : Number.POSITIVE_INFINITY;
+  return Number.isFinite(parsed) ? Date.now() - parsed : Number.POSITIVE_INFINITY;
 }
 
 function normalizeSnapshot(value: unknown): PublicIntelligenceSnapshot | null {
@@ -592,7 +554,7 @@ function normalizeSnapshot(value: unknown): PublicIntelligenceSnapshot | null {
     dateKey: candidate.dateKey || dateKey(new Date(candidate.generatedAt)),
     marketTimeZone: MARKET_TIME_ZONE,
     provider: "Slice Public Intelligence Mesh",
-    refreshCadence: DAILY_REFRESH_CADENCE,
+    refreshCadence: candidate.refreshCadence || "Scheduled throughout every market day",
     storage: candidate.storage ?? "database",
     sources: candidate.sources,
     items: candidate.items,
@@ -602,9 +564,7 @@ function normalizeSnapshot(value: unknown): PublicIntelligenceSnapshot | null {
     digestCandidates: Array.isArray(candidate.digestCandidates)
       ? candidate.digestCandidates
       : candidate.items.filter((item) => !item.shouldAlert),
-    suppressed: Array.isArray(candidate.suppressed)
-      ? candidate.suppressed
-      : [],
+    suppressed: Array.isArray(candidate.suppressed) ? candidate.suppressed : [],
     topicCounts: Array.isArray(candidate.topicCounts)
       ? candidate.topicCounts
       : topicCounts(candidate.items),
@@ -803,14 +763,12 @@ export async function scoutPublicIntelligence(): Promise<PublicIntelligenceSnaps
     dateKey: dateKey(),
     marketTimeZone: MARKET_TIME_ZONE,
     provider: "Slice Public Intelligence Mesh",
-    refreshCadence: DAILY_REFRESH_CADENCE,
+    refreshCadence: "Scheduled every four hours, with on-demand recovery when no snapshot exists",
     storage: "fresh",
     sources: [...officialSources, alphaStatus],
     items,
     alertCandidates: items.filter((item) => item.shouldAlert),
-    digestCandidates: items.filter(
-      (item) => !item.shouldAlert && item.score >= 55,
-    ),
+    digestCandidates: items.filter((item) => !item.shouldAlert && item.score >= 55),
     suppressed: items.filter((item) => item.score < 55),
     topicCounts: topicCounts(items),
     warnings: unique(warnings, 30),
@@ -871,24 +829,17 @@ export async function scoutAndPersistPublicIntelligence() {
 export async function getPublicIntelligence(options?: {
   forceRefresh?: boolean;
   maxAgeMs?: number;
-  allowRefresh?: boolean;
 }) {
   const forceRefresh = options?.forceRefresh ?? false;
-  const allowRefresh =
-    options?.allowRefresh ?? process.env.NODE_ENV !== "production";
   const maxAgeMs = clamp(
     options?.maxAgeMs ?? DEFAULT_MAX_AGE_MS,
     60_000,
-    48 * 60 * 60_000,
+    24 * 60 * 60_000,
   );
   const memory = globalThis.__slicePublicIntelligenceSnapshot;
 
   if (!forceRefresh && memory && snapshotAge(memory) <= maxAgeMs) {
-    return {
-      ...memory,
-      refreshCadence: DAILY_REFRESH_CADENCE,
-      storage: "memory" as const,
-    };
+    return { ...memory, storage: "memory" as const };
   }
 
   if (forceRefresh) {
@@ -912,16 +863,12 @@ export async function getPublicIntelligence(options?: {
     const stale = snapshotAge(stored) > maxAgeMs;
     const result: PublicIntelligenceSnapshot = {
       ...stored,
-      refreshCadence: DAILY_REFRESH_CADENCE,
       storage: stale ? "stale" : "database",
       warnings: stale
-        ? unique(
-            [
-              ...stored.warnings,
-              "The stored daily edition is older than the preferred freshness window. It remains available until the next scheduled 6:00 AM Eastern publication.",
-            ],
-            30,
-          )
+        ? unique([
+            ...stored.warnings,
+            "The latest stored edition is older than the preferred freshness window. The scheduled scout should refresh it shortly.",
+          ])
         : stored.warnings,
     };
 
@@ -929,48 +876,15 @@ export async function getPublicIntelligence(options?: {
     return result;
   }
 
-  if (memory) {
-    const staleMemory: PublicIntelligenceSnapshot = {
-      ...memory,
-      refreshCadence: DAILY_REFRESH_CADENCE,
-      storage: "stale",
-      warnings: unique(
-        [
-          ...memory.warnings,
-          databaseError
-            ? `The database edition could not be read, so Slice is serving the last in-memory daily edition: ${databaseError}`
-            : "The database edition was unavailable, so Slice is serving the last in-memory daily edition.",
-        ],
-        30,
-      ),
-    };
-
-    globalThis.__slicePublicIntelligenceSnapshot = staleMemory;
-    return staleMemory;
-  }
-
-  /*
-   * Production page views must never start provider scans. Only the protected
-   * daily publisher should create and persist a new public edition.
-   */
-  if (!allowRefresh) {
-    throw new Error(
-      databaseError
-        ? "The scheduled daily intelligence edition could not be read from durable storage."
-        : "The first scheduled daily intelligence edition has not been published yet.",
-    );
-  }
-
   try {
     const { snapshot } = await scoutAndPersistPublicIntelligence();
-
     return databaseError
       ? {
           ...snapshot,
           warnings: unique(
             [
               ...snapshot.warnings,
-              `Database cache unavailable before the development recovery scan: ${databaseError}`,
+              `Database cache unavailable before the live recovery scan: ${databaseError}`,
             ],
             30,
           ),
