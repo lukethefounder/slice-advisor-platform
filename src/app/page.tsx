@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Reveal from "@/components/ui/reveal";
 import type { ReactNode } from "react";
 import {
   useCallback,
@@ -319,7 +320,7 @@ const DETAIL_SYMBOLS = new Set([
 ]);
 
 const DEFAULT_MARKET_POLL_MS = 30_000;
-const PUBLIC_INTELLIGENCE_POLL_MS = 5 * 60_000;
+const PUBLIC_INTELLIGENCE_ARTICLE_LIMIT = 6;
 
 const NAV_ITEMS = [
   { label: "What is Slice", href: "#what-is-slice" },
@@ -797,7 +798,8 @@ const FAQS = [
   },
   {
     question: "How does the daily article page stay current?",
-    answer: "A Vercel Cron route scouts official market feeds and Alpha Vantage Market News & Sentiment every four hours, ranks and deduplicates the results, and stores a latest daily snapshot for the homepage and blog.",
+    answer:
+      "At 6:00 AM Eastern Time, a protected Vercel Cron route scouts official market feeds and Alpha Vantage Market News & Sentiment, ranks and deduplicates the results, selects the six highest-ranked unique stories, and stores one fixed edition for the homepage and blog. Page visits only read the stored edition and do not initiate another scan.",
   },
   {
     question: "Does Slice make autonomous client recommendations?",
@@ -965,27 +967,52 @@ function graphPath(edge: GraphEdge) {
 function normalizeIntelligence(
   value: Partial<PublicIntelligenceSnapshot>,
 ): PublicIntelligenceSnapshot {
-  const items = Array.isArray(value.items) ? value.items : [];
+  const items = Array.isArray(value.items)
+    ? value.items.slice(
+        0,
+        PUBLIC_INTELLIGENCE_ARTICLE_LIMIT,
+      )
+    : [];
 
   return {
-    schemaVersion: "slice-public-intelligence-2.0.0",
-    generatedAt: value.generatedAt ?? new Date(0).toISOString(),
-    dateKey: value.dateKey ?? "",
+    schemaVersion:
+      "slice-public-intelligence-2.0.0",
+    generatedAt:
+      value.generatedAt ??
+      new Date(0).toISOString(),
+    dateKey:
+      value.dateKey ??
+      marketDateKey(value.generatedAt),
     marketTimeZone: "America/New_York",
-    provider: "Slice Public Intelligence Mesh",
-    refreshCadence: value.refreshCadence ?? "Scheduled throughout every market day",
+    provider:
+      "Slice Public Intelligence Mesh",
+    refreshCadence:
+      value.refreshCadence ??
+      "Published daily at 6:00 AM Eastern Time",
     storage: value.storage ?? "fresh",
-    sources: Array.isArray(value.sources) ? value.sources : [],
+    sources: Array.isArray(value.sources)
+      ? value.sources
+      : [],
     items,
-    alertCandidates: Array.isArray(value.alertCandidates)
-      ? value.alertCandidates
-      : items.filter((item) => item.shouldAlert),
-    digestCandidates: Array.isArray(value.digestCandidates)
-      ? value.digestCandidates
-      : items.filter((item) => !item.shouldAlert),
-    suppressed: Array.isArray(value.suppressed) ? value.suppressed : [],
-    topicCounts: Array.isArray(value.topicCounts) ? value.topicCounts : [],
-    warnings: Array.isArray(value.warnings) ? value.warnings : [],
+    alertCandidates: items.filter(
+      (item) => item.shouldAlert,
+    ),
+    digestCandidates: items.filter(
+      (item) =>
+        !item.shouldAlert &&
+        item.score >= 55,
+    ),
+    suppressed: items.filter(
+      (item) => item.score < 55,
+    ),
+    topicCounts: Array.isArray(
+      value.topicCounts,
+    )
+      ? value.topicCounts
+      : [],
+    warnings: Array.isArray(value.warnings)
+      ? value.warnings
+      : [],
   };
 }
 
@@ -1217,32 +1244,50 @@ function useAlphaDetail(symbol: string) {
 }
 
 function usePublicIntelligence() {
-  const [snapshot, setSnapshot] = useState<PublicIntelligenceSnapshot>(() =>
-    normalizeIntelligence({}),
-  );
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
+  const [snapshot, setSnapshot] =
+    useState<PublicIntelligenceSnapshot>(() =>
+      normalizeIntelligence({}),
+    );
+  const [loading, setLoading] =
+    useState(true);
+  const [refreshing, setRefreshing] =
+    useState(false);
+  const [error, setError] =
+    useState("");
   const requestInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     if (requestInFlight.current) return;
+
     requestInFlight.current = true;
     setRefreshing(true);
 
     try {
-      const response = await fetch("/api/intelligence/daily", {
-        cache: "no-store",
-      });
-      const data = (await response.json()) as Partial<PublicIntelligenceSnapshot> & {
-        error?: string;
-      };
+      const response = await fetch(
+        `/api/intelligence/daily?limit=${PUBLIC_INTELLIGENCE_ARTICLE_LIMIT}`,
+        {
+          cache: "default",
+          headers: {
+            Accept: "application/json",
+          },
+        },
+      );
+
+      const data =
+        (await response.json()) as Partial<PublicIntelligenceSnapshot> & {
+          error?: string;
+        };
 
       if (!response.ok) {
-        throw new Error(data.error || `Public intelligence returned HTTP ${response.status}.`);
+        throw new Error(
+          data.error ||
+            `Public intelligence returned HTTP ${response.status}.`,
+        );
       }
 
-      setSnapshot(normalizeIntelligence(data));
+      setSnapshot(
+        normalizeIntelligence(data),
+      );
       setError("");
     } catch (caught) {
       setError(
@@ -1257,21 +1302,28 @@ function usePublicIntelligence() {
     }
   }, []);
 
+  /*
+   * Load the stored edition once. Do not poll every five minutes and do not
+   * launch a new provider scan when another user signs in.
+   */
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, PUBLIC_INTELLIGENCE_POLL_MS);
-
-    return () => window.clearInterval(interval);
   }, [refresh]);
 
   const sourceHealth = useMemo(() => {
-    const online = snapshot.sources.filter((source) => source.ok).length;
+    const online =
+      snapshot.sources.filter(
+        (source) => source.ok,
+      ).length;
+
     return {
       online,
       total: snapshot.sources.length,
-      fetched: snapshot.sources.reduce((sum, source) => sum + source.fetched, 0),
+      fetched: snapshot.sources.reduce(
+        (sum, source) =>
+          sum + source.fetched,
+        0,
+      ),
     };
   }, [snapshot.sources]);
 
@@ -1283,30 +1335,6 @@ function usePublicIntelligence() {
     refresh,
     sourceHealth,
   };
-}
-
-function Reveal({
-  children,
-  className,
-  delay = 0,
-}: {
-  children: ReactNode;
-  className?: string;
-  delay?: number;
-}) {
-  const reducedMotion = useReducedMotion();
-
-  return (
-    <motion.div
-      className={className}
-      initial={reducedMotion ? false : { opacity: 0, y: 24 }}
-      whileInView={reducedMotion ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay, ease: [0.2, 0.8, 0.2, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
 }
 
 function Section({
@@ -2663,31 +2691,67 @@ function ArticleCard({ article, featured = false }: { article: PublicArticle; fe
   );
 }
 
-function DailyIntelligenceSection({ intelligence }: { intelligence: ReturnType<typeof usePublicIntelligence> }) {
-  const todaysArticles = intelligence.snapshot.items.filter(
-    (article) => marketDateKey(article.publishedAt) === intelligence.snapshot.dateKey,
-  );
-  const isRecentFallback = Boolean(
-    intelligence.snapshot.items.length && !todaysArticles.length,
-  );
-  const articles = (
-    todaysArticles.length ? todaysArticles : intelligence.snapshot.items
-  ).slice(0, 5);
-  const topTopics = intelligence.snapshot.topicCounts.slice(0, 8);
+function DailyIntelligenceSection({
+  intelligence,
+}: {
+  intelligence: ReturnType<
+    typeof usePublicIntelligence
+  >;
+}) {
+  const articles =
+    intelligence.snapshot.items.slice(
+      0,
+      PUBLIC_INTELLIGENCE_ARTICLE_LIMIT,
+    );
+
+  const editionDate =
+    intelligence.snapshot.dateKey ||
+    marketDateKey(
+      intelligence.snapshot.generatedAt,
+    ) ||
+    "pending";
+
+  const topTopics =
+    intelligence.snapshot.topicCounts.slice(
+      0,
+      8,
+    );
 
   return (
     <Section
       id="daily-intelligence"
-      eyebrow="Daily sourced intelligence"
-      title="The day’s most useful market articles, scouted and connected before the advisor arrives."
-      description="A protected cron job gathers official market and regulatory feeds plus Alpha Vantage Market News & Sentiment, removes duplicates, scores relevance and materiality, stores a durable daily edition, and serves the same evidence-linked feed to the homepage and blog."
+      eyebrow="Six-article daily intelligence"
+      title="Six useful market articles, selected once each morning before the advisor arrives."
+      description="At 6:00 AM Eastern Time, a protected publisher gathers official market and regulatory feeds plus Alpha Vantage Market News & Sentiment, removes duplicates, ranks relevance and materiality, and stores one fixed six-article edition for the homepage and blog. Page visits only read that completed edition."
       action={
         <div className="flex gap-2">
-          <button type="button" onClick={() => void intelligence.refresh()} disabled={intelligence.refreshing} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 transition hover:border-emerald-300/20 hover:text-white">
-            <RefreshCcw className={cx("h-4 w-4", intelligence.refreshing && "animate-spin")} /> Refresh edition
+          <button
+            type="button"
+            onClick={() =>
+              void intelligence.refresh()
+            }
+            disabled={
+              intelligence.refreshing
+            }
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 transition hover:border-emerald-300/20 hover:text-white"
+          >
+            <RefreshCcw
+              className={cx(
+                "h-4 w-4",
+                intelligence.refreshing &&
+                  "animate-spin",
+              )}
+            />
+            Reload edition
           </button>
-          <Link href="/blog" prefetch={false} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.14]">
-            Open blog <ArrowRight className="h-4 w-4" />
+
+          <Link
+            href="/blog"
+            prefetch={false}
+            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.14]"
+          >
+            Open blog
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       }
@@ -2696,62 +2760,177 @@ function DailyIntelligenceSection({ intelligence }: { intelligence: ReturnType<t
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricTile
           icon={Newspaper}
-          label={isRecentFallback ? "Recent sourced articles" : "Today’s articles"}
-          value={(todaysArticles.length || intelligence.snapshot.items.length) || "—"}
-          helper={isRecentFallback ? "Latest stored edition shown transparently" : `Edition ${intelligence.snapshot.dateKey || "pending"}`}
+          label="Daily articles"
+          value={articles.length || "—"}
+          helper={`Six selected at 6:00 AM ET · Edition ${editionDate}`}
         />
-        <MetricTile icon={Globe2} label="Sources online" value={`${intelligence.sourceHealth.online}/${intelligence.sourceHealth.total || 0}`} helper={`${intelligence.sourceHealth.fetched} raw items scanned`} />
-        <MetricTile icon={BellRing} label="Priority candidates" value={intelligence.snapshot.alertCandidates.length} helper="Require advisor review before client use" />
-        <MetricTile icon={CalendarClock} label="Edition generated" value={intelligence.snapshot.generatedAt && Date.parse(intelligence.snapshot.generatedAt) > 0 ? relativeTime(intelligence.snapshot.generatedAt) : "Pending"} helper={intelligence.snapshot.refreshCadence} />
-      </div>
 
-      {isRecentFallback ? (
-        <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.045] p-4 text-xs leading-6 text-cyan-100/70">
-          No retained article in the latest scan carried today’s New York market-date stamp, so Slice is showing the most recent sourced edition instead of generating placeholder content.
-        </div>
-      ) : null}
+        <MetricTile
+          icon={Globe2}
+          label="Sources online"
+          value={`${intelligence.sourceHealth.online}/${intelligence.sourceHealth.total || 0}`}
+          helper={`${intelligence.sourceHealth.fetched} raw items evaluated during publication`}
+        />
+
+        <MetricTile
+          icon={BellRing}
+          label="Priority candidates"
+          value={
+            intelligence.snapshot
+              .alertCandidates.length
+          }
+          helper="Require advisor review before client use"
+        />
+
+        <MetricTile
+          icon={CalendarClock}
+          label="Edition generated"
+          value={
+            intelligence.snapshot
+              .generatedAt &&
+            Date.parse(
+              intelligence.snapshot
+                .generatedAt,
+            ) > 0
+              ? relativeTime(
+                  intelligence.snapshot
+                    .generatedAt,
+                )
+              : "Pending"
+          }
+          helper={
+            intelligence.snapshot
+              .refreshCadence
+          }
+        />
+      </div>
 
       {topTopics.length ? (
         <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-          <span className="mr-2 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300"><Link2 className="h-3.5 w-3.5" /> Connected themes</span>
-          {topTopics.map((topic) => <span key={topic.topic} className="rounded-full border border-white/[0.08] bg-black/20 px-3 py-1.5 text-[9px] font-bold text-slate-400">{topic.topic} · {topic.count}</span>)}
+          <span className="mr-2 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300">
+            <Link2 className="h-3.5 w-3.5" />
+            Connected themes
+          </span>
+
+          {topTopics.map((topic) => (
+            <span
+              key={topic.topic}
+              className="rounded-full border border-white/[0.08] bg-black/20 px-3 py-1.5 text-[9px] font-bold text-slate-400"
+            >
+              {topic.topic} · {topic.count}
+            </span>
+          ))}
         </div>
       ) : null}
 
       {articles.length ? (
         <div className="mt-7 grid gap-5 lg:grid-cols-3">
-          {articles.map((article, index) => <ArticleCard key={article.id} article={article} featured={index === 0} />)}
+          {articles.map(
+            (article, index) => (
+              <ArticleCard
+                key={article.id}
+                article={article}
+                featured={index === 0}
+              />
+            ),
+          )}
         </div>
       ) : (
         <div className="mt-7 rounded-[2rem] border border-dashed border-white/10 bg-white/[0.025] p-10 text-center">
           <Radar className="mx-auto h-8 w-8 text-emerald-300" />
-          <h3 className="mt-4 text-xl font-black text-white">The daily edition is waiting for its first successful scan.</h3>
+
+          <h3 className="mt-4 text-xl font-black text-white">
+            The daily edition is waiting
+            for its first scheduled
+            publication.
+          </h3>
+
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-            The cron route and public feed are included in this replacement. Configure <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">CRON_SECRET</code>, the database, and <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">ALPHA_VANTAGE_API_KEY</code>, then deploy the included Vercel schedule.
+            Configure{" "}
+            <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">
+              CRON_SECRET
+            </code>
+            , the production database, and{" "}
+            <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">
+              ALPHA_VANTAGE_API_KEY
+            </code>
+            . The protected publisher will
+            create the six-article edition
+            at 6:00 AM Eastern Time.
           </p>
-          {intelligence.error ? <p className="mt-4 text-xs font-bold text-amber-300">{intelligence.error}</p> : null}
+
+          {intelligence.error ? (
+            <p className="mt-4 text-xs font-bold text-amber-300">
+              {intelligence.error}
+            </p>
+          ) : null}
         </div>
       )}
 
       <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_1fr]">
         <div className="rounded-[1.8rem] border border-white/[0.08] bg-white/[0.035] p-6">
-          <div className="flex items-center gap-3"><FileCheck2 className="h-5 w-5 text-emerald-300" /><h3 className="text-lg font-black text-white">Why an article appears</h3></div>
+          <div className="flex items-center gap-3">
+            <FileCheck2 className="h-5 w-5 text-emerald-300" />
+            <h3 className="text-lg font-black text-white">
+              Why an article appears
+            </h3>
+          </div>
+
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {["Source quality and availability", "Publication recency", "Ticker and watchlist relevance", "Theme and macro relationships", "Materiality and urgency", "Original source retained"].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-3 text-[10px] font-bold text-slate-400"><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" />{item}</div>
+            {[
+              "Source quality and availability",
+              "Publication recency",
+              "Ticker and watchlist relevance",
+              "Theme and macro relationships",
+              "Materiality and urgency",
+              "Original source retained",
+            ].map((item) => (
+              <div
+                key={item}
+                className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-3 text-[10px] font-bold text-slate-400"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                {item}
+              </div>
             ))}
           </div>
         </div>
+
         <div className="rounded-[1.8rem] border border-white/[0.08] bg-white/[0.035] p-6">
-          <div className="flex items-center gap-3"><Database className="h-5 w-5 text-cyan-300" /><h3 className="text-lg font-black text-white">Durable public edition</h3></div>
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-cyan-300" />
+            <h3 className="text-lg font-black text-white">
+              One durable daily edition
+            </h3>
+          </div>
+
           <p className="mt-4 text-sm leading-7 text-slate-500">
-            The scheduled scan writes a batch to Slice’s existing PostgreSQL database. Page visitors read the latest completed batch instead of initiating expensive provider and source requests themselves. If a new scan fails, the last confirmed edition remains available with its original generation time.
+            The 6:00 AM publisher writes a
+            completed batch to Slice’s
+            PostgreSQL database. Visitors
+            receive the same six selected
+            articles throughout the day
+            instead of initiating expensive
+            source and provider requests. If
+            the next publication fails, the
+            last confirmed edition remains
+            available with its original
+            generation time.
           </p>
+
           <div className="mt-5 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Database backed</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Batch isolated</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">30-day retention</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Source health stored</span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Six articles
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Database backed
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Once daily
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+              Source linked
+            </span>
           </div>
         </div>
       </div>
@@ -3146,7 +3325,11 @@ export default function HomePage() {
   const intelligence = usePublicIntelligence();
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white">
+      <main
+        data-slice-color-lock="true"
+        data-slice-tone="dark"
+        className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white"
+      >
       <HomepageStyles />
       <AmbientField />
       <Header />
