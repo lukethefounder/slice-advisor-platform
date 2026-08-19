@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -130,7 +131,6 @@ type PricePoint = {
 };
 
 type PriceHistory = Record<string, PricePoint[]>;
-
 type PriceMovement = Record<string, "up" | "down" | "flat">;
 
 type AlphaIntradayBar = {
@@ -319,7 +319,9 @@ const DETAIL_SYMBOLS = new Set([
 ]);
 
 const DEFAULT_MARKET_POLL_MS = 30_000;
-const PUBLIC_INTELLIGENCE_POLL_MS = 5 * 60_000;
+const PUBLIC_INTELLIGENCE_ARTICLE_LIMIT = 6;
+const PUBLIC_INTELLIGENCE_REFRESH_CADENCE =
+  "Published daily at 6:00 AM Eastern Time";
 
 const NAV_ITEMS = [
   { label: "What is Slice", href: "#what-is-slice" },
@@ -333,31 +335,36 @@ const ARCHITECTURE_LAYERS = [
   {
     number: "01",
     title: "Observe",
-    summary: "Markets, news, documents, client activity, workflows, and firm data enter one monitored operating layer.",
+    summary:
+      "Markets, news, documents, client activity, workflows, and firm data enter one monitored operating layer.",
     icon: Radar,
   },
   {
     number: "02",
     title: "Connect",
-    summary: "The knowledge graph links securities, themes, portfolios, clients, tasks, communications, and compliance context.",
+    summary:
+      "The knowledge graph links securities, themes, portfolios, clients, tasks, communications, and compliance context.",
     icon: Network,
   },
   {
     number: "03",
     title: "Reason",
-    summary: "Specialized AI agents rank materiality, identify relationships, model risk, and propose next-best actions.",
+    summary:
+      "Specialized AI agents rank materiality, identify relationships, model risk, and propose next-best actions.",
     icon: BrainCircuit,
   },
   {
     number: "04",
     title: "Act",
-    summary: "Advisors move from signal to portfolio review, client draft, task, meeting, alert, or documented decision.",
+    summary:
+      "Advisors move from signal to portfolio review, client draft, task, meeting, alert, or documented decision.",
     icon: Zap,
   },
   {
     number: "05",
     title: "Govern",
-    summary: "Permissions, review gates, source evidence, audit trails, and retention rules remain attached to the work.",
+    summary:
+      "Permissions, review gates, source evidence, audit trails, and retention rules remain attached to the work.",
     icon: ShieldCheck,
   },
 ];
@@ -373,29 +380,37 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     items: [
       {
         title: "Alpha Vantage market command",
-        description: "Strict provider-backed quote, freshness, quality, latency, technical, and session context.",
-        detail: "The public homepage never invents prices. It requests Alpha Vantage explicitly and preserves the last confirmed provider value when a refresh fails.",
+        description:
+          "Strict provider-backed quote, freshness, quality, latency, technical, and session context.",
+        detail:
+          "The public homepage never invents prices. It requests Alpha Vantage explicitly and preserves the last confirmed provider value when a refresh fails.",
         href: "/workspace/custom-board",
         icon: ChartCandlestick,
       },
       {
         title: "Daily sourced intelligence",
-        description: "Cron-scouted articles from official feeds and Alpha Vantage market news.",
-        detail: "Articles are deduplicated, ranked for recency and relevance, connected to tickers and themes, and retained as a public daily edition.",
+        description:
+          "Six cron-selected articles from official feeds and Alpha Vantage market news.",
+        detail:
+          "At 6:00 AM Eastern Time, articles are deduplicated, ranked, connected to tickers and themes, and retained as one fixed public edition for the day.",
         href: "/blog",
         icon: Newspaper,
       },
       {
         title: "Portfolio and scenario lab",
-        description: "Allocation, concentration, liquidity, tax context, drift, and scenario review.",
-        detail: "Market and research signals can move directly into portfolio analysis without losing source or suitability context.",
+        description:
+          "Allocation, concentration, liquidity, tax context, drift, and scenario review.",
+        detail:
+          "Market and research signals can move directly into portfolio analysis without losing source or suitability context.",
         href: "/portfolio-lab",
         icon: PieChart,
       },
       {
         title: "Opportunity and risk radar",
-        description: "Technical opportunity filtering, risk signals, watchlists, and alert thresholds.",
-        detail: "Slice monitors broad universes and advisor watchlists, then prioritizes the small set of changes that deserve human attention.",
+        description:
+          "Technical opportunity filtering, risk signals, watchlists, and alert thresholds.",
+        detail:
+          "Slice monitors broad universes and advisor watchlists, then prioritizes the small set of changes that deserve human attention.",
         href: "/opportunity-radar",
         icon: Target,
       },
@@ -411,29 +426,37 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     items: [
       {
         title: "Unified advisor workspace",
-        description: "A command center for clients, priorities, market context, tasks, and communication.",
-        detail: "The workspace is designed to reduce route-switching while preserving role-based access behind the interface.",
+        description:
+          "A command center for clients, priorities, market context, tasks, and communication.",
+        detail:
+          "The workspace is designed to reduce route-switching while preserving role-based access behind the interface.",
         href: "/workspace",
         icon: Layers3,
       },
       {
         title: "Client portal and advisor assignment",
-        description: "Messages, documents, risk updates, meeting access, and advisor-specific routing.",
-        detail: "Clients see the right advisor relationship while assigned advisors receive the corresponding messages and profile updates.",
+        description:
+          "Messages, documents, risk updates, meeting access, and advisor-specific routing.",
+        detail:
+          "Clients see the right advisor relationship while assigned advisors receive the corresponding messages and profile updates.",
         href: "/client-login",
         icon: UsersRound,
       },
       {
         title: "Communication center",
-        description: "AI-assisted email, briefing, talking-point, and review workflows.",
-        detail: "Drafts remain easy to edit, compare, approve, queue, and send through controlled firm processes.",
+        description:
+          "AI-assisted email, briefing, talking-point, and review workflows.",
+        detail:
+          "Drafts remain easy to edit, compare, approve, queue, and send through controlled firm processes.",
         href: "/workspace/client-emails",
         icon: Mail,
       },
       {
         title: "Firm planning and oversight",
-        description: "Team operations, goals, reminders, system health, and founder-level visibility.",
-        detail: "Leadership can see what is working, what is blocked, where review is required, and how the firm is operating.",
+        description:
+          "Team operations, goals, reminders, system health, and founder-level visibility.",
+        detail:
+          "Leadership can see what is working, what is blocked, where review is required, and how the firm is operating.",
         href: "/firm-planning",
         icon: Building2,
       },
@@ -449,29 +472,37 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     items: [
       {
         title: "Personal advisor bot",
-        description: "A role-aware assistant shaped by advisor preferences, workflows, clients, and firm policy.",
-        detail: "The bot can answer, summarize, draft, route work, and maintain continuity while respecting permissions and review gates.",
+        description:
+          "A role-aware assistant shaped by advisor preferences, workflows, clients, and firm policy.",
+        detail:
+          "The bot can answer, summarize, draft, route work, and maintain continuity while respecting permissions and review gates.",
         href: "/workspace/personal-bot",
         icon: Bot,
       },
       {
         title: "Research swarm",
-        description: "Parallel market, company, macro, sentiment, and risk research paths.",
-        detail: "Independent agents reduce single-path blind spots and return source-linked findings to a common reasoning layer.",
+        description:
+          "Parallel market, company, macro, sentiment, and risk research paths.",
+        detail:
+          "Independent agents reduce single-path blind spots and return source-linked findings to a common reasoning layer.",
         href: "/intelligence",
         icon: Orbit,
       },
       {
         title: "Workflow automation",
-        description: "Signal-to-task, meeting preparation, reminders, briefs, drafts, and approval queues.",
-        detail: "Automation is aimed at removing repetitive work while leaving decisions and sensitive communications under human control.",
+        description:
+          "Signal-to-task, meeting preparation, reminders, briefs, drafts, and approval queues.",
+        detail:
+          "Automation removes repetitive work while decisions and sensitive communications remain under human control.",
         href: "/workspace",
         icon: Workflow,
       },
       {
         title: "Firm memory and knowledge graph",
-        description: "Relationships between prior decisions, documents, clients, securities, themes, and outcomes.",
-        detail: "The graph gives bots and humans a shared map of why something matters and where related knowledge already exists.",
+        description:
+          "Relationships between prior decisions, documents, clients, securities, themes, and outcomes.",
+        detail:
+          "The graph gives bots and humans a shared map of why something matters and where related knowledge already exists.",
         href: "/command",
         icon: GitBranch,
       },
@@ -487,29 +518,37 @@ const CAPABILITY_GROUPS: CapabilityGroup[] = [
     items: [
       {
         title: "Review-first output",
-        description: "Client-specific language, recommendations, performance claims, and sensitive output stay gated.",
-        detail: "AI can accelerate preparation, but the advisor or designated reviewer controls what becomes client-facing.",
+        description:
+          "Client-specific language, recommendations, performance claims, and sensitive output stay gated.",
+        detail:
+          "AI can accelerate preparation, but the advisor or designated reviewer controls what becomes client-facing.",
         href: "/security",
         icon: FileCheck2,
       },
       {
         title: "Source and freshness transparency",
-        description: "Provider, timestamp, market state, quality, relevance, and original links remain visible.",
-        detail: "The interface distinguishes real-time, delayed, closed, stale, and unavailable states instead of obscuring them.",
+        description:
+          "Provider, timestamp, market state, quality, relevance, and original links remain visible.",
+        detail:
+          "The interface distinguishes real-time, delayed, closed, stale, and unavailable states instead of obscuring them.",
         href: "/security",
         icon: FileSearch,
       },
       {
         title: "Role-based access",
-        description: "Founder, firm, advisor, and client experiences remain separated by permissions.",
-        detail: "Navigation can feel unified without exposing the same data or actions to every role.",
+        description:
+          "Founder, firm, advisor, and client experiences remain separated by permissions.",
+        detail:
+          "Navigation can feel unified without exposing the same data or actions to every role.",
         href: "/founder-login",
         icon: LockKeyhole,
       },
       {
         title: "Audit and operating health",
-        description: "Cron health, integration health, queued work, system readiness, and retained decisions.",
-        detail: "The system can show not only the output, but whether the underlying source, job, and approval path were healthy.",
+        description:
+          "Cron health, integration health, queued work, system readiness, and retained decisions.",
+        detail:
+          "The system shows not only the output, but whether the source, scheduled job, and approval path were healthy.",
         href: "/backend-readiness",
         icon: ServerCog,
       },
@@ -524,7 +563,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 345,
     label: "Slice Intelligence Core",
     eyebrow: "Orchestration",
-    description: "The central reasoning layer that joins market data, sourced evidence, client context, workflows, and governance before an output is produced.",
+    description:
+      "The central reasoning layer that joins market data, sourced evidence, client context, workflows, and governance before an output is produced.",
     layer: "intelligence",
     icon: BrainCircuit,
     href: "/command",
@@ -537,7 +577,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 120,
     label: "Live Markets",
     eyebrow: "Alpha Vantage",
-    description: "Quotes, market state, intraday bars, volume, freshness, latency, and technical context.",
+    description:
+      "Quotes, market state, intraday bars, volume, freshness, latency, and technical context.",
     layer: "market",
     icon: ChartCandlestick,
     href: "/workspace/custom-board",
@@ -550,7 +591,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 90,
     label: "Technical Engine",
     eyebrow: "Market structure",
-    description: "Trend, momentum, volatility, volume, moving averages, and opportunity filtering.",
+    description:
+      "Trend, momentum, volatility, volume, moving averages, and opportunity filtering.",
     layer: "market",
     icon: LineChart,
     href: "/opportunity-radar",
@@ -563,7 +605,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 525,
     label: "Macro Context",
     eyebrow: "Economic layer",
-    description: "Rates, inflation, liquidity, policy, economic releases, and cross-asset implications.",
+    description:
+      "Rates, inflation, liquidity, policy, economic releases, and cross-asset implications.",
     layer: "market",
     icon: Landmark,
     href: "/intelligence",
@@ -576,12 +619,13 @@ const GRAPH_NODES: GraphNode[] = [
     y: 315,
     label: "Sourced News",
     eyebrow: "Daily scouting",
-    description: "Official feeds and Alpha Vantage market news, ranked by recency, relevance, materiality, and source evidence.",
+    description:
+      "Official feeds and Alpha Vantage market news, ranked by recency, relevance, materiality, and source evidence.",
     layer: "intelligence",
     icon: Newspaper,
     href: "/blog",
     inputs: ["Official feeds", "Provider news", "Source health"],
-    outputs: ["Daily edition", "Alerts", "Digest candidates"],
+    outputs: ["Six-article daily edition", "Alerts", "Digest candidates"],
   },
   {
     id: "sentiment",
@@ -589,7 +633,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 520,
     label: "Sentiment Mesh",
     eyebrow: "Interpretation",
-    description: "Article sentiment, ticker relevance, theme intensity, disagreement, and narrative change.",
+    description:
+      "Article sentiment, ticker relevance, theme intensity, disagreement, and narrative change.",
     layer: "intelligence",
     icon: Activity,
     href: "/intelligence",
@@ -602,7 +647,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 95,
     label: "Agent Swarm",
     eyebrow: "Parallel AI paths",
-    description: "Specialized market, research, risk, client, document, and compliance agents work in parallel before rejoining the core.",
+    description:
+      "Specialized market, research, risk, client, document, and compliance agents work in parallel before rejoining the core.",
     layer: "intelligence",
     icon: Orbit,
     href: "/intelligence",
@@ -615,7 +661,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 105,
     label: "Portfolio Lab",
     eyebrow: "Investment context",
-    description: "Holdings, allocation, drift, concentration, liquidity, tax context, and scenario impact.",
+    description:
+      "Holdings, allocation, drift, concentration, liquidity, tax context, and scenario impact.",
     layer: "advisor",
     icon: PieChart,
     href: "/portfolio-lab",
@@ -628,7 +675,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 565,
     label: "Risk and Suitability",
     eyebrow: "Guardrail layer",
-    description: "Risk tolerance, concentration, liquidity, downside scenarios, suitability, and client-specific constraints.",
+    description:
+      "Risk tolerance, concentration, liquidity, downside scenarios, suitability, and client-specific constraints.",
     layer: "governance",
     icon: ShieldCheck,
     href: "/portfolio-lab",
@@ -641,7 +689,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 155,
     label: "Client Graph",
     eyebrow: "Relationship context",
-    description: "Households, goals, assigned advisors, preferences, risk updates, messages, meetings, and documents.",
+    description:
+      "Households, goals, assigned advisors, preferences, risk updates, messages, meetings, and documents.",
     layer: "advisor",
     icon: UsersRound,
     href: "/client-login",
@@ -654,7 +703,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 365,
     label: "Communication Center",
     eyebrow: "Human-reviewed output",
-    description: "Emails, briefs, talking points, meeting notes, approval queues, and client delivery.",
+    description:
+      "Emails, briefs, talking points, meeting notes, approval queues, and client delivery.",
     layer: "advisor",
     icon: Mail,
     href: "/workspace/client-emails",
@@ -667,7 +717,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 575,
     label: "Document Intelligence",
     eyebrow: "Evidence layer",
-    description: "Uploaded documents, extracted facts, summaries, obligations, decisions, and retained records.",
+    description:
+      "Uploaded documents, extracted facts, summaries, obligations, decisions, and retained records.",
     layer: "advisor",
     icon: FileText,
     href: "/workspace",
@@ -680,7 +731,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 625,
     label: "Workflow Engine",
     eyebrow: "Execution",
-    description: "Tasks, reminders, meetings, approval queues, routing, and operating cadence.",
+    description:
+      "Tasks, reminders, meetings, approval queues, routing, and operating cadence.",
     layer: "advisor",
     icon: Workflow,
     href: "/workspace",
@@ -693,7 +745,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 390,
     label: "Review and Compliance",
     eyebrow: "Control plane",
-    description: "Permissions, review-first rules, source evidence, language checks, retention, and audit context.",
+    description:
+      "Permissions, review-first rules, source evidence, language checks, retention, and audit context.",
     layer: "governance",
     icon: FileCheck2,
     href: "/security",
@@ -706,7 +759,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 500,
     label: "Firm Memory",
     eyebrow: "Institutional knowledge",
-    description: "Prior decisions, advisor preferences, documents, outcomes, workflows, and reusable firm knowledge.",
+    description:
+      "Prior decisions, advisor preferences, documents, outcomes, workflows, and reusable firm knowledge.",
     layer: "governance",
     icon: Database,
     href: "/command",
@@ -719,7 +773,8 @@ const GRAPH_NODES: GraphNode[] = [
     y: 315,
     label: "Founder Command",
     eyebrow: "Leadership access",
-    description: "Firm-wide operations, system health, team oversight, feature control, and command-level visibility.",
+    description:
+      "Firm-wide operations, system health, team oversight, feature control, and command-level visibility.",
     layer: "governance",
     icon: Building2,
     href: "/founder-login",
@@ -785,23 +840,28 @@ const WORKFLOW_STEPS = [
 const FAQS = [
   {
     question: "What is Slice in one sentence?",
-    answer: "Slice is an advisor intelligence and operating platform that connects real-time market data, sourced research, portfolios, clients, documents, workflows, AI agents, and review-first governance in one system.",
+    answer:
+      "Slice is an advisor intelligence and operating platform that connects real-time market data, sourced research, portfolios, clients, documents, workflows, AI agents, and review-first governance in one system.",
   },
   {
     question: "Is the homepage market data actually from Alpha Vantage?",
-    answer: "Yes. This replacement calls Slice’s strict Alpha Vantage route with provider=alphavantage and strict=true. It does not generate fallback prices. The interface visibly labels real-time, delayed, closed, stale, or unavailable states.",
+    answer:
+      "Yes. The homepage calls Slice’s strict Alpha Vantage route with provider=alphavantage and strict=true. It does not generate fallback prices, and it visibly distinguishes real-time, delayed, closed, stale, and unavailable states.",
   },
   {
     question: "Does an Alpha Vantage API key automatically mean real-time US equity data?",
-    answer: "No. The key must have the appropriate market-data entitlement, and ALPHA_VANTAGE_ENTITLEMENT should be set to realtime. Otherwise Slice correctly labels the result delayed or historical instead of calling it real-time.",
+    answer:
+      "No. The key must have the appropriate market-data entitlement, and ALPHA_VANTAGE_ENTITLEMENT should be set to realtime. Otherwise Slice labels the result delayed or historical instead of presenting it as real-time.",
   },
   {
     question: "How does the daily article page stay current?",
-    answer: "A Vercel Cron route scouts official market feeds and Alpha Vantage Market News & Sentiment every four hours, ranks and deduplicates the results, and stores a latest daily snapshot for the homepage and blog.",
+    answer:
+      "At 6:00 AM Eastern Time, a protected scheduled route scouts official feeds and Alpha Vantage Market News & Sentiment, removes duplicates, ranks the results, selects six sourced stories, and stores one fixed edition for the homepage and blog. Page visits only read the stored edition and do not launch a new scan.",
   },
   {
     question: "Does Slice make autonomous client recommendations?",
-    answer: "The platform can prepare research, analysis, drafts, tasks, and possible next actions, but client-specific recommendations and sensitive communications are designed to remain under advisor or firm review.",
+    answer:
+      "The platform can prepare research, analysis, drafts, tasks, and possible next actions, but client-specific recommendations and sensitive communications remain under advisor or firm review.",
   },
 ];
 
@@ -825,7 +885,7 @@ function OriginalBrandMark() {
         <div className="truncate text-2xl font-black tracking-tight text-white">
           Slice
         </div>
-        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-400 sm:truncate">
+        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-300 sm:truncate">
           Advisor Intelligence Platform
         </div>
       </div>
@@ -848,7 +908,9 @@ function formatCurrency(value: number, currency = "USD") {
 }
 
 function formatCompact(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
 
   return new Intl.NumberFormat("en-US", {
     notation: Math.abs(value) >= 1_000 ? "compact" : "standard",
@@ -857,12 +919,16 @@ function formatCompact(value: number | null | undefined) {
 }
 
 function formatPercent(value: number | null | undefined, digits = 2) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+
   return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
 }
 
 function formatTime(value?: string | null) {
   if (!value) return "Awaiting provider timestamp";
+
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return "Provider timestamp unavailable";
 
@@ -878,15 +944,19 @@ function formatTime(value?: string | null) {
 
 function relativeTime(value?: string | null) {
   if (!value) return "time unavailable";
+
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return "time unavailable";
 
   const seconds = Math.max(0, Math.round((Date.now() - parsed) / 1_000));
   if (seconds < 60) return `${seconds}s ago`;
+
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
+
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
+
   return `${Math.floor(hours / 24)}d ago`;
 }
 
@@ -903,6 +973,21 @@ function marketDateKey(value?: string | null) {
     parts.find((part) => part.type === type)?.value ?? "";
 
   return `${read("year")}-${read("month")}-${read("day")}`;
+}
+
+function activeEditionDateKey(now = new Date()) {
+  const hourParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const easternHour = Number(
+    hourParts.find((part) => part.type === "hour")?.value ?? "0",
+  );
+  const editionMoment =
+    easternHour < 6 ? new Date(now.getTime() - 12 * 60 * 60_000) : now;
+
+  return marketDateKey(editionMoment.toISOString());
 }
 
 function safeExternalUrl(value?: string) {
@@ -932,11 +1017,18 @@ function buildSparkPath(points: PricePoint[], width = 240, height = 72) {
 
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
-  const range = Math.max(maximum - minimum, Math.abs(maximum) * 0.0005, 0.0001);
+  const range = Math.max(
+    maximum - minimum,
+    Math.abs(maximum) * 0.0005,
+    0.0001,
+  );
 
   return values
     .map((value, index) => {
-      const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+      const x =
+        values.length === 1
+          ? width / 2
+          : (index / (values.length - 1)) * width;
       const y = height - ((value - minimum) / range) * (height - 12) - 6;
       return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
     })
@@ -962,29 +1054,51 @@ function graphPath(edge: GraphEdge) {
   return `M ${from.x} ${from.y} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${to.x} ${to.y}`;
 }
 
+function buildTopicCounts(articles: PublicArticle[]) {
+  const counts = new Map<string, number>();
+
+  for (const article of articles) {
+    for (const rawTopic of article.matchedThemes) {
+      const topic = rawTopic.trim();
+      if (!topic) continue;
+      counts.set(topic, (counts.get(topic) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([topic, count]) => ({ topic, count }))
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.topic.localeCompare(right.topic),
+    )
+    .slice(0, 12);
+}
+
 function normalizeIntelligence(
   value: Partial<PublicIntelligenceSnapshot>,
 ): PublicIntelligenceSnapshot {
-  const items = Array.isArray(value.items) ? value.items : [];
+  const items = Array.isArray(value.items)
+    ? value.items.slice(0, PUBLIC_INTELLIGENCE_ARTICLE_LIMIT)
+    : [];
 
   return {
     schemaVersion: "slice-public-intelligence-2.0.0",
     generatedAt: value.generatedAt ?? new Date(0).toISOString(),
-    dateKey: value.dateKey ?? "",
+    dateKey:
+      value.dateKey || marketDateKey(value.generatedAt) || "",
     marketTimeZone: "America/New_York",
     provider: "Slice Public Intelligence Mesh",
-    refreshCadence: value.refreshCadence ?? "Scheduled throughout every market day",
+    refreshCadence:
+      value.refreshCadence ?? PUBLIC_INTELLIGENCE_REFRESH_CADENCE,
     storage: value.storage ?? "fresh",
     sources: Array.isArray(value.sources) ? value.sources : [],
     items,
-    alertCandidates: Array.isArray(value.alertCandidates)
-      ? value.alertCandidates
-      : items.filter((item) => item.shouldAlert),
-    digestCandidates: Array.isArray(value.digestCandidates)
-      ? value.digestCandidates
-      : items.filter((item) => !item.shouldAlert),
-    suppressed: Array.isArray(value.suppressed) ? value.suppressed : [],
-    topicCounts: Array.isArray(value.topicCounts) ? value.topicCounts : [],
+    alertCandidates: items.filter((item) => item.shouldAlert),
+    digestCandidates: items.filter(
+      (item) => !item.shouldAlert && item.score >= 55,
+    ),
+    suppressed: items.filter((item) => item.score < 55),
+    topicCounts: buildTopicCounts(items),
     warnings: Array.isArray(value.warnings) ? value.warnings : [],
   };
 }
@@ -1018,12 +1132,16 @@ function useAlphaMarket() {
 
       if (!response.ok) {
         throw new Error(
-          data.detail || data.error || `Alpha Vantage market route returned HTTP ${response.status}.`,
+          data.detail ||
+            data.error ||
+            `Alpha Vantage market route returned HTTP ${response.status}.`,
         );
       }
 
       const received = Array.isArray(data.snapshots)
-        ? data.snapshots.filter((snapshot) => snapshot.provider === "Alpha Vantage")
+        ? data.snapshots.filter(
+            (snapshot) => snapshot.provider === "Alpha Vantage",
+          )
         : [];
 
       if (!received.length) {
@@ -1051,10 +1169,19 @@ function useAlphaMarket() {
         for (const snapshot of received) {
           const existing = [...(current[snapshot.symbol] ?? [])];
 
-          if (!existing.length && snapshot.previousClose && snapshot.previousClose > 0) {
+          if (
+            !existing.length &&
+            snapshot.previousClose &&
+            snapshot.previousClose > 0
+          ) {
             existing.push({
               price: snapshot.previousClose,
-              at: now - Math.max(data.pollAfterMs ?? DEFAULT_MARKET_POLL_MS, 60_000),
+              at:
+                now -
+                Math.max(
+                  data.pollAfterMs ?? DEFAULT_MARKET_POLL_MS,
+                  60_000,
+                ),
             });
           }
 
@@ -1109,18 +1236,25 @@ function useAlphaMarket() {
 
   const stats = useMemo(() => {
     const usable = snapshots.filter((snapshot) => snapshot.price > 0);
-    const advancers = usable.filter((snapshot) => (snapshot.changePercent ?? 0) > 0);
-    const decliners = usable.filter((snapshot) => (snapshot.changePercent ?? 0) < 0);
+    const advancers = usable.filter(
+      (snapshot) => (snapshot.changePercent ?? 0) > 0,
+    );
+    const decliners = usable.filter(
+      (snapshot) => (snapshot.changePercent ?? 0) < 0,
+    );
     const realtime = usable.filter(
       (snapshot) => snapshot.isRealtime && snapshot.marketState === "Live",
     );
     const quality = usable.length
-      ? usable.reduce((sum, snapshot) => sum + (snapshot.qualityScore ?? 0), 0) /
-        usable.length
+      ? usable.reduce(
+          (sum, snapshot) => sum + (snapshot.qualityScore ?? 0),
+          0,
+        ) / usable.length
       : 0;
     const topMover = [...usable].sort(
       (left, right) =>
-        Math.abs(right.changePercent ?? 0) - Math.abs(left.changePercent ?? 0),
+        Math.abs(right.changePercent ?? 0) -
+        Math.abs(left.changePercent ?? 0),
     )[0];
 
     return {
@@ -1162,7 +1296,9 @@ function useAlphaDetail(symbol: string) {
     if (!DETAIL_SYMBOLS.has(symbol)) {
       setDetail(null);
       setLoading(false);
-      setError("Intraday detail is available for the equity and ETF symbols in this board.");
+      setError(
+        "Intraday detail is available for the equity and ETF symbols in this board.",
+      );
       return;
     }
 
@@ -1170,13 +1306,18 @@ function useAlphaDetail(symbol: string) {
 
     try {
       const response = await fetch(
-        `/api/intelligence/alpha-vantage?symbol=${encodeURIComponent(symbol)}&interval=5min`,
+        `/api/intelligence/alpha-vantage?symbol=${encodeURIComponent(
+          symbol,
+        )}&interval=5min`,
         { cache: "no-store" },
       );
       const data = (await response.json()) as AlphaDetailResponse;
 
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || `Alpha Vantage detail returned HTTP ${response.status}.`);
+        throw new Error(
+          data.error ||
+            `Alpha Vantage detail returned HTTP ${response.status}.`,
+        );
       }
 
       if (requestId !== requestSequence.current) return;
@@ -1231,15 +1372,21 @@ function usePublicIntelligence() {
     setRefreshing(true);
 
     try {
-      const response = await fetch("/api/intelligence/daily", {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        `/api/intelligence/daily?limit=${PUBLIC_INTELLIGENCE_ARTICLE_LIMIT}`,
+        {
+          cache: "default",
+          headers: { Accept: "application/json" },
+        },
+      );
       const data = (await response.json()) as Partial<PublicIntelligenceSnapshot> & {
         error?: string;
       };
 
       if (!response.ok) {
-        throw new Error(data.error || `Public intelligence returned HTTP ${response.status}.`);
+        throw new Error(
+          data.error || `Public intelligence returned HTTP ${response.status}.`,
+        );
       }
 
       setSnapshot(normalizeIntelligence(data));
@@ -1257,13 +1404,12 @@ function usePublicIntelligence() {
     }
   }, []);
 
+  /*
+   * Load the latest completed edition once. Visitors and logins do not start
+   * provider scans and the homepage does not poll the article route.
+   */
   useEffect(() => {
     void refresh();
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
-    }, PUBLIC_INTELLIGENCE_POLL_MS);
-
-    return () => window.clearInterval(interval);
   }, [refresh]);
 
   const sourceHealth = useMemo(() => {
@@ -1271,7 +1417,10 @@ function usePublicIntelligence() {
     return {
       online,
       total: snapshot.sources.length,
-      fetched: snapshot.sources.reduce((sum, source) => sum + source.fetched, 0),
+      fetched: snapshot.sources.reduce(
+        (sum, source) => sum + source.fetched,
+        0,
+      ),
     };
   }, [snapshot.sources]);
 
@@ -1302,7 +1451,11 @@ function Reveal({
       initial={reducedMotion ? false : { opacity: 0, y: 24 }}
       whileInView={reducedMotion ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay, ease: [0.2, 0.8, 0.2, 1] }}
+      transition={{
+        duration: 0.65,
+        delay,
+        ease: [0.2, 0.8, 0.2, 1],
+      }}
     >
       {children}
     </motion.div>
@@ -1327,18 +1480,24 @@ function Section({
   className?: string;
 }) {
   return (
-    <section id={id} className={cx("relative scroll-mt-28 py-20 sm:py-24 lg:py-28", className)}>
+    <section
+      id={id}
+      className={cx(
+        "relative scroll-mt-28 py-20 sm:py-24 lg:py-28",
+        className,
+      )}
+    >
       <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
         <Reveal className="mb-10 flex flex-col gap-6 lg:mb-14 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-4xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.08)] backdrop-blur-xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.09] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.08)] backdrop-blur-xl">
               <Sparkles className="h-3.5 w-3.5" />
               {eyebrow}
             </div>
             <h2 className="mt-5 text-balance text-3xl font-black tracking-[-0.05em] text-white sm:text-4xl lg:text-6xl">
               {title}
             </h2>
-            <p className="mt-5 max-w-3xl text-base leading-8 text-slate-400 sm:text-lg sm:leading-9">
+            <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg sm:leading-9">
               {description}
             </p>
           </div>
@@ -1351,18 +1510,36 @@ function Section({
 }
 
 function StateBadge({ snapshot }: { snapshot: MarketSnapshot }) {
-  const tone = dataStateTone(snapshot);
+  const selectedTone = dataStateTone(snapshot);
   const classes = {
-    green: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
-    blue: "border-sky-400/25 bg-sky-400/10 text-sky-200",
-    amber: "border-amber-400/25 bg-amber-400/10 text-amber-200",
-    red: "border-rose-400/25 bg-rose-400/10 text-rose-200",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300",
-  }[tone];
+    green: "border-emerald-400/30 bg-emerald-400/12 text-emerald-100",
+    blue: "border-sky-400/30 bg-sky-400/12 text-sky-100",
+    amber: "border-amber-400/30 bg-amber-400/12 text-amber-100",
+    red: "border-rose-400/30 bg-rose-400/12 text-rose-100",
+    slate: "border-white/15 bg-white/[0.07] text-slate-200",
+  }[selectedTone];
 
   return (
-    <span className={cx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em]", classes)}>
-      <span className={cx("h-1.5 w-1.5 rounded-full", tone === "green" ? "animate-pulse bg-emerald-300" : tone === "red" ? "bg-rose-300" : tone === "amber" ? "bg-amber-300" : tone === "blue" ? "bg-sky-300" : "bg-slate-400")} />
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em]",
+        classes,
+      )}
+    >
+      <span
+        className={cx(
+          "h-1.5 w-1.5 rounded-full",
+          selectedTone === "green"
+            ? "animate-pulse bg-emerald-300"
+            : selectedTone === "red"
+              ? "bg-rose-300"
+              : selectedTone === "amber"
+                ? "bg-amber-300"
+                : selectedTone === "blue"
+                  ? "bg-sky-300"
+                  : "bg-slate-300",
+        )}
+      />
       {snapshot.marketState ?? "Unknown"}
     </span>
   );
@@ -1383,13 +1560,25 @@ function AmbientField() {
   );
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+    <div
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      aria-hidden="true"
+    >
       <div className="absolute left-[-18rem] top-[-20rem] h-[48rem] w-[48rem] rounded-full bg-emerald-500/12 blur-[130px]" />
       <div className="absolute right-[-16rem] top-[8%] h-[44rem] w-[44rem] rounded-full bg-cyan-500/[0.07] blur-[150px]" />
       <div className="absolute bottom-[-20rem] left-[24%] h-[46rem] w-[46rem] rounded-full bg-lime-500/[0.06] blur-[150px]" />
       <div className="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.022)_1px,transparent_1px)] [background-size:58px_58px] [mask-image:linear-gradient(to_bottom,black,transparent_92%)]" />
-      <div className={cx("absolute inset-0 opacity-25", !reducedMotion && "slice-grid-drift")}>
-        <svg className="h-full w-full" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+      <div
+        className={cx(
+          "absolute inset-0 opacity-25",
+          !reducedMotion && "slice-grid-drift",
+        )}
+      >
+        <svg
+          className="h-full w-full"
+          viewBox="0 0 1600 1000"
+          preserveAspectRatio="xMidYMid slice"
+        >
           <defs>
             <linearGradient id="ambient-line" x1="0" x2="1">
               <stop offset="0" stopColor="#10b981" stopOpacity="0" />
@@ -1400,7 +1589,9 @@ function AmbientField() {
           {[140, 300, 470, 660, 830].map((y, index) => (
             <path
               key={y}
-              d={`M -100 ${y} C 260 ${y - 170 + index * 13}, 720 ${y + 150 - index * 17}, 1700 ${y - 30}`}
+              d={`M -100 ${y} C 260 ${y - 170 + index * 13}, 720 ${
+                y + 150 - index * 17
+              }, 1700 ${y - 30}`}
               fill="none"
               stroke="url(#ambient-line)"
               strokeWidth="1"
@@ -1414,7 +1605,10 @@ function AmbientField() {
       {points.map((point, index) => (
         <span
           key={index}
-          className={cx("absolute rounded-full bg-emerald-300/60 shadow-[0_0_16px_rgba(52,211,153,0.75)]", !reducedMotion && "slice-particle-float")}
+          className={cx(
+            "absolute rounded-full bg-emerald-300/60 shadow-[0_0_16px_rgba(52,211,153,0.75)]",
+            !reducedMotion && "slice-particle-float",
+          )}
           style={{
             left: point.left,
             top: point.top,
@@ -1433,19 +1627,27 @@ function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-[80] border-b border-emerald-300/10 bg-[#020705]/84 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+    <header className="sticky top-0 z-[80] border-b border-emerald-300/15 bg-[#020705]/88 shadow-[0_12px_40px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
       <div className="mx-auto flex h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link href="/" prefetch={false} aria-label="Slice home" className="shrink-0">
+        <Link
+          href="/"
+          prefetch={false}
+          aria-label="Slice home"
+          className="shrink-0"
+        >
           <OriginalBrandMark />
         </Link>
 
-        <nav className="hidden items-center gap-1 xl:flex" aria-label="Homepage navigation">
+        <nav
+          className="hidden items-center gap-1 xl:flex"
+          aria-label="Homepage navigation"
+        >
           {NAV_ITEMS.map((item) =>
             item.href.startsWith("#") ? (
               <a
                 key={item.label}
                 href={item.href}
-                className="rounded-xl px-3.5 py-2 text-xs font-black text-slate-400 transition hover:bg-white/[0.05] hover:text-white"
+                className="rounded-xl px-3.5 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
               >
                 {item.label}
               </a>
@@ -1454,7 +1656,7 @@ function Header() {
                 key={item.label}
                 href={item.href}
                 prefetch={false}
-                className="rounded-xl px-3.5 py-2 text-xs font-black text-slate-400 transition hover:bg-white/[0.05] hover:text-white"
+                className="rounded-xl px-3.5 py-2 text-xs font-black text-slate-300 transition hover:bg-white/[0.07] hover:text-white"
               >
                 {item.label}
               </Link>
@@ -1466,14 +1668,14 @@ function Header() {
           <Link
             href="/client-login"
             prefetch={false}
-            className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-emerald-300/25 hover:bg-emerald-400/[0.08]"
+            className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-slate-100 transition hover:border-emerald-300/30 hover:bg-emerald-400/[0.1]"
           >
             Client login
           </Link>
           <Link
             href="/founder-login"
             prefetch={false}
-            className="group inline-flex items-center gap-2 rounded-xl border border-emerald-300/25 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-black text-white shadow-[0_12px_30px_rgba(5,150,105,0.22)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
+            className="group inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-black text-white shadow-[0_12px_30px_rgba(5,150,105,0.22)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
           >
             Founder login
             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -1483,7 +1685,7 @@ function Header() {
         <button
           type="button"
           onClick={() => setMobileOpen((open) => !open)}
-          className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.05] text-white sm:hidden"
+          className="grid h-11 w-11 place-items-center rounded-xl border border-white/15 bg-white/[0.07] text-white sm:hidden"
           aria-expanded={mobileOpen}
           aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
         >
@@ -1497,7 +1699,7 @@ function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-t border-white/10 bg-[#030a07]/96 sm:hidden"
+            className="overflow-hidden border-t border-white/15 bg-[#030a07]/98 sm:hidden"
           >
             <div className="grid gap-1 px-4 py-4">
               {NAV_ITEMS.map((item) =>
@@ -1506,7 +1708,7 @@ function Header() {
                     key={item.label}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
-                    className="rounded-xl px-4 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                    className="rounded-xl px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/[0.07] hover:text-white"
                   >
                     {item.label}
                   </a>
@@ -1516,17 +1718,25 @@ function Header() {
                     href={item.href}
                     prefetch={false}
                     onClick={() => setMobileOpen(false)}
-                    className="rounded-xl px-4 py-3 text-sm font-black text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                    className="rounded-xl px-4 py-3 text-sm font-black text-slate-200 hover:bg-white/[0.07] hover:text-white"
                   >
                     {item.label}
                   </Link>
                 ),
               )}
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link href="/client-login" prefetch={false} className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-3 text-center text-xs font-black text-white">
+                <Link
+                  href="/client-login"
+                  prefetch={false}
+                  className="rounded-xl border border-white/15 bg-white/[0.07] px-3 py-3 text-center text-xs font-black text-white"
+                >
                   Client login
                 </Link>
-                <Link href="/founder-login" prefetch={false} className="rounded-xl bg-emerald-600 px-3 py-3 text-center text-xs font-black text-white">
+                <Link
+                  href="/founder-login"
+                  prefetch={false}
+                  className="rounded-xl bg-emerald-600 px-3 py-3 text-center text-xs font-black text-white"
+                >
                   Founder login
                 </Link>
               </div>
@@ -1548,7 +1758,7 @@ function MarketTicker({
   const items = snapshots.length ? [...snapshots, ...snapshots] : [];
 
   return (
-    <div className="relative z-20 overflow-hidden border-b border-emerald-300/10 bg-[#04100b]/88 py-2.5 backdrop-blur-xl">
+    <div className="relative z-20 overflow-hidden border-b border-emerald-300/15 bg-[#04100b]/92 py-2.5 backdrop-blur-xl">
       {items.length ? (
         <div className="slice-marquee flex min-w-max items-center gap-2 px-2 hover:[animation-play-state:paused]">
           {items.map((snapshot, index) => {
@@ -1556,20 +1766,29 @@ function MarketTicker({
             return (
               <div
                 key={`${snapshot.symbol}-${index}`}
-                className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.035] px-3.5 py-2 shadow-sm"
+                className="flex items-center gap-3 rounded-xl border border-white/[0.1] bg-white/[0.05] px-3.5 py-2 shadow-sm"
               >
                 <span className="text-[11px] font-black tracking-[0.08em] text-white">
                   {snapshot.symbol}
                 </span>
-                <span className="tabular-nums text-xs font-bold text-slate-200">
+                <span className="tabular-nums text-xs font-bold text-slate-100">
                   {formatCurrency(snapshot.price, snapshot.currency)}
                 </span>
-                <span className={cx("inline-flex items-center gap-1 tabular-nums text-[10px] font-black", positive ? "text-emerald-300" : "text-rose-300")}>
-                  {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                <span
+                  className={cx(
+                    "inline-flex items-center gap-1 tabular-nums text-[10px] font-black",
+                    positive ? "text-emerald-200" : "text-rose-200",
+                  )}
+                >
+                  {positive ? (
+                    <TrendingUp className="h-3 w-3" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3" />
+                  )}
                   {formatPercent(snapshot.changePercent)}
                 </span>
-                <span className="h-1 w-1 rounded-full bg-emerald-400/50" />
-                <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
+                <span className="h-1 w-1 rounded-full bg-emerald-400/60" />
+                <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
                   Alpha Vantage
                 </span>
               </div>
@@ -1577,9 +1796,12 @@ function MarketTicker({
           })}
         </div>
       ) : (
-        <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-4 text-xs font-bold text-slate-400 sm:px-6 lg:px-8">
-          <RefreshCcw className={cx("h-3.5 w-3.5", loading && "animate-spin")} />
-          Connecting to the strict Alpha Vantage market feed. No placeholder prices are being shown.
+        <div className="mx-auto flex max-w-[1500px] items-center gap-3 px-4 text-xs font-bold text-slate-300 sm:px-6 lg:px-8">
+          <RefreshCcw
+            className={cx("h-3.5 w-3.5", loading && "animate-spin")}
+          />
+          Connecting to the strict Alpha Vantage market feed. No placeholder
+          prices are being shown.
         </div>
       )}
     </div>
@@ -1598,12 +1820,18 @@ function MetricTile({
   helper: string;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 shadow-[0_16px_45px_rgba(0,0,0,0.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/20 hover:bg-emerald-400/[0.055]">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/55 to-transparent opacity-0 transition group-hover:opacity-100" />
-      <Icon className="h-4 w-4 text-emerald-300" />
-      <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-white">{value}</div>
-      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</div>
-      <div className="mt-2 text-[10px] leading-4 text-slate-600">{helper}</div>
+    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.12] bg-white/[0.055] p-4 shadow-[0_16px_45px_rgba(0,0,0,0.2)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30 hover:bg-emerald-400/[0.075]">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/65 to-transparent opacity-0 transition group-hover:opacity-100" />
+      <Icon className="h-4 w-4 text-emerald-200" />
+      <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-white">
+        {value}
+      </div>
+      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-300">
+        {label}
+      </div>
+      <div className="mt-2 text-[10px] leading-4 text-slate-400">
+        {helper}
+      </div>
     </div>
   );
 }
@@ -1619,7 +1847,12 @@ function HeroSignalMesh({
   const leading = market.snapshots.slice(0, 5);
   const topStory = intelligence.snapshot.items[0];
   const orbitNodes = [
-    { x: 18, y: 21, label: leading[0]?.symbol ?? "MARKET", icon: ChartCandlestick },
+    {
+      x: 18,
+      y: 21,
+      label: leading[0]?.symbol ?? "MARKET",
+      icon: ChartCandlestick,
+    },
     { x: 78, y: 18, label: "NEWS", icon: Newspaper },
     { x: 88, y: 55, label: "CLIENT", icon: UsersRound },
     { x: 67, y: 84, label: "RISK", icon: ShieldCheck },
@@ -1628,13 +1861,28 @@ function HeroSignalMesh({
   ];
 
   return (
-    <div className="relative mx-auto aspect-[1.04/1] w-full max-w-[650px] overflow-hidden rounded-[2.5rem] border border-emerald-300/15 bg-[#030b08]/88 shadow-[0_35px_120px_rgba(0,0,0,0.46),0_0_80px_rgba(16,185,129,0.08)] backdrop-blur-2xl">
+    <div className="relative mx-auto aspect-[1.04/1] w-full max-w-[650px] overflow-hidden rounded-[2.5rem] border border-emerald-300/20 bg-[#030b08]/92 shadow-[0_35px_120px_rgba(0,0,0,0.46),0_0_80px_rgba(16,185,129,0.08)] backdrop-blur-2xl">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.13),transparent_43%),linear-gradient(rgba(52,211,153,0.028)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.028)_1px,transparent_1px)] [background-size:auto,34px_34px,34px_34px]" />
-      <div className="absolute inset-6 rounded-[2rem] border border-emerald-300/10" />
-      <div className={cx("absolute left-1/2 top-1/2 h-[64%] w-[64%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-300/15", !reducedMotion && "slice-orbit-slow")} />
-      <div className={cx("absolute left-1/2 top-1/2 h-[42%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-cyan-300/15", !reducedMotion && "slice-orbit-reverse")} />
+      <div className="absolute inset-6 rounded-[2rem] border border-emerald-300/15" />
+      <div
+        className={cx(
+          "absolute left-1/2 top-1/2 h-[64%] w-[64%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-300/20",
+          !reducedMotion && "slice-orbit-slow",
+        )}
+      />
+      <div
+        className={cx(
+          "absolute left-1/2 top-1/2 h-[42%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-cyan-300/20",
+          !reducedMotion && "slice-orbit-reverse",
+        )}
+      />
 
-      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
         <defs>
           <linearGradient id="hero-path" x1="0" x2="1">
             <stop offset="0" stopColor="#34d399" stopOpacity="0.15" />
@@ -1650,13 +1898,27 @@ function HeroSignalMesh({
           </filter>
         </defs>
         {orbitNodes.map((node, index) => {
-          const path = `M 50 50 Q ${50 + (node.y - 50) * 0.45} ${50 - (node.x - 50) * 0.4} ${node.x} ${node.y}`;
+          const path = `M 50 50 Q ${50 + (node.y - 50) * 0.45} ${
+            50 - (node.x - 50) * 0.4
+          } ${node.x} ${node.y}`;
           return (
             <g key={node.label}>
-              <path d={path} fill="none" stroke="url(#hero-path)" strokeWidth="0.45" strokeDasharray="2 2.7" className={reducedMotion ? undefined : "slice-edge-flow"} />
+              <path
+                d={path}
+                fill="none"
+                stroke="url(#hero-path)"
+                strokeWidth="0.45"
+                strokeDasharray="2 2.7"
+                className={reducedMotion ? undefined : "slice-edge-flow"}
+              />
               {!reducedMotion ? (
                 <circle r="0.75" fill="#a7f3d0" filter="url(#hero-glow)">
-                  <animateMotion dur={`${4.5 + index * 0.42}s`} begin={`${index * -0.78}s`} repeatCount="indefinite" path={path} />
+                  <animateMotion
+                    dur={`${4.5 + index * 0.42}s`}
+                    begin={`${index * -0.78}s`}
+                    repeatCount="indefinite"
+                    path={path}
+                  />
                 </circle>
               ) : null}
             </g>
@@ -1664,12 +1926,18 @@ function HeroSignalMesh({
         })}
       </svg>
 
-      <div className="absolute left-1/2 top-1/2 z-20 flex h-36 w-36 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-emerald-300/25 bg-gradient-to-br from-emerald-400/25 via-emerald-700/35 to-[#020604] text-center shadow-[0_0_80px_rgba(16,185,129,0.24)] backdrop-blur-2xl">
-        <div className="absolute inset-2 rounded-full border border-white/10" />
-        <BrainCircuit className="relative h-7 w-7 text-emerald-200" />
-        <div className="relative mt-2 text-sm font-black text-white">Slice Core</div>
-        <div className="relative mt-1 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-300">Evidence joined</div>
-        {!reducedMotion ? <span className="absolute inset-[-9px] rounded-full border border-emerald-300/20 slice-core-pulse" /> : null}
+      <div className="absolute left-1/2 top-1/2 z-20 flex h-36 w-36 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-emerald-300/30 bg-gradient-to-br from-emerald-400/25 via-emerald-700/35 to-[#020604] text-center shadow-[0_0_80px_rgba(16,185,129,0.24)] backdrop-blur-2xl">
+        <div className="absolute inset-2 rounded-full border border-white/15" />
+        <BrainCircuit className="relative h-7 w-7 text-emerald-100" />
+        <div className="relative mt-2 text-sm font-black text-white">
+          Slice Core
+        </div>
+        <div className="relative mt-1 text-[8px] font-black uppercase tracking-[0.18em] text-emerald-200">
+          Evidence joined
+        </div>
+        {!reducedMotion ? (
+          <span className="absolute inset-[-9px] rounded-full border border-emerald-300/25 slice-core-pulse" />
+        ) : null}
       </div>
 
       {orbitNodes.map((node, index) => {
@@ -1679,38 +1947,69 @@ function HeroSignalMesh({
             key={node.label}
             className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${node.x}%`, top: `${node.y}%` }}
-            animate={reducedMotion ? undefined : { y: [0, index % 2 ? -5 : 5, 0], x: [0, index % 3 ? 3 : -3, 0] }}
-            transition={{ duration: 4.5 + index * 0.3, repeat: Infinity, ease: "easeInOut" }}
+            animate={
+              reducedMotion
+                ? undefined
+                : {
+                    y: [0, index % 2 ? -5 : 5, 0],
+                    x: [0, index % 3 ? 3 : -3, 0],
+                  }
+            }
+            transition={{
+              duration: 4.5 + index * 0.3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
           >
-            <div className="flex min-w-[90px] flex-col items-center rounded-2xl border border-white/10 bg-[#06110c]/92 px-3 py-2.5 text-center shadow-[0_14px_36px_rgba(0,0,0,0.34)] backdrop-blur-xl">
-              <Icon className="h-4 w-4 text-emerald-300" />
-              <span className="mt-1.5 text-[8px] font-black tracking-[0.13em] text-white">{node.label}</span>
+            <div className="flex min-w-[90px] flex-col items-center rounded-2xl border border-white/15 bg-[#06110c]/95 px-3 py-2.5 text-center shadow-[0_14px_36px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+              <Icon className="h-4 w-4 text-emerald-200" />
+              <span className="mt-1.5 text-[8px] font-black tracking-[0.13em] text-white">
+                {node.label}
+              </span>
             </div>
           </motion.div>
         );
       })}
 
       <div className="absolute inset-x-5 bottom-5 z-30 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-black/35 p-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300">
+        <div className="rounded-2xl border border-white/15 bg-black/45 p-3 backdrop-blur-xl">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-200">
             <Activity className="h-3 w-3" />
             Provider pulse
           </div>
           <div className="mt-2 flex items-end justify-between gap-3">
             <div>
-              <div className="text-lg font-black text-white">{leading[0] ? `${leading[0].symbol} ${formatCurrency(leading[0].price)}` : "Connecting"}</div>
-              <div className="mt-1 text-[9px] text-slate-500">{leading[0]?.marketState ?? "Awaiting Alpha Vantage"}</div>
+              <div className="text-lg font-black text-white">
+                {leading[0]
+                  ? `${leading[0].symbol} ${formatCurrency(leading[0].price)}`
+                  : "Connecting"}
+              </div>
+              <div className="mt-1 text-[9px] text-slate-400">
+                {leading[0]?.marketState ?? "Awaiting Alpha Vantage"}
+              </div>
             </div>
-            {leading[0] ? <div className={cx("text-sm font-black", (leading[0].changePercent ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300")}>{formatPercent(leading[0].changePercent)}</div> : null}
+            {leading[0] ? (
+              <div
+                className={cx(
+                  "text-sm font-black",
+                  (leading[0].changePercent ?? 0) >= 0
+                    ? "text-emerald-200"
+                    : "text-rose-200",
+                )}
+              >
+                {formatPercent(leading[0].changePercent)}
+              </div>
+            ) : null}
           </div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-black/35 p-3 backdrop-blur-xl">
-          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-300">
+        <div className="rounded-2xl border border-white/15 bg-black/45 p-3 backdrop-blur-xl">
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-200">
             <Newspaper className="h-3 w-3" />
-            Daily intelligence
+            Six-article edition
           </div>
           <div className="mt-2 line-clamp-2 text-xs font-black leading-5 text-white">
-            {topStory?.title ?? "Cron-scouted articles will appear here."}
+            {topStory?.title ??
+              "The scheduled 6:00 AM Eastern edition will appear here."}
           </div>
         </div>
       </div>
@@ -1736,36 +2035,42 @@ function HeroSection({
     <section className="relative z-10 overflow-hidden pb-16 pt-14 sm:pb-20 sm:pt-20 lg:pb-28 lg:pt-24">
       <div className="mx-auto grid w-full max-w-[1500px] items-center gap-14 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.02fr)_minmax(520px,0.98fr)] lg:px-8">
         <Reveal>
-          <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.075] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200 shadow-[0_0_40px_rgba(16,185,129,0.08)] backdrop-blur-xl">
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/[0.1] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 shadow-[0_0_40px_rgba(16,185,129,0.08)] backdrop-blur-xl">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-50" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
             </span>
             {liveLabel}
-            <span className="h-3 w-px bg-emerald-200/20" />
-            <span className="text-slate-400">Daily intelligence mesh active</span>
+            <span className="h-3 w-px bg-emerald-200/25" />
+            <span className="text-slate-300">
+              6:00 AM ET intelligence edition active
+            </span>
           </div>
 
           <h1 className="mt-7 max-w-5xl text-balance text-5xl font-black leading-[0.94] tracking-[-0.066em] text-white sm:text-6xl lg:text-[5.25rem] xl:text-[6.1rem]">
             The connected operating system for a modern
-            <span className="block bg-gradient-to-r from-emerald-200 via-emerald-400 to-cyan-300 bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-emerald-100 via-emerald-300 to-cyan-200 bg-clip-text text-transparent">
               advisory firm.
             </span>
           </h1>
 
-          <p className="mt-7 max-w-3xl text-base font-medium leading-8 text-slate-400 sm:text-lg sm:leading-9">
-            Slice joins real-time market data, sourced research, knowledge graphs,
-            portfolios, client relationships, documents, communications, workflows,
-            AI agents, and review-first controls in one advisor intelligence platform.
-            It is built to show not only <span className="font-bold text-slate-200">what changed</span>,
-            but <span className="font-bold text-slate-200">why it matters, who it affects, and what should happen next</span>.
+          <p className="mt-7 max-w-3xl text-base font-medium leading-8 text-slate-300 sm:text-lg sm:leading-9">
+            Slice joins real-time market data, sourced research, knowledge
+            graphs, portfolios, client relationships, documents,
+            communications, workflows, AI agents, and review-first controls in
+            one advisor intelligence platform. It is built to show not only{" "}
+            <span className="font-bold text-white">what changed</span>, but{" "}
+            <span className="font-bold text-white">
+              why it matters, who it affects, and what should happen next
+            </span>
+            .
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/founder-login"
               prefetch={false}
-              className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-6 py-4 text-sm font-black text-white shadow-[0_20px_55px_rgba(5,150,105,0.28)] transition duration-300 hover:-translate-y-1 hover:from-emerald-400 hover:to-emerald-800"
+              className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-6 py-4 text-sm font-black text-white shadow-[0_20px_55px_rgba(5,150,105,0.28)] transition duration-300 hover:-translate-y-1 hover:from-emerald-400 hover:to-emerald-800"
             >
               Enter founder command
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -1773,7 +2078,7 @@ function HeroSection({
             <Link
               href="/workspace"
               prefetch={false}
-              className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-6 py-4 text-sm font-black text-white shadow-[0_18px_45px_rgba(0,0,0,0.2)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30 hover:bg-emerald-400/[0.09]"
+              className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-6 py-4 text-sm font-black text-white shadow-[0_18px_45px_rgba(0,0,0,0.2)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/35 hover:bg-emerald-400/[0.11]"
             >
               Explore advisor workspace
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -1781,9 +2086,9 @@ function HeroSection({
             <Link
               href="/blog"
               prefetch={false}
-              className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-slate-300 transition hover:text-emerald-200"
+              className="group inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-slate-200 transition hover:text-emerald-100"
             >
-              Read today&apos;s intelligence
+              Read today&apos;s six articles
               <Newspaper className="h-4 w-4" />
             </Link>
           </div>
@@ -1798,30 +2103,52 @@ function HeroSection({
             <MetricTile
               icon={Activity}
               label="Market breadth"
-              value={market.stats.usableCount ? `${market.stats.breadth.toFixed(0)}%` : "—"}
+              value={
+                market.stats.usableCount
+                  ? `${market.stats.breadth.toFixed(0)}%`
+                  : "—"
+              }
               helper={`${market.stats.advancers} advancing · ${market.stats.decliners} declining`}
             />
             <MetricTile
               icon={Newspaper}
-              label="Ranked articles"
+              label="Daily articles"
               value={intelligence.snapshot.items.length || "—"}
-              helper={`${intelligence.sourceHealth.online}/${intelligence.sourceHealth.total || 0} sources online`}
+              helper={`Up to six selected · ${
+                intelligence.sourceHealth.online
+              }/${intelligence.sourceHealth.total || 0} sources online`}
             />
             <MetricTile
               icon={Gauge}
               label="Data quality"
-              value={market.stats.usableCount ? `${market.stats.averageQuality.toFixed(0)}/100` : "—"}
-              helper={topMover ? `${topMover.symbol} is the largest tracked move` : "Awaiting provider data"}
+              value={
+                market.stats.usableCount
+                  ? `${market.stats.averageQuality.toFixed(0)}/100`
+                  : "—"
+              }
+              helper={
+                topMover
+                  ? `${topMover.symbol} is the largest tracked move`
+                  : "Awaiting provider data"
+              }
             />
           </div>
 
-          {(market.error || intelligence.error) ? (
-            <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/[0.07] p-4 text-xs leading-6 text-amber-100/85">
+          {market.error || intelligence.error ? (
+            <div
+              className="mt-5 rounded-2xl border border-amber-400/25 bg-amber-400/[0.1] p-4 text-xs leading-6 text-amber-100"
+              role="status"
+              aria-live="polite"
+            >
               <div className="flex items-start gap-3">
-                <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
                 <div>
-                  <span className="font-black text-amber-200">Live status:</span>{" "}
-                  {market.error || intelligence.error}. Slice preserves the last confirmed response and never substitutes invented market values.
+                  <span className="font-black text-amber-100">
+                    Live status:
+                  </span>{" "}
+                  {market.error || intelligence.error}. Slice preserves the last
+                  confirmed response and never substitutes invented market
+                  values.
                 </div>
               </div>
             </div>
@@ -1834,17 +2161,23 @@ function HeroSection({
       </div>
 
       <div className="mx-auto mt-14 grid w-full max-w-[1500px] gap-3 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-5 lg:px-8">
-        {ARCHITECTURE_LAYERS.map((layer, index) => {
-          const Icon = layer.icon;
+        {ARCHITECTURE_LAYERS.map((layerItem, index) => {
+          const Icon = layerItem.icon;
           return (
-            <Reveal key={layer.title} delay={index * 0.05}>
-              <div className="group h-full rounded-[1.55rem] border border-white/[0.07] bg-[#06100c]/70 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/20 hover:bg-emerald-400/[0.055]">
+            <Reveal key={layerItem.title} delay={index * 0.05}>
+              <div className="group h-full rounded-[1.55rem] border border-white/[0.11] bg-[#06100c]/78 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30 hover:bg-emerald-400/[0.075]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black tracking-[0.2em] text-emerald-300">{layer.number}</span>
-                  <Icon className="h-4 w-4 text-emerald-300/80" />
+                  <span className="text-[10px] font-black tracking-[0.2em] text-emerald-200">
+                    {layerItem.number}
+                  </span>
+                  <Icon className="h-4 w-4 text-emerald-200" />
                 </div>
-                <h3 className="mt-5 text-lg font-black text-white">{layer.title}</h3>
-                <p className="mt-3 text-xs leading-6 text-slate-500">{layer.summary}</p>
+                <h3 className="mt-5 text-lg font-black text-white">
+                  {layerItem.title}
+                </h3>
+                <p className="mt-3 text-xs leading-6 text-slate-300">
+                  {layerItem.summary}
+                </p>
               </div>
             </Reveal>
           );
@@ -1861,21 +2194,36 @@ function PlatformDefinitionSection() {
       title: "Advisor intelligence layer",
       eyebrow: "Understand",
       text: "Combines provider-backed market data, sourced news, technical context, macro relationships, portfolio exposure, client needs, and prior firm knowledge into one evidence map.",
-      bullets: ["Live and delayed-state transparency", "Source-linked daily research", "Knowledge-graph relationships", "Explainable prioritization"],
+      bullets: [
+        "Live and delayed-state transparency",
+        "Source-linked daily research",
+        "Knowledge-graph relationships",
+        "Explainable prioritization",
+      ],
     },
     {
       icon: Workflow,
       title: "Advisor operating layer",
       eyebrow: "Execute",
       text: "Moves important context into the actual work of the firm: portfolio reviews, client drafts, meeting preparation, tasks, reminders, documents, approvals, and team routing.",
-      bullets: ["Unified workspace", "Client and advisor portals", "Communication center", "Firm planning and queues"],
+      bullets: [
+        "Unified workspace",
+        "Client and advisor portals",
+        "Communication center",
+        "Firm planning and queues",
+      ],
     },
     {
       icon: ShieldCheck,
       title: "Firm control layer",
       eyebrow: "Govern",
       text: "Keeps permissions, source evidence, human approvals, system health, audit context, retention, and founder-level controls attached to every sensitive workflow.",
-      bullets: ["Role separation", "Review-first output", "Operational health", "Founder command access"],
+      bullets: [
+        "Role separation",
+        "Review-first output",
+        "Operational health",
+        "Founder command access",
+      ],
     },
   ];
 
@@ -1885,27 +2233,36 @@ function PlatformDefinitionSection() {
       eyebrow="What Slice is"
       title="More than a dashboard. More than a chatbot. A connected advisor operating system."
       description="Most financial tools stop at data, research, CRM, planning, or communication. Slice is designed as the connective layer between all of them—so information can become controlled, explainable work without losing its source or context."
-      className="border-y border-emerald-300/[0.06] bg-[#040a07]/58"
+      className="border-y border-emerald-300/[0.1] bg-[#040a07]/68"
     >
       <div className="grid gap-5 lg:grid-cols-3">
         {pillars.map((pillar, index) => {
           const Icon = pillar.icon;
           return (
             <Reveal key={pillar.title} delay={index * 0.08}>
-              <article className="group relative h-full overflow-hidden rounded-[2rem] border border-white/[0.08] bg-gradient-to-b from-white/[0.055] to-white/[0.025] p-7 shadow-[0_28px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-300 hover:-translate-y-1.5 hover:border-emerald-300/20">
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/50 to-transparent opacity-0 transition group-hover:opacity-100" />
+              <article className="group relative h-full overflow-hidden rounded-[2rem] border border-white/[0.12] bg-gradient-to-b from-white/[0.07] to-white/[0.035] p-7 shadow-[0_28px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-300 hover:-translate-y-1.5 hover:border-emerald-300/30">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/60 to-transparent opacity-0 transition group-hover:opacity-100" />
                 <div className="flex items-center justify-between gap-4">
-                  <div className="grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.08] text-emerald-200 shadow-[0_0_35px_rgba(16,185,129,0.1)]">
+                  <div className="grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100 shadow-[0_0_35px_rgba(16,185,129,0.1)]">
                     <Icon className="h-6 w-6" />
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-[0.19em] text-emerald-300/80">{pillar.eyebrow}</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.19em] text-emerald-200">
+                    {pillar.eyebrow}
+                  </span>
                 </div>
-                <h3 className="mt-7 text-2xl font-black tracking-[-0.035em] text-white">{pillar.title}</h3>
-                <p className="mt-4 text-sm leading-7 text-slate-400">{pillar.text}</p>
+                <h3 className="mt-7 text-2xl font-black tracking-[-0.035em] text-white">
+                  {pillar.title}
+                </h3>
+                <p className="mt-4 text-sm leading-7 text-slate-300">
+                  {pillar.text}
+                </p>
                 <div className="mt-7 space-y-3">
                   {pillar.bullets.map((bullet) => (
-                    <div key={bullet} className="flex items-center gap-3 text-xs font-bold text-slate-300">
-                      <span className="grid h-5 w-5 place-items-center rounded-full border border-emerald-300/15 bg-emerald-400/[0.08] text-emerald-300">
+                    <div
+                      key={bullet}
+                      className="flex items-center gap-3 text-xs font-bold text-slate-200"
+                    >
+                      <span className="grid h-5 w-5 place-items-center rounded-full border border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-200">
                         <Check className="h-3 w-3" />
                       </span>
                       {bullet}
@@ -1919,20 +2276,40 @@ function PlatformDefinitionSection() {
       </div>
 
       <Reveal className="mt-7">
-        <div className="grid gap-5 overflow-hidden rounded-[2rem] border border-emerald-300/10 bg-gradient-to-r from-emerald-500/[0.07] via-[#07110d] to-cyan-500/[0.05] p-6 sm:p-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+        <div className="grid gap-5 overflow-hidden rounded-[2rem] border border-emerald-300/20 bg-gradient-to-r from-emerald-500/[0.09] via-[#07110d] to-cyan-500/[0.07] p-6 sm:p-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">The core distinction</div>
-            <h3 className="mt-3 text-3xl font-black tracking-[-0.045em] text-white">Every signal retains a path.</h3>
-            <p className="mt-4 text-sm leading-7 text-slate-400">
-              A market movement can remain connected to the provider timestamp, the related article, the affected portfolio, the relevant client, the generated draft, the approving advisor, and the final recorded action. That path is the foundation for better context, continuity, and control.
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+              The core distinction
+            </div>
+            <h3 className="mt-3 text-3xl font-black tracking-[-0.045em] text-white">
+              Every signal retains a path.
+            </h3>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              A market movement can remain connected to the provider timestamp,
+              the related article, the affected portfolio, the relevant client,
+              the generated draft, the approving advisor, and the final recorded
+              action. That path is the foundation for better context,
+              continuity, and control.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {["Signal → evidence", "Evidence → relationship", "Relationship → workflow", "Workflow → human review"].map((item, index) => (
-              <div key={item} className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20 p-5">
-                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-emerald-300/5 via-emerald-300/50 to-transparent" />
-                <div className="text-[9px] font-black tracking-[0.18em] text-slate-600">0{index + 1}</div>
-                <div className="mt-3 text-sm font-black text-white">{item}</div>
+            {[
+              "Signal → evidence",
+              "Evidence → relationship",
+              "Relationship → workflow",
+              "Workflow → human review",
+            ].map((item, index) => (
+              <div
+                key={item}
+                className="relative overflow-hidden rounded-2xl border border-white/[0.12] bg-black/30 p-5"
+              >
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-emerald-300/10 via-emerald-300/60 to-transparent" />
+                <div className="text-[9px] font-black tracking-[0.18em] text-slate-400">
+                  0{index + 1}
+                </div>
+                <div className="mt-3 text-sm font-black text-white">
+                  {item}
+                </div>
               </div>
             ))}
           </div>
@@ -1952,23 +2329,63 @@ function Sparkline({
   className?: string;
 }) {
   const path = buildSparkPath(points);
+  const rawId = useId();
+  const gradientId = `slice-spark-${rawId.replace(/:/g, "")}`;
+  const endPoint = path.split(" ").at(-1)?.split(",");
+  const endY = endPoint?.[1] ?? "36";
 
   return (
-    <svg className={cx("h-[76px] w-full overflow-visible", className)} viewBox="0 0 240 72" preserveAspectRatio="none" aria-label="Observed provider price path">
+    <svg
+      className={cx("h-[76px] w-full overflow-visible", className)}
+      viewBox="0 0 240 72"
+      preserveAspectRatio="none"
+      aria-label="Observed provider price path"
+    >
       <defs>
-        <linearGradient id={positive ? "spark-positive" : "spark-negative"} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor={positive ? "#34d399" : "#fb7185"} stopOpacity="0.34" />
-          <stop offset="1" stopColor={positive ? "#34d399" : "#fb7185"} stopOpacity="0" />
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <stop
+            offset="0"
+            stopColor={positive ? "#34d399" : "#fb7185"}
+            stopOpacity="0.34"
+          />
+          <stop
+            offset="1"
+            stopColor={positive ? "#34d399" : "#fb7185"}
+            stopOpacity="0"
+          />
         </linearGradient>
       </defs>
       {path ? (
         <>
-          <path d={`${path} L240,72 L0,72 Z`} fill={`url(#${positive ? "spark-positive" : "spark-negative"})`} opacity="0.7" />
-          <path d={path} fill="none" stroke={positive ? "#6ee7b7" : "#fda4af"} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          <circle cx="238" cy={path.split(" ").at(-1)?.split(",")[1] ?? "36"} r="2.6" fill={positive ? "#a7f3d0" : "#fecdd3"} />
+          <path
+            d={`${path} L240,72 L0,72 Z`}
+            fill={`url(#${gradientId})`}
+            opacity="0.7"
+          />
+          <path
+            d={path}
+            fill="none"
+            stroke={positive ? "#6ee7b7" : "#fda4af"}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <circle
+            cx="238"
+            cy={endY}
+            r="2.6"
+            fill={positive ? "#a7f3d0" : "#fecdd3"}
+          />
         </>
       ) : (
-        <path d="M0 40 L240 40" fill="none" stroke="#334155" strokeWidth="1" strokeDasharray="4 7" />
+        <path
+          d="M0 40 L240 40"
+          fill="none"
+          stroke="#64748b"
+          strokeWidth="1"
+          strokeDasharray="4 7"
+        />
       )}
     </svg>
   );
@@ -1996,14 +2413,16 @@ function MarketCard({
       className={cx(
         "group relative min-w-0 overflow-hidden rounded-[1.65rem] border p-5 text-left shadow-[0_18px_55px_rgba(0,0,0,0.2)] backdrop-blur-xl transition duration-300 hover:-translate-y-1",
         selected
-          ? "border-emerald-300/30 bg-emerald-400/[0.09] shadow-[0_22px_65px_rgba(5,150,105,0.12)]"
-          : "border-white/[0.075] bg-white/[0.038] hover:border-emerald-300/18 hover:bg-white/[0.055]",
+          ? "border-emerald-300/35 bg-emerald-400/[0.12] shadow-[0_22px_65px_rgba(5,150,105,0.12)]"
+          : "border-white/[0.12] bg-white/[0.055] hover:border-emerald-300/28 hover:bg-white/[0.075]",
       )}
       aria-pressed={selected}
     >
       {movement && movement !== "flat" ? (
         <span
-          key={`${snapshot.symbol}:${snapshot.price}:${snapshot.providerTimestamp ?? "unknown"}`}
+          key={`${snapshot.symbol}:${snapshot.price}:${
+            snapshot.providerTimestamp ?? "unknown"
+          }`}
           aria-hidden="true"
           className={cx(
             "pointer-events-none absolute inset-0 z-0 rounded-[1.65rem]",
@@ -2012,63 +2431,87 @@ function MarketCard({
           )}
         />
       ) : null}
+
       <div className="relative z-10">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent opacity-0 transition group-hover:opacity-100" />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-black tracking-[0.03em] text-white">{snapshot.symbol}</span>
-            <StateBadge snapshot={snapshot} />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/55 to-transparent opacity-0 transition group-hover:opacity-100" />
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black tracking-[0.03em] text-white">
+                {snapshot.symbol}
+              </span>
+              <StateBadge snapshot={snapshot} />
+            </div>
+            <div className="mt-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">
+              {snapshot.assetType ?? "Market asset"}
+            </div>
           </div>
-          <div className="mt-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-600">{snapshot.assetType ?? "Market asset"}</div>
-        </div>
-        <div className={cx("flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black", positive ? "bg-emerald-400/10 text-emerald-300" : "bg-rose-400/10 text-rose-300")}>
-          {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-          {formatPercent(snapshot.changePercent)}
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-end justify-between gap-3">
-        <div>
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={`${snapshot.symbol}-${snapshot.price}`}
-              initial={{
-                opacity: 0,
-                y: movement === "down" ? -8 : 8,
-                filter: "blur(4px)",
-              }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{
-                opacity: 0,
-                y: movement === "down" ? 8 : -8,
-                filter: "blur(4px)",
-              }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="tabular-nums text-2xl font-black tracking-[-0.04em] text-white"
-            >
-              {formatCurrency(snapshot.price, snapshot.currency)}
-            </motion.div>
-          </AnimatePresence>
-          <div className="mt-1 tabular-nums text-[10px] font-bold text-slate-500">
-            {snapshot.change === null || snapshot.change === undefined ? "Change unavailable" : `${snapshot.change >= 0 ? "+" : ""}${snapshot.change.toFixed(2)} today`}
+          <div
+            className={cx(
+              "flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black",
+              positive
+                ? "bg-emerald-400/12 text-emerald-100"
+                : "bg-rose-400/12 text-rose-100",
+            )}
+          >
+            {positive ? (
+              <TrendingUp className="h-3 w-3" />
+            ) : (
+              <TrendingDown className="h-3 w-3" />
+            )}
+            {formatPercent(snapshot.changePercent)}
           </div>
         </div>
-        <div className="text-right text-[9px] font-black uppercase tracking-[0.13em] text-slate-600">
-          <div>{snapshot.provider ?? "Provider"}</div>
-          <div className="mt-1">Q {snapshot.qualityScore ?? "—"}</div>
+
+        <div className="mt-5 flex items-end justify-between gap-3">
+          <div>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={`${snapshot.symbol}-${snapshot.price}`}
+                initial={{
+                  opacity: 0,
+                  y: movement === "down" ? -8 : 8,
+                  filter: "blur(4px)",
+                }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                exit={{
+                  opacity: 0,
+                  y: movement === "down" ? 8 : -8,
+                  filter: "blur(4px)",
+                }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="tabular-nums text-2xl font-black tracking-[-0.04em] text-white"
+              >
+                {formatCurrency(snapshot.price, snapshot.currency)}
+              </motion.div>
+            </AnimatePresence>
+            <div className="mt-1 tabular-nums text-[10px] font-bold text-slate-400">
+              {snapshot.change === null || snapshot.change === undefined
+                ? "Change unavailable"
+                : `${snapshot.change >= 0 ? "+" : ""}${snapshot.change.toFixed(
+                    2,
+                  )} today`}
+            </div>
+          </div>
+          <div className="text-right text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
+            <div>{snapshot.provider ?? "Provider"}</div>
+            <div className="mt-1">Q {snapshot.qualityScore ?? "—"}</div>
+          </div>
         </div>
-      </div>
 
-      <div className="mt-2">
-        <Sparkline points={points} positive={positive} />
-      </div>
+        <div className="mt-2">
+          <Sparkline points={points} positive={positive} />
+        </div>
 
-      <div className="mt-2 flex items-center justify-between border-t border-white/[0.06] pt-3 text-[9px] font-bold text-slate-600">
-        <span>{formatCompact(snapshot.volume)} volume</span>
-        <span>{snapshot.latencyMs === undefined ? "Latency —" : `${snapshot.latencyMs}ms`}</span>
-        <span>{relativeTime(snapshot.providerTimestamp)}</span>
-      </div>
+        <div className="mt-2 flex items-center justify-between border-t border-white/[0.1] pt-3 text-[9px] font-bold text-slate-400">
+          <span>{formatCompact(snapshot.volume)} volume</span>
+          <span>
+            {snapshot.latencyMs === undefined
+              ? "Latency —"
+              : `${snapshot.latencyMs}ms`}
+          </span>
+          <span>{relativeTime(snapshot.providerTimestamp)}</span>
+        </div>
       </div>
     </button>
   );
@@ -2084,7 +2527,7 @@ function IntradayChart({ bars }: { bars: AlphaIntradayBar[] }) {
 
   if (closes.length < 2) {
     return (
-      <div className="grid h-[290px] place-items-center rounded-2xl border border-dashed border-white/10 bg-black/20 text-center text-xs font-bold text-slate-500">
+      <div className="grid h-[290px] place-items-center rounded-2xl border border-dashed border-white/15 bg-black/30 text-center text-xs font-bold text-slate-300">
         Intraday bars are not available for this symbol or entitlement.
       </div>
     );
@@ -2102,13 +2545,27 @@ function IntradayChart({ bars }: { bars: AlphaIntradayBar[] }) {
     })
     .join(" ");
   const positive = closes.at(-1)! >= closes[0];
+  const endY = path.split(" ").at(-1)?.split(",")[1] ?? "100";
 
   return (
-    <svg className="h-[290px] w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-label="Alpha Vantage intraday price and volume chart">
+    <svg
+      className="h-[290px] w-full"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-label="Alpha Vantage intraday price and volume chart"
+    >
       <defs>
         <linearGradient id="intraday-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={positive ? "#34d399" : "#fb7185"} stopOpacity="0.28" />
-          <stop offset="1" stopColor={positive ? "#34d399" : "#fb7185"} stopOpacity="0" />
+          <stop
+            offset="0"
+            stopColor={positive ? "#34d399" : "#fb7185"}
+            stopOpacity="0.28"
+          />
+          <stop
+            offset="1"
+            stopColor={positive ? "#34d399" : "#fb7185"}
+            stopOpacity="0"
+          />
         </linearGradient>
         <linearGradient id="intraday-line" x1="0" x2="1">
           <stop offset="0" stopColor={positive ? "#10b981" : "#f43f5e"} />
@@ -2117,7 +2574,16 @@ function IntradayChart({ bars }: { bars: AlphaIntradayBar[] }) {
         </linearGradient>
       </defs>
       {[44, 90, 136, 182].map((y) => (
-        <line key={y} x1="0" y1={y} x2={width} y2={y} stroke="#ffffff" strokeOpacity="0.055" strokeDasharray="4 8" />
+        <line
+          key={y}
+          x1="0"
+          y1={y}
+          x2={width}
+          y2={y}
+          stroke="#ffffff"
+          strokeOpacity="0.09"
+          strokeDasharray="4 8"
+        />
       ))}
       {volumes.map((volume, index) => {
         const column = width / Math.max(volumes.length, 1);
@@ -2131,18 +2597,38 @@ function IntradayChart({ bars }: { bars: AlphaIntradayBar[] }) {
             height={barHeight}
             rx="1"
             fill={positive ? "#34d399" : "#fb7185"}
-            fillOpacity="0.18"
+            fillOpacity="0.22"
           />
         );
       })}
-      <path d={`${path} L${width},${priceHeight} L0,${priceHeight} Z`} fill="url(#intraday-fill)" />
-      <path d={path} fill="none" stroke="url(#intraday-line)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={width - 2} cy={path.split(" ").at(-1)?.split(",")[1] ?? 100} r="4" fill={positive ? "#a7f3d0" : "#fecdd3"} />
+      <path
+        d={`${path} L${width},${priceHeight} L0,${priceHeight} Z`}
+        fill="url(#intraday-fill)"
+      />
+      <path
+        d={path}
+        fill="none"
+        stroke="url(#intraday-line)"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle
+        cx={width - 2}
+        cy={endY}
+        r="4"
+        fill={positive ? "#a7f3d0" : "#fecdd3"}
+      />
     </svg>
   );
 }
 
-function LiveMarketSection({ market }: { market: ReturnType<typeof useAlphaMarket> }) {
+function LiveMarketSection({
+  market,
+}: {
+  market: ReturnType<typeof useAlphaMarket>;
+}) {
   const [selectedSymbol, setSelectedSymbol] = useState("SPY");
   const selected =
     market.snapshots.find((snapshot) => snapshot.symbol === selectedSymbol) ??
@@ -2171,9 +2657,11 @@ function LiveMarketSection({ market }: { market: ReturnType<typeof useAlphaMarke
           type="button"
           onClick={() => void market.refresh()}
           disabled={market.refreshing}
-          className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] px-4 py-3 text-xs font-black text-emerald-100 transition hover:border-emerald-300/35 hover:bg-emerald-400/[0.13] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/[0.11] px-4 py-3 text-xs font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/[0.16] disabled:opacity-50"
         >
-          <RefreshCcw className={cx("h-4 w-4", market.refreshing && "animate-spin")} />
+          <RefreshCcw
+            className={cx("h-4 w-4", market.refreshing && "animate-spin")}
+          />
           Refresh Alpha Vantage
         </button>
       }
@@ -2201,17 +2689,23 @@ function LiveMarketSection({ market }: { market: ReturnType<typeof useAlphaMarke
           icon={Clock3}
           label="Refresh cadence"
           value={`${Math.round(market.pollMs / 1000)}s`}
-          helper={market.generatedAt ? `Last response ${relativeTime(market.generatedAt)}` : "Waiting for provider"}
+          helper={
+            market.generatedAt
+              ? `Last response ${relativeTime(market.generatedAt)}`
+              : "Waiting for provider"
+          }
         />
       </div>
 
       {market.warnings.length ? (
-        <div className="mt-5 rounded-2xl border border-amber-300/15 bg-amber-400/[0.055] p-4">
+        <div className="mt-5 rounded-2xl border border-amber-300/25 bg-amber-400/[0.1] p-4">
           <div className="flex items-start gap-3">
-            <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
             <div>
-              <div className="text-xs font-black text-amber-200">Provider notes</div>
-              <div className="mt-1 space-y-1 text-[11px] leading-5 text-amber-100/65">
+              <div className="text-xs font-black text-amber-100">
+                Provider notes
+              </div>
+              <div className="mt-1 space-y-1 text-[11px] leading-5 text-amber-100/85">
                 {market.warnings.slice(0, 3).map((warning) => (
                   <p key={warning}>{warning}</p>
                 ))}
@@ -2235,49 +2729,74 @@ function LiveMarketSection({ market }: { market: ReturnType<typeof useAlphaMarke
       </div>
 
       {!market.snapshots.length ? (
-        <div className="mt-7 rounded-[2rem] border border-dashed border-white/10 bg-white/[0.025] p-10 text-center">
-          <CloudCog className="mx-auto h-8 w-8 text-emerald-300" />
-          <h3 className="mt-4 text-xl font-black text-white">Waiting for the strict Alpha Vantage response</h3>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-            Confirm that <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">ALPHA_VANTAGE_API_KEY</code> is configured in the deployment environment. Real-time US equity labels also require the appropriate Alpha Vantage entitlement.
+        <div className="mt-7 rounded-[2rem] border border-dashed border-white/15 bg-white/[0.04] p-10 text-center">
+          <CloudCog className="mx-auto h-8 w-8 text-emerald-200" />
+          <h3 className="mt-4 text-xl font-black text-white">
+            Waiting for the strict Alpha Vantage response
+          </h3>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+            Confirm that{" "}
+            <code className="rounded bg-black/40 px-1.5 py-1 text-emerald-100">
+              ALPHA_VANTAGE_API_KEY
+            </code>{" "}
+            is configured in the deployment environment. Real-time US equity
+            labels also require the appropriate Alpha Vantage entitlement.
           </p>
-          {market.error ? <p className="mt-4 text-xs font-bold text-amber-300">{market.error}</p> : null}
+          {market.error ? (
+            <p className="mt-4 text-xs font-bold text-amber-200">
+              {market.error}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
       {selected ? (
         <Reveal className="mt-7">
-          <div className="overflow-hidden rounded-[2.2rem] border border-emerald-300/10 bg-[#050d09]/86 shadow-[0_32px_95px_rgba(0,0,0,0.3)] backdrop-blur-2xl">
-            <div className="grid border-b border-white/[0.07] lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+          <div className="overflow-hidden rounded-[2.2rem] border border-emerald-300/20 bg-[#050d09]/92 shadow-[0_32px_95px_rgba(0,0,0,0.3)] backdrop-blur-2xl">
+            <div className="grid border-b border-white/[0.12] lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
               <div className="p-5 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-2xl font-black text-white">{selected.symbol}</span>
+                      <span className="text-2xl font-black text-white">
+                        {selected.symbol}
+                      </span>
                       <StateBadge snapshot={selected} />
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">
-                        {detail?.freshness?.label ?? (selected.isRealtime ? "Provider real-time" : "Provider delayed")}
+                      <span className="rounded-full border border-white/15 bg-white/[0.07] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-200">
+                        {detail?.freshness?.label ??
+                          (selected.isRealtime
+                            ? "Provider real-time"
+                            : "Provider delayed")}
                       </span>
                     </div>
-                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
-                      Alpha Vantage intraday intelligence · {detail?.intraday?.interval ?? "5min"}
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                      Alpha Vantage intraday intelligence ·{" "}
+                      {detail?.intraday?.interval ?? "5min"}
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => void alphaDetail.refresh()}
                     disabled={alphaDetail.loading}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black text-slate-300 transition hover:border-emerald-300/25 hover:text-white"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-black text-slate-100 transition hover:border-emerald-300/35 hover:text-white"
                   >
-                    <RefreshCcw className={cx("h-3.5 w-3.5", alphaDetail.loading && "animate-spin")} />
+                    <RefreshCcw
+                      className={cx(
+                        "h-3.5 w-3.5",
+                        alphaDetail.loading && "animate-spin",
+                      )}
+                    />
                     Refresh detail
                   </button>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-white/[0.065] bg-black/20 p-3">
+                <div className="mt-6 rounded-2xl border border-white/[0.12] bg-black/30 p-3">
                   {alphaDetail.loading && !detail ? (
-                    <div className="grid h-[290px] place-items-center text-xs font-bold text-slate-500">
-                      <div className="flex items-center gap-2"><RefreshCcw className="h-4 w-4 animate-spin" /> Loading provider intraday bars</div>
+                    <div className="grid h-[290px] place-items-center text-xs font-bold text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <RefreshCcw className="h-4 w-4 animate-spin" />
+                        Loading provider intraday bars
+                      </div>
                     </div>
                   ) : (
                     <IntradayChart bars={detail?.intraday?.bars ?? []} />
@@ -2285,43 +2804,83 @@ function LiveMarketSection({ market }: { market: ReturnType<typeof useAlphaMarke
                 </div>
 
                 {alphaDetail.error ? (
-                  <div className="mt-3 rounded-xl border border-amber-300/15 bg-amber-400/[0.05] px-3 py-2 text-[10px] leading-5 text-amber-200/80">
+                  <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-400/[0.1] px-3 py-2 text-[10px] leading-5 text-amber-100">
                     {alphaDetail.error}
                   </div>
                 ) : null}
               </div>
 
-              <div className="border-t border-white/[0.07] bg-white/[0.02] p-5 sm:p-7 lg:border-l lg:border-t-0">
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-300">Selected market context</div>
+              <div className="border-t border-white/[0.12] bg-white/[0.035] p-5 sm:p-7 lg:border-l lg:border-t-0">
+                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                  Selected market context
+                </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   {[
                     ["Price", formatCurrency(selected.price, selected.currency)],
                     ["Session move", formatPercent(selected.changePercent)],
-                    ["Previous close", selected.previousClose ? formatCurrency(selected.previousClose, selected.currency) : "—"],
+                    [
+                      "Previous close",
+                      selected.previousClose
+                        ? formatCurrency(selected.previousClose, selected.currency)
+                        : "—",
+                    ],
                     ["Volume", formatCompact(selected.volume)],
-                    ["RSI 14", selected.technicals?.rsi14?.toFixed(1) ?? detail?.technicals?.rsi14?.toFixed(1) ?? "—"],
-                    ["30D volatility", selected.technicals?.volatility30d ? `${selected.technicals.volatility30d.toFixed(1)}%` : detail?.technicals?.volatility20Annualized ? `${detail.technicals.volatility20Annualized.toFixed(1)}%` : "—"],
+                    [
+                      "RSI 14",
+                      selected.technicals?.rsi14?.toFixed(1) ??
+                        detail?.technicals?.rsi14?.toFixed(1) ??
+                        "—",
+                    ],
+                    [
+                      "30D volatility",
+                      selected.technicals?.volatility30d
+                        ? `${selected.technicals.volatility30d.toFixed(1)}%`
+                        : detail?.technicals?.volatility20Annualized
+                          ? `${detail.technicals.volatility20Annualized.toFixed(
+                              1,
+                            )}%`
+                          : "—",
+                    ],
                     ["Quality", `${selected.qualityScore ?? "—"}/100`],
-                    ["Latency", selected.latencyMs === undefined ? "—" : `${selected.latencyMs}ms`],
+                    [
+                      "Latency",
+                      selected.latencyMs === undefined
+                        ? "—"
+                        : `${selected.latencyMs}ms`,
+                    ],
                   ].map(([label, value]) => (
-                    <div key={label} className="rounded-xl border border-white/[0.065] bg-black/20 p-3">
-                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-600">{label}</div>
-                      <div className="mt-2 truncate text-sm font-black text-white">{value}</div>
+                    <div
+                      key={label}
+                      className="rounded-xl border border-white/[0.12] bg-black/30 p-3"
+                    >
+                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+                        {label}
+                      </div>
+                      <div className="mt-2 truncate text-sm font-black text-white">
+                        {value}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-4 rounded-xl border border-emerald-300/10 bg-emerald-400/[0.045] p-4">
-                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-300">
+                <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.08] p-4">
+                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-200">
                     <Activity className="h-3.5 w-3.5" /> Technical read
                   </div>
-                  <p className="mt-2 text-xs leading-6 text-slate-400">
-                    {detail?.technicals?.technicalSummary ?? selected.technicals?.technicalSummary ?? "Technical history is loading from Alpha Vantage."}
+                  <p className="mt-2 text-xs leading-6 text-slate-300">
+                    {detail?.technicals?.technicalSummary ??
+                      selected.technicals?.technicalSummary ??
+                      "Technical history is loading from Alpha Vantage."}
                   </p>
                 </div>
 
-                <div className="mt-4 text-[10px] leading-5 text-slate-600">
-                  Provider timestamp: <span className="font-bold text-slate-400">{formatTime(selected.providerTimestamp ?? detail?.providerAsOf)}</span>
+                <div className="mt-4 text-[10px] leading-5 text-slate-400">
+                  Provider timestamp:{" "}
+                  <span className="font-bold text-slate-200">
+                    {formatTime(
+                      selected.providerTimestamp ?? detail?.providerAsOf,
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2336,15 +2895,40 @@ function KnowledgeGraphExplorer() {
   const reducedMotion = useReducedMotion();
   const [layer, setLayer] = useState<GraphLayer>("all");
   const [selectedId, setSelectedId] = useState("slice-core");
-  const selected = GRAPH_NODES.find((node) => node.id === selectedId) ?? GRAPH_NODES[0];
+  const selected =
+    GRAPH_NODES.find((node) => node.id === selectedId) ?? GRAPH_NODES[0];
   const SelectedIcon = selected.icon;
-  const layerStyles: Record<Exclude<GraphLayer, "all">, { stroke: string; text: string; bg: string; border: string }> = {
-    market: { stroke: "#22d3ee", text: "text-cyan-200", bg: "bg-cyan-400/10", border: "border-cyan-300/20" },
-    intelligence: { stroke: "#34d399", text: "text-emerald-200", bg: "bg-emerald-400/10", border: "border-emerald-300/20" },
-    advisor: { stroke: "#a78bfa", text: "text-violet-200", bg: "bg-violet-400/10", border: "border-violet-300/20" },
-    governance: { stroke: "#fbbf24", text: "text-amber-200", bg: "bg-amber-400/10", border: "border-amber-300/20" },
+  const layerStyles: Record<
+    Exclude<GraphLayer, "all">,
+    { stroke: string; text: string; bg: string; border: string }
+  > = {
+    market: {
+      stroke: "#22d3ee",
+      text: "text-cyan-100",
+      bg: "bg-cyan-400/12",
+      border: "border-cyan-300/30",
+    },
+    intelligence: {
+      stroke: "#34d399",
+      text: "text-emerald-100",
+      bg: "bg-emerald-400/12",
+      border: "border-emerald-300/30",
+    },
+    advisor: {
+      stroke: "#a78bfa",
+      text: "text-violet-100",
+      bg: "bg-violet-400/12",
+      border: "border-violet-300/30",
+    },
+    governance: {
+      stroke: "#fbbf24",
+      text: "text-amber-100",
+      bg: "bg-amber-400/12",
+      border: "border-amber-300/30",
+    },
   };
-  const visible = (candidate: Exclude<GraphLayer, "all">) => layer === "all" || layer === candidate;
+  const visible = (candidate: Exclude<GraphLayer, "all">) =>
+    layer === "all" || layer === candidate;
 
   return (
     <Section
@@ -2352,10 +2936,18 @@ function KnowledgeGraphExplorer() {
       eyebrow="Living knowledge graph"
       title="Sprawling, intersecting intelligence paths that show how the platform thinks."
       description="The graph is not decorative. It represents the system Slice is building: market observations, sourced articles, agents, portfolios, clients, documents, workflows, communications, firm memory, founder control, and compliance are connected so downstream work can retain its upstream evidence."
-      className="border-y border-emerald-300/[0.06] bg-[#030806]/64"
+      className="border-y border-emerald-300/[0.1] bg-[#030806]/72"
     >
       <div className="mb-5 flex flex-wrap gap-2">
-        {(["all", "market", "intelligence", "advisor", "governance"] as GraphLayer[]).map((item) => (
+        {(
+          [
+            "all",
+            "market",
+            "intelligence",
+            "advisor",
+            "governance",
+          ] as GraphLayer[]
+        ).map((item) => (
           <button
             key={item}
             type="button"
@@ -2363,8 +2955,8 @@ function KnowledgeGraphExplorer() {
             className={cx(
               "rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] transition",
               layer === item
-                ? "border-emerald-300/30 bg-emerald-400/12 text-emerald-100"
-                : "border-white/10 bg-white/[0.035] text-slate-500 hover:border-emerald-300/20 hover:text-white",
+                ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-100"
+                : "border-white/15 bg-white/[0.055] text-slate-300 hover:border-emerald-300/30 hover:text-white",
             )}
           >
             {item === "all" ? "Entire mesh" : item}
@@ -2373,14 +2965,21 @@ function KnowledgeGraphExplorer() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_350px]">
-        <div className="overflow-x-auto rounded-[2.25rem] border border-emerald-300/10 bg-[#030a07]/90 p-3 shadow-[0_35px_110px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:p-5">
-          <div className="relative aspect-[12/7] min-w-[980px] overflow-hidden rounded-[1.75rem] border border-white/[0.06] bg-[radial-gradient(circle_at_50%_48%,rgba(16,185,129,0.1),transparent_38%),linear-gradient(rgba(52,211,153,0.028)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.028)_1px,transparent_1px)] [background-size:auto,38px_38px,38px_38px]">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.025] via-transparent to-cyan-500/[0.025]" />
-            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1200 700" aria-hidden="true">
+        <div className="overflow-x-auto rounded-[2.25rem] border border-emerald-300/20 bg-[#030a07]/95 p-3 shadow-[0_35px_110px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:p-5">
+          <div className="relative aspect-[12/7] min-w-[980px] overflow-hidden rounded-[1.75rem] border border-white/[0.12] bg-[radial-gradient(circle_at_50%_48%,rgba(16,185,129,0.1),transparent_38%),linear-gradient(rgba(52,211,153,0.028)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.028)_1px,transparent_1px)] [background-size:auto,38px_38px,38px_38px]">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.035] via-transparent to-cyan-500/[0.035]" />
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 1200 700"
+              aria-hidden="true"
+            >
               <defs>
                 <filter id="graph-glow">
                   <feGaussianBlur stdDeviation="2.2" result="blur" />
-                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
                 </filter>
               </defs>
               {GRAPH_EDGES.map((edge) => {
@@ -2389,24 +2988,46 @@ function KnowledgeGraphExplorer() {
                 const stroke = layerStyles[edge.layer].stroke;
                 return (
                   <g key={edge.id} opacity={active ? 1 : 0.09}>
-                    <path d={path} fill="none" stroke={stroke} strokeOpacity={active ? 0.18 : 0.08} strokeWidth="8" filter="url(#graph-glow)" />
                     <path
                       d={path}
                       fill="none"
                       stroke={stroke}
-                      strokeOpacity={active ? 0.6 : 0.12}
+                      strokeOpacity={active ? 0.2 : 0.08}
+                      strokeWidth="8"
+                      filter="url(#graph-glow)"
+                    />
+                    <path
+                      d={path}
+                      fill="none"
+                      stroke={stroke}
+                      strokeOpacity={active ? 0.68 : 0.12}
                       strokeWidth="1.4"
                       strokeDasharray="7 12"
-                      className={!reducedMotion && active ? "slice-edge-flow" : undefined}
-                      style={{ animationDuration: `${edge.duration}s`, animationDelay: `${edge.delay}s` }}
+                      className={
+                        !reducedMotion && active ? "slice-edge-flow" : undefined
+                      }
+                      style={{
+                        animationDuration: `${edge.duration}s`,
+                        animationDelay: `${edge.delay}s`,
+                      }}
                     />
                     {!reducedMotion && active ? (
                       <>
                         <circle r="3.2" fill={stroke} filter="url(#graph-glow)">
-                          <animateMotion dur={`${edge.duration}s`} begin={`${edge.delay}s`} repeatCount="indefinite" path={path} />
+                          <animateMotion
+                            dur={`${edge.duration}s`}
+                            begin={`${edge.delay}s`}
+                            repeatCount="indefinite"
+                            path={path}
+                          />
                         </circle>
                         <circle r="1.8" fill="#ecfdf5">
-                          <animateMotion dur={`${edge.duration * 1.35}s`} begin={`${edge.delay - 1.3}s`} repeatCount="indefinite" path={path} />
+                          <animateMotion
+                            dur={`${edge.duration * 1.35}s`}
+                            begin={`${edge.delay - 1.3}s`}
+                            repeatCount="indefinite"
+                            path={path}
+                          />
                         </circle>
                       </>
                     ) : null}
@@ -2430,67 +3051,129 @@ function KnowledgeGraphExplorer() {
                     style.border,
                     style.bg,
                     active ? "opacity-100" : "opacity-25 grayscale",
-                    selectedNode ? "scale-110 ring-2 ring-white/20" : "hover:scale-105",
-                    node.id === "slice-core" && "min-w-[150px] rounded-[1.75rem] border-emerald-200/35 bg-emerald-500/20 shadow-[0_0_65px_rgba(16,185,129,0.2)]",
+                    selectedNode ? "scale-110 ring-2 ring-white/25" : "hover:scale-105",
+                    node.id === "slice-core" &&
+                      "min-w-[150px] rounded-[1.75rem] border-emerald-200/40 bg-emerald-500/25 shadow-[0_0_65px_rgba(16,185,129,0.2)]",
                   )}
-                  style={{ left: `${(node.x / 1200) * 100}%`, top: `${(node.y / 700) * 100}%` }}
-                  animate={reducedMotion || !active ? undefined : { y: [0, index % 2 ? -4 : 4, 0], x: [0, index % 3 ? 2 : -2, 0] }}
-                  transition={{ duration: 4.2 + (index % 5) * 0.45, repeat: Infinity, ease: "easeInOut" }}
+                  style={{
+                    left: `${(node.x / 1200) * 100}%`,
+                    top: `${(node.y / 700) * 100}%`,
+                  }}
+                  animate={
+                    reducedMotion || !active
+                      ? undefined
+                      : {
+                          y: [0, index % 2 ? -4 : 4, 0],
+                          x: [0, index % 3 ? 2 : -2, 0],
+                        }
+                  }
+                  transition={{
+                    duration: 4.2 + (index % 5) * 0.45,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
                   aria-label={`Inspect ${node.label}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={cx("grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25", style.text)}>
+                    <span
+                      className={cx(
+                        "grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/15 bg-black/35",
+                        style.text,
+                      )}
+                    >
                       <Icon className="h-4 w-4" />
                     </span>
                     <span>
-                      <span className="block text-[8px] font-black uppercase tracking-[0.13em] text-slate-500">{node.eyebrow}</span>
-                      <span className="mt-0.5 block whitespace-nowrap text-[10px] font-black text-white">{node.label}</span>
+                      <span className="block text-[8px] font-black uppercase tracking-[0.13em] text-slate-300">
+                        {node.eyebrow}
+                      </span>
+                      <span className="mt-0.5 block whitespace-nowrap text-[10px] font-black text-white">
+                        {node.label}
+                      </span>
                     </span>
                   </div>
-                  {node.id === "slice-core" && !reducedMotion ? <span className="pointer-events-none absolute inset-[-8px] rounded-[2rem] border border-emerald-300/20 slice-core-pulse" /> : null}
+                  {node.id === "slice-core" && !reducedMotion ? (
+                    <span className="pointer-events-none absolute inset-[-8px] rounded-[2rem] border border-emerald-300/25 slice-core-pulse" />
+                  ) : null}
                 </motion.button>
               );
             })}
 
-            <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-400 backdrop-blur-xl">
-              <Route className="h-3.5 w-3.5 text-emerald-300" />
-              {GRAPH_EDGES.filter((edge) => visible(edge.layer)).length} active paths · {GRAPH_NODES.filter((node) => visible(node.layer)).length} visible nodes
+            <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 rounded-full border border-white/15 bg-black/55 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-200 backdrop-blur-xl">
+              <Route className="h-3.5 w-3.5 text-emerald-200" />
+              {GRAPH_EDGES.filter((edge) => visible(edge.layer)).length} active
+              paths · {GRAPH_NODES.filter((node) => visible(node.layer)).length}{" "}
+              visible nodes
             </div>
           </div>
         </div>
 
         <Reveal>
-          <aside className="sticky top-28 overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.04] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <aside className="sticky top-28 overflow-hidden rounded-[2rem] border border-white/[0.12] bg-white/[0.06] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl">
             <div className="flex items-start justify-between gap-4">
-              <div className={cx("grid h-12 w-12 place-items-center rounded-2xl border", layerStyles[selected.layer].border, layerStyles[selected.layer].bg, layerStyles[selected.layer].text)}>
+              <div
+                className={cx(
+                  "grid h-12 w-12 place-items-center rounded-2xl border",
+                  layerStyles[selected.layer].border,
+                  layerStyles[selected.layer].bg,
+                  layerStyles[selected.layer].text,
+                )}
+              >
                 <SelectedIcon className="h-5 w-5" />
               </div>
-              <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">{selected.layer}</span>
+              <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300">
+                {selected.layer}
+              </span>
             </div>
-            <div className="mt-6 text-[9px] font-black uppercase tracking-[0.19em] text-emerald-300">{selected.eyebrow}</div>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">{selected.label}</h3>
-            <p className="mt-4 text-sm leading-7 text-slate-400">{selected.description}</p>
+            <div className="mt-6 text-[9px] font-black uppercase tracking-[0.19em] text-emerald-200">
+              {selected.eyebrow}
+            </div>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">
+              {selected.label}
+            </h3>
+            <p className="mt-4 text-sm leading-7 text-slate-300">
+              {selected.description}
+            </p>
 
             <div className="mt-6 grid gap-4">
-              <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
-                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Inputs</div>
+              <div className="rounded-2xl border border-white/[0.12] bg-black/30 p-4">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-300">
+                  Inputs
+                </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {selected.inputs.map((input) => <span key={input} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] font-bold text-slate-300">{input}</span>)}
+                  {selected.inputs.map((input) => (
+                    <span
+                      key={input}
+                      className="rounded-full border border-white/15 bg-white/[0.07] px-2.5 py-1 text-[9px] font-bold text-slate-100"
+                    >
+                      {input}
+                    </span>
+                  ))}
                 </div>
               </div>
-              <div className="rounded-2xl border border-emerald-300/10 bg-emerald-400/[0.045] p-4">
-                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300">Outputs</div>
+              <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-4">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-200">
+                  Outputs
+                </div>
                 <div className="mt-3 space-y-2">
                   {selected.outputs.map((output) => (
-                    <div key={output} className="flex items-center gap-2 text-[10px] font-bold text-slate-300">
-                      <ArrowRight className="h-3 w-3 text-emerald-300" /> {output}
+                    <div
+                      key={output}
+                      className="flex items-center gap-2 text-[10px] font-bold text-slate-100"
+                    >
+                      <ArrowRight className="h-3 w-3 text-emerald-200" />{" "}
+                      {output}
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            <Link href={selected.href} prefetch={false} className="group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.14]">
+            <Link
+              href={selected.href}
+              prefetch={false}
+              className="group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/[0.11] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.17]"
+            >
               Open connected module
               <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
             </Link>
@@ -2502,8 +3185,11 @@ function KnowledgeGraphExplorer() {
 }
 
 function CapabilitySection() {
-  const [activeId, setActiveId] = useState<CapabilityGroup["id"]>("intelligence");
-  const active = CAPABILITY_GROUPS.find((group) => group.id === activeId) ?? CAPABILITY_GROUPS[0];
+  const [activeId, setActiveId] =
+    useState<CapabilityGroup["id"]>("intelligence");
+  const active =
+    CAPABILITY_GROUPS.find((group) => group.id === activeId) ??
+    CAPABILITY_GROUPS[0];
   const ActiveIcon = active.icon;
 
   return (
@@ -2525,16 +3211,32 @@ function CapabilitySection() {
               className={cx(
                 "group flex items-center gap-3 rounded-2xl border p-4 text-left transition duration-300",
                 activeGroup
-                  ? "border-emerald-300/25 bg-emerald-400/[0.1] shadow-[0_18px_45px_rgba(5,150,105,0.1)]"
-                  : "border-white/[0.07] bg-white/[0.035] hover:border-emerald-300/18 hover:bg-white/[0.055]",
+                  ? "border-emerald-300/35 bg-emerald-400/[0.14] shadow-[0_18px_45px_rgba(5,150,105,0.1)]"
+                  : "border-white/[0.12] bg-white/[0.055] hover:border-emerald-300/28 hover:bg-white/[0.075]",
               )}
             >
-              <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-xl border", activeGroup ? "border-emerald-300/20 bg-emerald-400/12 text-emerald-200" : "border-white/10 bg-black/20 text-slate-500 group-hover:text-emerald-300")}>
+              <span
+                className={cx(
+                  "grid h-10 w-10 shrink-0 place-items-center rounded-xl border",
+                  activeGroup
+                    ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100"
+                    : "border-white/15 bg-black/30 text-slate-300 group-hover:text-emerald-100",
+                )}
+              >
                 <Icon className="h-4.5 w-4.5" />
               </span>
               <span>
-                <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-slate-600">System</span>
-                <span className={cx("mt-1 block text-xs font-black", activeGroup ? "text-white" : "text-slate-300")}>{group.label}</span>
+                <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-slate-300">
+                  System
+                </span>
+                <span
+                  className={cx(
+                    "mt-1 block text-xs font-black",
+                    activeGroup ? "text-white" : "text-slate-100",
+                  )}
+                >
+                  {group.label}
+                </span>
               </span>
             </button>
           );
@@ -2548,16 +3250,22 @@ function CapabilitySection() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.28 }}
-          className="mt-6 overflow-hidden rounded-[2.25rem] border border-white/[0.08] bg-[#050d09]/84 shadow-[0_30px_90px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
+          className="mt-6 overflow-hidden rounded-[2.25rem] border border-white/[0.12] bg-[#050d09]/92 shadow-[0_30px_90px_rgba(0,0,0,0.28)] backdrop-blur-2xl"
         >
-          <div className="grid border-b border-white/[0.07] bg-gradient-to-r from-emerald-500/[0.075] via-transparent to-cyan-500/[0.04] p-7 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-6 sm:p-9">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.09] text-emerald-200">
+          <div className="grid border-b border-white/[0.12] bg-gradient-to-r from-emerald-500/[0.1] via-transparent to-cyan-500/[0.06] p-7 sm:p-9 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-6">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-300/30 bg-emerald-400/[0.13] text-emerald-100">
               <ActiveIcon className="h-6 w-6" />
             </div>
             <div className="mt-5 lg:mt-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">{active.label}</div>
-              <h3 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white">{active.title}</h3>
-              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400">{active.description}</p>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                {active.label}
+              </div>
+              <h3 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white">
+                {active.title}
+              </h3>
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+                {active.description}
+              </p>
             </div>
           </div>
 
@@ -2570,22 +3278,30 @@ function CapabilitySection() {
                   href={item.href}
                   prefetch={false}
                   className={cx(
-                    "group relative p-6 transition duration-300 hover:bg-emerald-400/[0.045] sm:p-8",
-                    index % 2 === 0 ? "lg:border-r lg:border-white/[0.07]" : "",
-                    index < 2 ? "border-b border-white/[0.07]" : "",
+                    "group relative p-6 transition duration-300 hover:bg-emerald-400/[0.07] sm:p-8",
+                    index % 2 === 0
+                      ? "lg:border-r lg:border-white/[0.12]"
+                      : "",
+                    index < 2 ? "border-b border-white/[0.12]" : "",
                   )}
                 >
                   <div className="flex items-start gap-4">
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] text-emerald-300 transition group-hover:border-emerald-300/20 group-hover:bg-emerald-400/[0.09]">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/[0.07] text-emerald-100 transition group-hover:border-emerald-300/30 group-hover:bg-emerald-400/[0.13]">
                       <Icon className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
                       <div className="flex items-start justify-between gap-3">
-                        <h4 className="text-xl font-black tracking-[-0.03em] text-white">{item.title}</h4>
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-600 transition group-hover:translate-x-1 group-hover:text-emerald-300" />
+                        <h4 className="text-xl font-black tracking-[-0.03em] text-white">
+                          {item.title}
+                        </h4>
+                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-1 group-hover:text-emerald-100" />
                       </div>
-                      <p className="mt-2 text-sm font-bold leading-6 text-slate-300">{item.description}</p>
-                      <p className="mt-3 text-xs leading-6 text-slate-500">{item.detail}</p>
+                      <p className="mt-2 text-sm font-bold leading-6 text-slate-100">
+                        {item.description}
+                      </p>
+                      <p className="mt-3 text-xs leading-6 text-slate-300">
+                        {item.detail}
+                      </p>
                     </div>
                   </div>
                 </Link>
@@ -2598,15 +3314,40 @@ function CapabilitySection() {
       <Reveal className="mt-7">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { value: "One", label: "Connected operating layer", text: "Instead of isolated market, CRM, research, email, and workflow surfaces." },
-            { value: "Many", label: "Specialized agent paths", text: "Research, risk, client, document, workflow, and governance agents coordinate." },
-            { value: "Visible", label: "Evidence and freshness", text: "Sources, provider timestamps, relationships, and review status remain attached." },
-            { value: "Human", label: "Final control", text: "The advisor or firm reviewer owns sensitive client-facing decisions and output." },
+            {
+              value: "One",
+              label: "Connected operating layer",
+              text: "Instead of isolated market, CRM, research, email, and workflow surfaces.",
+            },
+            {
+              value: "Many",
+              label: "Specialized agent paths",
+              text: "Research, risk, client, document, workflow, and governance agents coordinate.",
+            },
+            {
+              value: "Visible",
+              label: "Evidence and freshness",
+              text: "Sources, provider timestamps, relationships, and review status remain attached.",
+            },
+            {
+              value: "Human",
+              label: "Final control",
+              text: "The advisor or firm reviewer owns sensitive client-facing decisions and output.",
+            },
           ].map((item) => (
-            <div key={item.label} className="rounded-[1.6rem] border border-white/[0.07] bg-white/[0.035] p-5">
-              <div className="text-2xl font-black tracking-[-0.04em] text-emerald-200">{item.value}</div>
-              <div className="mt-2 text-xs font-black text-white">{item.label}</div>
-              <p className="mt-2 text-[11px] leading-5 text-slate-500">{item.text}</p>
+            <div
+              key={item.label}
+              className="rounded-[1.6rem] border border-white/[0.12] bg-white/[0.055] p-5"
+            >
+              <div className="text-2xl font-black tracking-[-0.04em] text-emerald-100">
+                {item.value}
+              </div>
+              <div className="mt-2 text-xs font-black text-white">
+                {item.label}
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-slate-300">
+                {item.text}
+              </p>
             </div>
           ))}
         </div>
@@ -2615,45 +3356,141 @@ function CapabilitySection() {
   );
 }
 
-function ArticleCard({ article, featured = false }: { article: PublicArticle; featured?: boolean }) {
+function ArticleCard({
+  article,
+  featured = false,
+}: {
+  article: PublicArticle;
+  featured?: boolean;
+}) {
   const external = safeExternalUrl(article.link);
   const positiveSentiment = (article.sentimentScore ?? 0) >= 0;
 
   return (
-    <article className={cx("group relative flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-white/[0.08] bg-white/[0.04] shadow-[0_22px_65px_rgba(0,0,0,0.2)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/20", featured && "lg:col-span-2")}>
+    <article
+      className={cx(
+        "group relative flex h-full flex-col overflow-hidden rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] shadow-[0_22px_65px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30 hover:bg-white/[0.07]",
+        featured && "lg:col-span-2",
+      )}
+    >
       {article.bannerImage ? (
-        <div className={cx("relative overflow-hidden border-b border-white/[0.07]", featured ? "h-52 sm:h-64" : "h-40")}>
+        <div
+          className={cx(
+            "relative overflow-hidden border-b border-white/[0.12]",
+            featured ? "h-52 sm:h-64" : "h-40",
+          )}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={article.bannerImage} alt="" className="h-full w-full object-cover opacity-55 saturate-75 transition duration-700 group-hover:scale-105 group-hover:opacity-70" />
+          <img
+            src={article.bannerImage}
+            alt=""
+            className="h-full w-full object-cover opacity-65 saturate-75 transition duration-700 group-hover:scale-105 group-hover:opacity-80"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-[#07100c] via-[#07100c]/35 to-transparent" />
         </div>
       ) : (
-        <div className={cx("relative overflow-hidden border-b border-white/[0.07] bg-[radial-gradient(circle_at_30%_30%,rgba(16,185,129,0.2),transparent_45%),linear-gradient(135deg,#07140e,#030806)]", featured ? "h-40" : "h-28")}>
+        <div
+          className={cx(
+            "relative overflow-hidden border-b border-white/[0.12] bg-[radial-gradient(circle_at_30%_30%,rgba(16,185,129,0.24),transparent_45%),linear-gradient(135deg,#07140e,#030806)]",
+            featured ? "h-40" : "h-28",
+          )}
+        >
           <div className="slice-route-sweep absolute inset-0 opacity-50" />
-          <Newspaper className="absolute bottom-4 left-5 h-7 w-7 text-emerald-300/70" />
+          <Newspaper className="absolute bottom-4 left-5 h-7 w-7 text-emerald-200" />
         </div>
       )}
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cx("rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.14em]", article.urgency === "Critical" ? "border-rose-300/25 bg-rose-400/10 text-rose-200" : article.urgency === "High" ? "border-amber-300/25 bg-amber-400/10 text-amber-200" : "border-emerald-300/15 bg-emerald-400/[0.07] text-emerald-200")}>{article.urgency}</span>
-          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">{article.sourceName}</span>
-          <span className="text-[9px] font-bold text-slate-600">{relativeTime(article.publishedAt)}</span>
+          <span
+            className={cx(
+              "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.14em]",
+              article.urgency === "Critical"
+                ? "border-rose-300/35 bg-rose-400/14 text-rose-100"
+                : article.urgency === "High"
+                  ? "border-amber-300/35 bg-amber-400/14 text-amber-100"
+                  : "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100",
+            )}
+          >
+            {article.urgency}
+          </span>
+          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-300">
+            {article.sourceName}
+          </span>
+          <span className="text-[9px] font-bold text-slate-400">
+            {relativeTime(article.publishedAt)}
+          </span>
         </div>
-        <h3 className={cx("mt-4 font-black tracking-[-0.035em] text-white", featured ? "text-2xl sm:text-3xl" : "text-lg")}>{article.title}</h3>
-        <p className={cx("mt-3 line-clamp-3 leading-6 text-slate-500", featured ? "text-sm" : "text-xs")}>{article.summary || "Open the original source for the full article context."}</p>
+        <h3
+          className={cx(
+            "mt-4 font-black tracking-[-0.035em] text-white",
+            featured ? "text-2xl sm:text-3xl" : "text-lg",
+          )}
+        >
+          {article.title}
+        </h3>
+        <p
+          className={cx(
+            "mt-3 line-clamp-3 leading-6 text-slate-300",
+            featured ? "text-sm" : "text-xs",
+          )}
+        >
+          {article.summary ||
+            "Open the original source for the full article context."}
+        </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          {[...article.matchedTickers.slice(0, 3), ...article.matchedThemes.slice(0, 2)].map((tag) => (
-            <span key={tag} className="rounded-full border border-white/[0.08] bg-black/20 px-2.5 py-1 text-[8px] font-black text-slate-400">{tag}</span>
+          {[
+            ...article.matchedTickers.slice(0, 3),
+            ...article.matchedThemes.slice(0, 2),
+          ].map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/[0.12] bg-black/30 px-2.5 py-1 text-[8px] font-black text-slate-200"
+            >
+              {tag}
+            </span>
           ))}
         </div>
         <div className="mt-auto pt-6">
-          <div className="grid grid-cols-3 gap-2 border-t border-white/[0.065] pt-4">
-            <div><div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">Score</div><div className="mt-1 text-sm font-black text-white">{article.score}</div></div>
-            <div><div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">Sentiment</div><div className={cx("mt-1 text-sm font-black", positiveSentiment ? "text-emerald-300" : "text-rose-300")}>{article.sentimentLabel || "Context"}</div></div>
-            <div className="text-right"><div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-600">Source</div><div className="mt-1 text-[9px] font-black text-slate-300">{article.sourceKind === "alpha-vantage-news" ? "Alpha Vantage" : "Official feed"}</div></div>
+          <div className="grid grid-cols-3 gap-2 border-t border-white/[0.1] pt-4">
+            <div>
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+                Score
+              </div>
+              <div className="mt-1 text-sm font-black text-white">
+                {article.score}
+              </div>
+            </div>
+            <div>
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+                Sentiment
+              </div>
+              <div
+                className={cx(
+                  "mt-1 text-sm font-black",
+                  positiveSentiment ? "text-emerald-100" : "text-rose-100",
+                )}
+              >
+                {article.sentimentLabel || "Context"}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+                Source
+              </div>
+              <div className="mt-1 text-[9px] font-black text-slate-100">
+                {article.sourceKind === "alpha-vantage-news"
+                  ? "Alpha Vantage"
+                  : "Official feed"}
+              </div>
+            </div>
           </div>
           {external ? (
-            <a href={external} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-2 text-xs font-black text-emerald-300 transition hover:text-emerald-100">
+            <a
+              href={external}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 text-xs font-black text-emerald-100 transition hover:text-white"
+            >
               Read original source <ExternalLink className="h-3.5 w-3.5" />
             </a>
           ) : null}
@@ -2663,95 +3500,209 @@ function ArticleCard({ article, featured = false }: { article: PublicArticle; fe
   );
 }
 
-function DailyIntelligenceSection({ intelligence }: { intelligence: ReturnType<typeof usePublicIntelligence> }) {
-  const todaysArticles = intelligence.snapshot.items.filter(
-    (article) => marketDateKey(article.publishedAt) === intelligence.snapshot.dateKey,
+function DailyIntelligenceSection({
+  intelligence,
+}: {
+  intelligence: ReturnType<typeof usePublicIntelligence>;
+}) {
+  const articles = intelligence.snapshot.items.slice(
+    0,
+    PUBLIC_INTELLIGENCE_ARTICLE_LIMIT,
   );
-  const isRecentFallback = Boolean(
-    intelligence.snapshot.items.length && !todaysArticles.length,
+  const expectedEditionDate = activeEditionDateKey();
+  const isPriorEdition = Boolean(
+    articles.length &&
+      intelligence.snapshot.dateKey &&
+      expectedEditionDate &&
+      intelligence.snapshot.dateKey !== expectedEditionDate,
   );
-  const articles = (
-    todaysArticles.length ? todaysArticles : intelligence.snapshot.items
-  ).slice(0, 5);
+  const editionDate =
+    intelligence.snapshot.dateKey ||
+    marketDateKey(intelligence.snapshot.generatedAt) ||
+    "pending";
   const topTopics = intelligence.snapshot.topicCounts.slice(0, 8);
 
   return (
     <Section
       id="daily-intelligence"
-      eyebrow="Daily sourced intelligence"
-      title="The day’s most useful market articles, scouted and connected before the advisor arrives."
-      description="A protected cron job gathers official market and regulatory feeds plus Alpha Vantage Market News & Sentiment, removes duplicates, scores relevance and materiality, stores a durable daily edition, and serves the same evidence-linked feed to the homepage and blog."
+      eyebrow="Six-article daily intelligence"
+      title="Six useful market articles, selected once each morning before the advisor arrives."
+      description="At 6:00 AM Eastern Time, a protected publisher gathers official market and regulatory feeds plus Alpha Vantage Market News & Sentiment, removes duplicates, ranks relevance and materiality, and stores one fixed six-article edition for the homepage and blog. Page visits only read that completed edition."
       action={
         <div className="flex gap-2">
-          <button type="button" onClick={() => void intelligence.refresh()} disabled={intelligence.refreshing} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black text-slate-300 transition hover:border-emerald-300/20 hover:text-white">
-            <RefreshCcw className={cx("h-4 w-4", intelligence.refreshing && "animate-spin")} /> Refresh edition
+          <button
+            type="button"
+            onClick={() => void intelligence.refresh()}
+            disabled={intelligence.refreshing}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-3 text-xs font-black text-slate-100 transition hover:border-emerald-300/30 hover:text-white disabled:opacity-50"
+            aria-label="Reload the stored daily intelligence edition"
+          >
+            <RefreshCcw
+              className={cx(
+                "h-4 w-4",
+                intelligence.refreshing && "animate-spin",
+              )}
+            />{" "}
+            Reload edition
           </button>
-          <Link href="/blog" prefetch={false} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.14]">
+          <Link
+            href="/blog"
+            prefetch={false}
+            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/[0.11] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.17]"
+          >
             Open blog <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       }
-      className="border-y border-emerald-300/[0.06] bg-[#040a07]/58"
+      className="border-y border-emerald-300/[0.1] bg-[#040a07]/68"
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricTile
           icon={Newspaper}
-          label={isRecentFallback ? "Recent sourced articles" : "Today’s articles"}
-          value={(todaysArticles.length || intelligence.snapshot.items.length) || "—"}
-          helper={isRecentFallback ? "Latest stored edition shown transparently" : `Edition ${intelligence.snapshot.dateKey || "pending"}`}
+          label="Daily articles"
+          value={articles.length || "—"}
+          helper={`Up to six selected at 6:00 AM ET · Edition ${editionDate}`}
         />
-        <MetricTile icon={Globe2} label="Sources online" value={`${intelligence.sourceHealth.online}/${intelligence.sourceHealth.total || 0}`} helper={`${intelligence.sourceHealth.fetched} raw items scanned`} />
-        <MetricTile icon={BellRing} label="Priority candidates" value={intelligence.snapshot.alertCandidates.length} helper="Require advisor review before client use" />
-        <MetricTile icon={CalendarClock} label="Edition generated" value={intelligence.snapshot.generatedAt && Date.parse(intelligence.snapshot.generatedAt) > 0 ? relativeTime(intelligence.snapshot.generatedAt) : "Pending"} helper={intelligence.snapshot.refreshCadence} />
+        <MetricTile
+          icon={Globe2}
+          label="Sources online"
+          value={`${intelligence.sourceHealth.online}/${intelligence.sourceHealth.total || 0}`}
+          helper={`${intelligence.sourceHealth.fetched} raw items evaluated during publication`}
+        />
+        <MetricTile
+          icon={BellRing}
+          label="Priority candidates"
+          value={intelligence.snapshot.alertCandidates.length}
+          helper="Require advisor review before client use"
+        />
+        <MetricTile
+          icon={CalendarClock}
+          label="Edition generated"
+          value={
+            intelligence.snapshot.generatedAt &&
+            Date.parse(intelligence.snapshot.generatedAt) > 0
+              ? relativeTime(intelligence.snapshot.generatedAt)
+              : "Pending"
+          }
+          helper={intelligence.snapshot.refreshCadence}
+        />
       </div>
 
-      {isRecentFallback ? (
-        <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.045] p-4 text-xs leading-6 text-cyan-100/70">
-          No retained article in the latest scan carried today’s New York market-date stamp, so Slice is showing the most recent sourced edition instead of generating placeholder content.
+      {isPriorEdition ? (
+        <div className="mt-5 rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.09] p-4 text-xs leading-6 text-cyan-100">
+          Today&apos;s scheduled edition has not completed, so Slice is showing
+          the prior confirmed six-article edition with its original generation
+          time instead of presenting an empty or fabricated journal.
         </div>
       ) : null}
 
       {topTopics.length ? (
-        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-          <span className="mr-2 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-300"><Link2 className="h-3.5 w-3.5" /> Connected themes</span>
-          {topTopics.map((topic) => <span key={topic.topic} className="rounded-full border border-white/[0.08] bg-black/20 px-3 py-1.5 text-[9px] font-bold text-slate-400">{topic.topic} · {topic.count}</span>)}
+        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.12] bg-white/[0.055] p-4">
+          <span className="mr-2 inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100">
+            <Link2 className="h-3.5 w-3.5" /> Connected themes
+          </span>
+          {topTopics.map((topic) => (
+            <span
+              key={topic.topic}
+              className="rounded-full border border-white/[0.12] bg-black/30 px-3 py-1.5 text-[9px] font-bold text-slate-200"
+            >
+              {topic.topic} · {topic.count}
+            </span>
+          ))}
         </div>
       ) : null}
 
       {articles.length ? (
         <div className="mt-7 grid gap-5 lg:grid-cols-3">
-          {articles.map((article, index) => <ArticleCard key={article.id} article={article} featured={index === 0} />)}
+          {articles.map((article, index) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              featured={index === 0}
+            />
+          ))}
         </div>
       ) : (
-        <div className="mt-7 rounded-[2rem] border border-dashed border-white/10 bg-white/[0.025] p-10 text-center">
-          <Radar className="mx-auto h-8 w-8 text-emerald-300" />
-          <h3 className="mt-4 text-xl font-black text-white">The daily edition is waiting for its first successful scan.</h3>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-            The cron route and public feed are included in this replacement. Configure <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">CRON_SECRET</code>, the database, and <code className="rounded bg-black/30 px-1.5 py-1 text-emerald-200">ALPHA_VANTAGE_API_KEY</code>, then deploy the included Vercel schedule.
+        <div className="mt-7 rounded-[2rem] border border-dashed border-white/15 bg-white/[0.04] p-10 text-center">
+          <Radar className="mx-auto h-8 w-8 text-emerald-200" />
+          <h3 className="mt-4 text-xl font-black text-white">
+            The daily edition is waiting for its first scheduled publication.
+          </h3>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-300">
+            Configure{" "}
+            <code className="rounded bg-black/40 px-1.5 py-1 text-emerald-100">
+              CRON_SECRET
+            </code>
+            , the database, and{" "}
+            <code className="rounded bg-black/40 px-1.5 py-1 text-emerald-100">
+              ALPHA_VANTAGE_API_KEY
+            </code>
+            . The protected publisher creates one six-article edition at 6:00
+            AM Eastern Time.
           </p>
-          {intelligence.error ? <p className="mt-4 text-xs font-bold text-amber-300">{intelligence.error}</p> : null}
+          {intelligence.error ? (
+            <p className="mt-4 text-xs font-bold text-amber-200">
+              {intelligence.error}
+            </p>
+          ) : null}
         </div>
       )}
 
       <div className="mt-7 grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <div className="rounded-[1.8rem] border border-white/[0.08] bg-white/[0.035] p-6">
-          <div className="flex items-center gap-3"><FileCheck2 className="h-5 w-5 text-emerald-300" /><h3 className="text-lg font-black text-white">Why an article appears</h3></div>
+        <div className="rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] p-6">
+          <div className="flex items-center gap-3">
+            <FileCheck2 className="h-5 w-5 text-emerald-100" />
+            <h3 className="text-lg font-black text-white">
+              Why an article appears
+            </h3>
+          </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {["Source quality and availability", "Publication recency", "Ticker and watchlist relevance", "Theme and macro relationships", "Materiality and urgency", "Original source retained"].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-3 text-[10px] font-bold text-slate-400"><CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" />{item}</div>
+            {[
+              "Source quality and availability",
+              "Publication recency",
+              "Ticker and watchlist relevance",
+              "Theme and macro relationships",
+              "Materiality and urgency",
+              "Original source retained",
+            ].map((item) => (
+              <div
+                key={item}
+                className="flex items-center gap-3 rounded-xl border border-white/[0.1] bg-black/30 p-3 text-[10px] font-bold text-slate-200"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-100" />
+                {item}
+              </div>
             ))}
           </div>
         </div>
-        <div className="rounded-[1.8rem] border border-white/[0.08] bg-white/[0.035] p-6">
-          <div className="flex items-center gap-3"><Database className="h-5 w-5 text-cyan-300" /><h3 className="text-lg font-black text-white">Durable public edition</h3></div>
-          <p className="mt-4 text-sm leading-7 text-slate-500">
-            The scheduled scan writes a batch to Slice’s existing PostgreSQL database. Page visitors read the latest completed batch instead of initiating expensive provider and source requests themselves. If a new scan fails, the last confirmed edition remains available with its original generation time.
+        <div className="rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] p-6">
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-cyan-100" />
+            <h3 className="text-lg font-black text-white">
+              One durable daily edition
+            </h3>
+          </div>
+          <p className="mt-4 text-sm leading-7 text-slate-300">
+            The 6:00 AM publisher writes a completed batch to Slice&apos;s
+            PostgreSQL database. Visitors receive the same six selected
+            articles throughout the day instead of initiating expensive source
+            and provider requests. If the next publication fails, the last
+            confirmed edition remains available with its original generation
+            time.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Database backed</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Batch isolated</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">30-day retention</span>
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">Source health stored</span>
+          <div className="mt-5 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-[0.13em] text-slate-300">
+            <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5">
+              Six articles
+            </span>
+            <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5">
+              Database backed
+            </span>
+            <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5">
+              Once daily
+            </span>
+            <span className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5">
+              Source linked
+            </span>
           </div>
         </div>
       </div>
@@ -2760,6 +3711,8 @@ function DailyIntelligenceSection({ intelligence }: { intelligence: ReturnType<t
 }
 
 function AgentMeshSection() {
+  const reducedMotion = useReducedMotion();
+
   return (
     <Section
       id="agent-mesh"
@@ -2767,38 +3720,94 @@ function AgentMeshSection() {
       title="Many bounded bot paths. One evidence-linked advisor answer."
       description="Slice is designed around coordinated specialization rather than a single agent attempting every task. Each path can inspect a different part of the problem, challenge assumptions, and return its findings to the central graph before any workflow is proposed."
     >
-      <div className="relative overflow-hidden rounded-[2.25rem] border border-emerald-300/10 bg-[#030a07]/88 p-6 shadow-[0_35px_110px_rgba(0,0,0,0.33)] sm:p-8 lg:p-10">
+      <div className="relative overflow-hidden rounded-[2.25rem] border border-emerald-300/20 bg-[#030a07]/92 p-6 shadow-[0_35px_110px_rgba(0,0,0,0.33)] sm:p-8 lg:p-10">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(16,185,129,0.13),transparent_32%),linear-gradient(rgba(52,211,153,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.022)_1px,transparent_1px)] [background-size:auto,42px_42px,42px_42px]" />
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:items-center">
           <Reveal>
             <div className="relative mx-auto aspect-square w-full max-w-[440px]">
-              <div className="absolute left-1/2 top-1/2 grid h-36 w-36 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-emerald-300/25 bg-emerald-400/[0.12] shadow-[0_0_80px_rgba(16,185,129,0.2)] backdrop-blur-xl">
-                <div className="text-center"><BrainCircuit className="mx-auto h-7 w-7 text-emerald-200" /><div className="mt-2 text-sm font-black text-white">Slice Core</div><div className="mt-1 text-[8px] font-black uppercase tracking-[0.15em] text-emerald-300">Join + govern</div></div>
-                <span className="pointer-events-none absolute inset-[-10px] rounded-full border border-emerald-300/20 slice-core-pulse" />
+              <div className="absolute left-1/2 top-1/2 grid h-36 w-36 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-emerald-300/30 bg-emerald-400/[0.15] shadow-[0_0_80px_rgba(16,185,129,0.2)] backdrop-blur-xl">
+                <div className="text-center">
+                  <BrainCircuit className="mx-auto h-7 w-7 text-emerald-100" />
+                  <div className="mt-2 text-sm font-black text-white">
+                    Slice Core
+                  </div>
+                  <div className="mt-1 text-[8px] font-black uppercase tracking-[0.15em] text-emerald-200">
+                    Join + govern
+                  </div>
+                </div>
+                {!reducedMotion ? (
+                  <span className="pointer-events-none absolute inset-[-10px] rounded-full border border-emerald-300/25 slice-core-pulse" />
+                ) : null}
               </div>
-              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" aria-hidden="true">
-                <defs><linearGradient id="agent-path" x1="0" x2="1"><stop offset="0" stopColor="#22d3ee" stopOpacity="0.1" /><stop offset="0.5" stopColor="#6ee7b7" stopOpacity="0.8" /><stop offset="1" stopColor="#a78bfa" stopOpacity="0.1" /></linearGradient></defs>
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient id="agent-path" x1="0" x2="1">
+                    <stop offset="0" stopColor="#22d3ee" stopOpacity="0.1" />
+                    <stop offset="0.5" stopColor="#6ee7b7" stopOpacity="0.8" />
+                    <stop offset="1" stopColor="#a78bfa" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
                 {AGENT_ROLES.map((agent, index) => {
-                  const angle = (Math.PI * 2 * index) / AGENT_ROLES.length - Math.PI / 2;
+                  const angle =
+                    (Math.PI * 2 * index) / AGENT_ROLES.length - Math.PI / 2;
                   const x = 50 + Math.cos(angle) * 39;
                   const y = 50 + Math.sin(angle) * 39;
-                  const path = `M 50 50 Q ${50 + Math.sin(angle) * 15} ${50 - Math.cos(angle) * 15} ${x} ${y}`;
+                  const path = `M 50 50 Q ${
+                    50 + Math.sin(angle) * 15
+                  } ${50 - Math.cos(angle) * 15} ${x} ${y}`;
                   return (
                     <g key={agent.title}>
-                      <path d={path} fill="none" stroke="url(#agent-path)" strokeWidth="0.55" strokeDasharray="2 2.5" className="slice-edge-flow" />
-                      <circle r="1" fill="#a7f3d0"><animateMotion dur={`${4.2 + index * 0.28}s`} begin={`${index * -0.65}s`} repeatCount="indefinite" path={path} /></circle>
+                      <path
+                        d={path}
+                        fill="none"
+                        stroke="url(#agent-path)"
+                        strokeWidth="0.55"
+                        strokeDasharray="2 2.5"
+                        className={reducedMotion ? undefined : "slice-edge-flow"}
+                      />
+                      {!reducedMotion ? (
+                        <circle r="1" fill="#a7f3d0">
+                          <animateMotion
+                            dur={`${4.2 + index * 0.28}s`}
+                            begin={`${index * -0.65}s`}
+                            repeatCount="indefinite"
+                            path={path}
+                          />
+                        </circle>
+                      ) : null}
                     </g>
                   );
                 })}
               </svg>
               {AGENT_ROLES.map((agent, index) => {
                 const Icon = agent.icon;
-                const angle = (Math.PI * 2 * index) / AGENT_ROLES.length - Math.PI / 2;
+                const angle =
+                  (Math.PI * 2 * index) / AGENT_ROLES.length - Math.PI / 2;
                 const x = 50 + Math.cos(angle) * 39;
                 const y = 50 + Math.sin(angle) * 39;
                 return (
-                  <motion.div key={agent.title} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${x}%`, top: `${y}%` }} animate={{ y: [0, index % 2 ? -4 : 4, 0] }} transition={{ duration: 4 + index * 0.25, repeat: Infinity, ease: "easeInOut" }}>
-                    <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-[#07110d]/92 text-emerald-300 shadow-[0_14px_35px_rgba(0,0,0,0.35)] backdrop-blur-xl"><Icon className="h-5 w-5" /></div>
+                  <motion.div
+                    key={agent.title}
+                    className="absolute -translate-x-1/2 -translate-y-1/2"
+                    style={{ left: `${x}%`, top: `${y}%` }}
+                    animate={
+                      reducedMotion
+                        ? undefined
+                        : { y: [0, index % 2 ? -4 : 4, 0] }
+                    }
+                    transition={{
+                      duration: 4 + index * 0.25,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  >
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/15 bg-[#07110d]/95 text-emerald-100 shadow-[0_14px_35px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                      <Icon className="h-5 w-5" />
+                    </div>
                   </motion.div>
                 );
               })}
@@ -2810,9 +3819,18 @@ function AgentMeshSection() {
               const Icon = agent.icon;
               return (
                 <Reveal key={agent.title} delay={index * 0.035}>
-                  <div className="group flex h-full gap-4 rounded-[1.45rem] border border-white/[0.07] bg-white/[0.035] p-4 transition duration-300 hover:-translate-y-1 hover:border-emerald-300/18 hover:bg-emerald-400/[0.05]">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/20 text-emerald-300"><Icon className="h-4 w-4" /></span>
-                    <div><h3 className="text-sm font-black text-white">{agent.title}</h3><p className="mt-2 text-[11px] leading-5 text-slate-500">{agent.text}</p></div>
+                  <div className="group flex h-full gap-4 rounded-[1.45rem] border border-white/[0.12] bg-white/[0.055] p-4 transition duration-300 hover:-translate-y-1 hover:border-emerald-300/28 hover:bg-emerald-400/[0.075]">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-black/30 text-emerald-100">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-black text-white">
+                        {agent.title}
+                      </h3>
+                      <p className="mt-2 text-[11px] leading-5 text-slate-300">
+                        {agent.text}
+                      </p>
+                    </div>
                   </div>
                 </Reveal>
               );
@@ -2820,14 +3838,39 @@ function AgentMeshSection() {
           </div>
         </div>
 
-        <div className="relative mt-8 grid gap-3 border-t border-white/[0.07] pt-7 sm:grid-cols-3">
+        <div className="relative mt-8 grid gap-3 border-t border-white/[0.12] pt-7 sm:grid-cols-3">
           {[
-            { icon: Search, title: "Parallel investigation", text: "Different agents inspect different evidence and reduce single-path blind spots." },
-            { icon: GitBranch, title: "Graph reconciliation", text: "Findings are joined to shared entities, relationships, prior decisions, and policies." },
-            { icon: FileCheck2, title: "Controlled handoff", text: "The result becomes a draft, task, review, alert, scenario, or recorded decision—not an uncontrolled action." },
+            {
+              icon: Search,
+              title: "Parallel investigation",
+              text: "Different agents inspect different evidence and reduce single-path blind spots.",
+            },
+            {
+              icon: GitBranch,
+              title: "Graph reconciliation",
+              text: "Findings are joined to shared entities, relationships, prior decisions, and policies.",
+            },
+            {
+              icon: FileCheck2,
+              title: "Controlled handoff",
+              text: "The result becomes a draft, task, review, alert, scenario, or recorded decision—not an uncontrolled action.",
+            },
           ].map((item) => {
             const Icon = item.icon;
-            return <div key={item.title} className="rounded-2xl border border-white/[0.065] bg-black/20 p-5"><Icon className="h-4 w-4 text-emerald-300" /><h3 className="mt-3 text-sm font-black text-white">{item.title}</h3><p className="mt-2 text-[11px] leading-5 text-slate-500">{item.text}</p></div>;
+            return (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-white/[0.1] bg-black/30 p-5"
+              >
+                <Icon className="h-4 w-4 text-emerald-100" />
+                <h3 className="mt-3 text-sm font-black text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-2 text-[11px] leading-5 text-slate-300">
+                  {item.text}
+                </p>
+              </div>
+            );
           })}
         </div>
       </div>
@@ -2842,21 +3885,42 @@ function WorkflowSection() {
       eyebrow="Signal-to-action workflow"
       title="A clearer path from market change to controlled advisor execution."
       description="The platform is designed to reduce the distance between noticing something and completing the right work—without removing the source, relationship, permission, or human review that makes the action trustworthy."
-      className="border-y border-emerald-300/[0.06] bg-[#040a07]/58"
+      className="border-y border-emerald-300/[0.1] bg-[#040a07]/68"
     >
       <div className="relative">
-        <div className="pointer-events-none absolute left-[26px] top-10 hidden h-[calc(100%-80px)] w-px bg-gradient-to-b from-emerald-300/0 via-emerald-300/30 to-emerald-300/0 lg:block" />
+        <div className="pointer-events-none absolute left-[26px] top-10 hidden h-[calc(100%-80px)] w-px bg-gradient-to-b from-emerald-300/0 via-emerald-300/35 to-emerald-300/0 lg:block" />
         <div className="grid gap-4">
           {WORKFLOW_STEPS.map((step, index) => {
             const Icon = step.icon;
             return (
               <Reveal key={step.step} delay={index * 0.045}>
-                <div className="group grid gap-5 rounded-[1.75rem] border border-white/[0.07] bg-white/[0.035] p-5 transition duration-300 hover:border-emerald-300/18 hover:bg-emerald-400/[0.045] lg:grid-cols-[56px_250px_minmax(0,1fr)_160px] lg:items-center lg:p-6">
-                  <div className="relative z-10 grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/18 bg-[#07120d] text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.09)]"><Icon className="h-5 w-5" /></div>
-                  <div><div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">Step {step.step}</div><h3 className="mt-2 text-lg font-black text-white">{step.title}</h3></div>
-                  <p className="text-sm leading-7 text-slate-500">{step.text}</p>
-                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-600 lg:justify-end">
-                    {index < WORKFLOW_STEPS.length - 1 ? <>Routes forward <ArrowRight className="h-3.5 w-3.5 text-emerald-300" /></> : <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" /> Recorded</>}
+                <div className="group grid gap-5 rounded-[1.75rem] border border-white/[0.12] bg-white/[0.055] p-5 transition duration-300 hover:border-emerald-300/28 hover:bg-emerald-400/[0.07] lg:grid-cols-[56px_250px_minmax(0,1fr)_160px] lg:items-center lg:p-6">
+                  <div className="relative z-10 grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/28 bg-[#07120d] text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.09)]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100">
+                      Step {step.step}
+                    </div>
+                    <h3 className="mt-2 text-lg font-black text-white">
+                      {step.title}
+                    </h3>
+                  </div>
+                  <p className="text-sm leading-7 text-slate-300">
+                    {step.text}
+                  </p>
+                  <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-300 lg:justify-end">
+                    {index < WORKFLOW_STEPS.length - 1 ? (
+                      <>
+                        Routes forward{" "}
+                        <ArrowRight className="h-3.5 w-3.5 text-emerald-100" />
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-100" />{" "}
+                        Recorded
+                      </>
+                    )}
                   </div>
                 </div>
               </Reveal>
@@ -2867,12 +3931,36 @@ function WorkflowSection() {
 
       <div className="mt-7 grid gap-5 lg:grid-cols-3">
         {[
-          { icon: MessageSquareText, title: "Client communication", text: "Create editable, source-aware email and briefing drafts; compare versions; route to approval; queue only the selected output." },
-          { icon: CalendarClock, title: "Meeting readiness", text: "Combine recent messages, documents, portfolio changes, open tasks, risk context, and relevant market events into one preparation surface." },
-          { icon: FileText, title: "Document-to-workflow", text: "Extract facts and obligations from uploads, connect them to the right client or entity, and create tasks or review queues without losing the original record." },
+          {
+            icon: MessageSquareText,
+            title: "Client communication",
+            text: "Create editable, source-aware email and briefing drafts; compare versions; route to approval; queue only the selected output.",
+          },
+          {
+            icon: CalendarClock,
+            title: "Meeting readiness",
+            text: "Combine recent messages, documents, portfolio changes, open tasks, risk context, and relevant market events into one preparation surface.",
+          },
+          {
+            icon: FileText,
+            title: "Document-to-workflow",
+            text: "Extract facts and obligations from uploads, connect them to the right client or entity, and create tasks or review queues without losing the original record.",
+          },
         ].map((item) => {
           const Icon = item.icon;
-          return <Reveal key={item.title}><div className="h-full rounded-[1.75rem] border border-white/[0.08] bg-gradient-to-b from-white/[0.045] to-white/[0.025] p-6"><Icon className="h-5 w-5 text-emerald-300" /><h3 className="mt-5 text-xl font-black text-white">{item.title}</h3><p className="mt-3 text-sm leading-7 text-slate-500">{item.text}</p></div></Reveal>;
+          return (
+            <Reveal key={item.title}>
+              <div className="h-full rounded-[1.75rem] border border-white/[0.12] bg-gradient-to-b from-white/[0.065] to-white/[0.035] p-6">
+                <Icon className="h-5 w-5 text-emerald-100" />
+                <h3 className="mt-5 text-xl font-black text-white">
+                  {item.title}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  {item.text}
+                </p>
+              </div>
+            </Reveal>
+          );
         })}
       </div>
     </Section>
@@ -2881,9 +3969,30 @@ function WorkflowSection() {
 
 function AccessAndTrustSection() {
   const portals = [
-    { icon: Building2, title: "Founder command", description: "Firm-wide system visibility, team oversight, health, priorities, feature control, and leadership-level operations.", href: "/founder-login", label: "Founder login", accent: "emerald" },
-    { icon: BriefcaseBusiness, title: "Advisor workspace", description: "Clients, markets, research, portfolios, drafts, tasks, meetings, documents, alerts, and the personal advisor bot.", href: "/founder-login", label: "Advisor access", accent: "cyan" },
-    { icon: UsersRound, title: "Client portal", description: "Assigned-advisor relationship, secure messages, document intake, meeting access, risk updates, and advisor-reviewed communication.", href: "/client-login", label: "Client login", accent: "violet" },
+    {
+      icon: Building2,
+      title: "Founder command",
+      description:
+        "Firm-wide system visibility, team oversight, health, priorities, feature control, and leadership-level operations.",
+      href: "/founder-login",
+      label: "Founder login",
+    },
+    {
+      icon: BriefcaseBusiness,
+      title: "Advisor workspace",
+      description:
+        "Clients, markets, research, portfolios, drafts, tasks, meetings, documents, alerts, and the personal advisor bot.",
+      href: "/founder-login",
+      label: "Advisor access",
+    },
+    {
+      icon: UsersRound,
+      title: "Client portal",
+      description:
+        "Assigned-advisor relationship, secure messages, document intake, meeting access, risk updates, and advisor-reviewed communication.",
+      href: "/client-login",
+      label: "Client login",
+    },
   ];
   const controls = [
     "Real-time, delayed, closed, stale, and unavailable data states are visibly different.",
@@ -2906,12 +4015,28 @@ function AccessAndTrustSection() {
           const Icon = portal.icon;
           return (
             <Reveal key={portal.title} delay={index * 0.06}>
-              <div className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.04] p-7 shadow-[0_28px_80px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:border-emerald-300/20">
-                <div className="flex items-center justify-between"><span className="grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.08] text-emerald-200"><Icon className="h-6 w-6" /></span><span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-600">Role {String(index + 1).padStart(2, "0")}</span></div>
-                <h3 className="mt-7 text-2xl font-black tracking-[-0.035em] text-white">{portal.title}</h3>
-                <p className="mt-4 flex-1 text-sm leading-7 text-slate-500">{portal.description}</p>
-                <Link href={portal.href} prefetch={false} className="group/link mt-7 inline-flex items-center justify-between rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.13]">
-                  {portal.label}<ArrowRight className="h-4 w-4 transition group-hover/link:translate-x-1" />
+              <div className="group flex h-full flex-col overflow-hidden rounded-[2rem] border border-white/[0.12] bg-white/[0.055] p-7 shadow-[0_28px_80px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:border-emerald-300/30">
+                <div className="flex items-center justify-between">
+                  <span className="grid h-13 w-13 place-items-center rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-100">
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-300">
+                    Role {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h3 className="mt-7 text-2xl font-black tracking-[-0.035em] text-white">
+                  {portal.title}
+                </h3>
+                <p className="mt-4 flex-1 text-sm leading-7 text-slate-300">
+                  {portal.description}
+                </p>
+                <Link
+                  href={portal.href}
+                  prefetch={false}
+                  className="group/link mt-7 inline-flex items-center justify-between rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.1] px-4 py-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-400/[0.16]"
+                >
+                  {portal.label}
+                  <ArrowRight className="h-4 w-4 transition group-hover/link:translate-x-1" />
                 </Link>
               </div>
             </Reveal>
@@ -2919,15 +4044,40 @@ function AccessAndTrustSection() {
         })}
       </div>
 
-      <div className="mt-7 grid gap-6 overflow-hidden rounded-[2.2rem] border border-emerald-300/10 bg-gradient-to-br from-[#07130e] via-[#040a07] to-[#06100c] p-6 shadow-[0_32px_100px_rgba(0,0,0,0.3)] sm:p-8 lg:grid-cols-[0.8fr_1.2fr] lg:p-10">
+      <div className="mt-7 grid gap-6 overflow-hidden rounded-[2.2rem] border border-emerald-300/20 bg-gradient-to-br from-[#07130e] via-[#040a07] to-[#06100c] p-6 shadow-[0_32px_100px_rgba(0,0,0,0.3)] sm:p-8 lg:grid-cols-[0.8fr_1.2fr] lg:p-10">
         <Reveal>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300"><ShieldCheck className="h-3.5 w-3.5" /> Review-first posture</div>
-          <h3 className="mt-5 text-3xl font-black tracking-[-0.045em] text-white">Speed without pretending controls do not matter.</h3>
-          <p className="mt-4 text-sm leading-7 text-slate-400">The purpose of Slice is not to hide uncertainty or remove the advisor from the decision. It is to make evidence easier to find, relationships easier to understand, repetitive work easier to complete, and sensitive output easier to review.</p>
-          <Link href="/security" prefetch={false} className="mt-6 inline-flex items-center gap-2 text-xs font-black text-emerald-300 hover:text-emerald-100">Review the security posture <ArrowRight className="h-4 w-4" /></Link>
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/[0.1] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100">
+            <ShieldCheck className="h-3.5 w-3.5" /> Review-first posture
+          </div>
+          <h3 className="mt-5 text-3xl font-black tracking-[-0.045em] text-white">
+            Speed without pretending controls do not matter.
+          </h3>
+          <p className="mt-4 text-sm leading-7 text-slate-300">
+            The purpose of Slice is not to hide uncertainty or remove the
+            advisor from the decision. It is to make evidence easier to find,
+            relationships easier to understand, repetitive work easier to
+            complete, and sensitive output easier to review.
+          </p>
+          <Link
+            href="/security"
+            prefetch={false}
+            className="mt-6 inline-flex items-center gap-2 text-xs font-black text-emerald-100 hover:text-white"
+          >
+            Review the security posture <ArrowRight className="h-4 w-4" />
+          </Link>
         </Reveal>
         <div className="grid gap-3 sm:grid-cols-2">
-          {controls.map((control) => <div key={control} className="flex gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-4"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" /><p className="text-[11px] leading-6 text-slate-400">{control}</p></div>)}
+          {controls.map((control) => (
+            <div
+              key={control}
+              className="flex gap-3 rounded-2xl border border-white/[0.12] bg-black/30 p-4"
+            >
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-100" />
+              <p className="text-[11px] leading-6 text-slate-300">
+                {control}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </Section>
@@ -2943,21 +4093,48 @@ function FAQSection() {
       eyebrow="Platform questions"
       title="The important answers, stated directly."
       description="These points clarify what the homepage is showing, what depends on deployment configuration, and where the advisor remains in control."
-      className="border-y border-emerald-300/[0.06] bg-[#040a07]/58"
+      className="border-y border-emerald-300/[0.1] bg-[#040a07]/68"
     >
       <div className="mx-auto max-w-5xl space-y-3">
         {FAQS.map((item, index) => {
           const active = index === open;
           return (
-            <div key={item.question} className={cx("overflow-hidden rounded-[1.5rem] border transition", active ? "border-emerald-300/18 bg-emerald-400/[0.055]" : "border-white/[0.07] bg-white/[0.03]")}>
-              <button type="button" onClick={() => setOpen(active ? -1 : index)} className="flex w-full items-center justify-between gap-5 p-5 text-left sm:p-6" aria-expanded={active}>
-                <span className="text-sm font-black text-white sm:text-base">{item.question}</span>
-                <ChevronDown className={cx("h-4 w-4 shrink-0 text-emerald-300 transition-transform", active && "rotate-180")} />
+            <div
+              key={item.question}
+              className={cx(
+                "overflow-hidden rounded-[1.5rem] border transition",
+                active
+                  ? "border-emerald-300/30 bg-emerald-400/[0.1]"
+                  : "border-white/[0.12] bg-white/[0.055]",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(active ? -1 : index)}
+                className="flex w-full items-center justify-between gap-5 p-5 text-left sm:p-6"
+                aria-expanded={active}
+              >
+                <span className="text-sm font-black text-white sm:text-base">
+                  {item.question}
+                </span>
+                <ChevronDown
+                  className={cx(
+                    "h-4 w-4 shrink-0 text-emerald-100 transition-transform",
+                    active && "rotate-180",
+                  )}
+                />
               </button>
               <AnimatePresence initial={false}>
                 {active ? (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}>
-                    <p className="border-t border-white/[0.06] px-5 py-5 text-sm leading-7 text-slate-400 sm:px-6">{item.answer}</p>
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <p className="border-t border-white/[0.1] px-5 py-5 text-sm leading-7 text-slate-300 sm:px-6">
+                      {item.answer}
+                    </p>
                   </motion.div>
                 ) : null}
               </AnimatePresence>
@@ -2973,18 +4150,39 @@ function FinalCallToAction() {
   return (
     <section className="relative z-10 px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
       <Reveal className="mx-auto max-w-[1500px]">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-emerald-300/20 bg-gradient-to-br from-emerald-500/20 via-emerald-900/35 to-[#020604] px-6 py-12 shadow-[0_40px_130px_rgba(5,150,105,0.18)] sm:px-10 sm:py-16 lg:px-14">
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-emerald-300/30 bg-gradient-to-br from-emerald-500/25 via-emerald-900/40 to-[#020604] px-6 py-12 shadow-[0_40px_130px_rgba(5,150,105,0.18)] sm:px-10 sm:py-16 lg:px-14">
           <div className="slice-route-sweep absolute inset-0 opacity-65" />
           <div className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="relative grid gap-9 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-black/20 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200"><Sparkles className="h-3.5 w-3.5" /> Slice founder command</div>
-              <h2 className="mt-5 max-w-5xl text-balance text-4xl font-black tracking-[-0.055em] text-white sm:text-5xl lg:text-6xl">See the entire platform as one connected system.</h2>
-              <p className="mt-5 max-w-3xl text-sm leading-8 text-emerald-50/70 sm:text-base">Enter the founder portal to oversee the workspace, intelligence engines, advisor and client experiences, system health, operations, automation, and firm-wide controls.</p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200/30 bg-black/30 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-100">
+                <Sparkles className="h-3.5 w-3.5" /> Slice founder command
+              </div>
+              <h2 className="mt-5 max-w-5xl text-balance text-4xl font-black tracking-[-0.055em] text-white sm:text-5xl lg:text-6xl">
+                See the entire platform as one connected system.
+              </h2>
+              <p className="mt-5 max-w-3xl text-sm leading-8 text-emerald-50/90 sm:text-base">
+                Enter the founder portal to oversee the workspace, intelligence
+                engines, advisor and client experiences, system health,
+                operations, automation, and firm-wide controls.
+              </p>
             </div>
             <div className="flex min-w-[250px] flex-col gap-3">
-              <Link href="/founder-login" prefetch={false} className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 shadow-xl transition hover:-translate-y-1 hover:bg-emerald-50">Founder login <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></Link>
-              <Link href="/blog" prefetch={false} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-black/20 px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.08]">Today&apos;s intelligence <Newspaper className="h-4 w-4" /></Link>
+              <Link
+                href="/founder-login"
+                prefetch={false}
+                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 shadow-xl transition hover:-translate-y-1 hover:bg-emerald-50"
+              >
+                Founder login{" "}
+                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+              </Link>
+              <Link
+                href="/blog"
+                prefetch={false}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-black/30 px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.1]"
+              >
+                Today&apos;s six articles <Newspaper className="h-4 w-4" />
+              </Link>
             </div>
           </div>
         </div>
@@ -2995,19 +4193,42 @@ function FinalCallToAction() {
 
 function Footer() {
   return (
-    <footer className="relative z-10 border-t border-emerald-300/[0.08] bg-[#010403]/84 py-10 backdrop-blur-xl">
+    <footer className="relative z-10 border-t border-emerald-300/[0.12] bg-[#010403]/90 py-10 backdrop-blur-xl">
       <div className="mx-auto grid max-w-[1500px] gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-8">
-        <Link href="/" prefetch={false} className="justify-self-start"><OriginalBrandMark /></Link>
-        <nav className="flex flex-wrap justify-start gap-x-5 gap-y-3 text-[10px] font-black uppercase tracking-[0.13em] text-slate-500 lg:justify-center">
-          <a href="#what-is-slice" className="hover:text-emerald-300">Platform</a>
-          <a href="#live-markets" className="hover:text-emerald-300">Markets</a>
-          <a href="#knowledge-graph" className="hover:text-emerald-300">Graph</a>
-          <Link href="/blog" prefetch={false} className="hover:text-emerald-300">Blog</Link>
-          <Link href="/security" prefetch={false} className="hover:text-emerald-300">Security</Link>
-          <Link href="/founder-login" prefetch={false} className="hover:text-emerald-300">Founder login</Link>
+        <Link href="/" prefetch={false} className="justify-self-start">
+          <OriginalBrandMark />
+        </Link>
+        <nav className="flex flex-wrap justify-start gap-x-5 gap-y-3 text-[10px] font-black uppercase tracking-[0.13em] text-slate-300 lg:justify-center">
+          <a href="#what-is-slice" className="hover:text-emerald-100">
+            Platform
+          </a>
+          <a href="#live-markets" className="hover:text-emerald-100">
+            Markets
+          </a>
+          <a href="#knowledge-graph" className="hover:text-emerald-100">
+            Graph
+          </a>
+          <Link href="/blog" prefetch={false} className="hover:text-emerald-100">
+            Blog
+          </Link>
+          <Link
+            href="/security"
+            prefetch={false}
+            className="hover:text-emerald-100"
+          >
+            Security
+          </Link>
+          <Link
+            href="/founder-login"
+            prefetch={false}
+            className="hover:text-emerald-100"
+          >
+            Founder login
+          </Link>
         </nav>
-        <p className="max-w-md text-[9px] font-bold uppercase leading-5 tracking-[0.11em] text-slate-700 lg:justify-self-end lg:text-right">
-          Market intelligence and advisor workflow support. Provider state and source evidence should be reviewed before client-specific use.
+        <p className="max-w-md text-[9px] font-bold uppercase leading-5 tracking-[0.11em] text-slate-400 lg:justify-self-end lg:text-right">
+          Market intelligence and advisor workflow support. Provider state and
+          source evidence should be reviewed before client-specific use.
         </p>
       </div>
     </footer>
@@ -3023,60 +4244,158 @@ function HomepageStyles() {
 
       body {
         background:
-          radial-gradient(circle at 15% 0%, rgba(16, 185, 129, 0.11), transparent 30%),
-          radial-gradient(circle at 88% 10%, rgba(34, 211, 238, 0.055), transparent 27%),
+          radial-gradient(
+            circle at 15% 0%,
+            rgba(16, 185, 129, 0.11),
+            transparent 30%
+          ),
+          radial-gradient(
+            circle at 88% 10%,
+            rgba(34, 211, 238, 0.055),
+            transparent 27%
+          ),
           linear-gradient(180deg, #010403 0%, #020705 38%, #010403 100%);
       }
 
+      [data-slice-homepage="true"] {
+        color-scheme: dark;
+        --slice-heading: #ffffff;
+        --slice-text: #eefbf5;
+        --slice-muted: #c4d2cb;
+        --slice-subtle: #9eafa6;
+        --slice-border: rgba(255, 255, 255, 0.14);
+        --slice-border-strong: rgba(52, 211, 153, 0.32);
+        --slice-green-text: #a7f3d0;
+        --slice-cyan-text: #a5f3fc;
+        --slice-amber-text: #fde68a;
+        --slice-rose-text: #fecdd3;
+        --slice-violet-text: #ddd6fe;
+      }
+
+      [data-slice-homepage="true"] .text-slate-700 {
+        color: #81958b !important;
+      }
+
+      [data-slice-homepage="true"] .text-slate-600 {
+        color: #93a69c !important;
+      }
+
+      [data-slice-homepage="true"] .text-slate-500 {
+        color: #a9b8b0 !important;
+      }
+
+      [data-slice-homepage="true"] .text-slate-400 {
+        color: #c7d3cd !important;
+      }
+
+      [data-slice-homepage="true"] .text-slate-300 {
+        color: #e0e9e4 !important;
+      }
+
+      [data-slice-homepage="true"] [class*="border-white/"] {
+        border-color: rgba(255, 255, 255, 0.14) !important;
+      }
+
       @keyframes slice-marquee {
-        from { transform: translate3d(0, 0, 0); }
-        to { transform: translate3d(-50%, 0, 0); }
+        from {
+          transform: translate3d(0, 0, 0);
+        }
+        to {
+          transform: translate3d(-50%, 0, 0);
+        }
       }
 
       @keyframes slice-edge-flow {
-        from { stroke-dashoffset: 0; }
-        to { stroke-dashoffset: -38; }
+        from {
+          stroke-dashoffset: 0;
+        }
+        to {
+          stroke-dashoffset: -38;
+        }
       }
 
       @keyframes slice-grid-drift {
-        0%, 100% { transform: translate3d(-1.2%, -0.8%, 0) scale(1.03); }
-        50% { transform: translate3d(1.2%, 0.8%, 0) scale(1.05); }
+        0%,
+        100% {
+          transform: translate3d(-1.2%, -0.8%, 0) scale(1.03);
+        }
+        50% {
+          transform: translate3d(1.2%, 0.8%, 0) scale(1.05);
+        }
       }
 
       @keyframes slice-particle-float {
-        0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.18; }
-        40% { opacity: 0.75; }
-        50% { transform: translate3d(8px, -24px, 0); opacity: 0.6; }
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0);
+          opacity: 0.18;
+        }
+        40% {
+          opacity: 0.75;
+        }
+        50% {
+          transform: translate3d(8px, -24px, 0);
+          opacity: 0.6;
+        }
       }
 
       @keyframes slice-orbit {
-        to { transform: translate(-50%, -50%) rotate(360deg); }
+        to {
+          transform: translate(-50%, -50%) rotate(360deg);
+        }
       }
 
       @keyframes slice-orbit-reverse {
-        to { transform: translate(-50%, -50%) rotate(-360deg); }
+        to {
+          transform: translate(-50%, -50%) rotate(-360deg);
+        }
       }
 
       @keyframes slice-core-pulse {
-        0%, 100% { transform: scale(0.98); opacity: 0.25; }
-        50% { transform: scale(1.08); opacity: 0.7; }
+        0%,
+        100% {
+          transform: scale(0.98);
+          opacity: 0.25;
+        }
+        50% {
+          transform: scale(1.08);
+          opacity: 0.7;
+        }
       }
 
       @keyframes slice-price-up {
-        0% { box-shadow: 0 0 0 rgba(52, 211, 153, 0); }
-        35% { box-shadow: 0 0 45px rgba(52, 211, 153, 0.28); background-color: rgba(16, 185, 129, 0.13); }
-        100% { box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2); }
+        0% {
+          box-shadow: 0 0 0 rgba(52, 211, 153, 0);
+        }
+        35% {
+          box-shadow: 0 0 45px rgba(52, 211, 153, 0.28);
+          background-color: rgba(16, 185, 129, 0.13);
+        }
+        100% {
+          box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
+        }
       }
 
       @keyframes slice-price-down {
-        0% { box-shadow: 0 0 0 rgba(251, 113, 133, 0); }
-        35% { box-shadow: 0 0 45px rgba(251, 113, 133, 0.24); background-color: rgba(244, 63, 94, 0.11); }
-        100% { box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2); }
+        0% {
+          box-shadow: 0 0 0 rgba(251, 113, 133, 0);
+        }
+        35% {
+          box-shadow: 0 0 45px rgba(251, 113, 133, 0.24);
+          background-color: rgba(244, 63, 94, 0.11);
+        }
+        100% {
+          box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
+        }
       }
 
       @keyframes slice-route-sweep {
-        from { background-position: 0 0, 0 0; }
-        to { background-position: 110px 70px, -90px 40px; }
+        from {
+          background-position: 0 0, 0 0;
+        }
+        to {
+          background-position: 110px 70px, -90px 40px;
+        }
       }
 
       .slice-marquee {
@@ -3117,8 +4436,17 @@ function HomepageStyles() {
 
       .slice-route-sweep {
         background-image:
-          radial-gradient(circle, rgba(167, 243, 208, 0.23) 1px, transparent 1.5px),
-          linear-gradient(115deg, transparent 0%, rgba(52, 211, 153, 0.08) 48%, transparent 58%);
+          radial-gradient(
+            circle,
+            rgba(167, 243, 208, 0.23) 1px,
+            transparent 1.5px
+          ),
+          linear-gradient(
+            115deg,
+            transparent 0%,
+            rgba(52, 211, 153, 0.08) 48%,
+            transparent 58%
+          );
         background-size: 28px 28px, 220px 100%;
         animation: slice-route-sweep 16s linear infinite;
       }
@@ -3146,7 +4474,12 @@ export default function HomePage() {
   const intelligence = usePublicIntelligence();
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white">
+    <main
+      data-slice-color-lock="true"
+      data-slice-tone="dark"
+      data-slice-homepage="true"
+      className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white"
+    >
       <HomepageStyles />
       <AmbientField />
       <Header />
