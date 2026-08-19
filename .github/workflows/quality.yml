@@ -115,6 +115,7 @@ jobs:
         run: npm run build
 
       - name: Run production smoke test
+        timeout-minutes: 3
         run: npm run test:smoke
 
       - name: Create and verify PostgreSQL backup
@@ -129,7 +130,7 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -p 5432 -U postgres slice_restore_ci
           npm run restore:database -- --file=.artifacts/slice-ci.dump --confirm=RESTORE
-          psql "$DATABASE_RESTORE_URL" -v ON_ERROR_STOP=1 -c 'SELECT COUNT(*) FROM "_prisma_migrations";'
+          psql -X -w -h 127.0.0.1 -p 5432 -U postgres -d slice_restore_ci -v ON_ERROR_STOP=1 -c 'SELECT COUNT(*) FROM "_prisma_migrations";'
 
       - name: Upload backup rehearsal metadata
         if: always()
