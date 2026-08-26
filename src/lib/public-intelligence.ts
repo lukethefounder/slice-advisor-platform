@@ -2,30 +2,38 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import { prisma } from "@/lib/prisma";
 import {
   DEMO_SLICE_PROFILE,
   scanPermittedSources,
   type ScanResult,
   type ScoredNewsItem,
 } from "@/lib/intelligence";
+import {
+  DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+  DEFAULT_PUBLIC_EDITION_MAX_AGE_MS,
+  freshenPublicSnapshot,
+  freshnessRejectionMessage,
+} from "@/lib/intelligence/freshness";
+import { prisma } from "@/lib/prisma";
 import type {
   PublicArticle,
   PublicIntelligenceSnapshot,
   PublicSourceStatus,
-  PublicTopicCount,
   PublicUrgency,
 } from "@/lib/public-intelligence-types";
 
-const ALPHA_VANTAGE_ENDPOINT = "https://www.alphavantage.co/query";
-const SNAPSHOT_TITLE = "__SLICE_PUBLIC_INTELLIGENCE_SNAPSHOT_V2__";
+const ALPHA_VANTAGE_ENDPOINT =
+  "https://www.alphavantage.co/query";
+const SNAPSHOT_TITLE =
+  "__SLICE_PUBLIC_INTELLIGENCE_SNAPSHOT_V2__";
 const CHECKPOINT_ID = "slice-public-intelligence-v2";
 const RETENTION_MS = 30 * 24 * 60 * 60_000;
-const DEFAULT_MAX_AGE_MS = 24 * 60 * 60_000;
+const DEFAULT_MAX_AGE_MS =
+  DEFAULT_PUBLIC_EDITION_MAX_AGE_MS;
 const DEFAULT_ALPHA_NEWS_LIMIT = 200;
 const MARKET_TIME_ZONE = "America/New_York" as const;
 const DAILY_REFRESH_CADENCE =
-  "Published daily at 6:00 AM Eastern Time; the prior completed edition remains available if a scheduled scan fails";
+  "Published daily at 6:00 AM Eastern Time with a six-hour recovery check; only source articles published within the last seven days are eligible";
 
 type AlphaNewsTicker = {
   ticker?: unknown;
@@ -88,6 +96,16 @@ type StoredSnapshotEnvelope = {
   snapshot: PublicIntelligenceSnapshot;
 };
 
+type PublicIntelligenceTransaction = {
+  newsDecision: {
+    create(input: unknown): Promise<unknown>;
+    deleteMany(input: unknown): Promise<unknown>;
+  };
+  sourceCheckpoint: {
+    upsert(input: unknown): Promise<unknown>;
+  };
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var __slicePublicIntelligenceSnapshot:
@@ -102,61 +120,87 @@ declare global {
     | undefined;
 }
 
-function clamp(value: number, minimum: number, maximum: number) {
+function clamp(
+  value: number,
+  minimum: number,
+  maximum: number,
+) {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
 function toNumber(value: unknown, fallback = 0) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
 
-  const parsed = Number(String(value ?? "").replace(/[,%]/g, "").trim());
+  const parsed = Number(
+    String(value ?? "")
+      .replace(/[,%]/g, "")
+      .trim(),
+  );
+
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function cleanString(value: unknown, maxLength = 4_000) {
+function cleanString(
+  value: unknown,
+  maximumLength = 4_000,
+) {
   return typeof value === "string"
-    ? value.replace(/\s+/g, " ").trim().slice(0, maxLength)
+    ? value
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, maximumLength)
     : "";
 }
 
-function unique(values: Array<string | null | undefined>, limit = 24) {
+function unique(
+  values: Array<string | null | undefined>,
+  limit = 30,
+) {
   return Array.from(
-    new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean)),
+    new Set(
+      values
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean),
+    ),
   ).slice(0, limit);
 }
 
 function stableHash(value: string) {
-  let hash = 2166136261;
+  let hash = 2_166_136_261;
 
-  for (let index = 0; index < value.length; index += 1) {
+  for (
+    let index = 0;
+    index < value.length;
+    index += 1
+  ) {
     hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+    hash = Math.imul(hash, 16_777_619);
   }
 
   return Math.abs(hash >>> 0).toString(36);
 }
 
-function normalizeForDedupe(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/^https?:\/\/(www\.)?/, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .slice(0, 240);
-}
-
 function parseAlphaTimestamp(value: unknown) {
-  const raw = cleanString(value, 32);
+  const raw = cleanString(value, 40);
   const match = raw.match(
     /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/,
   );
 
   if (!match) {
     const parsed = Date.parse(raw);
-    return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+    return Number.isFinite(parsed)
+      ? new Date(parsed).toISOString()
+      : undefined;
   }
 
-  const [, year, month, day, hour, minute, second] = match;
+  const [, year, month, day, hour, minute, second] =
+    match;
+
   return new Date(
     Date.UTC(
       Number(year),
@@ -176,19 +220,27 @@ function dateKey(date = new Date()) {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(date);
-  const get = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ??
+    "";
 
-  return `${get("year")}-${get("month")}-${get("day")}`;
+  return `${read("year")}-${read("month")}-${read(
+    "day",
+  )}`;
 }
 
-function alphaTimeFrom(hoursBack = 36) {
-  const date = new Date(Date.now() - hoursBack * 60 * 60_000);
-  const pad = (value: number) => String(value).padStart(2, "0");
+function alphaTimeFrom(
+  millisecondsBack = DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+) {
+  const date = new Date(Date.now() - millisecondsBack);
+  const pad = (value: number) =>
+    String(value).padStart(2, "0");
 
-  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(
-    date.getUTCDate(),
-  )}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}`;
+  return `${date.getUTCFullYear()}${pad(
+    date.getUTCMonth() + 1,
+  )}${pad(date.getUTCDate())}T${pad(
+    date.getUTCHours(),
+  )}${pad(date.getUTCMinutes())}`;
 }
 
 function normalizeUrl(value: unknown) {
@@ -198,7 +250,9 @@ function normalizeUrl(value: unknown) {
 
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" || url.protocol === "http:"
+
+    return url.protocol === "https:" ||
+      url.protocol === "http:"
       ? url.toString()
       : "";
   } catch {
@@ -207,14 +261,25 @@ function normalizeUrl(value: unknown) {
 }
 
 function ageHours(value?: string) {
-  if (!value) return 48;
+  if (!value) return 168;
+
   const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return 48;
-  return Math.max(0, (Date.now() - parsed) / 3_600_000);
+
+  if (!Number.isFinite(parsed)) return 168;
+
+  return Math.max(
+    0,
+    (Date.now() - parsed) / 3_600_000,
+  );
 }
 
-function urgencyForScore(score: number, tickerRelevance: number): PublicUrgency {
-  if (score >= 94 && tickerRelevance >= 0.7) return "Critical";
+function urgencyForScore(
+  score: number,
+  tickerRelevance: number,
+): PublicUrgency {
+  if (score >= 94 && tickerRelevance >= 0.7) {
+    return "Critical";
+  }
   if (score >= 82) return "High";
   if (score >= 64) return "Medium";
   return "Low";
@@ -229,15 +294,32 @@ function scoreAlphaArticle(input: {
   themeCount: number;
 }) {
   const hours = ageHours(input.publishedAt);
-  const freshness = clamp(100 - hours * 2.4, 0, 100);
+  const freshness = clamp(
+    100 - hours * 0.55,
+    0,
+    100,
+  );
   const sentimentMagnitude = clamp(
     Math.abs(input.overallSentiment) * 100,
     0,
     100,
   );
-  const relevance = clamp(input.tickerRelevance * 100, 0, 100);
-  const topic = clamp(input.topicRelevance * 100, 0, 100);
-  const breadth = clamp(input.tickerCount * 4 + input.themeCount * 3, 0, 18);
+  const relevance = clamp(
+    input.tickerRelevance * 100,
+    0,
+    100,
+  );
+  const topic = clamp(
+    input.topicRelevance * 100,
+    0,
+    100,
+  );
+  const breadth = clamp(
+    input.tickerCount * 4 +
+      input.themeCount * 3,
+    0,
+    18,
+  );
 
   return clamp(
     Math.round(
@@ -253,7 +335,9 @@ function scoreAlphaArticle(input: {
   );
 }
 
-function alphaProviderError(payload: AlphaNewsPayload) {
+function alphaProviderError(
+  payload: AlphaNewsPayload,
+) {
   return (
     cleanString(payload["Error Message"], 1_000) ||
     cleanString(payload.Information, 1_000) ||
@@ -263,7 +347,10 @@ function alphaProviderError(payload: AlphaNewsPayload) {
 }
 
 function alphaNewsLimit() {
-  const configured = Number(process.env.ALPHA_VANTAGE_PUBLIC_NEWS_LIMIT);
+  const configured = Number(
+    process.env.ALPHA_VANTAGE_PUBLIC_NEWS_LIMIT,
+  );
+
   return Number.isFinite(configured)
     ? clamp(Math.round(configured), 50, 1_000)
     : DEFAULT_ALPHA_NEWS_LIMIT;
@@ -279,10 +366,19 @@ function parseAlphaArticle(
   if (!title || !link) return null;
 
   const summary = cleanString(item.summary, 5_000);
-  const publishedAt = parseAlphaTimestamp(item.time_published);
-  const sourceName = cleanString(item.source, 240) || "Alpha Vantage News";
-  const sourceDomain = cleanString(item.source_domain, 300);
-  const tickerEntries = Array.isArray(item.ticker_sentiment)
+  const publishedAt = parseAlphaTimestamp(
+    item.time_published,
+  );
+  const sourceName =
+    cleanString(item.source, 240) ||
+    "Alpha Vantage News";
+  const sourceDomain = cleanString(
+    item.source_domain,
+    300,
+  );
+  const tickerEntries = Array.isArray(
+    item.ticker_sentiment,
+  )
     ? (item.ticker_sentiment as AlphaNewsTicker[])
     : [];
   const topicEntries = Array.isArray(item.topics)
@@ -290,26 +386,49 @@ function parseAlphaArticle(
     : [];
   const matchedTickers = unique(
     tickerEntries
-      .filter((entry) => toNumber(entry.relevance_score) >= 0.12)
-      .map((entry) => cleanString(entry.ticker, 40).toUpperCase()),
+      .filter(
+        (entry) =>
+          toNumber(entry.relevance_score) >= 0.12,
+      )
+      .map((entry) =>
+        cleanString(entry.ticker, 40).toUpperCase(),
+      ),
     12,
   );
   const matchedThemes = unique(
     topicEntries
-      .filter((entry) => toNumber(entry.relevance_score) >= 0.08)
-      .map((entry) => cleanString(entry.topic, 160)),
+      .filter(
+        (entry) =>
+          toNumber(entry.relevance_score) >= 0.08,
+      )
+      .map((entry) =>
+        cleanString(entry.topic, 160),
+      ),
     12,
   );
   const tickerRelevance = tickerEntries.reduce(
-    (maximum, entry) => Math.max(maximum, toNumber(entry.relevance_score)),
+    (maximum, entry) =>
+      Math.max(
+        maximum,
+        toNumber(entry.relevance_score),
+      ),
     0,
   );
   const topicRelevance = topicEntries.reduce(
-    (maximum, entry) => Math.max(maximum, toNumber(entry.relevance_score)),
+    (maximum, entry) =>
+      Math.max(
+        maximum,
+        toNumber(entry.relevance_score),
+      ),
     0,
   );
-  const overallSentiment = toNumber(item.overall_sentiment_score);
-  const sentimentLabel = cleanString(item.overall_sentiment_label, 120);
+  const overallSentiment = toNumber(
+    item.overall_sentiment_score,
+  );
+  const sentimentLabel = cleanString(
+    item.overall_sentiment_label,
+    120,
+  );
   const score = scoreAlphaArticle({
     publishedAt,
     overallSentiment,
@@ -318,36 +437,55 @@ function parseAlphaArticle(
     tickerCount: matchedTickers.length,
     themeCount: matchedThemes.length,
   });
-  const urgency = urgencyForScore(score, tickerRelevance);
+  const urgency = urgencyForScore(
+    score,
+    tickerRelevance,
+  );
   const shouldAlert =
     urgency === "Critical" ||
-    (urgency === "High" && tickerRelevance >= 0.35);
+    (urgency === "High" &&
+      tickerRelevance >= 0.35);
   const hours = ageHours(publishedAt);
   const reasons = unique([
     publishedAt
       ? `Published ${
-          hours < 1 ? "within the last hour" : `${Math.round(hours)} hours ago`
+          hours < 1
+            ? "within the last hour"
+            : `${Math.round(hours)} hours ago`
         }.`
       : "Publication time was not supplied by the provider.",
     tickerRelevance > 0
-      ? `Highest ticker relevance: ${Math.round(tickerRelevance * 100)}%.`
+      ? `Highest ticker relevance: ${Math.round(
+          tickerRelevance * 100,
+        )}%.`
       : "Broad-market article without a dominant ticker match.",
     topicRelevance > 0
-      ? `Highest topic relevance: ${Math.round(topicRelevance * 100)}%.`
+      ? `Highest topic relevance: ${Math.round(
+          topicRelevance * 100,
+        )}%.`
       : "Provider topic relevance was not available.",
     sentimentLabel
       ? `Provider sentiment: ${sentimentLabel}.`
       : "Sentiment label unavailable.",
     matchedThemes.length
-      ? `Themes: ${matchedThemes.slice(0, 4).join(", ")}.`
+      ? `Themes: ${matchedThemes
+          .slice(0, 4)
+          .join(", ")}.`
       : null,
   ]);
   const authors = Array.isArray(item.authors)
-    ? unique(item.authors.map((author) => cleanString(author, 200)), 10)
+    ? unique(
+        item.authors.map((author) =>
+          cleanString(author, 200),
+        ),
+        10,
+      )
     : [];
 
   return {
-    id: `alpha-${stableHash(`${link}:${title}:${index}`)}`,
+    id: `alpha-${stableHash(
+      `${link}:${title}:${index}`,
+    )}`,
     sourceName,
     sourceDomain,
     sourceKind: "alpha-vantage-news",
@@ -364,7 +502,9 @@ function parseAlphaArticle(
     matchedThemes,
     reasons,
     shouldAlert,
-    channels: shouldAlert ? ["Dashboard", "Digest"] : ["Digest"],
+    channels: shouldAlert
+      ? ["Dashboard", "Digest"]
+      : ["Digest"],
     complianceLabel:
       "Sourced market intelligence. Verify the original article before client-specific use.",
     alertCopy: `${urgency}: ${title}`,
@@ -378,7 +518,10 @@ function parseAlphaArticle(
 
 async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
   const checkedAt = new Date().toISOString();
-  const apiKey = cleanString(process.env.ALPHA_VANTAGE_API_KEY, 500);
+  const apiKey = cleanString(
+    process.env.ALPHA_VANTAGE_API_KEY,
+    500,
+  );
 
   if (!apiKey) {
     return {
@@ -390,23 +533,33 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
         fetched: 0,
         provider: "Alpha Vantage",
         paid: true,
-        error: "ALPHA_VANTAGE_API_KEY is not configured.",
+        error:
+          "ALPHA_VANTAGE_API_KEY is not configured.",
         checkedAt,
       },
       warning:
-        "Alpha Vantage news was skipped because the API key is not configured.",
+        "Alpha Vantage news was skipped because its server-side API key is not configured.",
     };
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 18_000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    15_000,
+  );
 
   try {
     const url = new URL(ALPHA_VANTAGE_ENDPOINT);
     url.searchParams.set("function", "NEWS_SENTIMENT");
     url.searchParams.set("sort", "LATEST");
-    url.searchParams.set("limit", String(alphaNewsLimit()));
-    url.searchParams.set("time_from", alphaTimeFrom(36));
+    url.searchParams.set(
+      "limit",
+      String(alphaNewsLimit()),
+    );
+    url.searchParams.set(
+      "time_from",
+      alphaTimeFrom(),
+    );
     url.searchParams.set("apikey", apiKey);
 
     const response = await fetch(url, {
@@ -414,7 +567,8 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
-        "User-Agent": "SlicePublicIntelligence/2.0",
+        "User-Agent":
+          "SlicePublicIntelligence/3.0",
       },
     });
 
@@ -424,17 +578,24 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
       );
     }
 
-    const payload = (await response.json()) as AlphaNewsPayload;
-    const providerError = alphaProviderError(payload);
+    const payload =
+      (await response.json()) as AlphaNewsPayload;
+    const providerError =
+      alphaProviderError(payload);
 
-    if (providerError) throw new Error(providerError);
+    if (providerError) {
+      throw new Error(providerError);
+    }
 
     const feed = Array.isArray(payload.feed)
       ? (payload.feed as AlphaNewsFeedItem[])
       : [];
     const articles = feed
       .map(parseAlphaArticle)
-      .filter((article): article is PublicArticle => Boolean(article));
+      .filter(
+        (article): article is PublicArticle =>
+          Boolean(article),
+      );
 
     return {
       articles,
@@ -473,7 +634,9 @@ async function fetchAlphaVantageNews(): Promise<AlphaNewsResult> {
   }
 }
 
-function mapOfficialArticle(item: ScoredNewsItem): PublicArticle {
+function mapOfficialArticle(
+  item: ScoredNewsItem,
+): PublicArticle {
   return {
     id: `official-${item.id}`,
     sourceName: item.sourceName,
@@ -517,68 +680,29 @@ function sourceStatuses(
   }));
 }
 
-function dedupeArticles(articles: PublicArticle[]) {
-  const seen = new Set<string>();
-  const result: PublicArticle[] = [];
-
-  for (const article of articles) {
-    const key = normalizeForDedupe(article.link || article.title);
-    const titleKey = normalizeForDedupe(article.title);
-
-    if (!key || seen.has(key) || seen.has(titleKey)) continue;
-
-    seen.add(key);
-    seen.add(titleKey);
-    result.push(article);
-  }
-
-  return result;
-}
-
-function topicCounts(articles: PublicArticle[]): PublicTopicCount[] {
-  const counts = new Map<string, number>();
-
-  for (const article of articles) {
-    for (const topic of article.matchedThemes) {
-      const normalized = topic.trim();
-      if (!normalized) continue;
-      counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
-    }
-  }
-
-  return [...counts.entries()]
-    .map(([topic, count]) => ({ topic, count }))
-    .sort(
-      (left, right) =>
-        right.count - left.count || left.topic.localeCompare(right.topic),
-    )
-    .slice(0, 18);
-}
-
-function sortArticles(articles: PublicArticle[]) {
-  return [...articles].sort((left, right) => {
-    if (right.score !== left.score) return right.score - left.score;
-    return (
-      Date.parse(right.publishedAt ?? "") -
-      Date.parse(left.publishedAt ?? "")
-    );
-  });
-}
-
-function snapshotAge(snapshot: PublicIntelligenceSnapshot) {
+function snapshotAge(
+  snapshot: PublicIntelligenceSnapshot,
+) {
   const parsed = Date.parse(snapshot.generatedAt);
+
   return Number.isFinite(parsed)
     ? Date.now() - parsed
     : Number.POSITIVE_INFINITY;
 }
 
-function normalizeSnapshot(value: unknown): PublicIntelligenceSnapshot | null {
-  if (!value || typeof value !== "object") return null;
+function normalizeSnapshot(
+  value: unknown,
+): PublicIntelligenceSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
 
-  const candidate = value as Partial<PublicIntelligenceSnapshot>;
+  const candidate =
+    value as Partial<PublicIntelligenceSnapshot>;
 
   if (
-    candidate.schemaVersion !== "slice-public-intelligence-2.0.0" ||
+    candidate.schemaVersion !==
+      "slice-public-intelligence-2.0.0" ||
     !candidate.generatedAt ||
     !Array.isArray(candidate.items) ||
     !Array.isArray(candidate.sources)
@@ -586,35 +710,55 @@ function normalizeSnapshot(value: unknown): PublicIntelligenceSnapshot | null {
     return null;
   }
 
-  return {
-    schemaVersion: "slice-public-intelligence-2.0.0",
+  const normalized: PublicIntelligenceSnapshot = {
+    schemaVersion:
+      "slice-public-intelligence-2.0.0",
     generatedAt: candidate.generatedAt,
-    dateKey: candidate.dateKey || dateKey(new Date(candidate.generatedAt)),
+    dateKey:
+      candidate.dateKey ||
+      dateKey(new Date(candidate.generatedAt)),
     marketTimeZone: MARKET_TIME_ZONE,
     provider: "Slice Public Intelligence Mesh",
     refreshCadence: DAILY_REFRESH_CADENCE,
     storage: candidate.storage ?? "database",
     sources: candidate.sources,
     items: candidate.items,
-    alertCandidates: Array.isArray(candidate.alertCandidates)
+    alertCandidates: Array.isArray(
+      candidate.alertCandidates,
+    )
       ? candidate.alertCandidates
-      : candidate.items.filter((item) => item.shouldAlert),
-    digestCandidates: Array.isArray(candidate.digestCandidates)
+      : [],
+    digestCandidates: Array.isArray(
+      candidate.digestCandidates,
+    )
       ? candidate.digestCandidates
-      : candidate.items.filter((item) => !item.shouldAlert),
+      : [],
     suppressed: Array.isArray(candidate.suppressed)
       ? candidate.suppressed
       : [],
     topicCounts: Array.isArray(candidate.topicCounts)
       ? candidate.topicCounts
-      : topicCounts(candidate.items),
-    warnings: Array.isArray(candidate.warnings) ? candidate.warnings : [],
+      : [],
+    warnings: Array.isArray(candidate.warnings)
+      ? candidate.warnings
+      : [],
   };
+
+  return freshenPublicSnapshot(normalized, {
+    maximumAgeMs:
+      DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+    limit: 160,
+  }).snapshot;
 }
 
-function parseStoredEnvelope(value: string): StoredSnapshotEnvelope | null {
+function parseStoredEnvelope(
+  value: string,
+): StoredSnapshotEnvelope | null {
   try {
-    const parsed = JSON.parse(value) as Partial<StoredSnapshotEnvelope>;
+    const parsed =
+      JSON.parse(
+        value,
+      ) as Partial<StoredSnapshotEnvelope>;
 
     if (
       parsed.version !== 2 ||
@@ -625,7 +769,9 @@ function parseStoredEnvelope(value: string): StoredSnapshotEnvelope | null {
       return null;
     }
 
-    const snapshot = normalizeSnapshot(parsed.snapshot);
+    const snapshot = normalizeSnapshot(
+      parsed.snapshot,
+    );
 
     return snapshot
       ? {
@@ -644,7 +790,8 @@ async function readDatabaseSnapshot() {
   const row = await prisma.newsDecision.findFirst({
     where: {
       title: SNAPSHOT_TITLE,
-      sourceName: "Slice Public Intelligence Mesh",
+      sourceName:
+        "Slice Public Intelligence Mesh",
     },
     orderBy: {
       createdAt: "desc",
@@ -657,7 +804,9 @@ async function readDatabaseSnapshot() {
 
   if (!row) return null;
 
-  const envelope = parseStoredEnvelope(row.reasonsJson);
+  const envelope = parseStoredEnvelope(
+    row.reasonsJson,
+  );
 
   if (!envelope) return null;
 
@@ -667,7 +816,9 @@ async function readDatabaseSnapshot() {
   };
 }
 
-async function persistSnapshot(snapshot: PublicIntelligenceSnapshot) {
+async function persistSnapshot(
+  snapshot: PublicIntelligenceSnapshot,
+) {
   const savedAt = new Date();
   const batchId = randomUUID();
   const envelope: StoredSnapshotEnvelope = {
@@ -679,63 +830,76 @@ async function persistSnapshot(snapshot: PublicIntelligenceSnapshot) {
       storage: "database",
     },
   };
-  const onlineSources = snapshot.sources.filter((source) => source.ok).length;
+  const onlineSources = snapshot.sources.filter(
+    (source) => source.ok,
+  ).length;
 
-  await prisma.$transaction(async (transaction) => {
-    await transaction.newsDecision.create({
-      data: {
-        title: SNAPSHOT_TITLE,
-        sourceName: "Slice Public Intelligence Mesh",
-        link: null,
-        score: Math.min(snapshot.items.length, 999),
-        urgency: "System",
-        shouldAlert: false,
-        reasonsJson: JSON.stringify(envelope),
-        createdAt: savedAt,
-      },
-    });
-
-    await transaction.sourceCheckpoint.upsert({
-      where: {
-        sourceId: CHECKPOINT_ID,
-      },
-      update: {
-        sourceName: "Slice Public Intelligence Mesh",
-        lastFetchedAt: savedAt,
-        lastSeenHash: batchId,
-        lastStatus:
-          onlineSources === snapshot.sources.length
-            ? "Healthy"
-            : onlineSources > 0
-              ? "Degraded"
-              : "Failed",
-        lastItemCount: snapshot.items.length,
-      },
-      create: {
-        sourceId: CHECKPOINT_ID,
-        sourceName: "Slice Public Intelligence Mesh",
-        lastFetchedAt: savedAt,
-        lastSeenHash: batchId,
-        lastStatus:
-          onlineSources === snapshot.sources.length
-            ? "Healthy"
-            : onlineSources > 0
-              ? "Degraded"
-              : "Failed",
-        lastItemCount: snapshot.items.length,
-      },
-    });
-
-    await transaction.newsDecision.deleteMany({
-      where: {
-        title: SNAPSHOT_TITLE,
-        sourceName: "Slice Public Intelligence Mesh",
-        createdAt: {
-          lt: new Date(savedAt.getTime() - RETENTION_MS),
+  await prisma.$transaction(
+    async (transaction: PublicIntelligenceTransaction) => {
+      await transaction.newsDecision.create({
+        data: {
+          title: SNAPSHOT_TITLE,
+          sourceName:
+            "Slice Public Intelligence Mesh",
+          link: null,
+          score: Math.min(
+            snapshot.items.length,
+            999,
+          ),
+          urgency: "System",
+          shouldAlert: false,
+          reasonsJson: JSON.stringify(envelope),
+          createdAt: savedAt,
         },
-      },
-    });
-  });
+      });
+
+      await transaction.sourceCheckpoint.upsert({
+        where: {
+          sourceId: CHECKPOINT_ID,
+        },
+        update: {
+          sourceName:
+            "Slice Public Intelligence Mesh",
+          lastFetchedAt: savedAt,
+          lastSeenHash: batchId,
+          lastStatus:
+            onlineSources === snapshot.sources.length
+              ? "Healthy"
+              : onlineSources > 0
+                ? "Degraded"
+                : "Failed",
+          lastItemCount: snapshot.items.length,
+        },
+        create: {
+          sourceId: CHECKPOINT_ID,
+          sourceName:
+            "Slice Public Intelligence Mesh",
+          lastFetchedAt: savedAt,
+          lastSeenHash: batchId,
+          lastStatus:
+            onlineSources === snapshot.sources.length
+              ? "Healthy"
+              : onlineSources > 0
+                ? "Degraded"
+                : "Failed",
+          lastItemCount: snapshot.items.length,
+        },
+      });
+
+      await transaction.newsDecision.deleteMany({
+        where: {
+          title: SNAPSHOT_TITLE,
+          sourceName:
+            "Slice Public Intelligence Mesh",
+          createdAt: {
+            lt: new Date(
+              savedAt.getTime() - RETENTION_MS,
+            ),
+          },
+        },
+      });
+    },
+  );
 
   return {
     persisted: true as const,
@@ -747,17 +911,27 @@ async function persistSnapshot(snapshot: PublicIntelligenceSnapshot) {
 
 export async function scoutPublicIntelligence(): Promise<PublicIntelligenceSnapshot> {
   const generatedAt = new Date().toISOString();
-  const [officialResult, alphaResult] = await Promise.allSettled([
-    scanPermittedSources(DEMO_SLICE_PROFILE, []),
-    fetchAlphaVantageNews(),
-  ]);
+  const [officialResult, alphaResult] =
+    await Promise.allSettled([
+      scanPermittedSources(
+        DEMO_SLICE_PROFILE,
+        [],
+      ),
+      fetchAlphaVantageNews(),
+    ]);
   const warnings: string[] = [];
   let officialArticles: PublicArticle[] = [];
   let officialSources: PublicSourceStatus[] = [];
 
   if (officialResult.status === "fulfilled") {
-    officialArticles = officialResult.value.items.map(mapOfficialArticle);
-    officialSources = sourceStatuses(officialResult.value, generatedAt);
+    officialArticles =
+      officialResult.value.items.map(
+        mapOfficialArticle,
+      );
+    officialSources = sourceStatuses(
+      officialResult.value,
+      generatedAt,
+    );
   } else {
     warnings.push(
       `Official feed scan failed: ${
@@ -776,14 +950,18 @@ export async function scoutPublicIntelligence(): Promise<PublicIntelligenceSnaps
     fetched: 0,
     provider: "Alpha Vantage",
     paid: true,
-    error: "Alpha Vantage scan did not complete.",
+    error:
+      "Alpha Vantage scan did not complete.",
     checkedAt: generatedAt,
   };
 
   if (alphaResult.status === "fulfilled") {
     alphaArticles = alphaResult.value.articles;
     alphaStatus = alphaResult.value.status;
-    if (alphaResult.value.warning) warnings.push(alphaResult.value.warning);
+
+    if (alphaResult.value.warning) {
+      warnings.push(alphaResult.value.warning);
+    }
   } else {
     warnings.push(
       `Alpha Vantage news scan failed: ${
@@ -794,11 +972,9 @@ export async function scoutPublicIntelligence(): Promise<PublicIntelligenceSnaps
     );
   }
 
-  const items = sortArticles(
-    dedupeArticles([...officialArticles, ...alphaArticles]),
-  ).slice(0, 160);
-  const snapshot: PublicIntelligenceSnapshot = {
-    schemaVersion: "slice-public-intelligence-2.0.0",
+  const baseSnapshot: PublicIntelligenceSnapshot = {
+    schemaVersion:
+      "slice-public-intelligence-2.0.0",
     generatedAt,
     dateKey: dateKey(),
     marketTimeZone: MARKET_TIME_ZONE,
@@ -806,34 +982,93 @@ export async function scoutPublicIntelligence(): Promise<PublicIntelligenceSnaps
     refreshCadence: DAILY_REFRESH_CADENCE,
     storage: "fresh",
     sources: [...officialSources, alphaStatus],
-    items,
-    alertCandidates: items.filter((item) => item.shouldAlert),
-    digestCandidates: items.filter(
-      (item) => !item.shouldAlert && item.score >= 55,
-    ),
-    suppressed: items.filter((item) => item.score < 55),
-    topicCounts: topicCounts(items),
-    warnings: unique(warnings, 30),
+    items: [
+      ...officialArticles,
+      ...alphaArticles,
+    ],
+    alertCandidates: [],
+    digestCandidates: [],
+    suppressed: [],
+    topicCounts: [],
+    warnings: unique(warnings),
   };
+  const freshened = freshenPublicSnapshot(
+    baseSnapshot,
+    {
+      maximumAgeMs:
+        DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+      limit: 160,
+      maximumPerSource: 12,
+    },
+  );
 
-  globalThis.__slicePublicIntelligenceSnapshot = snapshot;
-  return snapshot;
+  return {
+    ...freshened.snapshot,
+    warnings: unique([
+      ...freshened.snapshot.warnings,
+      freshnessRejectionMessage(
+        freshened.freshness.rejected,
+      ),
+    ]),
+  };
 }
 
 export async function scoutAndPersistPublicIntelligence() {
-  if (globalThis.__slicePublicIntelligenceRefresh) {
+  if (
+    globalThis.__slicePublicIntelligenceRefresh
+  ) {
     return globalThis.__slicePublicIntelligenceRefresh;
   }
 
   const refresh = (async () => {
-    const snapshot = await scoutPublicIntelligence();
+    const current =
+      await scoutPublicIntelligence();
+
+    if (!current.items.length) {
+      throw new Error(
+        "No source article passed the seven-day publication-time freshness contract. The prior durable edition was retained.",
+      );
+    }
+
+    let prior: PublicIntelligenceSnapshot | null =
+      null;
+
+    try {
+      prior = await readDatabaseSnapshot();
+    } catch {
+      prior = null;
+    }
+
+    const mergedBase: PublicIntelligenceSnapshot = {
+      ...current,
+      items: [
+        ...current.items,
+        ...(prior?.items ?? []),
+      ],
+      warnings: unique([
+        ...current.warnings,
+        prior
+          ? "Recent articles from the prior edition were eligible to fill source-diverse coverage; every retained article still passed the seven-day cutoff."
+          : "",
+      ]),
+    };
+    const merged = freshenPublicSnapshot(
+      mergedBase,
+      {
+        maximumAgeMs:
+          DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+        limit: 160,
+        maximumPerSource: 12,
+      },
+    ).snapshot;
+
     let persistence: PersistenceResult;
     let enriched: PublicIntelligenceSnapshot;
 
     try {
-      persistence = await persistSnapshot(snapshot);
+      persistence = await persistSnapshot(merged);
       enriched = {
-        ...snapshot,
+        ...merged,
         storage: "database",
       };
     } catch (error) {
@@ -848,55 +1083,85 @@ export async function scoutAndPersistPublicIntelligence() {
         warning,
       };
       enriched = {
-        ...snapshot,
+        ...merged,
         storage: "memory",
-        warnings: unique([...snapshot.warnings, warning], 30),
+        warnings: unique([
+          ...merged.warnings,
+          warning,
+        ]),
       };
     }
 
-    globalThis.__slicePublicIntelligenceSnapshot = enriched;
+    globalThis.__slicePublicIntelligenceSnapshot =
+      enriched;
 
     return {
       snapshot: enriched,
       persistence,
     };
   })().finally(() => {
-    globalThis.__slicePublicIntelligenceRefresh = undefined;
+    globalThis.__slicePublicIntelligenceRefresh =
+      undefined;
   });
 
-  globalThis.__slicePublicIntelligenceRefresh = refresh;
+  globalThis.__slicePublicIntelligenceRefresh =
+    refresh;
+
   return refresh;
 }
 
-export async function getPublicIntelligence(options?: {
-  forceRefresh?: boolean;
-  maxAgeMs?: number;
-  allowRefresh?: boolean;
-}) {
-  const forceRefresh = options?.forceRefresh ?? false;
+export async function getPublicIntelligence(
+  options?: {
+    forceRefresh?: boolean;
+    maxAgeMs?: number;
+    allowRefresh?: boolean;
+  },
+) {
+  const forceRefresh =
+    options?.forceRefresh ?? false;
   const allowRefresh =
-    options?.allowRefresh ?? process.env.NODE_ENV !== "production";
+    options?.allowRefresh ??
+    process.env.NODE_ENV !== "production";
   const maxAgeMs = clamp(
     options?.maxAgeMs ?? DEFAULT_MAX_AGE_MS,
     60_000,
-    48 * 60 * 60_000,
+    7 * 24 * 60 * 60_000,
   );
-  const memory = globalThis.__slicePublicIntelligenceSnapshot;
-
-  if (!forceRefresh && memory && snapshotAge(memory) <= maxAgeMs) {
-    return {
-      ...memory,
-      refreshCadence: DAILY_REFRESH_CADENCE,
-      storage: "memory" as const,
-    };
-  }
 
   if (forceRefresh) {
-    const { snapshot } = await scoutAndPersistPublicIntelligence();
+    const { snapshot } =
+      await scoutAndPersistPublicIntelligence();
     return snapshot;
   }
 
-  let stored: PublicIntelligenceSnapshot | null = null;
+  const memory =
+    globalThis.__slicePublicIntelligenceSnapshot;
+
+  if (memory) {
+    const freshMemory = freshenPublicSnapshot(
+      memory,
+      {
+        maximumAgeMs:
+          DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+        limit: 160,
+      },
+    ).snapshot;
+
+    if (
+      freshMemory.items.length &&
+      snapshotAge(freshMemory) <= maxAgeMs
+    ) {
+      return {
+        ...freshMemory,
+        refreshCadence:
+          DAILY_REFRESH_CADENCE,
+        storage: "memory" as const,
+      };
+    }
+  }
+
+  let stored: PublicIntelligenceSnapshot | null =
+    null;
   let databaseError = "";
 
   try {
@@ -908,72 +1173,75 @@ export async function getPublicIntelligence(options?: {
         : "The public intelligence database read failed.";
   }
 
-  if (stored) {
+  if (stored?.items.length) {
     const stale = snapshotAge(stored) > maxAgeMs;
     const result: PublicIntelligenceSnapshot = {
       ...stored,
       refreshCadence: DAILY_REFRESH_CADENCE,
       storage: stale ? "stale" : "database",
       warnings: stale
-        ? unique(
-            [
-              ...stored.warnings,
-              "The stored daily edition is older than the preferred freshness window. It remains available until the next scheduled 6:00 AM Eastern publication.",
-            ],
-            30,
-          )
+        ? unique([
+            ...stored.warnings,
+            "The stored daily edition is older than the preferred edition window. Its individual source articles still passed the strict seven-day cutoff.",
+          ])
         : stored.warnings,
     };
 
-    globalThis.__slicePublicIntelligenceSnapshot = result;
+    globalThis.__slicePublicIntelligenceSnapshot =
+      result;
+
     return result;
   }
 
   if (memory) {
-    const staleMemory: PublicIntelligenceSnapshot = {
-      ...memory,
-      refreshCadence: DAILY_REFRESH_CADENCE,
-      storage: "stale",
-      warnings: unique(
-        [
-          ...memory.warnings,
-          databaseError
-            ? `The database edition could not be read, so Slice is serving the last in-memory daily edition: ${databaseError}`
-            : "The database edition was unavailable, so Slice is serving the last in-memory daily edition.",
-        ],
-        30,
-      ),
-    };
+    const fallback = freshenPublicSnapshot(
+      memory,
+      {
+        maximumAgeMs:
+          DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+        limit: 160,
+      },
+    ).snapshot;
 
-    globalThis.__slicePublicIntelligenceSnapshot = staleMemory;
-    return staleMemory;
+    if (fallback.items.length) {
+      return {
+        ...fallback,
+        refreshCadence:
+          DAILY_REFRESH_CADENCE,
+        storage: "stale" as const,
+        warnings: unique([
+          ...fallback.warnings,
+          databaseError
+            ? `The durable edition could not be read, so Slice is exposing only still-current in-memory articles: ${databaseError}`
+            : "The durable edition was unavailable, so Slice is exposing only still-current in-memory articles.",
+        ]),
+      };
+    }
   }
 
   /*
-   * Production page views must never start provider scans. Only the protected
-   * daily publisher should create and persist a new public edition.
+   * Production page views do not launch provider scans. The protected
+   * scheduled publisher and recovery cron own public-edition creation.
    */
   if (!allowRefresh) {
     throw new Error(
       databaseError
         ? "The scheduled daily intelligence edition could not be read from durable storage."
-        : "The first scheduled daily intelligence edition has not been published yet.",
+        : "No current scheduled daily intelligence edition is available.",
     );
   }
 
   try {
-    const { snapshot } = await scoutAndPersistPublicIntelligence();
+    const { snapshot } =
+      await scoutAndPersistPublicIntelligence();
 
     return databaseError
       ? {
           ...snapshot,
-          warnings: unique(
-            [
-              ...snapshot.warnings,
-              `Database cache unavailable before the development recovery scan: ${databaseError}`,
-            ],
-            30,
-          ),
+          warnings: unique([
+            ...snapshot.warnings,
+            `Database cache unavailable before the development recovery scan: ${databaseError}`,
+          ]),
         }
       : snapshot;
   } catch (error) {

@@ -2,7 +2,17 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { scoutAndPersistPublicIntelligence } from "@/lib/public-intelligence";
+import {
+  DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
+  DEFAULT_PUBLIC_EDITION_MAX_AGE_MS,
+  freshenPublicSnapshot,
+  isTimestampWithin,
+  timestampFreshness,
+} from "@/lib/intelligence/freshness";
+import {
+  getPublicIntelligence,
+  scoutAndPersistPublicIntelligence,
+} from "@/lib/public-intelligence";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +28,39 @@ type EasternClock = {
   hour: number;
   minute: number;
 };
+
+type PublicationMode =
+  | "scheduled"
+  | "recovery"
+  | "force";
+
+function clamp(
+  value: number,
+  minimum: number,
+  maximum: number,
+) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function articleMaximumAgeMs() {
+  const configured = Number(
+    process.env.PUBLIC_INTELLIGENCE_MAX_ARTICLE_AGE_HOURS,
+  );
+
+  return Number.isFinite(configured)
+    ? clamp(configured, 24, 168) * 60 * 60_000
+    : DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS;
+}
+
+function editionMaximumAgeMs() {
+  const configured = Number(
+    process.env.PUBLIC_INTELLIGENCE_MAX_EDITION_AGE_HOURS,
+  );
+
+  return Number.isFinite(configured)
+    ? clamp(configured, 12, 72) * 60 * 60_000
+    : DEFAULT_PUBLIC_EDITION_MAX_AGE_MS;
+}
 
 function isAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -48,7 +91,7 @@ function json(
   );
   response.headers.set(
     "X-Slice-Cron-Route",
-    "public-daily-intelligence-v3",
+    "public-daily-intelligence-v4",
   );
 
   return response;
@@ -68,35 +111,52 @@ function easternClock(
   }).formatToParts(date);
 
   const read = (type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "";
+    parts.find((part) => part.type === type)
+      ?.value ?? "";
 
   return {
-    dateKey: `${read("year")}-${read("month")}-${read("day")}`,
+    dateKey: `${read("year")}-${read(
+      "month",
+    )}-${read("day")}`,
     hour: Number(read("hour")),
     minute: Number(read("minute")),
   };
 }
 
-function forceRequested(request: Request) {
-  const value = new URL(request.url)
-    .searchParams
+function publicationMode(
+  request: Request,
+): PublicationMode {
+  const url = new URL(request.url);
+  const force = url.searchParams
     .get("force")
     ?.trim()
     .toLowerCase();
+  const mode = url.searchParams
+    .get("mode")
+    ?.trim()
+    .toLowerCase();
 
-  return (
-    value === "1" ||
-    value === "true" ||
-    value === "yes"
-  );
+  if (
+    force === "1" ||
+    force === "true" ||
+    force === "yes" ||
+    mode === "force"
+  ) {
+    return "force";
+  }
+
+  return mode === "recovery"
+    ? "recovery"
+    : "scheduled";
 }
 
 function isSixAmEasternWindow(
   clock: EasternClock,
 ) {
   /*
-   * The paired UTC schedules call this route at 10:00 and 11:00 UTC.
-   * Only the invocation that resolves to 6:00 AM New York time publishes.
+   * Paired 10:00 and 11:00 UTC invocations cover daylight and
+   * standard time. Only the call that resolves to 6:00 AM New York
+   * time publishes.
    */
   return clock.hour === 6 && clock.minute <= 20;
 }
@@ -114,11 +174,52 @@ async function readPublicationCheckpoint() {
       },
     });
   } catch {
-    /*
-     * A checkpoint read problem must not permanently prevent the scheduled
-     * publisher from attempting its work.
-     */
     return null;
+  }
+}
+
+async function currentEditionHealth(
+  now: Date,
+  maximumArticleAgeMs: number,
+  maximumEditionAgeMs: number,
+) {
+  try {
+    const stored = await getPublicIntelligence({
+      maxAgeMs: maximumEditionAgeMs,
+      allowRefresh: false,
+    });
+    const { snapshot, freshness } =
+      freshenPublicSnapshot(stored, {
+        now,
+        maximumAgeMs: maximumArticleAgeMs,
+        limit: DAILY_ARTICLE_COUNT,
+        maximumPerSource: 2,
+      });
+    const editionFresh = isTimestampWithin(
+      snapshot.generatedAt,
+      maximumEditionAgeMs,
+      { now },
+    );
+
+    return {
+      healthy:
+        editionFresh && snapshot.items.length > 0,
+      snapshot,
+      freshness,
+      editionFresh,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      snapshot: null,
+      freshness: null,
+      editionFresh: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to inspect the current edition.",
+    };
   }
 }
 
@@ -133,20 +234,26 @@ export async function GET(request: Request) {
         detail:
           "Configure CRON_SECRET and send it as Authorization: Bearer <secret>.",
       },
-      {
-        status: 401,
-      },
+      { status: 401 },
     );
   }
 
   const now = new Date();
   const clock = easternClock(now);
-  const force = forceRequested(request);
+  const mode = publicationMode(request);
+  const maximumArticleAgeMs =
+    articleMaximumAgeMs();
+  const maximumEditionAgeMs =
+    editionMaximumAgeMs();
 
-  if (!force && !isSixAmEasternWindow(clock)) {
+  if (
+    mode === "scheduled" &&
+    !isSixAmEasternWindow(clock)
+  ) {
     return json({
       ok: true,
       skipped: true,
+      mode,
       reason:
         "This invocation did not occur during the 6:00 AM Eastern publication window.",
       easternDateKey: clock.dateKey,
@@ -154,16 +261,46 @@ export async function GET(request: Request) {
       easternMinute: clock.minute,
       scheduledPublication:
         "6:00 AM America/New_York",
+      recoveryCadence: "Every six hours",
       articleLimit: DAILY_ARTICLE_COUNT,
       durationMs: Date.now() - startedAt,
     });
+  }
+
+  if (mode === "recovery") {
+    const health = await currentEditionHealth(
+      now,
+      maximumArticleAgeMs,
+      maximumEditionAgeMs,
+    );
+
+    if (health.healthy) {
+      return json({
+        ok: true,
+        skipped: true,
+        mode,
+        reason:
+          "The current edition and its source articles already satisfy the freshness contract.",
+        generatedAt:
+          health.snapshot?.generatedAt ?? null,
+        articleCount:
+          health.snapshot?.items.length ?? 0,
+        newestPublishedAt:
+          health.freshness?.newestPublishedAt ??
+          null,
+        oldestPublishedAt:
+          health.freshness?.oldestPublishedAt ??
+          null,
+        durationMs: Date.now() - startedAt,
+      });
+    }
   }
 
   const checkpoint =
     await readPublicationCheckpoint();
 
   if (
-    !force &&
+    mode === "scheduled" &&
     checkpoint?.lastFetchedAt
   ) {
     const lastPublication = easternClock(
@@ -171,66 +308,86 @@ export async function GET(request: Request) {
     );
 
     if (
-      lastPublication.dateKey === clock.dateKey &&
+      lastPublication.dateKey ===
+        clock.dateKey &&
       lastPublication.hour >= 6
     ) {
-      return json({
-        ok: true,
-        skipped: true,
-        reason:
-          "Today's 6:00 AM Eastern edition was already published.",
-        easternDateKey: clock.dateKey,
-        previousPublicationAt:
-          checkpoint.lastFetchedAt.toISOString(),
-        previousStatus:
-          checkpoint.lastStatus ?? "Unknown",
-        articleCount: Math.min(
-          checkpoint.lastItemCount ?? 0,
-          DAILY_ARTICLE_COUNT,
-        ),
-        articleLimit: DAILY_ARTICLE_COUNT,
-        durationMs: Date.now() - startedAt,
-      });
+      const health = await currentEditionHealth(
+        now,
+        maximumArticleAgeMs,
+        maximumEditionAgeMs,
+      );
+
+      if (health.healthy) {
+        return json({
+          ok: true,
+          skipped: true,
+          mode,
+          reason:
+            "Today's 6:00 AM Eastern edition was already published and remains current.",
+          easternDateKey: clock.dateKey,
+          previousPublicationAt:
+            checkpoint.lastFetchedAt.toISOString(),
+          previousStatus:
+            checkpoint.lastStatus ?? "Unknown",
+          articleCount:
+            health.snapshot?.items.length ??
+            Math.min(
+              checkpoint.lastItemCount ?? 0,
+              DAILY_ARTICLE_COUNT,
+            ),
+          articleLimit: DAILY_ARTICLE_COUNT,
+          durationMs: Date.now() - startedAt,
+        });
+      }
     }
   }
 
   try {
-    const {
-      snapshot,
-      persistence,
-    } =
+    const { snapshot, persistence } =
       await scoutAndPersistPublicIntelligence();
-
-    const selectedArticles = snapshot.items.slice(
-      0,
-      DAILY_ARTICLE_COUNT,
-    );
-    const onlineSources = snapshot.sources.filter(
+    const { snapshot: current, freshness } =
+      freshenPublicSnapshot(snapshot, {
+        now: new Date(snapshot.generatedAt),
+        maximumAgeMs: maximumArticleAgeMs,
+        limit: DAILY_ARTICLE_COUNT,
+        maximumPerSource: 2,
+      });
+    const selectedArticles = current.items;
+    const onlineSources = current.sources.filter(
       (source) => source.ok,
     ).length;
+    const warnings = [...current.warnings];
 
-    const warnings = [...snapshot.warnings];
+    if (!selectedArticles.length) {
+      throw new Error(
+        "The provider scan completed, but no article passed the strict seven-day publication-time freshness contract. The previous durable edition was retained.",
+      );
+    }
 
     if (
       selectedArticles.length <
       DAILY_ARTICLE_COUNT
     ) {
       warnings.push(
-        `Only ${selectedArticles.length} unique sourced articles were available for the six-article daily edition.`,
+        `Only ${selectedArticles.length} unique, current, sourced articles were available for the six-article edition.`,
       );
     }
 
     return json({
       ok: true,
       skipped: false,
-      forced: force,
-      route: "/api/cron/intelligence-daily",
+      forced: mode === "force",
+      mode,
+      route:
+        "/api/cron/intelligence-daily",
       purpose:
-        "Publish one fixed six-article public intelligence edition each day at 6:00 AM Eastern Time.",
+        "Publish a current source-verified public intelligence edition while excluding missing, future, invalid, and older-than-seven-day publication timestamps.",
       scheduledPublication:
         "6:00 AM America/New_York",
-      generatedAt: snapshot.generatedAt,
-      dateKey: snapshot.dateKey,
+      recoveryCadence: "Every six hours",
+      generatedAt: current.generatedAt,
+      dateKey: current.dateKey,
       articleCount: selectedArticles.length,
       articleLimit: DAILY_ARTICLE_COUNT,
       totalRankedArticleCount:
@@ -248,10 +405,33 @@ export async function GET(request: Request) {
           article.score >= 55,
       ).length,
       onlineSourceCount: onlineSources,
-      sourceCount: snapshot.sources.length,
+      sourceCount: current.sources.length,
       topTopics:
-        snapshot.topicCounts.slice(0, 12),
-      warnings: Array.from(new Set(warnings)),
+        current.topicCounts.slice(0, 12),
+      freshness: {
+        maximumArticleAgeHours:
+          maximumArticleAgeMs / 3_600_000,
+        maximumEditionAgeHours:
+          maximumEditionAgeMs / 3_600_000,
+        cutoffAt: freshness.cutoffAt,
+        newestPublishedAt:
+          freshness.newestPublishedAt,
+        oldestPublishedAt:
+          freshness.oldestPublishedAt,
+        rejected: freshness.rejected,
+        edition: timestampFreshness(
+          current.generatedAt,
+          {
+            currentWithinMs:
+              maximumEditionAgeMs,
+            recentWithinMs:
+              maximumEditionAgeMs,
+          },
+        ),
+      },
+      warnings: Array.from(
+        new Set(warnings),
+      ),
       persistence,
       durationMs: Date.now() - startedAt,
     });
@@ -260,6 +440,7 @@ export async function GET(request: Request) {
       {
         ok: false,
         skipped: false,
+        mode,
         route:
           "/api/cron/intelligence-daily",
         error:
@@ -268,15 +449,11 @@ export async function GET(request: Request) {
             : "The daily public intelligence publication failed.",
         durationMs: Date.now() - startedAt,
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
 
-export async function POST(
-  request: Request,
-) {
+export async function POST(request: Request) {
   return GET(request);
 }

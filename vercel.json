@@ -18,6 +18,10 @@
       "schedule": "0 10,11 * * *"
     },
     {
+      "path": "/api/cron/intelligence-daily?mode=recovery",
+      "schedule": "15 */6 * * *"
+    },
+    {
       "path": "/api/cron/backend?mode=both&batch=8&users=50",
       "schedule": "* * * * *"
     },

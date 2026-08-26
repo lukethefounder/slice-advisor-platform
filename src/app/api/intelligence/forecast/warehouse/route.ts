@@ -1,326 +1,249 @@
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import { requireCurrentAccessContext } from "@/lib/access-control";
 import {
-  NextResponse,
-} from "next/server";
-
+  auditOperationalWarehouseBatch,
+  getOperationalWarehouseOverview,
+  intelligenceMemoryWindow,
+} from "@/lib/intelligence-forecast/operating-memory";
+import { auditForecastEvidenceRun } from "@/lib/intelligence-forecast/point-in-time-warehouse";
+import { prisma } from "@/lib/prisma";
 import {
-  getCurrentUser,
-} from "@/lib/auth";
+  checkRateLimit,
+  getClientIp,
+  hashForSecurity,
+  isPotentiallyCrossSiteUnsafeRequest,
+} from "@/lib/security";
 
-import {
-  auditForecastEvidenceRun,
-  auditForecastWarehouseBatch,
-  getForecastWarehouseOverview,
-} from "@/lib/intelligence-forecast/point-in-time-warehouse";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 120;
 
-export const dynamic =
-  "force-dynamic";
-
-export const runtime =
-  "nodejs";
-
-export const maxDuration =
-  120;
+const MAX_BODY_BYTES = 24_000;
 
 type WarehouseBody = {
   action?: unknown;
   runId?: unknown;
   limit?: unknown;
   onlyMissing?: unknown;
+  days?: unknown;
 };
 
-function cleanString(
-  value: unknown,
-  maximumLength: number,
-) {
-  return typeof value ===
-    "string"
-    ? value
-        .trim()
-        .slice(
-          0,
-          maximumLength,
-        )
+function cleanString(value: unknown, maximumLength: number) {
+  return typeof value === "string"
+    ? value.trim().slice(0, maximumLength)
     : "";
 }
 
-function cleanSymbol(
-  value:
-    | string
-    | null,
-) {
-  return String(
-    value ?? "",
-  )
+function cleanSymbol(value: string | null) {
+  return String(value ?? "")
     .trim()
     .toUpperCase()
-    .replace(
-      /[^A-Z0-9.\-:$]/g,
-      "",
-    )
-    .slice(
-      0,
-      20,
-    );
+    .replace(/[^A-Z0-9.\-:$]/g, "")
+    .slice(0, 24);
 }
 
-function readLimit(
-  value: unknown,
-  fallback = 25,
-) {
-  const parsed =
-    Number(value);
+function readLimit(value: unknown, fallback = 50) {
+  const parsed = Number(value);
 
-  if (
-    !Number.isFinite(
-      parsed,
-    )
-  ) {
-    return fallback;
-  }
-
-  return Math.max(
-    1,
-    Math.min(
-      100,
-      Math.round(
-        parsed,
-      ),
-    ),
-  );
+  return Number.isFinite(parsed)
+    ? Math.max(1, Math.min(100, Math.round(parsed)))
+    : fallback;
 }
 
-export async function GET(
-  request: Request,
-) {
-  const user =
-    await getCurrentUser();
+function enforceRateLimit(input: {
+  request: Request;
+  userId: string;
+  write: boolean;
+}) {
+  const rate = checkRateLimit({
+    key: `forecast-warehouse:${input.write ? "write" : "read"}:${
+      input.userId
+    }:${hashForSecurity(getClientIp(input.request))}`,
+    limit: input.write ? 10 : 100,
+    windowMs: 60_000,
+  });
 
-  if (!user) {
-    return NextResponse.json(
-      {
-        error:
-          "Unauthorized.",
+  if (!rate.allowed) {
+    throw new ApiError({
+      status: 429,
+      code: "FORECAST_WAREHOUSE_RATE_LIMITED",
+      message: "Too many evidence-warehouse requests. Retry shortly.",
+      expose: true,
+      details: {
+        retryAfterSeconds: rate.retryAfterSeconds,
       },
-      {
-        status: 401,
-      },
-    );
+    });
   }
+}
 
-  const url =
-    new URL(
-      request.url,
-    );
+export const GET = withApiRoute(
+  {
+    route: "/api/intelligence/forecast/warehouse",
+    timeoutMs: 40_000,
+  },
+  async ({ request }) => {
+    const access = await requireCurrentAccessContext({
+      requireFirm: true,
+    });
+    enforceRateLimit({
+      request,
+      userId: access.user.id,
+      write: false,
+    });
 
-  const symbol =
-    cleanSymbol(
-      url.searchParams.get(
-        "symbol",
-      ),
-    );
+    const url = new URL(request.url);
+    const overview = await getOperationalWarehouseOverview({
+      userId: access.user.id,
+      symbol: cleanSymbol(url.searchParams.get("symbol")),
+      days: url.searchParams.get("days"),
+      limit: readLimit(url.searchParams.get("limit")),
+    });
 
-  const limit =
-    readLimit(
-      url.searchParams.get(
-        "limit",
-      ),
-    );
-
-  const overview =
-    await getForecastWarehouseOverview(
-      {
-        userId:
-          user.id,
-
-        symbol,
-
-        limit,
-      },
-    );
-
-  return NextResponse.json(
-    {
+    return apiJson({
       ok: true,
       ...overview,
-    },
-    {
-      status: 200,
+    });
+  },
+);
 
-      headers: {
-        "Cache-Control":
-          "no-store, max-age=0",
-      },
-    },
-  );
-}
+export const POST = withApiRoute(
+  {
+    route: "/api/intelligence/forecast/warehouse",
+    timeoutMs: 118_000,
+  },
+  async ({ request }) => {
+    if (isPotentiallyCrossSiteUnsafeRequest(request)) {
+      throw new ApiError({
+        status: 403,
+        code: "CROSS_SITE_WAREHOUSE_BLOCKED",
+        message: "Cross-site evidence-warehouse actions are not allowed.",
+        expose: true,
+      });
+    }
 
-export async function POST(
-  request: Request,
-) {
-  const user =
-    await getCurrentUser();
+    const access = await requireCurrentAccessContext({
+      requireFirm: true,
+    });
+    enforceRateLimit({
+      request,
+      userId: access.user.id,
+      write: true,
+    });
 
-  if (!user) {
-    return NextResponse.json(
-      {
-        error:
-          "Unauthorized.",
-      },
-      {
-        status: 401,
-      },
-    );
-  }
-
-  let body:
-    WarehouseBody;
-
-  try {
-    body =
-      (await request.json()) as WarehouseBody;
-  } catch {
-    return NextResponse.json(
-      {
-        error:
-          "Request body must contain valid JSON.",
-      },
-      {
-        status: 400,
-      },
-    );
-  }
-
-  const action =
-    cleanString(
-      body.action,
-      50,
-    );
-
-  try {
     if (
-      action ===
-      "audit-run"
+      !(request.headers.get("content-type") ?? "")
+        .toLowerCase()
+        .includes("application/json")
     ) {
-      const runId =
-        cleanString(
-          body.runId,
-          100,
-        );
+      throw new ApiError({
+        status: 415,
+        code: "WAREHOUSE_JSON_REQUIRED",
+        message: "Use application/json for warehouse actions.",
+        expose: true,
+      });
+    }
+
+    const raw = await request.text();
+
+    if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
+      throw new ApiError({
+        status: 413,
+        code: "WAREHOUSE_REQUEST_TOO_LARGE",
+        message: `Request body may not exceed ${MAX_BODY_BYTES} bytes.`,
+        expose: true,
+      });
+    }
+
+    let body: WarehouseBody;
+
+    try {
+      body = JSON.parse(raw || "{}") as WarehouseBody;
+    } catch {
+      throw new ApiError({
+        status: 400,
+        code: "INVALID_WAREHOUSE_JSON",
+        message: "Request body must contain valid JSON.",
+        expose: true,
+      });
+    }
+
+    const action = cleanString(body.action, 50);
+
+    if (action === "audit-run") {
+      const runId = cleanString(body.runId, 120);
 
       if (!runId) {
-        return NextResponse.json(
-          {
-            error:
-              "runId is required for audit-run.",
-          },
-          {
-            status: 400,
-          },
-        );
+        throw new ApiError({
+          status: 400,
+          code: "WAREHOUSE_RUN_ID_REQUIRED",
+          message: "runId is required for audit-run.",
+          expose: true,
+        });
       }
 
-      const result =
-        await auditForecastEvidenceRun(
-          {
-            userId:
-              user.id,
-
-            runId,
-
-            request,
-          },
-        );
-
-      return NextResponse.json(
-        {
-          ok: true,
-
-          action,
-
-          ...result,
-
-          autonomousTradingEnabled:
-            false,
-        },
-        {
-          status: 200,
-
-          headers: {
-            "Cache-Control":
-              "no-store",
+      const window = intelligenceMemoryWindow({
+        days: body.days,
+      });
+      const run = await prisma.intelligenceForecastRun.findFirst({
+        where: {
+          id: runId,
+          userId: access.user.id,
+          generatedAt: {
+            gte: new Date(window.startAt),
+            lte: new Date(window.endAt),
           },
         },
-      );
+        select: {
+          id: true,
+        },
+      });
+
+      if (!run) {
+        throw new ApiError({
+          status: 404,
+          code: "WAREHOUSE_RUN_NOT_IN_MEMORY",
+          message:
+            "The selected forecast run is not inside the retained operating-memory window.",
+          expose: true,
+        });
+      }
+
+      const result = await auditForecastEvidenceRun({
+        userId: access.user.id,
+        runId,
+        request,
+      });
+
+      return apiJson({
+        ok: true,
+        action,
+        ...result,
+        window,
+        autonomousTradingEnabled: false,
+      });
     }
 
-    if (
-      action ===
-        "audit-batch" ||
-      !action
-    ) {
-      const result =
-        await auditForecastWarehouseBatch(
-          {
-            userId:
-              user.id,
+    if (action === "audit-batch" || !action) {
+      const result = await auditOperationalWarehouseBatch({
+        userId: access.user.id,
+        days: body.days,
+        limit: readLimit(body.limit),
+        onlyMissing: body.onlyMissing !== false,
+      });
 
-            limit:
-              readLimit(
-                body.limit,
-              ),
-
-            onlyMissing:
-              body.onlyMissing !==
-              false,
-          },
-        );
-
-      return NextResponse.json(
-        {
-          ok: true,
-
-          action:
-            "audit-batch",
-
-          ...result,
-
-          autonomousTradingEnabled:
-            false,
-        },
-        {
-          status: 200,
-
-          headers: {
-            "Cache-Control":
-              "no-store",
-          },
-        },
-      );
+      return apiJson({
+        ok: true,
+        action: "audit-batch",
+        ...result,
+        autonomousTradingEnabled: false,
+      });
     }
 
-    return NextResponse.json(
-      {
-        error:
-          "Unsupported warehouse action.",
-      },
-      {
-        status: 400,
-      },
-    );
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          "Point-in-time warehouse operation failed.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Unknown warehouse error.",
-      },
-      {
-        status: 409,
-      },
-    );
-  }
-}
+    throw new ApiError({
+      status: 400,
+      code: "UNSUPPORTED_WAREHOUSE_ACTION",
+      message: "Supported actions are audit-run and audit-batch.",
+      expose: true,
+    });
+  },
+);
