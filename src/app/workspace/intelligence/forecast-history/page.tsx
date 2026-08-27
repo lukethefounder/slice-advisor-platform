@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
-import ModelGovernanceWorkspace from "@/components/intelligence/model-governance-workspace";
+import ForecastHistoryWorkspace from "@/components/intelligence/forecast-history-workspace";
 
 export const metadata: Metadata = {
-  title: "Model Governance",
+  title: "Forecast History and Accuracy",
   description:
-    "Validate, govern, promote, and monitor Slice forecasting models with human approval and point-in-time evidence.",
+    "Review retained Slice forecast runs, observed outcomes, calibration, and directional accuracy.",
 };
 
-export default function ModelGovernancePage() {
-  return <ModelGovernanceWorkspace />;
+export default function ForecastHistoryPage() {
+  return <ForecastHistoryWorkspace />;
 }
