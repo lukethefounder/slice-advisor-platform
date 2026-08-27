@@ -49,6 +49,31 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      /*
+       * These are intentionally public, read-only feeds. They are listed after
+       * the general API rule because Next.js applies the final matching value
+       * when multiple header rules set the same key.
+       */
+      {
+        source: "/api/market/summary",
+        headers: [
+          {
+            key: "Cache-Control",
+            value:
+              "public, s-maxage=15, stale-while-revalidate=120, max-age=5",
+          },
+        ],
+      },
+      {
+        source: "/api/intelligence/daily",
+        headers: [
+          {
+            key: "Cache-Control",
+            value:
+              "public, s-maxage=900, stale-while-revalidate=86400, max-age=300",
+          },
+        ],
+      },
     ];
   },
 };

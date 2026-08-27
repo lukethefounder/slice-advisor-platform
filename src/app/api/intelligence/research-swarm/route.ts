@@ -2,6 +2,8 @@ import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
 import { requireCurrentAccessContext } from "@/lib/access-control";
 import type { BackendContext } from "@/lib/backend/config";
 import { enqueueBackendJob } from "@/lib/backend/jobs";
+import { getIntegrationStatuses } from "@/lib/env";
+import { timestampFreshness } from "@/lib/intelligence/freshness";
 import {
   buildResearchSwarmForUser,
   loadLatestResearchGraphView,
@@ -23,9 +25,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
-// Graph persistence remains centralized through persistResearchKnowledgeGraph
-// inside research-swarm-service so existing callers keep one source of truth.
 const MAX_BODY_BYTES = 32_000;
+const DEFAULT_INTERACTIVE_AGENTS = 600;
+const DEFAULT_SIMULATION_PATHS = 300;
 
 type RequestBody = {
   symbol?: unknown;
@@ -66,22 +68,31 @@ function integer(
 
 function projectionMode(
   value: unknown,
-  fallback: ResearchGraphProjectionMode = "balanced",
+  fallback: ResearchGraphProjectionMode = "overview",
 ): ResearchGraphProjectionMode {
   const clean = cleanString(value, 20).toLowerCase();
-  return clean === "overview" || clean === "balanced" || clean === "full"
+
+  return clean === "overview" ||
+    clean === "balanced" ||
+    clean === "full"
     ? clean
     : fallback;
 }
 
 function detailMode(value: unknown): ResearchSwarmDetailMode {
   const clean = cleanString(value, 20).toLowerCase();
-  return clean === "agents" || clean === "graph" || clean === "full"
+
+  return clean === "agents" ||
+    clean === "graph" ||
+    clean === "full"
     ? clean
     : "summary";
 }
 
-function graphMode(value: unknown, detail: ResearchSwarmDetailMode): ResearchSwarmGraphMode {
+function graphMode(
+  value: unknown,
+  detail: ResearchSwarmDetailMode,
+): ResearchSwarmGraphMode {
   return cleanString(value, 20).toLowerCase() === "full" ||
     detail === "graph" ||
     detail === "full"
@@ -106,9 +117,9 @@ function enforceRateLimit(input: {
   write: boolean;
 }) {
   const rate = checkRateLimit({
-    key: `research-swarm:${input.write ? "write" : "read"}:${input.userId}:${hashForSecurity(
-      getClientIp(input.request),
-    )}`,
+    key: `research-swarm:${input.write ? "write" : "read"}:${
+      input.userId
+    }:${hashForSecurity(getClientIp(input.request))}`,
     limit: input.write ? 12 : 120,
     windowMs: 60_000,
   });
@@ -126,44 +137,108 @@ function enforceRateLimit(input: {
   }
 }
 
+function safeIntegrationStatuses() {
+  return getIntegrationStatuses()
+    .filter((integration) =>
+      [
+        "postgresql",
+        "openai",
+        "alpha_vantage",
+        "neo4j",
+      ].includes(integration.key),
+    )
+    .map((integration) => ({
+      key: integration.key,
+      label: integration.label,
+      category: integration.category,
+      configured: integration.configured,
+      liveEnabled: integration.liveEnabled,
+      safeStatus: integration.safeStatus,
+      note: integration.note,
+    }));
+}
+
 export const GET = withApiRoute(
   {
     route: "/api/intelligence/research-swarm",
-    timeoutMs: 30_000,
+    timeoutMs: 18_000,
   },
   async ({ request }) => {
-    const access = await requireCurrentAccessContext({ requireFirm: true });
-    enforceRateLimit({ request, userId: access.user.id, write: false });
+    const access = await requireCurrentAccessContext({
+      requireFirm: true,
+    });
+    enforceRateLimit({
+      request,
+      userId: access.user.id,
+      write: false,
+    });
+
     const url = new URL(request.url);
-    const symbol = cleanSymbol(url.searchParams.get("symbol")) || "MSFT";
+    const symbol =
+      cleanSymbol(url.searchParams.get("symbol")) || "MSFT";
     const projection = projectionMode(
       url.searchParams.get("projection"),
-      url.searchParams.has("projection") ? "balanced" : "full",
+      "overview",
     );
-    const selectedNodeId = cleanString(url.searchParams.get("nodeId"), 220) || null;
-    const runId = cleanString(url.searchParams.get("runId"), 120) || undefined;
-    const view = await loadLatestResearchGraphView({
-      userId: access.user.id,
-      symbol,
-      projection,
-      selectedNodeId,
-      runId,
-    });
+    const selectedNodeId =
+      cleanString(url.searchParams.get("nodeId"), 220) || null;
+    const runId =
+      cleanString(url.searchParams.get("runId"), 120) || undefined;
+    const [latest, persistence] = await Promise.all([
+      loadLatestResearchGraphView({
+        userId: access.user.id,
+        symbol,
+        projection,
+        selectedNodeId,
+        runId,
+      }),
+      Promise.resolve(
+        getResearchGraphPersistenceConfiguration(),
+      ),
+    ]);
+
+    const latestFreshness = latest
+      ? {
+          graph: timestampFreshness(latest.generatedAt, {
+            currentWithinMs: 15 * 60_000,
+            recentWithinMs: 24 * 60 * 60_000,
+          }),
+          provider: timestampFreshness(latest.metadata.providerAsOf, {
+            currentWithinMs: 15 * 60_000,
+            recentWithinMs: 24 * 60 * 60_000,
+          }),
+        }
+      : null;
 
     return apiJson({
       ok: true,
       service: "Slice research swarm",
       maximumAgents: 2_000,
-      allocation: "One third media, one third technical, one third economy",
-      latest: view,
-      // Backward-compatible field used by earlier intelligence surfaces.
-      graph: view?.graph ?? null,
-      graphAnalytics: view?.analytics ?? null,
+      defaults: {
+        interactiveAgents: DEFAULT_INTERACTIVE_AGENTS,
+        simulationPaths: DEFAULT_SIMULATION_PATHS,
+        projection: "overview" as const,
+        automaticRefreshMs: 5 * 60_000,
+      },
+      allocation:
+        "One third media, one third technical, one third economy",
+      latest,
+      latestFreshness,
+      graph: latest?.graph ?? null,
+      graphAnalytics: latest?.analytics ?? null,
+      integrations: safeIntegrationStatuses(),
+      persistence: {
+        configured: persistence.configured,
+        enabled: persistence.enabled,
+        database: persistence.database,
+        missing: persistence.missing,
+      },
       safeguards: {
         externalCallsPerAgent: false,
         autonomousTradingEnabled: false,
         equalThirdWeighting: true,
         scoreSemanticsPreserved: true,
+        automaticResearchOnPageLoad: false,
       },
     });
   },
@@ -179,13 +254,17 @@ export const POST = withApiRoute(
       throw new ApiError({
         status: 403,
         code: "CROSS_SITE_RESEARCH_REQUEST_BLOCKED",
-        message: "Cross-site intelligence requests are not allowed.",
+        message:
+          "Cross-site intelligence requests are not allowed.",
         expose: true,
       });
     }
 
-    const contentType = request.headers.get("content-type") ?? "";
-    if (!contentType.toLowerCase().includes("application/json")) {
+    const contentType =
+      request.headers.get("content-type") ?? "";
+    if (
+      !contentType.toLowerCase().includes("application/json")
+    ) {
       throw new ApiError({
         status: 415,
         code: "RESEARCH_JSON_REQUIRED",
@@ -194,11 +273,19 @@ export const POST = withApiRoute(
       });
     }
 
-    const access = await requireCurrentAccessContext({ requireFirm: true });
-    enforceRateLimit({ request, userId: access.user.id, write: true });
-    const rawBody = await request.text();
+    const access = await requireCurrentAccessContext({
+      requireFirm: true,
+    });
+    enforceRateLimit({
+      request,
+      userId: access.user.id,
+      write: true,
+    });
 
-    if (Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES) {
+    const rawBody = await request.text();
+    if (
+      Buffer.byteLength(rawBody, "utf8") > MAX_BODY_BYTES
+    ) {
       throw new ApiError({
         status: 413,
         code: "RESEARCH_REQUEST_TOO_LARGE",
@@ -220,32 +307,62 @@ export const POST = withApiRoute(
     }
 
     const symbol = cleanSymbol(body.symbol) || "MSFT";
-    const requestedAgents = integer(body.agentCount, 1_200, 30, 2_000);
-    const simulationPaths = integer(body.simulationPaths, 500, 100, 5_000);
+    const requestedAgents = integer(
+      body.agentCount,
+      DEFAULT_INTERACTIVE_AGENTS,
+      30,
+      2_000,
+    );
+    const simulationPaths = integer(
+      body.simulationPaths,
+      DEFAULT_SIMULATION_PATHS,
+      100,
+      5_000,
+    );
     const detail = detailMode(body.detailMode);
     const graph = graphMode(body.graphMode, detail);
-    const hasProjection = cleanString(body.projection, 20).length > 0;
+    const hasProjection =
+      cleanString(body.projection, 20).length > 0;
     const projection = projectionMode(
       body.projection,
-      hasProjection ? "balanced" : graph === "full" ? "full" : "overview",
+      hasProjection
+        ? "overview"
+        : graph === "full"
+          ? "balanced"
+          : "overview",
     );
-    const selectedNodeId = cleanString(body.selectedNodeId, 220) || null;
-    const persistGraph = body.persistGraph !== false;
+    const selectedNodeId =
+      cleanString(body.selectedNodeId, 220) || null;
+
+    /*
+     * Persistence is intentionally opt-in. Interactive score refreshes should
+     * not write thousands of graph records unless the graph workspace asks
+     * for a durable run.
+     */
+    const persistGraph = body.persistGraph === true;
     const forceRefresh = body.forceRefresh === true;
-    const requestedExecution = cleanString(body.executionMode, 20).toLowerCase();
-    const graphPersistence = getResearchGraphPersistenceConfiguration();
-    const backgroundAvailable = graphPersistence.configured;
-    // Preserve the original synchronous contract for existing intelligence pages.
-    // The enhanced graph page opts into background execution explicitly.
+    const requestedExecution = cleanString(
+      body.executionMode,
+      20,
+    ).toLowerCase();
+    const persistence =
+      getResearchGraphPersistenceConfiguration();
+    const backgroundAvailable = persistence.configured;
     const preferredExecution =
-      requestedExecution === "background" ? "background" : "sync";
+      requestedExecution === "background"
+        ? "background"
+        : "sync";
     const executionMode =
-      preferredExecution === "background" && backgroundAvailable
+      preferredExecution === "background" &&
+      backgroundAvailable &&
+      persistGraph
         ? "background"
         : "sync";
 
     if (executionMode === "background") {
-      const bucket = forceRefresh ? Date.now() : Math.floor(Date.now() / 120_000);
+      const bucket = forceRefresh
+        ? Date.now()
+        : Math.floor(Date.now() / 120_000);
       const queued = await enqueueBackendJob(
         backendContext(access),
         "intelligence_graph_refresh",
@@ -262,7 +379,7 @@ export const POST = withApiRoute(
       return apiJson(
         {
           ok: true,
-          executionMode: "background",
+          executionMode: "background" as const,
           duplicate: queued.duplicate,
           job: queued.job,
           symbol,
@@ -270,7 +387,7 @@ export const POST = withApiRoute(
           projection,
           message: queued.duplicate
             ? "An equivalent full graph is already queued or running."
-            : "Full graph build queued. The page can remain interactive while the research pathways complete.",
+            : "Full graph build queued. The page remains interactive while the research pathways complete.",
         },
         { status: 202 },
       );
@@ -291,10 +408,11 @@ export const POST = withApiRoute(
 
     return apiJson({
       ...result,
-      executionMode: "sync",
+      executionMode: "sync" as const,
       executionFallback:
-        preferredExecution === "background" && !backgroundAvailable
-          ? "Neo4j persistence is not configured, so Slice completed this graph in the current request to avoid losing a serverless background result."
+        preferredExecution === "background" &&
+        (!backgroundAvailable || !persistGraph)
+          ? "Durable background graph execution was unavailable, so Slice completed this request synchronously."
           : null,
     });
   },

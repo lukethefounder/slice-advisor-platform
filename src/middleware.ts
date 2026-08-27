@@ -7,6 +7,11 @@ const CLIENT_SESSION_COOKIE = "slice_client_portal_session";
 
 const PUBLIC_PAGE_PREFIXES = [
   "/blog",
+  "/daily-intelligence",
+  "/platform",
+  "/markets",
+  "/knowledge-graph",
+  "/capabilities",
   "/portal",
   "/founder-login",
   "/founder-bootstrap",
@@ -37,6 +42,11 @@ const SENSITIVE_APP_PREFIXES = [
   "/command",
   "/founder-portal",
 ] as const;
+
+const CACHEABLE_PUBLIC_GET_APIS = new Set([
+  "/api/market/summary",
+  "/api/intelligence/daily",
+]);
 
 const BLOCKED_PATH_PATTERNS = [
   ".env",
@@ -81,7 +91,6 @@ function isBlockedPath(pathname: string) {
   const lower = decodedPath(pathname);
   return BLOCKED_PATH_PATTERNS.some((pattern) => lower.includes(pattern));
 }
-
 
 function isPublicPage(pathname: string) {
   return (
@@ -163,6 +172,7 @@ function isPublicApi(request: NextRequest) {
       pathname.startsWith("/api/health/") ||
       pathname === "/api/system/health" ||
       pathname === "/api/market/realtime" ||
+      pathname === "/api/market/summary" ||
       pathname === "/api/intelligence/daily" ||
       pathname === "/api/intelligence/alpha-vantage" ||
       pathname === "/api/intelligence/forecast")
@@ -171,6 +181,13 @@ function isPublicApi(request: NextRequest) {
   }
 
   return false;
+}
+
+function isCacheablePublicApi(request: NextRequest) {
+  return (
+    request.method.toUpperCase() === "GET" &&
+    CACHEABLE_PUBLIC_GET_APIS.has(request.nextUrl.pathname)
+  );
 }
 
 function requestId(request: NextRequest) {
@@ -197,7 +214,7 @@ function decorate(
   }
 
   response.headers.set("X-Request-Id", id);
-  response.headers.set("X-Slice-Security-Layer", "middleware-v3");
+  response.headers.set("X-Slice-Security-Layer", "middleware-v4");
 
   if (options.sensitive) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
@@ -251,7 +268,13 @@ export function middleware(request: NextRequest) {
   if (isStaticAsset(pathname)) return NextResponse.next();
 
   if (isBlockedPath(pathname)) {
-    return jsonError(request, id, 404, "NOT_FOUND", "The requested resource was not found.");
+    return jsonError(
+      request,
+      id,
+      404,
+      "NOT_FOUND",
+      "The requested resource was not found.",
+    );
   }
 
   if (isCrossSiteUnsafeRequest(request)) {
@@ -269,24 +292,44 @@ export function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/api/")) {
     if (isPublicApi(request)) {
-      return decorate(NextResponse.next(), request, id, { sensitive: true });
+      return decorate(NextResponse.next(), request, id, {
+        sensitive: !isCacheablePublicApi(request),
+      });
     }
 
     if (pathname.startsWith("/api/client-portal/")) {
       return clientSession
         ? decorate(NextResponse.next(), request, id, { sensitive: true })
-        : jsonError(request, id, 401, "CLIENT_SESSION_REQUIRED", "Client login is required.");
+        : jsonError(
+            request,
+            id,
+            401,
+            "CLIENT_SESSION_REQUIRED",
+            "Client login is required.",
+          );
     }
 
     if (pathname === "/api/documents" || pathname.startsWith("/api/documents/")) {
       return advisorSession || clientSession
         ? decorate(NextResponse.next(), request, id, { sensitive: true })
-        : jsonError(request, id, 401, "SESSION_REQUIRED", "Authentication is required.");
+        : jsonError(
+            request,
+            id,
+            401,
+            "SESSION_REQUIRED",
+            "Authentication is required.",
+          );
     }
 
     return advisorSession
       ? decorate(NextResponse.next(), request, id, { sensitive: true })
-      : jsonError(request, id, 401, "UNAUTHORIZED", "Authentication is required.");
+      : jsonError(
+          request,
+          id,
+          401,
+          "UNAUTHORIZED",
+          "Authentication is required.",
+        );
   }
 
   if (isClientPortalPage(pathname) && !clientSession) {
