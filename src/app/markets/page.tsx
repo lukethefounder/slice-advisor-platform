@@ -170,7 +170,7 @@ export default function MarketsPage() {
                   Set ALPHA_VANTAGE_ENTITLEMENT to realtime only when the account has that market-data entitlement.
                 </TrustLine>
                 <TrustLine>
-                  Never create NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY or embed a key in a browser fetch URL.
+                  Never expose a private provider credential through a client-visible environment variable or browser request URL.
                 </TrustLine>
                 <TrustLine>
                   Run environment validation, typecheck, lint, and production build before deployment.
