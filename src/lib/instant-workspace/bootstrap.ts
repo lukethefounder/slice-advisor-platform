@@ -1,4 +1,5 @@
 import "server-only";
+import { workspaceRequests } from "./compose";
 import { serverWorkspaceAccess } from "./access";
 import { cacheOnly } from "./cache-only";
 import { readHomeSummary } from "./home-summary";
@@ -35,12 +36,7 @@ export async function workspaceBootstrap(): Promise<WorkspaceSeed> {
   if (found) {
     seed.settings = { ok: true, ...found[0], market: found[1] };
     const p = found[0].preferences;
-    const requests: SectionRequest[] = [
-      ...p.symbols.map(symbol => ({ section: "quote" as const, symbol, range: p.range, confirmOptions: false })),
-      { section: "history", symbol: p.primary, range: p.range, confirmOptions: false },
-      ...(p.chart?.compareSymbol ? [{ section: "history" as const, symbol: p.chart.compareSymbol, range: p.range, confirmOptions: false }] : []),
-      ...(p.showNews ? p.symbols.map(symbol => ({ section: "news" as const, symbol, range: p.range, confirmOptions: false })) : []),
-    ];
+    const requests: SectionRequest[] = workspaceRequests(p).map(r=>({...r,range:p.range,confirmOptions:false}));
     seed.sections = await savedSections(access, requests);
   } else seed.notes.push("Saved settings took too long to load; the browser will retry without changing them.");
   seed.summary = await summary;
@@ -52,8 +48,10 @@ export async function terminalBootstrap(query: Record<string, string | string[] 
   const result: TerminalSeed = { session: null, sections: [], preparedAt: new Date().toISOString(), notes: [] };
   if (!access) return result;
   result.session = { ok: true, scope: `${access.userId}:${access.firmId}`, configured: Boolean(config.key && config.key.toLowerCase() !== "demo"), entitlement: config.entitlement };
-  const symbol = typeof query.symbol === "string" ? query.symbol : "SPY";
-  const range = typeof query.range === "string" ? query.range : query.interval && query.interval !== "daily" ? "1D" : "3M";
+  const saved=typeof query.symbol==="string"?null:await limited(readPreferences(access),null);
+  const symbol = typeof query.symbol === "string" ? query.symbol : saved?.preferences.primary || "SPY";
+  const range = typeof query.range === "string" ? query.range : query.interval && query.interval !== "daily" ? "1D" : saved?.preferences.range || "3M";
+  result.defaultSymbol=symbol;result.defaultRange=range as MarketRange;
   try {
     const input = parseSection({ section: "quote", symbol, range });
     result.sections = await savedSections(access, ["quote", "history", "fundamentals", "earnings", "news"].map(section => parseSection({ section, symbol: input.symbol, range: input.range as MarketRange })));

@@ -1,3 +1,4 @@
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 import "server-only";
 
 import {
@@ -1537,8 +1538,8 @@ export async function guardIntelligenceOperation(
     ]);
 
   if (
-    minuteCount >=
-    policy.perMinute
+    !researchBetaEnabled(process.env) && (minuteCount >=
+    policy.perMinute)
   ) {
     throw new IntelligenceGuardError({
       message:
@@ -1556,8 +1557,8 @@ export async function guardIntelligenceOperation(
   }
 
   if (
-    dayCount >=
-    policy.perDay
+    !researchBetaEnabled(process.env) && (dayCount >=
+    policy.perDay)
   ) {
     const tomorrow =
       new Date(
@@ -1597,9 +1598,9 @@ export async function guardIntelligenceOperation(
     policy.estimatedCostUsd;
 
   if (
-    budget.hardStopEnabled &&
+    !researchBetaEnabled(process.env) && (budget.hardStopEnabled &&
     projectedCost >
-    budget.dailyEstimatedCostLimitUsd
+    budget.dailyEstimatedCostLimitUsd)
   ) {
     throw new IntelligenceGuardError({
       message:

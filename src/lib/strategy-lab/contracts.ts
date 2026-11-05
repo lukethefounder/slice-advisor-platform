@@ -1,5 +1,5 @@
 /** Shared contracts. Vendor observations and model/backtest outputs are separate. */
-export const ENGINE_VERSION = "slice-daily-event-ledger-1.0.0";
+export const ENGINE_VERSION = "slice-daily-event-ledger-2.0.0";
 export const PROVIDER = "Alpha Vantage" as const;
 export const SECTOR_ETFS = [
   { symbol: "XLK", name: "Technology" }, { symbol: "XLF", name: "Financials" },
@@ -23,14 +23,16 @@ export const METRICS = [
   { id: "rawClose", label: "As-traded close (USD)", defaultPeriod: 2, min: 0, max: 1e9 },
 ] as const;
 export type Metric = typeof METRICS[number]["id"];
-export type Comparator = ">" | ">=" | "<" | "<=" | "between";
-export type Rule = { metric: Metric; period: number; comparator: Comparator; value: number; upper?: number };
-export type RuleSet = { mode: "all" | "any"; rules: Rule[] };
+export type Comparator = ">" | ">=" | "<" | "<=" | "between" | "crossesAbove" | "crossesBelow";
+export type Rule = { metric: Metric; period: number; comparator: Comparator; value: number; upper?: number; subject?: "instrument" | "benchmark" };
+export type RuleSet = { mode: "all" | "any"; rules: Rule[]; groups?: RuleSet[] };
+export type AllocationGroup = { name: string; symbols: string[]; maxExposurePct: number };
 export type StrategySpec = {
-  version: 1; name: string; template: string;
+  version: 1 | 2; name: string; template: string;
   universeMode: "sector-etfs" | "fixed-symbols"; symbols: string[]; benchmark: string;
   startDate: string; endDate: string; initialCapital: number;
   entry: RuleSet; exit: RuleSet;
+  regime?: RuleSet; allocationGroups?: AllocationGroup[];
   ranking: "momentum" | "low-volatility" | "relative-strength" | "alphabetical";
   rankingPeriod: number; weighting: "equal" | "inverse-volatility";
   rebalance: "once" | "daily" | "weekly" | "monthly" | "quarterly";
@@ -75,7 +77,7 @@ export type BacktestResult = {
   monthly: { month: string; strategyPct: number; benchmarkPct: number }[];
 };
 export class StrategyError extends Error {
-  constructor(public code: string, message: string, public status = 422) { super(message); this.name = "StrategyError"; }
+  constructor(public code: string, message: string, public status = 422, public retryAfterSeconds?: number) { super(message); this.name = "StrategyError"; }
 }
 export function manifestOf(d: Dataset): DatasetManifest {
   return { id: d.id, provider: d.provider, symbol: d.symbol, currency: d.currency,
@@ -87,7 +89,7 @@ export function defaultSpec(): StrategySpec {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const end = new Date(`${today}T00:00:00Z`); end.setUTCDate(end.getUTCDate() - 1);
   const start = new Date(end); start.setUTCFullYear(start.getUTCFullYear() - 3);
-  return { version: 1, name: "Sector momentum", template: "sector-momentum", universeMode: "sector-etfs",
+  return { version: 2, name: "Sector momentum", template: "sector-momentum", universeMode: "sector-etfs",
     symbols: ["XLK", "XLF", "XLV", "XLE", "XLI"], benchmark: "SPY",
     startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10), initialCapital: 100000,
     entry: { mode: "all", rules: [{ metric: "distanceSmaPct", period: 200, comparator: ">", value: 0 },
@@ -120,4 +122,9 @@ export function templateSpec(id: string, prior: StrategySpec = defaultSpec()): S
   if (id === "buy-and-hold") { s.entry.rules = []; s.exit.rules = []; s.ranking = "alphabetical"; s.rebalance = "once"; s.maxHoldings = prior.symbols.length; s.maxPositionPct = 100; }
   if (id === "custom") { s.entry.rules = []; s.exit.rules = []; }
   return s;
+}
+
+/** Saved version-1 simulations and registered scenarios keep their original engine. */
+export function engineVersionFor(spec: Pick<StrategySpec, "version">): string {
+  return spec.version === 1 ? "slice-daily-event-ledger-1.0.0" : ENGINE_VERSION;
 }

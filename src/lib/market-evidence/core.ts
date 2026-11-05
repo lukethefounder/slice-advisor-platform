@@ -1,12 +1,12 @@
+import { exactInstrument, isIndex } from "./instruments";
+import { parseHomePresentation } from "./home-presentation";
 import { parseChartSettings, parseWidgetOrder, ChartSettingsError } from "./chart-settings";
 import type { Entitlement, MarketBar, MarketConnection, MarketEvidence, MarketNews, MarketQuote, MarketRange, MarketRequest, MarketSeries, PulsePreferences } from "./contracts";
-export class MarketError extends Error { constructor(public code: string, message: string, public status = 422) { super(message); this.name = "MarketError"; } }
+export class MarketError extends Error { constructor(public code: string, message: string, public status = 422, public retryAfterSeconds?: number, public retryAt?: string) { super(message); this.name = "MarketError"; } }
 export function obj(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 export function finite(value: unknown): number | null { if (value == null || value === "" || typeof value === "boolean") return null; const n = Number(typeof value === "string" ? value.replace(/%$/, "") : value); return Number.isFinite(n) ? n : null; }
 export function symbol(value: unknown): string {
- const s = typeof value === "string" ? value.trim().toUpperCase() : "";
- if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(s)) throw new MarketError("SYMBOL", "Use exact equity/ETF ticker symbols, for example MSFT or BRK.B.");
- return s;
+ try { return exactInstrument(value); } catch(e) { throw new MarketError("SYMBOL",e instanceof Error?e.message:"Choose an exact instrument."); }
 }
 export function symbols(value: unknown, maximum = 4): string[] {
  if (!Array.isArray(value) || !value.length || value.length > maximum) throw new MarketError("SYMBOL_COUNT", `Choose 1–${maximum} ticker symbols.`);
@@ -23,9 +23,9 @@ export function parseMarketRequest(value: unknown): MarketRequest {
 }
 export function defaultPreferences(tickers: string[] = []): PulsePreferences {
  const list: string[] = [];
- for (const t of tickers) { try { const s = symbol(t); if (!list.includes(s)) list.push(s); } catch { /* Ignore unsupported watchlist instrument formats. */ } if (list.length === 3) break; }
+ for (const t of tickers) { try { const s = symbol(t); if (!list.includes(s)) list.push(s); } catch { /* Ignore unsupported watchlist instrument formats. */ } if (list.length === 1) break; }
  if (!list.length) list.push("SPY");
- return { version: 1, symbols: list, primary: list[0], range: "3M", refreshSeconds: 0, motion: true, showNews: true, showResearch: true, showTasks: true, showScenarios: true, focus: "balanced", dailyFocus: "", chart: parseChartSettings(undefined), widgetOrder: parseWidgetOrder(undefined) };
+ return { version: 1, symbols: list, primary: list[0], range: "3M", refreshSeconds: 0, motion: true, showNews: false, showResearch: true, showTasks: true, showScenarios: true, focus: "balanced", dailyFocus: "", chart: parseChartSettings(undefined), widgetOrder: parseWidgetOrder(undefined), presentation: parseHomePresentation(undefined) };
 }
 export function parsePreferences(value: unknown): PulsePreferences {
  const p = obj(value), list = symbols(p.symbols), primary = symbol(p.primary);
@@ -35,15 +35,17 @@ export function parsePreferences(value: unknown): PulsePreferences {
  if (typeof p.dailyFocus !== "string" || p.dailyFocus.length > 180 || p.dailyFocus.includes("\0")) throw new MarketError("DAILY_FOCUS", "Keep your focus note within 180 characters.");
  for (const key of ["motion", "showNews", "showResearch", "showTasks", "showScenarios"]) if (typeof p[key] !== "boolean") throw new MarketError("PREFERENCES", "Use explicit visibility and motion preferences.");
  let chart, widgetOrder;
- try { chart = parseChartSettings(p.chart, list, primary); widgetOrder = parseWidgetOrder(p.widgetOrder); }
+ try { chart = parseChartSettings(p.chart === undefined ? undefined : { ...obj(p.chart), compareSymbol: null }, [primary], primary); widgetOrder = parseWidgetOrder(p.widgetOrder); }
  catch (e) { if (e instanceof ChartSettingsError) throw new MarketError("CHART_PREFERENCES", e.message); throw e; }
- return { version: 1, symbols: list, primary, chart, widgetOrder, range: p.range as MarketRange, refreshSeconds: Number(p.refreshSeconds) as PulsePreferences["refreshSeconds"], focus: p.focus as PulsePreferences["focus"], dailyFocus: p.dailyFocus.trim(), motion: p.motion as boolean, showNews: p.showNews as boolean, showResearch: p.showResearch as boolean, showTasks: p.showTasks as boolean, showScenarios: p.showScenarios as boolean };
+ let presentation; try { presentation = parseHomePresentation(p.presentation); } catch(e) { throw new MarketError("PRESENTATION", e instanceof Error ? e.message : "Check workspace presentation."); }
+ if (isIndex(primary) && p.range === "1D") throw new MarketError("INDEX_INTERVAL", "Native indices use completed daily bars. Choose 1M or longer.");
+ return { version: 1, symbols: [primary], primary, chart, widgetOrder, presentation, range: p.range as MarketRange, refreshSeconds: Number(p.refreshSeconds) as PulsePreferences["refreshSeconds"], focus: p.focus as PulsePreferences["focus"], dailyFocus: p.dailyFocus.trim(), motion: p.motion as boolean, showNews: p.showNews as boolean, showResearch: p.showResearch as boolean, showTasks: p.showTasks as boolean, showScenarios: p.showScenarios as boolean };
 }
 export function providerFailure(value: unknown): void {
  const p = obj(value), msg = [p.Information, p.Note, p["Error Message"], p.message].filter(v => typeof v === "string").join(" ");
  if (!msg) return;
  if (/artificial|illustration|demo.*key|demo purposes/i.test(msg)) throw new MarketError("SAMPLE_REJECTED", "The provider returned demonstration data. No sample value was accepted.", 502);
- if (/rate|frequency|limit|requests per/i.test(msg)) throw new MarketError("PROVIDER_RATE", "Alpha Vantage reports a request limit. No substitute data was generated.", 429);
+ if (/rate limit|call frequency|too many requests|exceed(?:ed|s)?[^.]{0,50}(?:limit|quota)|(?:daily|minute) limit|request limit|limit (?:reached|has been)/i.test(msg)) throw new MarketError("PROVIDER_RATE", "Alpha Vantage reports a request limit. No substitute data was generated.", 429);
  if (/premium|entitlement|subscription|subscribe/i.test(msg)) throw new MarketError("ENTITLEMENT", "This Alpha Vantage endpoint requires account access that is not available. Check your subscription and commercial entitlement.", 503);
  if (/api.?key|invalid key|apikey/i.test(msg)) throw new MarketError("PROVIDER_KEY", "Alpha Vantage rejected the server credential. Ask your administrator to verify it.", 503);
  throw new MarketError("PROVIDER_MESSAGE", "Alpha Vantage did not return a usable observation for this request.", 502);
@@ -148,7 +150,7 @@ export function evidenceForModel(e: MarketEvidence): string {
 }
 export function connectionFromEvidence(e: MarketEvidence): MarketConnection {
  const q = e.quotes[0]; const issue = e.issues[0];
- return { configured: true, entitlement: e.entitlement, state: q ? "verified" : issue?.code === "ENTITLEMENT" || issue?.code === "PROVIDER_KEY" ? "restricted" : issue?.code?.includes("RATE") || issue?.code?.includes("BUDGET") ? "rate-limited" : "unavailable", message: q ? `A matching ${q.symbol} quote was returned. Freshness: ${q.state}. This check does not verify every endpoint or commercial licensing.` : issue?.message || "No verified quote was returned.", checkedAt: e.preparedAt, observationAt: q?.observedAt ?? null, observationState: q?.state ?? null };
+ return { configured: true, entitlement: e.entitlement, state: q ? "verified" : issue?.code === "ENTITLEMENT" || issue?.code === "PROVIDER_KEY" ? "restricted" : issue?.code?.includes("RATE") || issue?.code?.includes("BUDGET") || ["GATEWAY_MINUTE","GATEWAY_DAY"].includes(issue?.code||"") ? "rate-limited" : "unavailable", message: q ? `A matching ${q.symbol} quote was returned. Freshness: ${q.state}. This check does not verify every endpoint or commercial licensing.` : issue?.message || "No verified quote was returned.", checkedAt: e.preparedAt, observationAt: q?.observedAt ?? null, observationState: q?.state ?? null };
 }
 /** Bounded SVG geometry uses observed prices only, never random/synthetic ticks. */
 export function chartGeometry(bars: MarketBar[], width = 900, height = 240) {

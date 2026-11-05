@@ -1,3 +1,5 @@
+import { requireResearchStorage } from "@/lib/data-readiness/server";
+import { databaseFailure, routeStorageRequirements } from "@/lib/data-readiness/core";
 import "server-only";
 import { ApiError } from "@/lib/api-route";
 import { requireCurrentAccessContext } from "@/lib/access-control";
@@ -8,6 +10,8 @@ export async function strategyAccess(request: Request, write: boolean) {
   const access = await requireCurrentAccessContext({ requireFirm: true });
   const rate = checkRateLimit({ key: `strategy:${write ? "write" : "read"}:${access.user.id}:${hashForSecurity(getClientIp(request))}`, limit: write ? 30 : 120, windowMs: 60000 });
   if (!rate.allowed) throw new ApiError({ status: 429, code: "RATE_LIMITED", message: "Too many research requests. Retry shortly.", expose: true });
+  const tables = routeStorageRequirements(new URL(request.url).pathname, write);
+  if (tables.length) await requireResearchStorage(tables);
   return access.user.id;
 }
 export async function readResearchJson(request: Request): Promise<Record<string, unknown>> {
@@ -23,6 +27,8 @@ export async function readResearchJson(request: Request): Promise<Record<string,
   } catch { throw new StrategyError("INVALID_JSON", "Provide a valid JSON object.", 400); }
 }
 export function strategyFailure(error: unknown): never {
+  const database = databaseFailure(error);
+  if (database) throw new ApiError({ ...database, expose: true });
   if (error instanceof StrategyError) throw new ApiError({ status: error.status, code: error.code, message: error.message, expose: true });
   throw error;
 }

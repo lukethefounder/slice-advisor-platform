@@ -33,7 +33,7 @@ export function validBars(bars: MarketBar[]): MarketBar[] {
   for (const b of bars) {
     const at = Date.parse(b.at);
     if (!Number.isFinite(at) || at <= last) throw new Error("Chart timestamps must be unique and strictly increasing.");
-    if (![b.open,b.high,b.low,b.close].every(n => Number.isFinite(n) && n > 0) || !Number.isFinite(b.volume) || b.volume < 0 || b.high < Math.max(b.open,b.close,b.low) || b.low > Math.min(b.open,b.close,b.high)) throw new Error("An invalid OHLCV observation cannot be charted.");
+    if (![b.open,b.high,b.low,b.close].every(n => Number.isFinite(n) && n > 0) || (b.volume !== null && (!Number.isFinite(b.volume) || b.volume < 0)) || b.high < Math.max(b.open,b.close,b.low) || b.low > Math.min(b.open,b.close,b.high)) throw new Error("An invalid OHLCV observation cannot be charted.");
     last = at;
   }
   return bars;
@@ -84,7 +84,7 @@ export type ChartModel = {
   y: (price: number) => number; ticks: Array<{ y: number; value: number }>;
   min: number; max: number; width: number; height: number; base: number;
   comparisonSymbol: string | null; comparisonCount: number; comparisonBaseAt: string | null; gapCount: number;
-  changePct: number; first: ChartRow; last: ChartRow; totalVolume: number; low: number; high: number;
+  changePct: number; first: ChartRow; last: ChartRow; totalVolume: number | null; low: number; high: number;
   closePath: string; areaPath: string; comparisonPath: string;
   overlayPaths: Record<"sma20"|"sma50"|"ema20"|"bandLow"|"bandHigh",string>;
 };
@@ -140,7 +140,7 @@ export function buildChartModel(series: MarketSeries, options: ChartSettings, pr
   const ticks=Array.from({length:5},(_,i)=>{const v=max-(max-min)*i/4;return {y:yValue(v),value:scale==="log"?Math.exp(v):v};});
   const first=visible[0],last=visible[visible.length-1];
   return {rows,points,window,scale,y,ticks,min,max,width,height,base,comparisonSymbol:comparing?options.compareSymbol:null,comparisonCount:comparing?common.length:0,comparisonBaseAt:comparing?common[0].at:null,
-    gapCount:visible.slice(1).filter(b=>b.gapBefore).length,first,last,changePct:(last.close/first.close-1)*100,totalVolume:visible.reduce((sum,b)=>sum+b.volume,0),low:Math.min(...visible.map(b=>b.low)),high:Math.max(...visible.map(b=>b.high)),
+    gapCount:visible.slice(1).filter(b=>b.gapBefore).length,first,last,changePct:(last.close/first.close-1)*100,totalVolume:visible.every(b=>b.volume!==null)?visible.reduce((sum,b)=>sum+(b.volume??0),0):null,low:Math.min(...visible.map(b=>b.low)),high:Math.max(...visible.map(b=>b.high)),
     closePath:pathFor(points,"closeY"),areaPath:areasFor(points,bottom),comparisonPath:pathFor(points,"compareY"),
     overlayPaths:{sma20:pathFor(points,"sma20Y"),sma50:pathFor(points,"sma50Y"),ema20:pathFor(points,"ema20Y"),bandLow:pathFor(points,"bandLowY"),bandHigh:pathFor(points,"bandHighY")}};
 }

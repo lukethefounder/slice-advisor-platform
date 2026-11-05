@@ -19,3 +19,13 @@
 
 /* Widget DOM order is authoritative for both visual and keyboard navigation. */
 .dashboard .contentGrid > .card{order:0}
+
+/* Shared research palette; no added market animation or synthetic observation stream. */
+.dashboard{background-image:radial-gradient(ellipse at 95% 0%,#13c6bd0d,transparent 46%),radial-gradient(ellipse at 10% 15%,#7751ed08,transparent 38%)}
+.marketCard{border-color:color-mix(in srgb,var(--slice-accent,#13a986) 24%,var(--slice-border,#d9e8e0));box-shadow:0 18px 48px #006c5b0b}
+.quoteTile{position:relative;border-top:2px solid #18aa91;transition:transform .18s ease,box-shadow .18s ease}
+.quoteTile:nth-child(2){border-top-color:#1ca5d7}.quoteTile:nth-child(3){border-top-color:#8566da}.quoteTile:nth-child(4){border-top-color:#cfa04c}
+.quoteTile:hover{transform:translateY(-2px);box-shadow:0 12px 24px #045d4b12}
+.marketHeadline>div>strong{font-variant-numeric:tabular-nums;letter-spacing:-.045em}
+.cardTop h2{letter-spacing:-.035em}.marketCard .eyebrow{color:var(--slice-accent-strong,#008d72)}
+@media(prefers-reduced-motion:reduce){.quoteTile{transition:none}.quoteTile:hover{transform:none}}

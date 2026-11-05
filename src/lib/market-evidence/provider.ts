@@ -6,8 +6,8 @@ import { safeMarketError } from "./transport";
 import { marketConfiguration } from "./configuration";
 import { loadMarketSection } from "@/lib/market-visuals/service";
 export { marketConfiguration } from "./configuration";
-export type CacheValue = { value: unknown; retrievedAt: string; sha256: string; observedAt?: string; retained?: boolean };
-export type MarketStorage = { cacheNamespace?: string; cached: (key: string, ttlMs: number) => Promise<CacheValue | null>; claim: (key: string) => Promise<string>; reserve: () => Promise<void>; save: (key: string, token: string, record: CacheValue) => Promise<void>; fail: (key: string, token: string, error: MarketError) => Promise<void> };
+export type CacheValue = { value: unknown; retrievedAt: string; sha256: string; observedAt?: string; retained?: boolean; refreshNotice?: string; retryAt?: string };
+export type MarketStorage = { cacheNamespace?: string; retained?: (key: string, maxAgeMs: number) => Promise<CacheValue | null>; cached: (key: string, ttlMs: number) => Promise<CacheValue | null>; claim: (key: string) => Promise<string>; reserve: () => Promise<void>; save: (key: string, token: string, record: CacheValue) => Promise<void>; fail: (key: string, token: string, error: MarketError) => Promise<void> };
 export async function collectMarket(input: MarketRequest, storage: MarketStorage, signal: AbortSignal, force = false): Promise<MarketEvidence> {
   const c = marketConfiguration();
   if (!c.key || c.key.toLowerCase() === "demo") throw new MarketError("MARKET_KEY_MISSING", "Configure a private Alpha Vantage credential. Demonstration keys are not accepted.", 503);

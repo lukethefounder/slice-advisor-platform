@@ -1,3 +1,4 @@
+import { assertProviderSuccess } from "./import-errors";
 import { type DailyBar, StrategyError } from "./contracts";
 import { isoDate } from "./validation";
 function object(x: unknown): Record<string, unknown> {
@@ -12,7 +13,7 @@ function number(v: unknown, key: string, date: string) {
 }
 export function parseDailyPayload(raw: unknown, symbol: string, today: string): DailyBar[] {
   const root = object(raw);
-  if (root.Note || root.Information || root["Error Message"]) throw new StrategyError("PROVIDER_REJECTED", "Alpha Vantage rejected the request. Check premium daily-adjusted entitlement, quota, and symbol. No replacement data was used.", 502);
+  assertProviderSuccess(root);
   const metadata = object(root["Meta Data"]);
   const reported = Object.entries(metadata).find(([key]) => /symbol/i.test(key))?.[1];
   if (typeof reported !== "string" || reported.toUpperCase() !== symbol) throw new StrategyError("SYMBOL_MISMATCH", "Provider symbol does not match the requested symbol.", 502);
@@ -32,7 +33,7 @@ export function parseDailyPayload(raw: unknown, symbol: string, today: string): 
 export function verifyUsdIdentity(payload: unknown, symbol: string) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new StrategyError("IDENTITY_UNAVAILABLE", "Alpha Vantage returned no instrument identity.", 502);
   const record = payload as Record<string, unknown>;
-  if (record.Information || record.Note || record["Error Message"]) throw new StrategyError("IDENTITY_UNAVAILABLE", "Alpha Vantage could not verify this instrument. Check your allowance and entitlement.", 502);
+  assertProviderSuccess(record);
   const matches = Array.isArray(record.bestMatches) ? record.bestMatches : [];
   const candidate = matches.find((item: unknown) => item && typeof item === "object" && (item as Record<string, unknown>)["1. symbol"] === symbol) as Record<string, unknown> | undefined;
   if (!candidate || candidate["8. currency"] !== "USD" || candidate["4. region"] !== "United States" || !["Equity", "ETF"].includes(String(candidate["3. type"])))

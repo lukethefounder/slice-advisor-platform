@@ -82,6 +82,6 @@ export function technicalSummary(input: Array<MarketBar & { gapBefore?: boolean 
     { label: "RSI 14 (simple)", value: rsi, suffix: "/100", detail: "Simple-window gains/losses, not Wilder smoothing" },
     { label: `Recent ${period}-bar high`, value: Math.max(...recent.map(b => b.high)), suffix: "price units", detail: "High of loaded observed bars" },
     { label: `Recent ${period}-bar low`, value: Math.min(...recent.map(b => b.low)), suffix: "price units", detail: "Low of loaded observed bars" },
-    { label: "Latest volume", value: last.volume, suffix: "shares", detail: "Provider reported bar volume" },
+    { label: "Latest volume", value: last.volume, suffix: last.volume===null?"not supplied":"shares", detail: last.volume===null?"Volume is not supplied for this series; no zero was invented.":"Provider reported bar volume" },
   ];
 }

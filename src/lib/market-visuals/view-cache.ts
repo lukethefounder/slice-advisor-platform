@@ -23,9 +23,7 @@ export class MarketViewCache {
   private jobs = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   private listeners = new Set<() => void>();
   private epoch = 0;
-  constructor(
-    private request: typeof fetch = (input, init) => globalThis.fetch(input, init),
-  ) {}
+  constructor(private request: typeof fetch = (input, init) => globalThis.fetch(input, init)) {}
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   private notify() { for (const fn of this.listeners) fn(); }
   activate(scope: string | null) {
@@ -40,7 +38,10 @@ export class MarketViewCache {
       const key = resourceKey(row.section, row.symbol, row.range), prior = this.entries.get(key);
       if (!shouldReplace(prior?.value, row)) continue;
       const retrieved = Math.min(Date.now(), ...row.receipts.map(r => Date.parse(r.retrievedAt) || 0));
-      this.entries.set(key, { ...EMPTY_RESOURCE, ...prior, value: row, receivedAt: retrieved });
+      const retained=row.receipts.filter(r=>r.cacheState==="retained");
+      const error=[...new Set(retained.map(r=>r.refreshNotice).filter(Boolean))].join(" ");
+      const retryAt=Math.max(0,...retained.map(r=>r.retryAt?Date.parse(r.retryAt)||0:0));
+      this.entries.set(key, { ...EMPTY_RESOURCE, ...prior, value: row, receivedAt: retrieved, error, retryAt });
     }
     this.trim(); this.notify();
   }
@@ -63,18 +64,24 @@ export class MarketViewCache {
       const started = Date.now(), timer = setTimeout(() => controller.abort(), 50_000);
       try {
         const response = await this.request("/api/market-visuals/sections", { method: "POST", cache: "no-store", credentials: "same-origin", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section, symbol, range, confirmOptions: section === "options" }) });
-        const p = await response.json() as Partial<SectionResponse> & { message?: string };
+        const p = await response.json() as Partial<SectionResponse> & { message?: string; retryAt?: string };
         if (epoch !== this.epoch) return;
         if (response.status === 401 || response.status === 403 || (response.ok && p.ok && p.scope !== scope)) { this.clear(); onUnauthorized(); return; }
         if (!response.ok || !p.ok) {
-          const n = Number(response.headers.get("retry-after"));
-          const seconds = [409,429].includes(response.status) ? Math.min(300, Math.max(10, Number.isFinite(n) && n > 0 ? n : 30)) : 15;
+          const rawRetry=response.headers.get("retry-after"), numeric=Number(rawRetry), fromHeader=rawRetry && !Number.isFinite(numeric)?(Date.parse(rawRetry)-Date.now())/1000:numeric;
+          const fromBody=typeof p.retryAt==="string"?(Date.parse(p.retryAt)-Date.now())/1000:NaN;
+          const supplied=Number.isFinite(fromBody)&&fromBody>0?fromBody:Number.isFinite(fromHeader)&&fromHeader>0?fromHeader:30;
+          const seconds=[409,429].includes(response.status)?Math.min(86400,Math.max(1,supplied)):15;
           this.entries.set(key, { ...(this.entries.get(key) || before), request: { section, symbol, range }, busy: false, error: p.message || "This section could not refresh. Its last successful snapshot is retained.", retryAt: Date.now() + seconds * 1000, durationMs: Date.now() - started }); return;
         }
         if (p.section !== section || p.symbol !== symbol || (section === "history" && p.range !== range) || p.data === undefined || !Array.isArray(p.receipts)) throw new Error("A mismatched response was rejected.");
         const value = p as SectionResponse;
         const newer = shouldReplace(this.entries.get(key)?.value, value);
-        this.entries.set(key, { request: { section, symbol, range }, value: newer ? value : this.entries.get(key)?.value, busy: false, error: newer ? "" : "An older provider observation was ignored. The newer saved snapshot remains visible.", receivedAt: Date.now(), retryAt: 0, durationMs: Date.now() - started });
+        const retained=value.receipts.filter(r=>r.cacheState==="retained");
+        const notice=[...new Set(retained.map(r=>r.refreshNotice).filter(Boolean))].join(" ");
+        const retryAt=Math.max(0,...retained.map(r=>r.retryAt?Date.parse(r.retryAt)||0:Date.now()+30000));
+        const receivedAt=value.receipts.length?Math.min(Date.now(),...value.receipts.map(r=>Date.parse(r.retrievedAt)||0)):0;
+        this.entries.set(key, { request: { section, symbol, range }, value: newer ? value : this.entries.get(key)?.value, busy: false, error: newer ? notice : "An older provider observation was ignored. The newer saved snapshot remains visible.", receivedAt:newer?receivedAt:before.receivedAt, retryAt, durationMs: Date.now() - started });
       } catch (error) {
         if (epoch !== this.epoch) return;
         this.entries.set(key, { ...(this.entries.get(key) || before), request: { section, symbol, range }, busy: false, error: controller.signal.aborted ? "The refresh timed out; the saved snapshot is still available." : error instanceof Error ? error.message : "Connection unavailable.", retryAt: Date.now() + 15_000, durationMs: Date.now() - started });

@@ -1,3 +1,4 @@
+import { requireResearchStorage } from "@/lib/data-readiness/server";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -560,6 +561,8 @@ function validateMarketFreshness(
 async function performBuild(
   input: Required<Pick<BuildResearchSwarmInput, "userId" | "symbol" | "requestedAgents" | "simulationPaths" | "graphMode" | "persistGraph">> & Pick<BuildResearchSwarmInput, "progress">,
 ): Promise<ResearchSwarmResponse> {
+  // Fail before spending provider capacity when publication storage is absent.
+  await requireResearchStorage(["SliceForecastBundle", "BackendPlatformEvent"]);
   const key = process.env.ALPHA_VANTAGE_API_KEY?.trim();
   if (!key || /^(demo|your[_ -]|changeme|replace)/i.test(key)) throw new ApiError({status:503, code:"ALPHA_KEY_REQUIRED", message:"Configure a private Alpha Vantage key. No demo data will be used.", expose:true});
   let ticket: OperationGuardTicket;

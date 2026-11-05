@@ -20,7 +20,7 @@ export default function UnifiedForecastPanel({ symbol, researchRunId, refreshKey
     try {
       const response = await intelligenceFetch<{ bundle: CanonicalBundle | null }>(`/api/intelligence/canonical?${query}`, { signal }, { timeoutMs: 15000, retries: 0 });
       if (seq === sequence.current) { setBundle(response.bundle); setError(""); }
-    } catch (e) { if (!isAbortError(e) && seq === sequence.current) { setBundle(null); setError(e instanceof Error ? e.message : "Forecast could not be read."); } }
+    } catch (e) { if (!isAbortError(e) && seq === sequence.current) { setError(e instanceof Error ? e.message : "Forecast could not be refreshed. The saved run remains visible."); } }
   }, [symbol, researchRunId]);
   useEffect(() => {
     const c = new AbortController(); setBundle(null); const pending = window.setTimeout(() => { void load(c.signal); }, 180);

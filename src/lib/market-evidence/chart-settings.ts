@@ -44,7 +44,7 @@ export function parseChartSettings(value: unknown, universe?: string[], primary?
   if (p.compareSymbol !== undefined && p.compareSymbol !== null && p.compareSymbol !== "") {
     if (typeof p.compareSymbol !== "string") throw new ChartSettingsError("Choose a valid comparison ticker.");
     compareSymbol = p.compareSymbol.trim().toUpperCase();
-    if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(compareSymbol) || (universe && !universe.includes(compareSymbol))) throw new ChartSettingsError("Choose a comparison from your selected symbols.");
+    if (!/^(?:INDEX:)?[A-Z][A-Z0-9.-]{0,14}$/.test(compareSymbol) || (universe && !universe.includes(compareSymbol))) throw new ChartSettingsError("Choose a comparison from your selected symbols.");
     // Selecting a new primary must never make an otherwise valid saved view unusable.
     if (compareSymbol === primary) compareSymbol = null;
   }

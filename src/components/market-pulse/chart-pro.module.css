@@ -6,3 +6,13 @@
 @media(prefers-reduced-motion:reduce){.chart *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}
 @media(max-width:760px){.toolbar{gap:8px}.tools{gap:0}.controlGrid{grid-template-columns:1fr 1fr}.plotWithAxis{grid-template-columns:minmax(0,1fr) 63px}.xAxis{padding-right:71px;font-size:8px}.volume{padding-right:71px}.readout{flex-wrap:wrap;gap:11px}.readoutMain{min-width:130px}.readoutMain>strong{font-size:29px}.ohlc{gap:10px}.plot{height:250px}.chart[data-height=tall] .plot{height:360px}.chart[data-height=compact] .plot{height:190px}.metrics{grid-template-columns:1fr 1fr;gap:14px}.metrics>div:last-child{grid-column:1/-1}.yAxis{font-size:9px}}
 @media(max-width:460px){.tools{margin-left:0}.styleGroup button{padding:6px 9px;min-height:36px}.inlineLabel{margin-left:auto}.toolbar{justify-content:space-between}.controls summary>span{display:none}.readoutMain{flex:1}.ohlc{order:2;width:100%;justify-content:space-between;margin-left:0}.pin{margin-left:auto}.controlGrid{gap:12px;padding:12px}.controlGrid label{font-size:9px}.xAxis>span:nth-child(2){display:none}.windowSliders{gap:10px}.sourceNote{font-size:9px}.chart:fullscreen{padding:15px}.metrics small{font-size:7px}.metrics b{font-size:11px}}
+
+/* Recovery visual polish: source geometry is unchanged. A finite halo is decoration, not a trade tick. */
+.plotWithAxis{border-radius:16px;background:linear-gradient(160deg,#00bfa806,transparent 48%,#7959dd07);overflow:hidden}
+.priceLine{stroke-width:2.7;stroke-linejoin:round;stroke-linecap:round}
+.compareLine{stroke-width:2;stroke-dasharray:6 4}
+.priceDot{stroke:var(--slice-surface-strong,#fff);stroke-width:2}
+.observationHalo{fill:var(--chart-line);opacity:.14;transform-box:fill-box;transform-origin:center;animation:sourceHalo 2.2s ease-out 3}
+@keyframes sourceHalo{0%{transform:scale(.7);opacity:.22}80%,100%{transform:scale(1.7);opacity:0}}
+.chart[data-motion=off] .observationHalo{animation:none;display:none}
+@media(prefers-reduced-motion:reduce){.observationHalo{animation:none;display:none}}

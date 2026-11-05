@@ -12,7 +12,7 @@ export function analyzeLoadedSeries(series: MarketSeries, session: ChartSettings
     if (index && !r.gapBefore) logReturns.push(Math.log(r.close / rows[index-1].close));
     run.push(r.close); peak = Math.max(peak, r.close);
     const drawdownPct = (r.close / peak - 1) * 100; worst = Math.min(worst, drawdownPct);
-    volume += r.volume; high = Math.max(high, r.high); low = Math.min(low, r.low);
+    volume += r.volume ?? 0; high = Math.max(high, r.high); low = Math.min(low, r.low);
     let rsi: number | null = null;
     if (run.length >= 15) {
       let up = 0, down = 0;
@@ -24,7 +24,7 @@ export function analyzeLoadedSeries(series: MarketSeries, session: ChartSettings
   const mean = logReturns.length ? logReturns.reduce((a,b) => a+b,0) / logReturns.length : 0;
   const sampleVol = logReturns.length > 1 ? Math.sqrt(logReturns.reduce((n,v) => n+(v-mean)**2,0)/(logReturns.length-1))*100 : null;
   const vol = sampleVol === null ? null : sampleVol * (series.range === "1D" ? 1 : Math.sqrt(252));
-  return { points, count: rows.length, firstAt: first.at, lastAt: last.at, lastClose: last.close, high, low, position: high === low ? 50 : (last.close - low)/(high-low)*100, volume,
+  return { points, count: rows.length, firstAt: first.at, lastAt: last.at, lastClose: last.close, high, low, position: high === low ? 50 : (last.close - low)/(high-low)*100, volume: rows.every(r=>r.volume!==null)?volume:null,
     changePct: points.at(-1)!.returnPct, drawdownPct: worst, rsi14: points.at(-1)!.rsi, volatilityPct: vol,
     volatilityLabel: series.range === "1D" ? "Per-bar log volatility" : "Annualized sample volatility",
     distanceSma20Pct: last.sma20 === null ? null : (last.close/last.sma20-1)*100, gaps: rows.filter(r => r.gapBefore).length,

@@ -1,3 +1,6 @@
+import {retrySeconds} from "./retry";
+import { mayRetain, maximumRetainedAge } from "./retention";
+import { databaseFailure } from "@/lib/data-readiness/core";
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { FlightPool, FlightCapacityError, subscribe } from "@/lib/performance/singleflight";
@@ -13,6 +16,8 @@ export function requestKey(endpoint: string, params: Record<string, string>, fin
   return createHash("sha256").update(JSON.stringify({ endpoint, params: Object.fromEntries(Object.entries(params).sort(([a], [b]) => a.localeCompare(b))), credential: fingerprint })).digest("hex");
 }
 export function safeMarketError(error: unknown) {
+  const database = databaseFailure(error);
+  if (database) return new MarketError(database.code, database.message, database.status);
   if (error instanceof MarketError) return error;
   if (error instanceof FlightCapacityError) return new MarketError("MARKET_BUSY", error.message, 429);
   return new MarketError("PROVIDER_NETWORK", "The market-data request timed out or could not connect. No placeholder observations were generated.", 503);
@@ -43,10 +48,19 @@ export function createMarketReader(config: Configuration, storage: MarketStorage
   return async function call<T>(endpoint: string, params: Record<string, string>, ttl: number, parse: (raw: unknown) => T): Promise<T> {
     signal.throwIfAborted();
     const key = requestKey(endpoint, params, config.fingerprint);
-    const fromDatabase = force ? null : await storage.cached(key, ttl);
+    async function lastGood(error: unknown): Promise<CacheValue | null> {
+      if(force)return null; // A user-approved connection test must prove a NEW provider response.
+      const e=safeMarketError(error); if(!mayRetain(e.code)||!storage.retained)return null;
+      const record=await storage.retained(key,maximumRetainedAge(endpoint));if(!record)return null;
+      parse(record.value); // Retention does not bypass identity, shape, news-age, or date validation.
+      return {...record,retained:true,refreshNotice:e.message,retryAt:e.retryAt || (e.retryAfterSeconds?new Date(Date.now()+e.retryAfterSeconds*1000).toISOString():undefined)};
+    }
+    let fromDatabase: CacheValue | null;
+    try { fromDatabase = force ? null : await storage.cached(key, ttl); }
+    catch(e){fromDatabase=await lastGood(e);if(!fromDatabase)throw e;}
     if (fromDatabase) {
       const result = parse(fromDatabase.value);
-      receipts.push({ endpoint, symbols: (params.symbol || params.tickers || "").split(",").filter(Boolean), retrievedAt: fromDatabase.retrievedAt, cacheHit: true, sha256: fromDatabase.sha256, cacheAgeMs: Math.max(0, Date.now() - Date.parse(fromDatabase.retrievedAt)), cacheState: fromDatabase.retained ? "retained" : Date.now() - Date.parse(fromDatabase.retrievedAt) >= ttl ? "stale" : "fresh" });
+      receipts.push({ endpoint, symbols: (params.symbol || params.tickers || "").split(",").filter(Boolean), retrievedAt: fromDatabase.retrievedAt, cacheHit: true, sha256: fromDatabase.sha256, cacheAgeMs: Math.max(0, Date.now() - Date.parse(fromDatabase.retrievedAt)), cacheState: fromDatabase.retained ? "retained" : Date.now() - Date.parse(fromDatabase.retrievedAt) >= ttl ? "stale" : "fresh", refreshNotice:fromDatabase.refreshNotice, retryAt:fromDatabase.retryAt });
       return result;
     }
     // Storage without a verified namespace is deliberately NOT shared across requests.
@@ -77,8 +91,12 @@ export function createMarketReader(config: Configuration, storage: MarketStorage
         // Subscriber cancellation does not abort another caller's identical lookup.
         // This request has its own hard timeout and is never an unbounded background job.
         const response = await fetch(url, { signal: AbortSignal.timeout(12_000), cache: "no-store", redirect: "error", headers: { Accept: "application/json" } });
-        if (!response.ok) throw new MarketError(response.status === 429 ? "PROVIDER_RATE" : "PROVIDER_HTTP", response.status === 429 ? "Alpha Vantage rate limit reached." : `Market provider returned HTTP ${response.status}.`, response.status === 429 ? 429 : 502);
-        const raw = await readBounded(response);
+        if (!response.ok) {
+          if(response.status===401)throw new MarketError("PROVIDER_KEY","Alpha Vantage rejected authentication. Review the private server credential.",503);
+          if(response.status===402||response.status===403)throw new MarketError("ENTITLEMENT","Alpha Vantage denied endpoint access. Verify the subscription and data entitlement.",503);
+          throw new MarketError(response.status===429?"PROVIDER_RATE":response.status>=500?"PROVIDER_HTTP":"PROVIDER_REQUEST",response.status===429?"Alpha Vantage reports a request limit. Saved observations are not new quotes.":`Market provider returned HTTP ${response.status}.`,response.status===429?429:502,response.status===429?retrySeconds(response.headers.get("retry-after")):undefined);
+        }
+        const raw = await readBounded(response, endpoint === "REALTIME_OPTIONS" ? 12_000_000 : 4_000_000);
         let value: unknown; try { value = JSON.parse(raw); } catch { throw new MarketError("PAYLOAD_JSON", "The market provider did not return JSON data.", 502); }
         providerFailure(value); const validated = parse(value); // Validate before persisting raw evidence.
         const values = Array.isArray(validated) ? validated : [validated];
@@ -89,10 +107,10 @@ export function createMarketReader(config: Configuration, storage: MarketStorage
       } catch (e) { const error = safeMarketError(e); await storage.fail(key, token, error).catch(() => undefined); throw error; }
     });
     let delivered: Delivery;
-    try { delivered = await subscribe(job, signal); } catch (e) { if (signal.aborted) throw signal.reason; throw safeMarketError(e); }
+    try { delivered = await subscribe(job, signal); } catch (e) { if (signal.aborted) throw signal.reason; const retained=await lastGood(e);if(!retained)throw safeMarketError(e);delivered={record:retained,cached:true}; }
     // Re-evaluate observation freshness for EACH response, not just when it was cached.
     const parsed = parse(delivered.record.value);
-    receipts.push({ endpoint, symbols: (params.symbol || params.tickers || "").split(",").filter(Boolean), retrievedAt: delivered.record.retrievedAt, cacheHit: delivered.cached || joined, sha256: delivered.record.sha256, cacheAgeMs: Math.max(0, Date.now() - Date.parse(delivered.record.retrievedAt)), cacheState: delivered.record.retained ? "retained" : "fresh" });
+    receipts.push({ endpoint, symbols: (params.symbol || params.tickers || "").split(",").filter(Boolean), retrievedAt: delivered.record.retrievedAt, cacheHit: delivered.cached || joined, sha256: delivered.record.sha256, cacheAgeMs: Math.max(0, Date.now() - Date.parse(delivered.record.retrievedAt)), cacheState: delivered.record.retained ? "retained" : "fresh", refreshNotice:delivered.record.refreshNotice,retryAt:delivered.record.retryAt });
     return parsed;
   };
 }

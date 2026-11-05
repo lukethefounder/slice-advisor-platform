@@ -69,7 +69,7 @@ export class Series {
     return out;
   }
 }
-export function ruleMatches(value: number | null, rule: Rule): boolean {
+export function ruleMatches(value: number | null, rule: Rule, previous: number | null = null): boolean {
   if (value === null || !Number.isFinite(value)) return false;
   switch (rule.comparator) {
     case ">": return value > rule.value;
@@ -77,10 +77,34 @@ export function ruleMatches(value: number | null, rule: Rule): boolean {
     case "<": return value < rule.value;
     case "<=": return value <= rule.value;
     case "between": return value >= rule.value && value <= (rule.upper ?? rule.value);
+    case "crossesAbove": return previous !== null && Number.isFinite(previous) && previous <= rule.value && value > rule.value;
+    case "crossesBelow": return previous !== null && Number.isFinite(previous) && previous >= rule.value && value < rule.value;
   }
 }
+export type RuleTrace = { kind: "rule"; rule: Rule; symbol: string; signalDate: string; observed: number | null; previous: number | null; pass: boolean; available: boolean };
+export type GroupTrace = { kind: "group"; mode: "all" | "any"; pass: boolean; children: Array<RuleTrace | GroupTrace> };
+export function flattenRules(set: RuleSet): Rule[] { return [...set.rules, ...(set.groups ?? []).flatMap(flattenRules)]; }
+export function traceRules(set: RuleSet, s: Series, i: number, b: Series, empty: boolean): GroupTrace {
+  const signalDate = s.data.bars[i]?.date ?? "";
+  const children: Array<RuleTrace | GroupTrace> = set.rules.map(rule => {
+    const target = rule.subject === "benchmark" ? b : s;
+    const j = target.index.get(signalDate) ?? -1;
+    const observed = target.metric(rule.metric, rule.period, j, b);
+    const crossing = rule.comparator === "crossesAbove" || rule.comparator === "crossesBelow";
+    const previous = crossing ? target.metric(rule.metric, rule.period, j - 1, b) : null;
+    return { kind: "rule", rule, symbol: target.data.symbol, signalDate, observed, previous,
+      available: observed !== null && (!crossing || previous !== null), pass: ruleMatches(observed, rule, previous) };
+  });
+  for (const child of set.groups ?? []) children.push(traceRules(child, s, i, b, false));
+  return { kind: "group", mode: set.mode, children, pass: children.length ? set.mode === "all" ? children.every(c => c.pass) : children.some(c => c.pass) : empty };
+}
 export function evaluateRules(set: RuleSet, s: Series, i: number, b: Series, empty: boolean): boolean {
-  if (!set.rules.length) return empty;
-  const match = (r: Rule) => ruleMatches(s.metric(r.metric, r.period, i, b), r);
-  return set.mode === "all" ? set.rules.every(match) : set.rules.some(match);
+  const matches = set.rules.map(rule => {
+    const target = rule.subject === "benchmark" ? b : s;
+    const j = rule.subject === "benchmark" ? b.index.get(s.data.bars[i]?.date) ?? -1 : i;
+    return ruleMatches(target.metric(rule.metric, rule.period, j, b), rule,
+      rule.comparator === "crossesAbove" || rule.comparator === "crossesBelow" ? target.metric(rule.metric, rule.period, j - 1, b) : null);
+  });
+  for (const group of set.groups ?? []) matches.push(evaluateRules(group, s, i, b, false));
+  return matches.length ? set.mode === "all" ? matches.every(Boolean) : matches.some(Boolean) : empty;
 }

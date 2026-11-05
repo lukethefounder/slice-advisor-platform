@@ -1,3 +1,4 @@
+import { requireResearchStorage } from "@/lib/data-readiness/server";
 import "server-only";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,7 @@ export async function publishAlphaResearch(userId: string, research: ResearchSwa
   }
 }
 export async function readCanonical(userId: string, symbol: string, researchRunId?: string | null): Promise<CanonicalBundle | null> {
+  await requireResearchStorage(["SliceForecastBundle"]);
   const row = await prisma.sliceForecastBundle.findFirst({ where: { userId, symbol, status: "Ready", provider: "Alpha Vantage", ...(researchRunId ? { researchRunId } : {}) }, orderBy: { createdAt: "desc" } });
   if (!row?.forecastJson || !row.outputSha256 || !row.forecastRunId) return null;
   if (digest(row.forecastJson) !== row.outputSha256 || digest(row.snapshotJson) !== row.inputSha256) throw new StrategyError("FORECAST_INTEGRITY", "Saved forecast integrity check failed.", 409);
@@ -101,6 +103,7 @@ export function attachForecastNodes(graph: ResearchKnowledgeGraph, forecast: For
   return { ...graph, nodes: [...graph.nodes, ...nodes], edges: [...graph.edges, ...edges], nodeCount: graph.nodes.length + nodes.length, edgeCount: graph.edges.length + edges.length };
 }
 export async function readCanonicalGraph(input: { userId: string; symbol: string; runId?: string; projection?: ResearchGraphProjectionMode; selectedNodeId?: string | null }) {
+  await requireResearchStorage(["SliceForecastBundle"]);
   const row = await prisma.sliceForecastBundle.findFirst({ where: { userId: input.userId, symbol: input.symbol, status: "Ready", ...(input.runId ? { researchRunId: input.runId } : {}) }, orderBy: { createdAt: "desc" } });
   if (!row) return null;
   const audit = JSON.parse(row.operationsJson ?? "{}") as { graphSha256?: string; researchSha256?: string; graphAnalytics?: ResearchGraphAnalytics };

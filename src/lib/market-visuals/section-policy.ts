@@ -1,9 +1,15 @@
 import type { Entitlement } from "@/lib/market-evidence/contracts";
+import { isIndex } from "@/lib/market-evidence/instruments";
 import { MarketError } from "@/lib/market-evidence/core";
 import type { SectionRequest } from "./contracts";
 /** One endpoint/parameter policy for all three research surfaces. */
 export function sectionPolicy(input: SectionRequest, entitlement: Entitlement) {
   const symbol = input.symbol;
+  if(isIndex(symbol)) {
+    if(input.section !== "quote" && input.section !== "history") throw new MarketError("INDEX_SECTION", "Native index levels have no company earnings, equity news filter, or equity options chain in this view. Choose Market or Technicals; an ETF proxy is never substituted.", 422);
+    if(input.section === "history" && input.range === "1D") throw new MarketError("INDEX_INTERVAL", "Native indices use completed daily bars. Choose 1M or longer.", 422);
+    return {endpoint:"INDEX_DATA",params:{symbol:symbol.slice(6),interval:"daily"} as Record<string,string>,ttlMs:3_600_000};
+  }
   switch (input.section) {
     case "quote": return entitlement === "realtime"
       ? { endpoint: "REALTIME_BULK_QUOTES", params: { symbol } as Record<string, string>, ttlMs: 45_000 }

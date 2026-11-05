@@ -1,5 +1,7 @@
+import { runBacktest as runLegacyBacktest } from "./legacy-v1/engine";
+import { StrategyError as LegacyStrategyError } from "./legacy-v1/contracts";
 import { ENGINE_VERSION, PROVIDER, StrategyError, manifestOf, type StrategySpec, type Dataset, type DailyBar, type BacktestResult, type EquityPoint, type Trade, type ActionEvent, type Performance } from "./contracts";
-import { Series, evaluateRules } from "./indicators";
+import { Series, evaluateRules, flattenRules } from "./indicators";
 import { validateSpec } from "./validation";
 const DAY = 86400000;
 function at(s: Series, date: string): DailyBar {
@@ -9,7 +11,7 @@ function at(s: Series, date: string): DailyBar {
 }
 export function requiredWarmup(s: StrategySpec): number {
   const ranking = s.ranking === "alphabetical" && s.weighting === "equal" ? 2 : s.rankingPeriod;
-  return Math.max(2, ranking, ...[...s.entry.rules, ...s.exit.rules].map(r => r.period)) + 2;
+  return Math.max(2, ranking, ...[...flattenRules(s.entry), ...flattenRules(s.exit), ...flattenRules(s.regime ?? { mode: "all", rules: [] })].map(r => r.period)) + 2;
 }
 function rebalanceDue(mode: StrategySpec["rebalance"], date: string, prior: string, first: boolean): boolean {
   if (first || mode === "daily") return true;
@@ -41,11 +43,13 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
   for (let day = 0; day < dates.length; day++) {
     const date = dates[day], signalDate = priorDates[day];
     const exits = new Map<string, string>();
+    const regimeOn = !spec.regime || evaluateRules(spec.regime, reference, reference.index.get(signalDate)!, reference, true);
     // Signals use yesterday's close and information already observed at that close.
     if (spec.portfolioStopPct !== null && lastEquity / peakEquity - 1 <= -spec.portfolioStopPct / 100) halted = true;
     for (const [symbol, h] of holdings) {
       const s = seriesOf(symbol), j = s.index.get(signalDate)!;
       if (halted) exits.set(symbol, "Portfolio closing-drawdown circuit: cash for remainder of run");
+      else if (!regimeOn) exits.set(symbol, "Benchmark regime failed at prior close");
       else if (spec.trailingStopPct !== null && at(s, signalDate).close <= h.peakClose * (1 - spec.trailingStopPct / 100)) exits.set(symbol, "Prior-close trailing stop");
       else if (spec.maxHoldingSessions !== null && day - h.opened >= spec.maxHoldingSessions) exits.set(symbol, "Maximum holding sessions");
       else if (evaluateRules(spec.exit, s, j, reference, false)) exits.set(symbol, "Exit criteria at prior close");
@@ -59,7 +63,7 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
     const navOpen = cash + [...holdings].reduce((s, [symbol, h]) => s + h.shares * at(seriesOf(symbol), date).open, 0);
     const targets: Record<string, number> = {};
     const rebalance = rebalanceDue(spec.rebalance, date, signalDate, day === 0);
-    if (rebalance && !halted) {
+    if (rebalance && !halted && regimeOn) {
       const candidates = spec.symbols.flatMap(symbol => {
         if (exits.has(symbol) || day < (cooldown.get(symbol) ?? -1)) return [];
         const s = seriesOf(symbol), i = s.index.get(signalDate)!;
@@ -72,8 +76,14 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
         return [{ symbol, rank: spec.ranking === "low-volatility" ? -rank : rank, value: spec.weighting === "equal" ? 1 : 1 / vol }];
       }).sort((a, b) => b.rank - a.rank || a.symbol.localeCompare(b.symbol)).slice(0, spec.maxHoldings);
       const weights = allocate(candidates, spec.maxExposurePct / 100, spec.maxPositionPct / 100);
+      // Non-overlapping user-defined groups cap targets; freed weight stays in cash.
+      for (const group of spec.allocationGroups ?? []) {
+        const total = group.symbols.reduce((sum, symbol) => sum + (weights[symbol] ?? 0), 0);
+        const cap = group.maxExposurePct / 100;
+        if (total > cap) for (const symbol of group.symbols) if (weights[symbol]) weights[symbol] *= cap / total;
+      }
       for (const [symbol, w] of Object.entries(weights)) targets[symbol] = w * navOpen / at(seriesOf(symbol), date).open;
-    } else if (!halted) {
+    } else if (!halted && regimeOn) {
       for (const [symbol, h] of holdings) if (!exits.has(symbol)) targets[symbol] = h.shares;
     }
     function execute(symbol: string, side: "BUY" | "SELL", requested: number, reason: string) {
@@ -136,7 +146,7 @@ function performance(spec: StrategySpec, p: ReturnType<typeof portfolio>): Perfo
     tradeCount: p.trades.length, fees: p.trades.reduce((a, x) => a + x.fee, 0), slippage: p.trades.reduce((a, x) => a + x.slippage, 0),
     dividends: p.corporateActions.reduce((a, x) => a + x.cash, 0), averageExposurePct: curve.reduce((a, x) => a + x.invested / x.equity, 0) / n * 100, finalEquity: end };
 }
-export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Date(), options: { allowSingleSession?: boolean } = {}): BacktestResult {
+export function prepareBacktest(rawSpec: unknown, datasets: Dataset[], now = new Date(), options: { allowSingleSession?: boolean } = {}) {
   const spec = validateSpec(rawSpec, now, options), unique = [...new Set([...spec.symbols, spec.benchmark])];
   const prepared = new Map<string, Series>();
   for (const symbol of unique) {
@@ -153,7 +163,7 @@ export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Dat
   if (dates.length < (options.allowSingleSession ? 1 : 2)) throw new StrategyError("EMPTY_PERIOD", "Not enough complete benchmark trading sessions for this calculation.");
   if (Date.parse(dates[0]) - Date.parse(spec.startDate) > 4 * DAY || Date.parse(spec.endDate) - Date.parse(dates.at(-1)!) > 4 * DAY)
     throw new StrategyError("BENCHMARK_COVERAGE", "Benchmark history does not cover the requested period. Shortened tests are not substituted.");
-  const criterionWork = unique.length * reference.data.bars.length * [...spec.entry.rules, ...spec.exit.rules].reduce((n, rule) => n + rule.period, spec.rankingPeriod);
+  const criterionWork = unique.length * reference.data.bars.length * [...flattenRules(spec.entry), ...flattenRules(spec.exit), ...flattenRules(spec.regime ?? { mode: "all", rules: [] })].reduce((n, rule) => n + rule.period, spec.rankingPeriod);
   if (criterionWork > 200000000) throw new StrategyError("COMPUTATION_LIMIT", "This test exceeds the interactive work budget. Use fewer distinct criteria, instruments, or shorter lookbacks.");
   const warmup = requiredWarmup(spec), first = allDates.indexOf(dates[0]);
   if (first < warmup) throw new StrategyError("WARMUP_REQUIRED", `Need ${warmup} prior benchmark sessions before the first test session.`);
@@ -167,8 +177,16 @@ export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Dat
     }
   }
   const previous = dates.map((_, i) => allDates[first + i - 1]);
+  return { spec, unique, prepared, reference, dates, previous, warmup };
+}
+export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Date(), options: { allowSingleSession?: boolean } = {}): BacktestResult {
+  if (rawSpec && typeof rawSpec === "object" && "version" in rawSpec && rawSpec.version === 1) {
+    try { return runLegacyBacktest(rawSpec, datasets, now, options); }
+    catch (error) { if (error instanceof LegacyStrategyError) throw new StrategyError(error.code, error.message, error.status); throw error; }
+  }
+  const { spec, unique, prepared, reference, dates, previous, warmup } = prepareBacktest(rawSpec, datasets, now, options);
   const p = portfolio(spec, prepared, reference, dates, previous);
-  const bSpec: StrategySpec = { ...spec, symbols: [spec.benchmark], entry: { mode: "all", rules: [] }, exit: { mode: "any", rules: [] }, ranking: "alphabetical", weighting: "equal", rebalance: "once", maxHoldings: 1, maxPositionPct: 100, maxExposurePct: 100, trailingStopPct: null, portfolioStopPct: null, maxHoldingSessions: null };
+  const bSpec: StrategySpec = { ...spec, regime: undefined, allocationGroups: undefined, symbols: [spec.benchmark], entry: { mode: "all", rules: [] }, exit: { mode: "any", rules: [] }, ranking: "alphabetical", weighting: "equal", rebalance: "once", maxHoldings: 1, maxPositionPct: 100, maxExposurePct: 100, trailingStopPct: null, portfolioStopPct: null, maxHoldingSessions: null };
   const b = portfolio(bSpec, prepared, reference, dates, previous), strategy = performance(spec, p), benchmark = performance(bSpec, b);
   const groups = new Map<string, { first: number; last: number }>();
   dates.forEach((date, i) => { const m = date.slice(0, 7); const g = groups.get(m); groups.set(m, { first: g?.first ?? i, last: i }); });
@@ -183,6 +201,7 @@ export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Dat
     "Fractional shares, unlimited modeled fill liquidity, USD-only, long-only, no leverage or taxes. Final holdings are marked at the last close, not liquidated.",
     "Closing stops execute at the next open, not at an intraday trigger price. Gaps may exceed the selected stop percentage.",
     "Risk-free rate is a user-specified constant used only for Sharpe. Uninvested cash earns zero interest.",
+    "User-defined industry groups are fixed portfolio labels, not historically reconstructed sector membership. Group-cap reductions remain as cash; targets can drift between rebalances.",
     "Historical results are hypothetical. Repeatedly adjusting criteria to fit the same period creates selection bias; reserve a separate test period.",
   ];
   if (dates.length < 252) warnings.push("Less than one trading year: annualized metrics can be unstable.");

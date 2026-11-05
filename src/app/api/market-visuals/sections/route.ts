@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const result = await loadMarketSection(input, marketStorage(access), AbortSignal.any([request.signal, AbortSignal.timeout(45000)]));
     return Response.json({ ...result, scope: `${access.userId}:${access.firmId}` }, { headers: { ...PRIVATE_HEADERS, "Server-Timing": `market_section;dur=${(performance.now() - started).toFixed(1)}`, "X-Slice-Market-Section": input.section } });
   } catch (e) {
-    if (e instanceof MarketError) return Response.json({ ok: false, code: e.code, message: e.message }, { status: e.status, headers: { ...PRIVATE_HEADERS, ...([409, 429].includes(e.status) ? { "Retry-After": "30" } : {}) } });
+    if (e instanceof MarketError) return Response.json({ ok: false, code: e.code, message: e.message, retryAt:e.retryAt }, { status: e.status, headers: { ...PRIVATE_HEADERS, ...([409, 429].includes(e.status) ? { "Retry-After": String(e.retryAfterSeconds || 30) } : {}) } });
     return failure(e);
   }
 }

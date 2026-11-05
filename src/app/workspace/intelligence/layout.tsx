@@ -1,3 +1,5 @@
+import ResearchBetaBanner from "@/components/strategy-lab/research-beta-banner";
+import DataReadinessPanel from "@/components/data-readiness/data-readiness-panel";
 import type { ReactNode } from "react";
 
 import IntelligenceNavigation from "@/components/intelligence/intelligence-navigation";
@@ -10,6 +12,7 @@ export default function IntelligenceLayout({
   return (
     <div className="min-h-full bg-[var(--slice-bg)] text-[var(--slice-text)]">
       <IntelligenceNavigation />
+      <div className="px-4 sm:px-6"><ResearchBetaBanner /><DataReadinessPanel /></div>
       {children}
     </div>
   );

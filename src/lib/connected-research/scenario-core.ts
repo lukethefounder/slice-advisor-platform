@@ -107,6 +107,8 @@ export function replayForward(spec: StrategySpec, journal: ScenarioJournal, targ
   const dates = reference.bars.map(b => b.date).filter(d => d >= journal.earliestStart && d < nyDate(now)).slice(0, targetSessions);
   if (!dates.length) return null;
   const calculation = runBacktest({ ...spec, startDate: dates[0], endDate: dates.at(-1)! }, journal.datasets, now, { allowSingleSession: true });
+  if (previous && previous.calculation.engineVersion !== calculation.engineVersion)
+    return fail("ENGINE_CHANGED", "The saved scenario engine does not match this calculation. Existing observations were preserved.");
   const result: ForwardResult = { version: SCENARIO_VERSION, classification: "registered-rule-paper-replay", effectiveStart: dates[0], throughDate: dates.at(-1)!, acceptedSessions: dates.length, complete: dates.length >= targetSessions, calculation,
     warning: "Rules were registered before the first eligible session. Later vendor observations are replayed under those frozen rules; fills are modeled, not broker executions or proof that a live order was submitted. Signals use prior closes, executions use the next observed open. Gaps in monitoring are caught up transparently; future observations and old raw-price revisions are never substituted." };
   if (previous) assertStablePrefix(previous, result);
