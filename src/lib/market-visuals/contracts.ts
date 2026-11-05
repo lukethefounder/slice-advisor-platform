@@ -1,0 +1,12 @@
+import type { MarketNews, MarketQuote, MarketRange, MarketReceipt, MarketSeries } from "@/lib/market-evidence/contracts";
+export const SECTIONS = ["quote", "history", "news", "fundamentals", "earnings", "options"] as const;
+export type Section = typeof SECTIONS[number];
+export type Metric = { label: string; value: number | null; kind: "number" | "money" | "ratio" | "percent"; detail?: string };
+export type Company = { symbol: string; name: string; sector: string; industry: string; currency: string; exchange: string; description: string; latestQuarter: string | null; metrics: Metric[] };
+export type Earnings = { symbol: string; rows: Array<{ fiscalDate: string; reportedDate: string | null; reportedEPS: number | null; estimatedEPS: number | null; surprisePct: number | null; reportTime: string | null }> };
+export type OptionRow = { id: string; symbol: string; expiration: string; strike: number; type: "call" | "put"; asOf: string | null; bid: number | null; ask: number | null; last: number | null; volume: number | null; openInterest: number | null; impliedVolatility: number | null; delta: number | null; crossed: boolean };
+export type Options = { symbol: string; rows: OptionRow[]; receivedCount: number; omittedCount: number; datePrecision: "provider date or unavailable"; note: string };
+export type SectionData = { quote: MarketQuote[]; history: MarketSeries; news: MarketNews[]; fundamentals: Company; earnings: Earnings; options: Options };
+export type SectionResponse<S extends Section = Section> = { ok: true; scope?: string; section: S; symbol: string; range: MarketRange; preparedAt: string; receipts: MarketReceipt[]; elapsedMs: number; snapshotId?: string; data: SectionData[S] };
+export type SectionRequest = { section: Section; symbol: string; range: MarketRange; confirmOptions: boolean };
+export const SECTION_TTLS: Record<Section, number> = { quote: 30_000, history: 60_000, news: 300_000, fundamentals: 3_600_000, earnings: 3_600_000, options: 30_000 };

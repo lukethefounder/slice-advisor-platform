@@ -2,21 +2,14 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { guardIntelligenceOperation, completeIntelligenceOperation, IntelligenceGuardError, guardErrorResponse, type OperationGuardTicket } from "@/lib/intelligence-forecast/production-controls";
 import { ApiError } from "@/lib/api-route";
+import { StrategyError } from "@/lib/strategy-lab/contracts";
 import type { BackgroundJobRuntime } from "@/lib/background-jobs/queue";
 import type { BackendContext } from "@/lib/backend/config";
-import {
-  buildProfileForUser,
-  getAdvisorSourcesForScan,
-  persistIntelligenceResult,
-  scanPermittedSources,
-  type ScanResult,
-} from "@/lib/intelligence";
 import { getAlphaVantageIntelligence } from "@/lib/intelligence/alpha-vantage-live";
 import { getEconomicResearch } from "@/lib/intelligence/economic-live";
 import {
-  filterFreshScanResult,
-  freshnessRejectionMessage,
   timestampFreshness,
 } from "@/lib/intelligence/freshness";
 import {
@@ -36,8 +29,7 @@ import type {
   ResearchSwarmAlgorithmDiagnostics,
   ResearchSwarmResponse,
 } from "@/lib/intelligence/research-swarm-types";
-import type { IntelligenceScanPayload } from "@/lib/intelligence-forecast/live-snapshot";
-import { createLogger } from "@/lib/logger";
+import { publishAlphaResearch, attachForecastNodes, readCanonicalGraph, retainCanonicalNodes } from "@/lib/intelligence-unified/service";
 
 export type ResearchSwarmDetailMode =
   | "summary"
@@ -108,9 +100,7 @@ globalResearch.__sliceResearchSwarmInflight =
 globalResearch.__sliceResearchSwarmLatest =
   latestByUserSymbol;
 
-const log = createLogger(
-  "intelligence:research-swarm",
-);
+
 
 function clampInteger(
   value: unknown,
@@ -503,7 +493,7 @@ function responseForView(
   return {
     ...full,
     agents,
-    graph,
+    graph: retainCanonicalNodes(full.graph, graph),
     algorithm,
     score: {
       ...full.score,
@@ -520,12 +510,6 @@ function responseForView(
       },
     },
   } satisfies ResearchSwarmResponse;
-}
-
-function scanPayload(
-  result: ScanResult | null,
-): IntelligenceScanPayload | null {
-  return result;
 }
 
 function validateMarketFreshness(
@@ -553,7 +537,7 @@ function validateMarketFreshness(
     marketOpen &&
     (alpha.freshness.mode === "stale" ||
       alpha.freshness.mode ===
-        "unavailable");
+        "unavailable" || alpha.freshness.mode === "end_of_day");
 
   if (unacceptableDuringOpen) {
     throw new ApiError({
@@ -574,264 +558,60 @@ function validateMarketFreshness(
 }
 
 async function performBuild(
-  input: Required<
-    Pick<
-      BuildResearchSwarmInput,
-      | "userId"
-      | "symbol"
-      | "requestedAgents"
-      | "simulationPaths"
-      | "graphMode"
-      | "persistGraph"
-    >
-  > &
-    Pick<
-      BuildResearchSwarmInput,
-      "progress"
-    >,
+  input: Required<Pick<BuildResearchSwarmInput, "userId" | "symbol" | "requestedAgents" | "simulationPaths" | "graphMode" | "persistGraph">> & Pick<BuildResearchSwarmInput, "progress">,
 ): Promise<ResearchSwarmResponse> {
-  await input.progress?.(
-    5,
-    "Loading research profile and current market providers",
-  );
-
-  const profileAndSources = Promise.all([
-    buildProfileForUser(input.userId),
-    getAdvisorSourcesForScan(
-      input.userId,
-    ),
-  ]);
-  const alphaPromise =
-    getAlphaVantageIntelligence({
-      symbol: input.symbol,
-      interval: "5min",
-    });
-  const [alpha, [profile, advisorSources]] =
-    await Promise.all([
-      alphaPromise,
-      profileAndSources,
-    ]);
-
+  const key = process.env.ALPHA_VANTAGE_API_KEY?.trim();
+  if (!key || /^(demo|your[_ -]|changeme|replace)/i.test(key)) throw new ApiError({status:503, code:"ALPHA_KEY_REQUIRED", message:"Configure a private Alpha Vantage key. No demo data will be used.", expose:true});
+  let ticket: OperationGuardTicket;
+  try { ticket = await guardIntelligenceOperation({ userId: input.userId, operation: "forecast.generate" }); }
+  catch (error) {
+    if (error instanceof IntelligenceGuardError) { const guarded = guardErrorResponse(error); throw new ApiError({ status: guarded.status, code: "INTELLIGENCE_OPERATION_BLOCKED", message: error.message, expose: true }); }
+    throw error;
+  }
+  try {
+  await input.progress?.(5, "Collecting Alpha Vantage observations");
+  const alpha = await getAlphaVantageIntelligence({symbol:input.symbol, interval:"5min"});
   validateMarketFreshness(alpha);
-
-  await input.progress?.(
-    24,
-    "Collecting current media, company, and economic evidence",
-  );
-
-  const [scanSettled, economy] =
-    await Promise.all([
-      scanPermittedSources(
-        profile,
-        advisorSources,
-      )
-        .then(async (rawResult) => {
-          const filtered =
-            filterFreshScanResult(
-              rawResult,
-              {
-                maximumAgeMs:
-                  configuredNewsAgeMs(),
-              },
-            );
-          const rejectionWarning =
-            freshnessRejectionMessage(
-              filtered.rejected,
-            );
-
-          if (rejectionWarning) {
-            log.info(
-              "scan.freshness_filtered",
-              {
-                userId: input.userId,
-                symbol: input.symbol,
-                cutoffAt:
-                  filtered.cutoffAt,
-                rejected:
-                  filtered.rejected,
-              },
-            );
-          }
-
-          await persistIntelligenceResult(
-            input.userId,
-            filtered.result,
-          ).catch((error) => {
-            log.warn(
-              "scan.persistence_failed",
-              {
-                userId: input.userId,
-                symbol: input.symbol,
-                detail:
-                  error instanceof Error
-                    ? error.message
-                    : "Scan persistence failed.",
-              },
-            );
-          });
-
-          return {
-            scan: filtered.result,
-            rejectionWarning,
-          };
-        })
-        .catch((error) => {
-          log.warn("scan.failed", {
-            userId: input.userId,
-            symbol: input.symbol,
-            detail:
-              error instanceof Error
-                ? error.message
-                : "Permitted-source scan failed.",
-          });
-
-          return null;
-        }),
-      getEconomicResearch({
-        sector:
-          alpha.overview?.sector ||
-          "Unknown",
-        industry:
-          alpha.overview?.industry ||
-          "Unknown",
-      }),
-    ]);
-
-  await input.progress?.(
-    48,
-    "Running equal-third research pathways",
-  );
-
-  const base = runResearchSwarm({
-    symbol: input.symbol,
-    requestedAgents:
-      input.requestedAgents,
-    alpha,
-    scan: scanPayload(
-      scanSettled?.scan ?? null,
-    ),
-    economy,
-    simulationPaths:
-      input.simulationPaths,
-    graphMode: input.graphMode,
-  });
-  const analytics = analyzeResearchGraph(
-    base.graph,
-    base.score,
-  );
-  const provisional = {
-    ...base,
-    graphAnalytics: analytics,
-    graphPersistence: {
-      status: "skipped" as const,
-      detail:
-        "Graph persistence was not requested.",
-    },
-  } satisfies ResearchSwarmResponse;
-  const preliminaryDiagnostics =
-    diagnostics({
-      response: provisional,
-      cacheStatus: "not-used",
-      cacheKey: "",
-      expiresAt: null,
-    });
-  const enhanced = {
-    ...provisional,
-    algorithm:
-      preliminaryDiagnostics,
-    score: {
-      ...provisional.score,
-      quality: {
-        ...provisional.score.quality,
-        stabilityScore:
-          preliminaryDiagnostics.stabilityScore,
-        sourceConcentration:
-          preliminaryDiagnostics.sourceConcentration,
-        uncertaintyLow:
-          preliminaryDiagnostics
-            .uncertaintyBand.low,
-        uncertaintyHigh:
-          preliminaryDiagnostics
-            .uncertaintyBand.high,
-      },
-    },
-  } satisfies ResearchSwarmResponse;
-
-  await input.progress?.(
-    72,
-    "Calculating graph centrality, communities, and risk topology",
-  );
-
-  const graphPersistence =
-    input.persistGraph
-      ? await persistResearchKnowledgeGraph({
-          userId: input.userId,
-          graph: enhanced.graph,
-          metadata: {
-            symbol: enhanced.symbol,
-            companyName:
-              enhanced.companyName,
-            sector: enhanced.sector,
-            industry:
-              enhanced.industry,
-            requestedAgents:
-              enhanced.requestedAgents,
-            activeAgents:
-              enhanced.activeAgents,
-            score:
-              enhanced.score.overall,
-            confidence:
-              enhanced.score.confidence,
-            providerAsOf:
-              enhanced.providerAsOf,
-            durationMs:
-              enhanced.durationMs,
-            analytics: {
-              algorithmVersion:
-                enhanced.graphAnalytics
-                  .algorithmVersion,
-              connectednessScore:
-                enhanced.graphAnalytics
-                  .connectednessScore,
-              networkResilience:
-                enhanced.graphAnalytics
-                  .networkResilience,
-              sourceConcentration:
-                enhanced.graphAnalytics
-                  .sourceConcentration,
-              contradictionRatio:
-                enhanced.graphAnalytics
-                  .contradictionRatio,
-            },
-          },
-        })
-      : enhanced.graphPersistence;
-
-  await input.progress?.(
-    92,
-    input.persistGraph
-      ? "Saving the completed current research graph"
-      : "Finalizing the current research response",
-  );
-
-  return {
-    ...enhanced,
-    graphPersistence,
-    warnings: Array.from(
-      new Set([
-        ...enhanced.warnings,
-        ...(scanSettled
-          ? scanSettled.rejectionWarning
-            ? [
-                scanSettled.rejectionWarning,
-              ]
-            : []
-          : [
-              "The permitted-source scan was unavailable; Alpha Vantage market, news, and economic evidence remained active.",
-            ]),
-      ]),
-    ),
-  };
+  if (!alpha.providerAsOf || !Number.isFinite(Date.parse(alpha.providerAsOf)) || Date.parse(alpha.providerAsOf) > Date.now() + 300000) {
+    throw new ApiError({status:409, code:"INVALID_PROVIDER_TIME", message:"A valid non-future provider timestamp is required.", expose:true});
+  }
+  if (Date.now() - Date.parse(alpha.providerAsOf) > 120 * 3600000) {
+    throw new ApiError({status:409, code:"STALE_PROVIDER_TIME", message:"The latest observed market data is too old to create a current forecast.", expose:true});
+  }
+  // A media item must have a valid publication time. Never replace it with retrieval time.
+  if (alpha.news) {
+    alpha.news = {...alpha.news, items: alpha.news.items.filter(item => {
+      if (!item.publishedAt) return false;
+      const age = Date.now() - Date.parse(item.publishedAt);
+      return Number.isFinite(age) && age >= -300000 && age <= configuredNewsAgeMs();
+    })};
+  }
+  await input.progress?.(25, "Collecting Alpha Vantage economic releases");
+  const economy = await getEconomicResearch({sector:alpha.overview?.sector || "Unknown", industry:alpha.overview?.industry || "Unknown"});
+  await input.progress?.(48, "Computing equal-third research over verified provider evidence");
+  const base = runResearchSwarm({symbol:input.symbol, requestedAgents:input.requestedAgents, alpha, scan:null, economy,
+    simulationPaths:input.simulationPaths, graphMode:input.graphMode});
+  const enhanced: ResearchSwarmResponse = {...base, graphAnalytics:analyzeResearchGraph(base.graph, base.score),
+    graphPersistence:{status:"skipped", detail:"Neo4j persistence not requested; canonical forecast remains stored in PostgreSQL."},
+    warnings:[...base.warnings, "External RSS and advisor-source scans were excluded from this Alpha Vantage-only run."]};
+  await input.progress?.(70, "Publishing one immutable forecast for all linked views");
+  const canonical = await publishAlphaResearch(input.userId, enhanced);
+  enhanced.graph = attachForecastNodes(base.graph, canonical.forecast, canonical.id, canonical.forecastRunId, canonical.targets);
+  enhanced.graphAnalytics = canonical.graphAnalytics;
+  if (input.persistGraph) {
+    enhanced.graphPersistence = await persistResearchKnowledgeGraph({userId:input.userId, graph:enhanced.graph,
+      metadata:{symbol:enhanced.symbol, companyName:enhanced.companyName, sector:enhanced.sector, industry:enhanced.industry,
+        requestedAgents:enhanced.requestedAgents, activeAgents:enhanced.activeAgents, score:enhanced.score.overall,
+        confidence:enhanced.score.confidence, providerAsOf:enhanced.providerAsOf, durationMs:enhanced.durationMs}});
+  }
+  await input.progress?.(95, "Canonical forecast and research graph ready");
+  await completeIntelligenceOperation({ userId: input.userId, ticket, success: true, detail: `Canonical forecast published for ${enhanced.runId}` }).catch(() => { enhanced.warnings.push("Forecast stored, but production-control completion logging needs review."); });
+  return enhanced;
+  } catch (error) {
+    await completeIntelligenceOperation({ userId: input.userId, ticket, success: false, error }).catch(() => undefined);
+    if (error instanceof StrategyError) throw new ApiError({ status: error.status, code: error.code, message: error.message, expose: true });
+    throw error;
+  }
 }
 
 export async function buildResearchSwarmForUser(
@@ -959,6 +739,8 @@ export async function loadLatestResearchGraphView(
     runId?: string;
   },
 ): Promise<ResearchGraphViewResponse | null> {
+  const canonical = await readCanonicalGraph(input);
+  if (canonical) return canonical;
   const symbol = cleanSymbol(input.symbol);
   const memory = latestByUserSymbol.get(
     `${input.userId}:${symbol}`,

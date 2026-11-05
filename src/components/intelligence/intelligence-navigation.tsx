@@ -20,6 +20,7 @@ import { usePathname } from "next/navigation";
 import { cx } from "@/components/intelligence/intelligence-ui";
 
 const NAVIGATION = [
+  { href: "/workspace/intelligence/strategy-lab", label: "Strategy Lab", icon: FlaskConical },
   {
     href: "/workspace/intelligence",
     label: "Control Plane",

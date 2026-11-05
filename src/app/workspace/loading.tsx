@@ -1,25 +1,3 @@
-import {
-  WorkspaceSkeleton,
-  WorkspaceSurface,
-} from "@/components/workspace/core/workspace-ui";
-
 export default function WorkspaceLoading() {
-  return (
-    <div className="min-h-[calc(100dvh-4rem)] p-4 sm:p-5 lg:p-6" role="status" aria-label="Loading workspace">
-      <div className="mx-auto grid max-w-[1700px] gap-4">
-        <WorkspaceSurface className="p-5 sm:p-6">
-          <WorkspaceSkeleton lines={3} />
-        </WorkspaceSurface>
-        <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <WorkspaceSurface className="p-5">
-            <WorkspaceSkeleton lines={7} />
-          </WorkspaceSurface>
-          <WorkspaceSurface className="p-5">
-            <WorkspaceSkeleton lines={10} />
-          </WorkspaceSurface>
-        </div>
-      </div>
-      <span className="sr-only">Loading workspace content.</span>
-    </div>
-  );
+ return <section role="status" aria-live="polite" style={{ margin: "24px clamp(16px,3vw,40px)", padding: 28, border: "1px solid var(--slice-border,#dce7e1)", borderRadius: 20, background: "var(--slice-surface-strong,#fff)", color: "var(--slice-muted,#647e74)" }}><p style={{ margin: 0, fontSize: 12 }}>Opening your workspace…</p><div aria-hidden="true" style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>{[0,1,2].map(n => <div key={n} style={{ height: 72, borderRadius: 12, background: "var(--slice-surface-muted,#f1f7f3)" }}/>)}</div><div aria-hidden="true" style={{ height: 230, borderRadius: 14, background: "var(--slice-surface-muted,#f1f7f3)", marginTop: 18 }}/></section>;
 }

@@ -1,0 +1,95 @@
+import "server-only";
+import { createHash, randomUUID } from "node:crypto";
+import { prisma } from "@/lib/prisma";
+import type { StudioScope } from "@/lib/studio/request";
+import { MarketError, obj, defaultPreferences, parsePreferences, connectionFromEvidence } from "./core";
+import { marketConfiguration, type CacheValue, type MarketStorage } from "./provider";
+import type { MarketConnection, MarketEvidence, PulsePreferences } from "./contracts";
+function json(s: string) { try { return obj(JSON.parse(s)); } catch { return {}; } }
+function allowance(name: string, fallback: number, maximum: number) { const n = Number(process.env[name]); return Number.isFinite(n) && n >= 1 ? Math.min(maximum, Math.floor(n)) : fallback; }
+const CALL = "SLICE_MARKET_EVIDENCE_CALL_V1", CACHE = "SLICE_MARKET_EVIDENCE_CACHE_V1";
+export function marketStorage(scope: StudioScope): MarketStorage {
+ const cfg = marketConfiguration(), eventKey = (key: string) => `pulse-cache:${scope.firmId}:${key}`;
+ const where = (key: string) => ({ userId_eventKey: { userId: scope.userId, eventKey: eventKey(key) } });
+ const lock = Number.parseInt(createHash("sha256").update("slice-pulse-quota:" + cfg.fingerprint).digest("hex").slice(0, 7), 16);
+ return {
+  cacheNamespace: `${scope.userId}:${scope.firmId}`,
+  async cached(key, ttl) {
+   const row = await prisma.backendPlatformEvent.findUnique({ where: where(key), select: { metadataJson: true, status: true, updatedAt: true } }); if (!row) return null;
+   const p = json(row.metadataJson);
+   const at = typeof p.retrievedAt === "string" ? p.retrievedAt : "";
+   const valid = ["Ready", "Loading", "Failed"].includes(row.status) && Number.isFinite(Date.parse(at)) && Date.now() - Date.parse(at) < ttl && Date.parse(at) <= Date.now() && typeof p.sha256 === "string" && p.value !== undefined;
+   if (valid) return { value: p.value, retrievedAt: at, sha256: p.sha256 as string, retained: row.status === "Failed", observedAt: typeof p.observedAt === "string" ? p.observedAt : undefined };
+   if (row.status === "Failed" && Date.now() - row.updatedAt.getTime() < 60000) throw new MarketError(String(p.code || "MARKET_BACKOFF"), String(p.message || "The provider is cooling down. Retry in a minute."), 429);
+   return null;
+  },
+  async claim(key) {
+   const row = await prisma.backendPlatformEvent.upsert({ where: where(key), update: {}, create: { userId: scope.userId, eventKey: eventKey(key), eventType: CACHE, area: "Market Evidence", title: "Timestamped market evidence cache", severity: "Info", status: "Idle", sourceType: "MarketCache", sourceId: scope.firmId, metadataJson: "{}" }, select: { id: true } });
+   const token = randomUUID();
+   const result = await prisma.backendPlatformEvent.updateMany({ where: { id: row.id, userId: scope.userId, OR: [{ status: { not: "Loading" } }, { updatedAt: { lt: new Date(Date.now() - 30000) } }] }, data: { status: "Loading", detail: token } });
+   if (!result.count) throw new MarketError("MARKET_BUSY", "An identical market lookup is already running. Retry shortly.", 409);
+   return token;
+  },
+  async reserve() {
+   // One credential-wide transaction lock protects THIS gateway across users and server instances.
+   // Legacy collectors are outside this allowance; operators must reserve capacity for them.
+   await prisma.$transaction(async tx => {
+    const held = await tx.$queryRaw<Array<{ locked: boolean }>>`SELECT pg_try_advisory_xact_lock(${lock}::bigint) AS locked`;
+    if (!held[0]?.locked) throw new MarketError("MARKET_BUSY", "The shared market gateway is reserving capacity. Retry shortly.", 409);
+    const now = new Date(), start = new Date(now); start.setUTCHours(0, 0, 0, 0);
+    const scopeWhere = { eventType: CALL, sourceType: cfg.fingerprint };
+    const [minute, day] = await Promise.all([tx.backendPlatformEvent.count({ where: { ...scopeWhere, createdAt: { gte: new Date(now.getTime() - 60000) } } }), tx.backendPlatformEvent.count({ where: { ...scopeWhere, createdAt: { gte: start } } })]);
+    if (minute >= allowance("SLICE_PULSE_CALLS_PER_MINUTE", 5, 120) || day >= allowance("SLICE_PULSE_CALLS_PER_DAY", 25, 50000)) throw new MarketError("GATEWAY_BUDGET", "This market gateway's shared request allowance has been reached. An administrator must review the provider plan before raising it.", 429);
+    await tx.backendPlatformEvent.create({ data: { userId: scope.userId, eventKey: `pulse-call:${randomUUID()}`, eventType: CALL, area: "Market Evidence", title: "Market provider request reservation", severity: "Info", status: "Reserved", sourceType: cfg.fingerprint, sourceId: scope.firmId, metadataJson: "{}" } });
+   }, { timeout: 10000, maxWait: 5000 });
+  },
+  async save(key, token, value: CacheValue) {
+   const current = await prisma.backendPlatformEvent.findUnique({ where: where(key), select: { metadataJson: true } });
+   const prior = current ? json(current.metadataJson) : {};
+   if (typeof prior.observedAt === "string" && value.observedAt && Date.parse(prior.observedAt) > Date.parse(value.observedAt)) throw new MarketError("OLDER_OBSERVATION", "An older provider observation was rejected; the newer saved observation is retained.", 409);
+   const r = await prisma.backendPlatformEvent.updateMany({ where: { userId: scope.userId, eventKey: eventKey(key), eventType: CACHE, detail: token, status: "Loading" }, data: { status: "Ready", detail: null, metadataJson: JSON.stringify(value) } });
+   if (!r.count) throw new MarketError("CACHE_RACE", "The evidence lookup was superseded. Retry to load the newer snapshot.", 409);
+  },
+  async fail(key, token, error) {
+   const row = await prisma.backendPlatformEvent.findUnique({ where: where(key), select: { metadataJson: true } });
+   const last = row ? json(row.metadataJson) : {};
+   await prisma.backendPlatformEvent.updateMany({ where: { userId: scope.userId, eventKey: eventKey(key), detail: token, status: "Loading" }, data: { status: "Failed", detail: null, metadataJson: JSON.stringify({ ...last, code: error.code, message: error.message }) } });
+  }
+ };
+}
+function prefKey(scope: StudioScope) { return { userId_eventKey: { userId: scope.userId, eventKey: `pulse-preferences:${scope.firmId}` } }; }
+export async function readPreferences(scope: StudioScope) {
+ const [row, watch] = await Promise.all([prisma.backendPlatformEvent.findUnique({ where: prefKey(scope), select: { metadataJson: true, updatedAt: true } }), prisma.watchAsset.findMany({ where: { userId: scope.userId }, take: 20, orderBy: { createdAt: "desc" }, select: { ticker: true } })]);
+ const suggested = defaultPreferences(watch.map(w => w.ticker));
+ let preferences = suggested;
+ if (row) { try { preferences = parsePreferences(json(row.metadataJson)); } catch { /* Safely recover an obsolete preference record. */ } }
+ return { preferences, revision: row?.updatedAt.toISOString() ?? null, suggestedSymbols: suggested.symbols };
+}
+export async function savePreferences(scope: StudioScope, preferences: PulsePreferences, revision: string | null) {
+ const data = { eventType: "SLICE_PULSE_PREFERENCES_V1", area: "Workspace", title: "Personal market workspace", severity: "Info", status: "Active", sourceType: "WorkspacePreferences", sourceId: scope.firmId, metadataJson: JSON.stringify(preferences) };
+ if (revision === null) {
+  try { const row = await prisma.backendPlatformEvent.create({ data: { userId: scope.userId, eventKey: `pulse-preferences:${scope.firmId}`, ...data }, select: { updatedAt: true } }); return row.updatedAt.toISOString(); }
+  catch { throw new MarketError("PREFERENCE_CONFLICT", "Preferences changed in another tab. Reload before saving again.", 409); }
+ }
+ if (!Number.isFinite(Date.parse(revision))) throw new MarketError("REVISION", "Invalid preference revision.");
+ // A successful same-millisecond write must still invalidate the previous revision.
+ const updatedAt = new Date(Math.max(Date.now(), Date.parse(revision) + 1));
+ const result = await prisma.backendPlatformEvent.updateMany({ where: { userId: scope.userId, eventKey: `pulse-preferences:${scope.firmId}`, updatedAt: new Date(revision) }, data: { ...data, updatedAt } });
+ if (!result.count) throw new MarketError("PREFERENCE_CONFLICT", "Preferences changed in another tab. Reload before saving again.", 409);
+ return updatedAt.toISOString();
+}
+export async function saveMarketHealth(scope: StudioScope, e: MarketEvidence) {
+ const health = connectionFromEvidence(e), cfg = marketConfiguration();
+ const values = { eventType: "SLICE_PULSE_HEALTH_V1", area: "Market Evidence", title: "Alpha Vantage connection test", severity: "Info", status: health.state, sourceType: "MarketHealth", sourceId: scope.firmId, metadataJson: JSON.stringify({ health, fingerprint: cfg.fingerprint, entitlement: cfg.entitlement }) };
+ await prisma.backendPlatformEvent.upsert({ where: { userId_eventKey: { userId: scope.userId, eventKey: `pulse-health:${scope.firmId}` } }, create: { userId: scope.userId, eventKey: `pulse-health:${scope.firmId}`, ...values }, update: values }); return health;
+}
+export async function readMarketHealth(scope: StudioScope): Promise<MarketConnection> {
+ const c = marketConfiguration(), base: MarketConnection = { configured: Boolean(c.key) && c.key.toLowerCase() !== "demo", entitlement: c.entitlement, state: c.key && c.key.toLowerCase() !== "demo" ? "unverified" : "missing", message: c.key && c.key.toLowerCase() !== "demo" ? "Configured; run a quote test to verify endpoint access. Entitlement and observation age are separate." : "A private server market credential is required.", checkedAt: null, observationAt: null, observationState: null };
+ if (!base.configured) return base;
+ const row = await prisma.backendPlatformEvent.findUnique({ where: { userId_eventKey: { userId: scope.userId, eventKey: `pulse-health:${scope.firmId}` } }, select: { metadataJson: true, updatedAt: true } });
+ if (!row || Date.now() - row.updatedAt.getTime() > 300000) return base;
+ const p = json(row.metadataJson);
+ if (p.fingerprint !== c.fingerprint || p.entitlement !== c.entitlement) return base;
+ const h = obj(p.health); if (!["missing", "unverified", "verified", "restricted", "rate-limited", "unavailable"].includes(String(h.state))) return base;
+ return { ...base, state: h.state as MarketConnection["state"], message: typeof h.message === "string" ? h.message : base.message, checkedAt: typeof h.checkedAt === "string" ? h.checkedAt : null, observationAt: typeof h.observationAt === "string" ? h.observationAt : null, observationState: ["realtime", "delayed", "end-of-day", "stale", "unavailable"].includes(String(h.observationState)) ? h.observationState as MarketConnection["observationState"] : null };
+}

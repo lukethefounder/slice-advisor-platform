@@ -111,6 +111,7 @@ const COHORT_CENTERS: Record<ResearchCohort | "shared", [number, number]> = {
 };
 
 const NODE_KINDS: Array<ResearchGraphNodeKind | "all"> = [
+  "forecast",
   "all",
   "score",
   "asset",
@@ -2071,10 +2072,7 @@ export default function ResearchKnowledgeGraphCanvas({
                   Properties
                 </p>
                 <dl className="mt-2 space-y-2">
-                  {Object.entries(
-                    selectedDetail.node.properties,
-                  )
-                    .slice(0, 8)
+                  {Object.entries(selectedDetail.node.properties).slice(0, selectedDetail.node.kind === "forecast" ? 14 : 8)
                     .map(([key, value]) => (
                       <div
                         key={key}
@@ -2110,3 +2108,4 @@ export default function ResearchKnowledgeGraphCanvas({
     </div>
   );
 }
+// slice-canonical-graph-inspection-v1

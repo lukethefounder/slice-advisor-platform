@@ -74,6 +74,7 @@ import type {
   ResearchBotTopology,
   SliceAgenticScore,
 } from "@/lib/intelligence/research-swarm-types";
+import UnifiedForecastPanel from "@/components/intelligence-unified/unified-forecast-panel";
 
 const ResearchKnowledgeGraphCanvas = dynamic(
   () => import("@/components/intelligence/research-knowledge-graph"),
@@ -437,7 +438,7 @@ export default function IntelligenceControlPlane() {
         const response = await intelligenceFetch<BootstrapResponse>(
           `/api/intelligence/research-swarm?symbol=${encodeURIComponent(
             symbol,
-          )}&projection=overview`,
+          )}&projection=overview&runId=${encodeURIComponent(new URLSearchParams(window.location.search).get("researchRunId") || "")}`,
           {
             signal: controller.signal,
           },
@@ -449,6 +450,7 @@ export default function IntelligenceControlPlane() {
 
         if (!mounted.current) return;
         setBootstrap(response);
+        setSummary(null); setSwarm(null);
         setStage("idle");
         const loadedFreshness = response.latest
           ? clientTimestampFreshness(response.latest.generatedAt, {
@@ -513,7 +515,7 @@ export default function IntelligenceControlPlane() {
             }),
           },
           {
-            timeoutMs: 82_000,
+            timeoutMs: 178_000,
           },
         );
 
@@ -555,33 +557,13 @@ export default function IntelligenceControlPlane() {
   );
 
   useEffect(() => {
-    mounted.current = true;
-    const cached = readSessionValue<IntelligenceSummary>(
-      cacheKey("MSFT"),
-      CACHE_MAX_AGE_MS,
-    );
-    if (cached) {
-      setSummary(cached);
-      const cachedFreshness = clientTimestampFreshness(
-        cached.completedAt,
-        {
-          currentWithinMs: 15 * 60_000,
-          recentWithinMs: CACHE_MAX_AGE_MS,
-        },
-      );
-      setMessage(
-        `${cachedFreshness.label}: showing the verified session snapshot while saved graph status loads.`,
-      );
-    }
-
-    void loadBootstrap("MSFT");
-
-    return () => {
-      mounted.current = false;
-      bootstrapController.current?.abort();
-      researchController.current?.abort();
-    };
-  }, [loadBootstrap]);
+          mounted.current = true;
+          const params = new URLSearchParams(window.location.search);
+          const requested = cleanIntelligenceSymbol(params.get("symbol")) || "MSFT";
+          setActiveSymbol(requested); setSymbolInput(requested); setSummary(null); setSwarm(null);
+          void loadBootstrap(requested);
+          return () => { mounted.current = false; bootstrapController.current?.abort(); researchController.current?.abort(); };
+        }, [loadBootstrap]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -625,7 +607,7 @@ export default function IntelligenceControlPlane() {
 
     setActiveSymbol(symbol);
     setSymbolInput(symbol);
-    if (cached) setSummary(cached);
+    setSummary(cached ?? null); setSwarm(null);
 
     await runResearch({
       symbol,
@@ -697,6 +679,7 @@ export default function IntelligenceControlPlane() {
 
   return (
     <IntelligencePage>
+      <UnifiedForecastPanel symbol={activeSymbol} researchRunId={swarm?.runId ?? bootstrap?.latest?.runId} refreshKey={summary?.completedAt} />
       <IntelligenceSurface className="overflow-hidden">
         <div className="grid gap-8 bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.13),transparent_35%),radial-gradient(circle_at_94%_10%,rgba(6,182,212,0.08),transparent_32%)] p-5 sm:p-7 xl:grid-cols-[minmax(0,1.2fr)_minmax(350px,0.8fr)]">
           <div>
@@ -1071,33 +1054,33 @@ export default function IntelligenceControlPlane() {
           tone="emerald"
         />
         <IntelligenceMetric
-          label="Forecast vector"
+          label="Research pressure"
           value={summary?.forecastVector.forecastBias ?? "Pending"}
           helper={
             summary
               ? `${formatIntelligencePercent(
                   summary.forecastVector.expectedDriftPercent,
-                )} expected drift`
+                )} diagnostic drift (not a price target)`
               : "Run current research."
           }
           icon={<Zap className="h-5 w-5" />}
           tone="amber"
         />
         <IntelligenceMetric
-          label="Persistence"
+          label="Research archive"
           value={
-            bootstrap?.persistence.configured
+            (bootstrap?.latest?.source === "postgresql" || Boolean(swarm) || bootstrap?.persistence.configured)
               ? "Ready"
-              : "Memory only"
+              : "No published run"
           }
           helper={
-            bootstrap?.persistence.configured
-              ? "Neo4j graph retention available."
-              : "Configure Neo4j for durable graph runs."
+            (bootstrap?.latest?.source === "postgresql" || Boolean(swarm) || bootstrap?.persistence.configured)
+              ? "Canonical history stored in PostgreSQL."
+              : "Generate research to create a durable archive."
           }
           icon={<Database className="h-5 w-5" />}
           tone={
-            bootstrap?.persistence.configured
+            (bootstrap?.latest?.source === "postgresql" || Boolean(swarm) || bootstrap?.persistence.configured)
               ? "emerald"
               : "slate"
           }
@@ -1225,7 +1208,7 @@ export default function IntelligenceControlPlane() {
 
               <div className="mt-4 rounded-2xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] p-4">
                 <p className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--slice-accent-strong)]">
-                  Forecast pressure
+                  Research diagnostics
                 </p>
                 <p className="mt-2 text-sm font-bold leading-6 text-[var(--slice-text)]">
                   {summary.forecastVector.driverSummary}
@@ -1558,3 +1541,4 @@ function summaryGraphFallback(
     },
   };
 }
+// slice-unified-control-v1

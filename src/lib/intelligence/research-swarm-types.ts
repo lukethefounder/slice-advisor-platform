@@ -473,7 +473,7 @@ export type ResearchSwarmResponse = {
 
 export type ResearchGraphViewResponse = {
   ok: true;
-  source: "memory" | "neo4j";
+  source: "memory" | "neo4j" | "postgresql";
   symbol: string;
   runId: string;
   generatedAt: string;

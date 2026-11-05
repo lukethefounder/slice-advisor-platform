@@ -395,33 +395,29 @@ export function watchWorkspaceAppearance(
   onChange?: (snapshot: WorkspaceAppearanceSnapshot) => void,
 ) {
   if (typeof window === "undefined") return () => undefined;
-
   let fingerprint = "";
   const media = window.matchMedia("(prefers-color-scheme: dark)");
-
   const refresh = () => {
-    const snapshot = applyWorkspaceAppearance();
+    if (document.visibilityState === "hidden") return;
+    const snapshot = readWorkspaceAppearance();
     const next = workspaceAppearanceFingerprint(snapshot);
-
     if (next !== fingerprint) {
       fingerprint = next;
+      applyWorkspaceAppearance(snapshot);
       onChange?.(snapshot);
     }
   };
-
   refresh();
-  const interval = window.setInterval(refresh, 600);
-
-  window.addEventListener("storage", refresh);
-  window.addEventListener("slice-theme-change", refresh);
-  window.addEventListener("slice-workspace-settings-change", refresh);
+  // Appearance is event-driven; no 600 ms timer or repeated unchanged style writes.
+  const events = ["storage", "slice-theme-change", "slice-workspace-settings-change", "focus", "pageshow"];
+  events.forEach(event => window.addEventListener(event, refresh));
+  document.addEventListener("visibilitychange", refresh);
   media.addEventListener?.("change", refresh);
-
   return () => {
-    window.clearInterval(interval);
-    window.removeEventListener("storage", refresh);
-    window.removeEventListener("slice-theme-change", refresh);
-    window.removeEventListener("slice-workspace-settings-change", refresh);
+    events.forEach(event => window.removeEventListener(event, refresh));
+    document.removeEventListener("visibilitychange", refresh);
     media.removeEventListener?.("change", refresh);
   };
 }
+
+// slice-event-appearance-v1

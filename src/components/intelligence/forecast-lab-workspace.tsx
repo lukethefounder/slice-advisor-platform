@@ -56,6 +56,7 @@ import type {
   ForecastHorizonResult,
   ForecastResponse,
 } from "@/lib/intelligence-forecast/types";
+import UnifiedForecastPanel from "@/components/intelligence-unified/unified-forecast-panel";
 
 type ForecastWithPersistence =
   ForecastResponse & {
@@ -255,7 +256,7 @@ export default function ForecastLabWorkspace() {
             }),
           },
           {
-            timeoutMs: 82_000,
+            timeoutMs: 178_000,
           },
         );
 
@@ -300,11 +301,11 @@ export default function ForecastLabWorkspace() {
             method: "POST",
             signal: nextController.signal,
             body: JSON.stringify(
-              research.forecastSnapshot,
+              { symbol: research.symbol, researchRunId: research.runId },
             ),
           },
           {
-            timeoutMs: 82_000,
+            timeoutMs: 178_000,
           },
         );
 
@@ -409,6 +410,7 @@ export default function ForecastLabWorkspace() {
 
   return (
     <IntelligencePage>
+      <UnifiedForecastPanel symbol={swarm?.symbol ?? symbolInput} researchRunId={swarm?.runId} refreshKey={swarm?.completedAt} />
       <IntelligenceSurface className="overflow-hidden">
         <div className="bg-[radial-gradient(circle_at_8%_0%,rgba(16,185,129,0.13),transparent_35%),radial-gradient(circle_at_94%_10%,rgba(6,182,212,0.08),transparent_32%)] p-5 sm:p-7">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -1144,3 +1146,4 @@ export default function ForecastLabWorkspace() {
     </IntelligencePage>
   );
 }
+// slice-unified-forecast-v1

@@ -2924,3 +2924,132 @@ model WebVitalSample {
   @@index([route, name, createdAt(sort: Desc)], map: "WebVitalSample_route_name_createdAt_idx")
   @@index([createdAt], map: "WebVitalSample_createdAt_idx")
 }
+
+// Additive models. Existing Slice models and data are not changed.
+// Every application query is authenticated and scoped by userId.
+model SliceResearchDataset {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String
+  symbol       String
+  currency     String
+  endpoint     String
+  sourceSha256 String
+  identityJson String
+  rawJson      String
+  barCount     Int
+  firstDate    String
+  lastDate     String
+  retrievedAt  DateTime @default(now())
+  @@index([userId, symbol, retrievedAt])
+}
+model SliceStrategyDefinition {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  specJson  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, updatedAt])
+}
+model SliceStrategyRun {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  engineVersion    String
+  inputSha256      String
+  outputSha256     String
+  datasetIdsJson   String
+  resultJson       String
+  summaryJson      String
+  createdAt        DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model SliceProviderQuota {
+  id            String   @id
+  day           String
+  requests      Int
+  nextAllowedAt DateTime
+}
+model SliceForecastBundle {
+  id                 String   @id @default(cuid())
+  userId             String
+  symbol             String
+  researchRunId      String
+  forecastRunId      String?
+  status             String
+  provider           String
+  inputSha256        String
+  outputSha256       String?
+  snapshotJson       String
+  forecastJson       String?
+  researchJson       String
+  graphJson          String
+  operationsJson     String?
+  asOfAt             DateTime
+  createdAt          DateTime @default(now())
+  @@unique([userId, researchRunId])
+  @@index([userId, symbol, createdAt])
+}
+
+
+// Slice Connected Workspace: additive, private-by-owner scenario records.
+model SliceForwardScenario {
+  id String @id @default(cuid())
+  userId String
+  firmId String
+  name String
+  sourceRunId String
+  status String @default("Draft")
+  specJson String
+  assumptionsJson String
+  baselineWeightsJson String
+  sourcesJson String @default("[]")
+  sourcesHash String?
+  ignoredAdjustedRevisions Int @default(0)
+  definitionHash String
+  frozenAt DateTime?
+  earliestStart String?
+  journalJson String?
+  journalHash String?
+  resultJson String?
+  resultHash String?
+  acceptedSessions Int @default(0)
+  lastSession String?
+  version Int @default(0)
+  nextCheckAt DateTime @default(now())
+  refreshStartedAt DateTime?
+  lastCheckedAt DateTime?
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  observations SliceScenarioObservation[]
+  @@index([firmId, userId, createdAt])
+  @@index([status, nextCheckAt])
+}
+model SliceScenarioObservation {
+  id String @id @default(cuid())
+  scenarioId String
+  userId String
+  firmId String
+  sessionDate String
+  payloadJson String
+  previousHash String
+  recordHash String
+  createdAt DateTime @default(now())
+  scenario SliceForwardScenario @relation(fields: [scenarioId], references: [id], onDelete: Restrict)
+  @@unique([scenarioId, sessionDate])
+  @@index([firmId, userId, scenarioId, sessionDate], map: "SliceScenarioObservation_owner_sessions_idx")
+}
+model SliceResearchRelationship {
+  id String @id @default(cuid())
+  userId String
+  firmId String
+  sourceKind String
+  sourceId String
+  targetKind String
+  targetId String
+  createdAt DateTime @default(now())
+  @@unique([userId, firmId, sourceKind, sourceId, targetKind, targetId], map: "SliceResearchRelationship_owner_nodes_key")
+  @@index([firmId, userId, createdAt])
+}

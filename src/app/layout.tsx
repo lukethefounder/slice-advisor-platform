@@ -5,6 +5,10 @@ import ChunkRecovery from "@/components/system/chunk-recovery";
 
 import "./globals.css";
 import "./market-green.css";
+import "./connected-experience.css";
+import NavigationAccelerator from "@/components/performance/navigation-accelerator";
+// slice-market-speed-runtime-v1
+
 
 const themeBootstrap = String.raw`
 (function () {
@@ -110,6 +114,7 @@ export default function RootLayout({
         <div id="slice-main-content" className="min-h-dvh">
           {children}
         </div>
+        <NavigationAccelerator />
         <WebVitalsReporter />
         <ChunkRecovery />
       </body>

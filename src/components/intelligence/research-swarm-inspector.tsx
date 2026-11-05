@@ -238,7 +238,7 @@ export default function ResearchSwarmInspector() {
             }),
           },
           {
-            timeoutMs: 82_000,
+            timeoutMs: 178_000,
           },
         );
 

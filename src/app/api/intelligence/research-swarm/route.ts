@@ -23,7 +23,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 180;
 
 const MAX_BODY_BYTES = 32_000;
 const DEFAULT_INTERACTIVE_AGENTS = 600;
@@ -247,7 +247,7 @@ export const GET = withApiRoute(
 export const POST = withApiRoute(
   {
     route: "/api/intelligence/research-swarm",
-    timeoutMs: 85_000,
+    timeoutMs: 175_000,
   },
   async ({ request }) => {
     if (isPotentiallyCrossSiteUnsafeRequest(request)) {

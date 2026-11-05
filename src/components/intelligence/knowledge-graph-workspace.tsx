@@ -52,6 +52,7 @@ import type {
   ResearchGraphViewResponse,
   ResearchSwarmResponse,
 } from "@/lib/intelligence/research-swarm-types";
+import UnifiedForecastPanel from "@/components/intelligence-unified/unified-forecast-panel";
 
 const ResearchKnowledgeGraphCanvas = dynamic(
   () => import("@/components/intelligence/research-knowledge-graph"),
@@ -608,7 +609,7 @@ export default function KnowledgeGraphWorkspace() {
               }),
             },
             {
-              timeoutMs: 86_000,
+              timeoutMs: 178_000,
             },
           );
 
@@ -770,6 +771,7 @@ export default function KnowledgeGraphWorkspace() {
 
   return (
     <IntelligencePage>
+      <UnifiedForecastPanel symbol={activeSymbol} researchRunId={currentRunId} refreshKey={currentRunId} />
       <IntelligenceSurface className="p-5 sm:p-7">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-5xl">
@@ -1274,13 +1276,13 @@ export default function KnowledgeGraphWorkspace() {
       <IntelligenceSurface className="mt-5 p-5 sm:p-6">
         <IntelligenceSectionHeading
           eyebrow="Persistence readiness"
-          title="Durable graph storage"
-          description="Deep background builds require a configured and enabled Neo4j connection. Quick synchronous maps remain usable in the current session without it."
+          title="Graph archive and optional indexing"
+          description="Canonical forecasts and graph history are stored in PostgreSQL. Neo4j is an optional additional graph index; the existing deep background-job path requires that connection."
         />
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             [
-              "Configured",
+              "Neo4j configured",
               persistence?.configured ? "Yes" : "No",
             ],
             [
@@ -1325,3 +1327,4 @@ export default function KnowledgeGraphWorkspace() {
     </IntelligencePage>
   );
 }
+// slice-unified-graph-v1
