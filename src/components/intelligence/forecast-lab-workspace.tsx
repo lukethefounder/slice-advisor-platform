@@ -422,7 +422,7 @@ export default function ForecastLabWorkspace() {
                 </IntelligencePill>
                 <IntelligencePill tone="cyan">
                   <BrainCircuit className="h-3.5 w-3.5" />
-                  Equal-third score
+                  Personal research mix
                 </IntelligencePill>
                 {swarm ? (
                   <IntelligencePill
@@ -441,9 +441,8 @@ export default function ForecastLabWorkspace() {
                 Point-in-time forecasts from current, timestamped evidence.
               </h1>
               <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-[var(--slice-muted)] sm:text-base">
-                Media, technical, and economy
-                pathways each contribute exactly one
-                third to the Slice score. The forecast
+                Media, technical, and economy pathways
+                contribute using the research mix saved for this run. The forecast
                 API receives that verified snapshot,
                 preserves its source time, and exposes
                 stale-data, evidence-warehouse, and
@@ -503,7 +502,7 @@ export default function ForecastLabWorkspace() {
               <input
                 type="range"
                 min={300}
-                max={900}
+                max={10000}
                 step={100}
                 value={agentCount}
                 disabled={running}
@@ -682,9 +681,9 @@ export default function ForecastLabWorkspace() {
       {swarm ? (
         <IntelligenceSurface className="mt-5 p-5 sm:p-6">
           <IntelligenceSectionHeading
-            eyebrow="Equal-third research"
+            eyebrow="Personal research mix"
             title="The score feeding every horizon"
-            description="All three cohorts retain the original 33.33% weight. Current-source filtering happens before the agents and score are constructed."
+            description="Each cohort uses the weight saved with this research run. Current-source filtering happens before the agents and score are constructed."
           />
           <div className="mt-5 grid gap-3 xl:grid-cols-3">
             {COHORTS.map((cohort) => {
@@ -738,14 +737,14 @@ export default function ForecastLabWorkspace() {
                           )}
                           {label ===
                           "Confidence"
-                            ? "%"
+                            ? " / 100"
                             : ""}
                         </p>
                       </div>
                     ))}
                   </div>
                   <p className="mt-3 text-[9px] font-black uppercase tracking-[0.1em] text-[var(--slice-subtle)]">
-                    33.33% score weight
+                    {formatIntelligenceNumber(swarm.score.weighting[cohort] * 100, 1)}% score weight
                   </p>
                 </article>
               );

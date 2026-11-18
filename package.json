@@ -20,6 +20,7 @@
     "validate:phase12": "node scripts/production/acceptance.mjs",
     "test:phase4": "node scripts/tests/phase-4-pagination.test.mjs",
     "test:phase12": "node scripts/tests/phase-12-security.test.mjs",
+    "test:knowledge-graph": "node scripts/tests/knowledge-graph-research.test.mjs && node scripts/tests/knowledge-graph-sources.test.mjs",
     "test:smoke": "node scripts/production/smoke.mjs",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",

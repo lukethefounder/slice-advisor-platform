@@ -109,7 +109,7 @@ const JOB_DEFINITIONS: Record<SupportedBackgroundJobKey, JobDefinition> = {
   },
   intelligence_graph_refresh: {
     name: "Intelligence Knowledge Graph Refresh",
-    timeoutMs: 80_000,
+    timeoutMs: 175_000,
     maxAttempts: 2,
     backoffMs: 30_000,
     permission: null,

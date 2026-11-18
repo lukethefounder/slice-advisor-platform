@@ -7,7 +7,7 @@ import DataReadinessPanel from "@/components/data-readiness/data-readiness-panel
 import { prioritizedWorkspaceRequests } from "@/lib/data-readiness/priority";
 import dynamic from "next/dynamic";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Activity, ArrowUpRight, ChevronRight, CirclePause, Clock3, Focus, Newspaper, RefreshCw, Settings2, Sparkles, ShieldCheck } from "lucide-react";
+import { Activity, ArrowUpRight, ChevronRight, CirclePause, Clock3, Focus, Network, Newspaper, RefreshCw, Settings2, Sparkles, ShieldCheck } from "lucide-react";
 import { useWorkspaceSession } from "./session";
 import { studioJson } from "@/lib/studio/client";
 import type { HomeSummary } from "@/lib/workspace/home-contract";
@@ -23,6 +23,8 @@ import type { WorkspaceSeed } from "@/lib/instant-workspace/contracts";
 import SourceContinuity from "@/components/instant-workspace/source-continuity";
 import WorkspaceDecisionLens from "@/components/scenario-decision/workspace-lens";
 import WorkspaceIntro from "@/components/future-workspace/workspace-intro";
+import KnowledgeGraphSpotlight from "@/components/intelligence/knowledge-graph-spotlight";
+import graphCss from "@/components/knowledge-graph/knowledge-entry.module.css";
 const GatewayStatus = dynamic(() => import("@/components/market-pulse/gateway-status"));
 const MarketConnectionPanel = dynamic(() => import("@/components/market-pulse/market-connection-panel"));
 const WorkspaceCustomizer = dynamic(() => import("@/components/market-pulse/workspace-customizer"));
@@ -113,6 +115,14 @@ export default function WorkspaceHome({ initial }: { initial?: WorkspaceSeed }) 
   <div className={css.ambient} aria-hidden="true"/><WorkspaceIntro name={firstName} firm={session.firm?.name || "Slice"} title={presentation.title} subtitle={presentation.subtitle} symbol={prefs?.primary || ""} quote={quote ?? null} day={day} motion={motion} loading={loading} disabled={!prefs || saving} canRefresh={Boolean(prefs && !loading && online && !saving)} onCustomize={customize} onRefresh={() => { if(prefs) void loadMarket(prefs,false,true); void refreshSummary(bootAbort.current?.signal); }} />
   {(preferenceError || session.error) && <p className={css.warning} role="alert">{preferenceError || session.error} <button className={css.textButton} onClick={() => window.location.reload()}>Reload workspace</button></p>}
   {!session.loading && !session.user && <p className={css.warning}><Link href="/advisor-login">Sign in to load your own workspace.</Link></p>}
+  <section className={graphCss.workspaceGraph} aria-labelledby="workspace-knowledge-title">
+   <div className={graphCss.workspaceHeading}>
+    <div><span className={graphCss.workspaceLabel}><Network size={13} aria-hidden="true"/>YOUR KNOWLEDGE GRAPH</span><h2 id="workspace-knowledge-title">The connections behind your next decision.</h2><p>Follow your stock through its research, source evidence, and possible outcomes. Open the graph to set your research balance and inspect the model estimates.</p></div>
+    <Link className={graphCss.workspaceAction} href={`/workspace/intelligence?symbol=${encodeURIComponent(prefs?.primary || "MSFT")}`} prefetch={false}>Research a stock<ArrowUpRight size={15} aria-hidden="true"/></Link>
+   </div>
+   {prefs && <div className={graphCss.workspaceSymbols} role="group" aria-label="Research instrument"><span>Follow an instrument</span>{prefs.symbols.map(symbol => <button key={symbol} type="button" className={graphCss.symbolButton} disabled={saving} aria-pressed={prefs.primary === symbol} onClick={() => selectSymbol(symbol)}>{instrumentLabel(symbol)}</button>)}</div>}
+   <KnowledgeGraphSpotlight key={`${userKey}:${prefs?.primary || ""}`} scopeKey={userKey} enabled={Boolean(session.user && session.firm && prefs)} symbol={prefs?.primary || "MSFT"} variant="workspace" />
+  </section>
   <div className={css.controlLine}><span className={css.statePill}><i className={loading ? css.busyDot : ""}/>{loading ? "Updating observations" : evidence?.quotes.length || evidence?.series ? "Alpha Vantage evidence" : evidence?.issues.length ? "Data needs attention" : settings?.market.configured ? "Ready to load observations" : "Market connection needs verification"}</span><span>{prefs?.refreshSeconds ? `Refresh ${prefs.refreshSeconds}s${localPaused ? " · paused" : ""}` : "Manual refresh"}</span><button className={css.textButton} onClick={() => setLocalPaused(v => !v)} disabled={!prefs}><CirclePause size={13}/>{localPaused ? "Resume motion & refresh" : "Pause motion & refresh"}</button><button className={css.textButton} onClick={() => setConnection(v => !v)}><ShieldCheck size={13}/>Connection</button>{!online && <strong className={css.down}>Offline</strong>}</div>
   {connection && <><MarketConnectionPanel symbol={prefs?.primary || "SPY"} disabled={loading}/><GatewayStatus/></>}
   {error && <p className={css.warning} role="alert">{error}{evidence ? " Previously received data remains below with its original observation times." : ""}</p>}

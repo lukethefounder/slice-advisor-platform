@@ -1,3 +1,5 @@
+import { diversifyResearchNews, newsSnapshot, parseResearchNews, researchNewsTopics } from "./research-news";
+import type { ResearchWeights } from "./research-swarm-types";
 import {
   ALPHA_INTRADAY_INTERVALS,
   type AlphaCacheState,
@@ -63,9 +65,7 @@ type DailyBar = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __sliceAlphaCache: Map<string, CacheEntry> | undefined;
-  // eslint-disable-next-line no-var
   var __sliceAlphaInFlight: Map<string, Promise<AlphaFetchResult>> | undefined;
 }
 
@@ -383,30 +383,6 @@ function parseProviderTimestamp(
 
   const parsed = new Date(raw);
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
-}
-
-function parseNewsTimestamp(value: unknown) {
-  const raw = cleanString(value, 32);
-  const match = raw.match(
-    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/,
-  );
-
-  if (!match) {
-    return null;
-  }
-
-  const [, year, month, day, hour, minute, second] = match;
-
-  return new Date(
-    Date.UTC(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second),
-    ),
-  ).toISOString();
 }
 
 function average(values: number[]) {
@@ -800,78 +776,8 @@ function parseOverview(payload: AlphaPayload): AlphaCompanyOverview | null {
   };
 }
 
-function parseNews(
-  payload: AlphaPayload,
-  symbol: string,
-): AlphaNewsSnapshot | null {
-  const feed = Array.isArray(payload.feed)
-    ? (payload.feed as Array<Record<string, unknown>>)
-    : [];
-
-  if (!feed.length) {
-    return null;
-  }
-
-  const items: AlphaNewsItem[] = feed.slice(0, 50).map((item, index) => {
-    const tickerSentiment = Array.isArray(item.ticker_sentiment)
-      ? (item.ticker_sentiment as Array<Record<string, unknown>>)
-      : [];
-    const matching =
-      tickerSentiment.find(
-        (entry) => cleanString(entry.ticker, 40).toUpperCase() === symbol,
-      ) ?? tickerSentiment[0] ?? {};
-    const topics = Array.isArray(item.topics)
-      ? (item.topics as Array<Record<string, unknown>>)
-          .map((topic) => cleanString(topic.topic, 200))
-          .filter(Boolean)
-      : [];
-    const url = cleanString(item.url, 2_000);
-    const title = cleanString(item.title, 1_000);
-    const publishedAt = parseNewsTimestamp(item.time_published);
-
-    return {
-      id: `${symbol}:${publishedAt ?? "unknown"}:${index}`,
-      title,
-      summary: cleanString(item.summary, 4_000),
-      url,
-      source: cleanString(item.source, 200),
-      sourceDomain: cleanString(item.source_domain, 300),
-      publishedAt,
-      overallSentimentScore: toNumber(item.overall_sentiment_score),
-      overallSentimentLabel: cleanString(
-        item.overall_sentiment_label,
-        100,
-      ),
-      tickerRelevance: toNumber(matching.relevance_score),
-      tickerSentimentScore: toNumber(matching.ticker_sentiment_score),
-      tickerSentimentLabel: cleanString(
-        matching.ticker_sentiment_label,
-        100,
-      ),
-      topics,
-    };
-  });
-  let weightedTotal = 0;
-  let relevanceTotal = 0;
-
-  for (const item of items) {
-    weightedTotal += item.tickerSentimentScore * item.tickerRelevance;
-    relevanceTotal += item.tickerRelevance;
-  }
-
-  return {
-    articleCount: items.length,
-    latestPublishedAt: items[0]?.publishedAt ?? null,
-    averageSentiment: average(
-      items.map((item) => item.tickerSentimentScore),
-    ),
-    relevanceWeightedSentiment: relevanceTotal
-      ? weightedTotal / relevanceTotal
-      : average(items.map((item) => item.tickerSentimentScore)),
-    averageRelevance: average(items.map((item) => item.tickerRelevance)),
-    latestTitle: items[0]?.title ?? "",
-    items,
-  };
+function parseNews(payload: AlphaPayload, symbol: string): AlphaNewsSnapshot | null {
+  return parseResearchNews(payload, symbol, 50);
 }
 
 function buildFreshness(input: {
@@ -963,6 +869,47 @@ function buildFreshness(input: {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Bounded, cached ticker-qualified topic searches; never one HTTP request per agent. */
+export async function getExpandedAlphaResearchNews(input: {
+  symbol: string;
+  sector: string;
+  weights: ResearchWeights;
+  existing: AlphaNewsSnapshot | null;
+}) {
+  const configuredLimit = Number(process.env.INTELLIGENCE_RESEARCH_NEWS_QUERY_LIMIT ?? 3);
+  const queryLimit = Number.isFinite(configuredLimit) ? Math.max(0, Math.min(6, Math.round(configuredLimit))) : 3;
+  const configuredAge = Number(process.env.INTELLIGENCE_NEWS_MAX_AGE_HOURS ?? 168);
+  const maxAgeHours = Number.isFinite(configuredAge) ? Math.max(1, Math.min(168, configuredAge)) : 168;
+  const topics = researchNewsTopics(input.sector, input.weights, queryLimit);
+  const items: AlphaNewsItem[] = [...(input.existing?.items ?? [])];
+  const warnings: string[] = [];
+  let completedQueries = 0;
+  const from = new Date(Date.now() - maxAgeHours * 3600000);
+  from.setUTCMinutes(0, 0, 0);
+  const timeFrom = from.toISOString().slice(0,16).replace(/[-:]/g, "");
+  // Two requests at a time; provider cache coalesces identical calls across research runs.
+  for (let start = 0; start < topics.length; start += 2) {
+    const batch = topics.slice(start, start + 2);
+    const settled = await Promise.allSettled(batch.map(async topic => {
+      const response = await fetchAlphaPayload(endpointParameters("NEWS_SENTIMENT", {
+        tickers: input.symbol, topics: topic, sort: "RELEVANCE", limit: "250", time_from: timeFrom,
+      }), { ttlMs: 5 * 60000, staleTtlMs: 15 * 60000, timeoutMs: 10000 });
+      return { topic, response, news: parseResearchNews(response.payload, input.symbol, 250) };
+    }));
+    settled.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        completedQueries += 1;
+        items.push(...(result.value.news?.items ?? []));
+        if (result.value.response.cacheState === "stale-cache") warnings.push(`The ${result.value.topic} search used an earlier cached provider response.`);
+      } else {
+        warnings.push(`The ${batch[index]} topic search was unavailable; it supplied no additional evidence.`);
+      }
+    });
+  }
+  const distinct = diversifyResearchNews(items, 500, Date.now(), maxAgeHours);
+  return { news: newsSnapshot(distinct), requestedQueries: topics.length, completedQueries, topics, warnings };
 }
 
 export async function getAlphaVantageIntelligence(input: {

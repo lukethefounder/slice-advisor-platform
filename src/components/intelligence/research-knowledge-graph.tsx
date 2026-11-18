@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  ArrowUpRight,
   Eye,
   EyeOff,
   Focus,
@@ -39,6 +40,7 @@ import type {
   ResearchGraphNodeKind,
   ResearchKnowledgeGraph,
 } from "@/lib/intelligence/research-swarm-types";
+import { safeResearchSourceUrl } from "@/lib/intelligence/research-evidence";
 
 type PositionedNode = ResearchGraphNode & {
   x: number;
@@ -617,11 +619,13 @@ export default function ResearchKnowledgeGraphCanvas({
   analytics = null,
   height = 680,
   live = false,
+  initialNodeId = null,
 }: {
   graph: ResearchKnowledgeGraph;
   analytics?: ResearchGraphAnalytics | null;
   height?: number;
   live?: boolean;
+  initialNodeId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -664,7 +668,7 @@ export default function ResearchKnowledgeGraphCanvas({
     zoom: 1,
   });
   const [selectedNodeId, setSelectedNodeId] =
-    useState<string | null>(null);
+    useState<string | null>(initialNodeId);
   const [hoveredNodeId, setHoveredNodeId] =
     useState<string | null>(null);
   const [cohortFilter, setCohortFilter] = useState<
@@ -1848,7 +1852,22 @@ export default function ResearchKnowledgeGraphCanvas({
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--slice-border)] bg-[var(--slice-surface-muted)] px-4 py-3">
+        <label className="flex min-w-0 flex-1 items-center gap-3 text-xs font-bold text-[var(--slice-muted)]">
+          Inspect a node
+          <select
+            aria-label="Select a graph node to inspect"
+            value={selectedNodeId ?? ""}
+            onChange={(event) => event.target.value ? focusNode(event.target.value) : setSelectedNodeId(null)}
+            className="min-h-10 min-w-0 flex-1 rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-3 text-xs text-[var(--slice-heading)] focus-visible:outline-2 focus-visible:outline-[var(--slice-accent)]"
+          >
+            <option value="">Choose evidence, a source, or an outcome</option>
+            {positions.filter(node => visibleNodeIds.has(node.id)).slice(0, 200).map(node => <option key={node.id} value={node.id}>{node.kind} · {node.label}</option>)}
+          </select>
+        </label>
+        <p className="text-[10px] font-semibold text-[var(--slice-muted)]">Search to narrow the first 200 visible nodes. All source records are available below the graph.</p>
+      </div>
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_310px]">
         <div
           ref={containerRef}
           className="relative cursor-grab overflow-hidden active:cursor-grabbing"
@@ -1976,6 +1995,17 @@ export default function ResearchKnowledgeGraphCanvas({
                 {selectedDetail.node.label}
               </h3>
 
+              {typeof selectedDetail.node.properties.researchQuestion === "string" ? <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-text)]">{selectedDetail.node.properties.researchQuestion}</p> : null}
+              {typeof selectedDetail.node.properties.summary === "string" ? <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-muted)]">{selectedDetail.node.properties.summary}</p> : null}
+              {selectedDetail.node.properties.evidenceReused === true ? <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-[11px] font-semibold leading-5 text-[var(--slice-text)]">This pathway shares its evidence assignment with another agent. It does not add an independent source.</p> : null}
+              {typeof selectedDetail.node.properties.duplicateCount === "number" && selectedDetail.node.properties.duplicateCount > 0 ? <p className="mt-2 text-[11px] font-semibold text-[var(--slice-muted)]">{selectedDetail.node.properties.duplicateCount} duplicate records grouped. Additional original-site links are retained in the source registry.</p> : null}
+
+              {safeResearchSourceUrl(selectedDetail.node.properties.sourceUrl) ? (
+                <a href={safeResearchSourceUrl(selectedDetail.node.properties.sourceUrl)!} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] px-3 text-xs font-bold text-[var(--slice-accent-strong)]">
+                  Open original source <ArrowUpRight className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {[
                   [
@@ -1992,7 +2022,7 @@ export default function ResearchKnowledgeGraphCanvas({
                       : `${formatIntelligenceNumber(
                           selectedDetail.node.confidence,
                           0,
-                        )}%`,
+                        )} / 100`,
                   ],
                   [
                     "Incoming",

@@ -2,6 +2,9 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 
+import { allocateResearchAgents, hasEqualResearchWeights, RESEARCH_WEIGHT_KEYS } from "./research-config";
+import { aggregateResearchEvidence, deduplicateResearchEvidence, researchSourceIdentity, safeResearchSourceUrl } from "./research-evidence";
+
 import type { AlphaVantageIntelligenceResponse } from "@/lib/intelligence/alpha-vantage-types";
 import type { IntelligenceScanPayload } from "@/lib/intelligence-forecast/live-snapshot";
 import { buildLiveMarketSnapshot } from "@/lib/intelligence-forecast/live-snapshot";
@@ -20,6 +23,7 @@ import type {
   ResearchSwarmResponse,
   ResearchBotTopology,
   SliceAgenticScore,
+  ResearchWeights,
 } from "@/lib/intelligence/research-swarm-types";
 
 const MEDIA_ROLES = [
@@ -101,6 +105,7 @@ type RunResearchSwarmInput = {
   economy: EconomicResearchSnapshot;
   simulationPaths?: number;
   graphMode?: GraphMode;
+  researchWeights?: ResearchWeights;
 };
 
 function clamp(value: number, minimum = 0, maximum = 100) {
@@ -119,14 +124,6 @@ function clean(value: unknown, maximumLength = 1_000) {
 
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function numericHash(value: string) {
-  return Number.parseInt(hash(value).slice(0, 12), 16);
-}
-
-function deterministicUnit(value: string) {
-  return (numericHash(value) % 1_000_000) / 1_000_000;
 }
 
 function unique(values: string[]) {
@@ -159,17 +156,6 @@ function weightedAverage(
     : fallback;
 }
 
-function standardDeviation(values: number[]) {
-  if (values.length < 2) {
-    return 0;
-  }
-
-  const mean = average(values);
-  return Math.sqrt(
-    average(values.map((value) => (value - mean) ** 2), 0),
-  );
-}
-
 function scorePolarity(score: number): ResearchEvidence["polarity"] {
   if (score >= 58) {
     return "positive";
@@ -186,6 +172,8 @@ function freshnessScore(asOf: string | null, retrievedAt: string) {
   if (!asOf) {
     return 35;
   }
+
+  if (!Number.isFinite(Date.parse(asOf)) || !Number.isFinite(Date.parse(retrievedAt))) return 0;
 
   const ageHours = Math.max(
     0,
@@ -217,21 +205,6 @@ function freshnessScore(asOf: string | null, retrievedAt: string) {
   }
 
   return 30;
-}
-
-function allocateAgents(totalInput: number) {
-  const total = Math.round(clamp(totalInput, 30, 2_000));
-  const base = Math.floor(total / 3);
-  const remainder = total - base * 3;
-
-  return {
-    total,
-    allocation: {
-      media: base + (remainder >= 1 ? 1 : 0),
-      technical: base + (remainder >= 2 ? 1 : 0),
-      economy: base,
-    } satisfies Record<ResearchCohort, number>,
-  };
 }
 
 function mediaEvidence(input: {
@@ -280,8 +253,10 @@ function mediaEvidence(input: {
   }
 
   for (const item of input.scan?.items ?? []) {
+    if (!item.matchedTickers?.some((ticker) => ticker.toUpperCase() === input.alpha.symbol.toUpperCase())) continue;
     const score = clamp(item.score);
-    const asOf = input.scan?.scannedAt ?? retrievedAt;
+    const provenance = item as typeof item & { url?: unknown; sourceUrl?: unknown; publishedAt?: unknown };
+    const asOf = typeof provenance.publishedAt === "string" && Number.isFinite(Date.parse(provenance.publishedAt)) ? provenance.publishedAt : null;
     const freshness = freshnessScore(asOf, retrievedAt);
 
     evidence.push({
@@ -291,7 +266,7 @@ function mediaEvidence(input: {
       title: clean(item.title, 1_000) || `${item.sourceName} intelligence item`,
       summary: unique(item.reasons ?? []).join(" "),
       source: item.sourceName,
-      sourceUrl: "",
+      sourceUrl: safeResearchSourceUrl(provenance.url ?? provenance.sourceUrl),
       asOf,
       retrievedAt,
       score,
@@ -312,7 +287,7 @@ function mediaEvidence(input: {
         scanScore: score,
         urgency: item.urgency,
       },
-      warnings: [],
+      warnings: asOf ? [] : ["Article publication time was not supplied by the scan."],
     });
   }
 
@@ -611,7 +586,9 @@ function economyEvidence(input: {
   economy: EconomicResearchSnapshot;
   symbol: string;
 }) {
-  const evidence: ResearchEvidence[] = input.economy.series.map((series) => ({
+  const evidence: ResearchEvidence[] = input.economy.series
+    .filter((series) => series.latestValue !== null && Number.isFinite(series.latestValue) && series.asOf)
+    .map((series) => ({
     id: `economy:${series.functionName}`,
     cohort: "economy",
     kind: "economic-series",
@@ -648,7 +625,7 @@ function economyEvidence(input: {
     warnings: series.warning ? [series.warning] : [],
   }));
 
-  evidence.push({
+  if (evidence.length) evidence.push({
     id: "economy:industry-context",
     cohort: "economy",
     kind: "industry-context",
@@ -725,6 +702,9 @@ function agentStatus(
 
 function generateAgents(input: {
   runId: string;
+  symbol: string;
+  sector: string;
+  industry: string;
   cohort: ResearchCohort;
   count: number;
   evidence: ResearchEvidence[];
@@ -732,25 +712,40 @@ function generateAgents(input: {
 }) {
   const roles = roleLibrary(input.cohort);
   const agents: ResearchAgent[] = [];
+  const sourceIds = new Map(input.evidence.map((item) => [item.id, researchSourceIdentity(item)]));
+  // Rank once per specialty, not once per bot. Repeated evaluation does not create new evidence.
+  const rankingByRole = roles.map((role) => input.evidence.map((evidence) => ({
+    evidence,
+    priority: roleEvidencePreference(role, evidence) * Math.max(0.05, evidence.relevanceScore / 100),
+  })).sort((left, right) => right.priority - left.priority || left.evidence.id.localeCompare(right.evidence.id))
+    .map((item) => item.evidence));
+  const fingerprints = new Set<string>();
+  const exposures = ["customer demand", "supply chain", "cost of capital", "regulation", "competition", "valuation", "earnings", "liquidity"];
+  const horizons = ["next session", "next week", "next month", "next quarter", "next two quarters", "next year"];
+  const angles = ["supporting evidence", "counterevidence", "missing evidence", "regime sensitivity"];
+  const comparisons = ["company history", "industry context", "sector context"];
 
   for (let ordinal = 0; ordinal < input.count; ordinal += 1) {
+    const evaluationStarted = performance.now();
     const role = roles[ordinal % roles.length] ?? `${input.cohort} researcher`;
-    const ranked = input.evidence
-      .map((evidence) => ({
-        evidence,
-        priority:
-          roleEvidencePreference(role, evidence) *
-          (0.8 +
-            deterministicUnit(
-              `${input.runId}:${input.cohort}:${ordinal}:${evidence.id}`,
-            ) *
-              0.4),
-      }))
-      .sort((left, right) => right.priority - left.priority);
-    const evidenceCount = input.evidence.length
-      ? 1 + (numericHash(`${input.runId}:${input.cohort}:${ordinal}`) % 3)
-      : 0;
-    const selected = ranked.slice(0, evidenceCount).map((item) => item.evidence);
+    const ranked = rankingByRole[ordinal % roles.length];
+    const primary = ranked[Math.floor(ordinal / roles.length) % Math.max(ranked.length, 1)];
+    const selected: ResearchEvidence[] = primary ? [primary] : [];
+    if (primary) {
+      const alternate = ranked.find((item) => item.id !== primary.id && sourceIds.get(item.id)
+        && sourceIds.get(item.id) !== sourceIds.get(primary.id));
+      if (alternate) selected.push(alternate);
+      const counter = ranked.find((item) => !selected.includes(item) && Math.abs(item.score - primary.score) >= 20);
+      if (counter) selected.push(counter);
+    }
+    const evidenceFingerprint = selected.length ? hash(selected.map((item) => item.id).sort().join(":" )).slice(0, 20) : null;
+    const evidenceReused = evidenceFingerprint ? fingerprints.has(evidenceFingerprint) : false;
+    if (evidenceFingerprint) fingerprints.add(evidenceFingerprint);
+    const cell = Math.floor(ordinal / roles.length);
+    const exposure = exposures[cell % exposures.length];
+    const horizon = horizons[Math.floor(cell / exposures.length) % horizons.length];
+    const angle = angles[Math.floor(cell / (exposures.length * horizons.length)) % angles.length];
+    const comparison = comparisons[Math.floor(cell / (exposures.length * horizons.length * angles.length)) % comparisons.length];
     const score = weightedAverage(
       selected.map((evidence) => ({
         value: evidence.score,
@@ -801,10 +796,14 @@ function generateAgents(input: {
       positiveDrivers,
       negativeDrivers,
       contradictions,
-      latencyMs:
-        2 +
-        (numericHash(`${input.runId}:${input.cohort}:${ordinal}:latency`) % 29),
+      latencyMs: Math.round((performance.now() - evaluationStarted) * 1_000) / 1_000,
       generatedAt: input.generatedAt,
+      missionKey: `${input.symbol}:${input.cohort}:${ordinal + 1}`,
+      sector: input.sector,
+      industry: input.industry,
+      researchQuestion: `${role}: assess ${exposure} for ${input.symbol} (${input.industry}) over the ${horizon}; examine ${angle} against ${comparison}.`,
+      evidenceFingerprint,
+      evidenceReused,
     });
   }
 
@@ -828,37 +827,14 @@ function aggregateCohort(input: {
   cohort: ResearchCohort;
   agents: ResearchAgent[];
   evidence: ResearchEvidence[];
+  weight: number;
 }) {
-  const score = weightedAverage(
-    input.agents.map((agent) => ({
-      value: agent.score,
-      weight: Math.max(agent.confidence, 1),
-    })),
-  );
-  const dispersion = standardDeviation(
-    input.agents.map((agent) => agent.score),
-  );
-  const agreement = clamp(100 - dispersion * 3.5);
-  const sourceCount = new Set(
-    input.evidence.map((evidence) => evidence.source).filter(Boolean),
-  ).size;
-  const confidence = clamp(
-    weightedAverage(
-      input.agents.map((agent) => ({
-        value: agent.confidence,
-        weight: 1,
-      })),
-      0,
-    ) *
-      0.65 +
-      agreement * 0.2 +
-      Math.min(sourceCount * 10, 100) * 0.15,
-  );
+  const { score, dispersion, agreement, sourceCount, confidence } = aggregateResearchEvidence(input.evidence);
   const updatedAgents = input.agents.map((agent) => ({
     ...agent,
-    agreement: Math.round(
+    agreement: agent.evidenceIds.length ? Math.round(
       clamp(100 - Math.abs(agent.score - score) * 2.4) * 100,
-    ) / 100,
+    ) / 100 : 0,
   }));
   const result: ResearchCohortResult = {
     cohort: input.cohort,
@@ -876,12 +852,12 @@ function aggregateCohort(input: {
     confidence: Math.round(confidence * 100) / 100,
     agreement: Math.round(agreement * 100) / 100,
     dispersion: Math.round(dispersion * 100) / 100,
-    contributionToSliceScore: Math.round((score / 3) * 100) / 100,
+    contributionToSliceScore: Math.round(score * input.weight * 100) / 100,
     topPositiveDrivers: topStrings(
-      updatedAgents.flatMap((agent) => agent.positiveDrivers),
+      input.evidence.filter((item) => item.score >= 56).map((item) => item.title),
     ),
     topNegativeDrivers: topStrings(
-      updatedAgents.flatMap((agent) => agent.negativeDrivers),
+      input.evidence.filter((item) => item.score <= 44).map((item) => item.title),
     ),
     contradictions: topStrings(
       updatedAgents.flatMap((agent) => agent.contradictions),
@@ -1007,7 +983,7 @@ function buildGraph(input: {
       group: "score",
       properties: {
         label: input.score.label,
-        equalThirdWeighting: true,
+        equalThirdWeighting: input.score.safeguards.equalThirdWeighting,
       },
     }),
   );
@@ -1110,10 +1086,10 @@ function buildGraph(input: {
         source: cohortNodeId,
         target: scoreNodeId,
         kind: "CONTRIBUTES_TO",
-        weight: 1 / 3,
+        weight: input.score.weighting[cohort],
         cohort,
         properties: {
-          equalWeight: true,
+          equalWeight: input.score.safeguards.equalThirdWeighting,
         },
       }),
     );
@@ -1121,7 +1097,8 @@ function buildGraph(input: {
 
   for (const evidence of input.evidence) {
     const evidenceNodeId = `evidence:${evidence.id}`;
-    const sourceNodeId = `source:${hash(evidence.source || "Unknown").slice(
+    const sourceIdentity = researchSourceIdentity(evidence) || "unverified";
+    const sourceNodeId = `source:${hash(sourceIdentity).slice(
       0,
       20,
     )}`;
@@ -1146,6 +1123,10 @@ function buildGraph(input: {
           freshnessScore: evidence.freshnessScore,
           relevanceScore: evidence.relevanceScore,
           sourceUrl: evidence.sourceUrl,
+          sourceDomain: evidence.sourceDomain ?? null,
+          summary: evidence.summary,
+          retrievedAt: evidence.retrievedAt,
+          duplicateCount: evidence.duplicateCount ?? 0,
         },
       }),
     );
@@ -1153,14 +1134,15 @@ function buildGraph(input: {
       graphNode({
         id: sourceNodeId,
         kind: "source",
-        label: evidence.source || "Unknown source",
+        label: sourceIdentity === "unverified" ? "Unverified or derived provenance" : sourceIdentity,
         cohort: evidence.cohort,
         score: null,
         confidence: evidence.confidence,
         size: 11,
         group: "source",
         properties: {
-          sourceUrl: evidence.sourceUrl,
+          sourceUrl: evidence.sourceDomain ? `https://${evidence.sourceDomain}/` : "",
+          provider: evidence.source,
         },
       }),
     );
@@ -1278,6 +1260,19 @@ function buildGraph(input: {
           pathway: agent.pathway,
           status: agent.status,
           latencyMs: agent.latencyMs,
+          missionKey: agent.missionKey ?? null,
+          sector: agent.sector ?? null,
+          industry: agent.industry ?? null,
+          researchQuestion: agent.researchQuestion ?? null,
+          evidenceReused: agent.evidenceReused ?? false,
+          ordinal: agent.ordinal,
+          agreement: agent.agreement,
+          primaryEvidenceId: agent.primaryEvidenceId,
+          evidenceFingerprint: agent.evidenceFingerprint ?? null,
+          positiveDriversJson: JSON.stringify(agent.positiveDrivers),
+          negativeDriversJson: JSON.stringify(agent.negativeDrivers),
+          contradictionsJson: JSON.stringify(agent.contradictions),
+          generatedAt: agent.generatedAt,
         },
       }),
     );
@@ -1515,19 +1510,16 @@ function buildBotTopology(input: {
   const mediaTechnical = Math.abs(input.cohorts.media.score - input.cohorts.technical.score);
   const mediaEconomy = Math.abs(input.cohorts.media.score - input.cohorts.economy.score);
   const technicalEconomy = Math.abs(input.cohorts.technical.score - input.cohorts.economy.score);
-  const averageTension = average([mediaTechnical, mediaEconomy, technicalEconomy], 0);
+  const observedCohorts = RESEARCH_WEIGHT_KEYS.filter((key) => input.cohorts[key].requestedAgents > 0 && input.cohorts[key].confidence > 0);
+  const observedTensions = observedCohorts.flatMap((left, index) => observedCohorts.slice(index + 1).map((right) => Math.abs(input.cohorts[left].score - input.cohorts[right].score)));
+  const averageTension = average(observedTensions, 0);
   const averageLatencyMs = average(input.agents.map((agent) => agent.latencyMs), 0);
   const completionRate = input.agents.length
     ? (input.agents.filter((agent) => agent.status === "completed").length / input.agents.length) * 100
     : 0;
-  const consensusScore = clamp(
-    100 - averageTension * 1.25 +
-      average([
-        input.cohorts.media.agreement,
-        input.cohorts.technical.agreement,
-        input.cohorts.economy.agreement,
-      ]) * 0.2,
-  );
+  const consensusScore = observedCohorts.length >= 2
+    ? clamp(100 - averageTension * 1.25) * average(observedCohorts.map((key) => input.cohorts[key].confidence), 0) / 100
+    : 0;
   const throughput = input.durationMs > 0
     ? input.agents.length / (input.durationMs / 1_000)
     : input.agents.length;
@@ -1546,7 +1538,7 @@ function buildBotTopology(input: {
     pathwayThroughputPerSecond: Math.round(throughput * 100) / 100,
     averageLatencyMs: Math.round(averageLatencyMs * 100) / 100,
     completionRate: Math.round(completionRate * 100) / 100,
-    cohortHandoffs: pairings.map(([from, to, delta]) => ({
+    cohortHandoffs: pairings.filter(([from, to]) => observedCohorts.includes(from) && observedCohorts.includes(to)).map(([from, to, delta]) => ({
       from,
       to,
       relationship: relationshipFromDelta(delta),
@@ -1569,24 +1561,17 @@ function buildForecastVector(input: {
       : "neutral";
   const directionalForce = (input.score.overall - 50) / 50;
   const expectedDriftPercent =
-    directionalForce * 3.2 +
-    input.quoteChangePercent * 0.18 +
-    (input.graphAnalytics.connectednessScore - 50) * 0.018 -
+    directionalForce * 3.2 * (input.score.confidence / 100) +
+    input.quoteChangePercent * input.score.weighting.technical * 0.18 -
     input.score.quality.contradictionPenalty * 0.035;
-  const confidenceLift = clamp(
-    input.score.confidence * 0.34 +
-      input.graphAnalytics.connectednessScore * 0.24 +
-      input.botTopology.consensusScore * 0.24 +
-      input.score.quality.evidenceCoverage * 0.18,
-  );
+  const confidenceLift = input.score.confidence;
   const tailRiskScore = clamp(
     input.score.quality.contradictionPenalty * 2.3 +
       input.score.quality.freshnessPenalty * 2.4 +
       Math.max(0, 50 - input.botTopology.consensusScore) * 0.8,
   );
   const regimePressure = clamp(
-    Math.abs(input.score.cohorts.technical.score - input.score.cohorts.economy.score) * 1.4 +
-      input.graphAnalytics.visualComplexity * 0.2,
+    Math.abs(input.score.cohorts.technical.score - input.score.cohorts.economy.score) * 1.4,
   );
   const dataFreshnessScore = clamp(
     input.score.quality.realTimeConfirmed
@@ -1596,9 +1581,8 @@ function buildForecastVector(input: {
         : 58 - input.score.quality.freshnessPenalty,
   );
   const networkAmplification = clamp(
-    input.graphAnalytics.edgeIntensity * 0.35 +
-      input.graphAnalytics.connectednessScore * 0.45 +
-      input.graphAnalytics.bridgeNodes.length * 2,
+    input.score.quality.sourceDiversity * 0.55 +
+      input.score.quality.evidenceCoverage * 0.45,
   );
   const contradictionDrag = clamp(
     input.score.quality.contradictionPenalty * 2 +
@@ -1609,7 +1593,7 @@ function buildForecastVector(input: {
   );
 
   return {
-    algorithmVersion: "slice-swarm-forecast-vector-2.0.0",
+    algorithmVersion: "slice-swarm-forecast-vector-3.0.0",
     forecastBias: bias,
     expectedDriftPercent: Math.round(expectedDriftPercent * 100) / 100,
     confidenceLift: Math.round(confidenceLift * 100) / 100,
@@ -1618,12 +1602,14 @@ function buildForecastVector(input: {
     dataFreshnessScore: Math.round(dataFreshnessScore * 100) / 100,
     networkAmplification: Math.round(networkAmplification * 100) / 100,
     contradictionDrag: Math.round(contradictionDrag * 100) / 100,
-    driverSummary: `${bias} bias with ${input.botTopology.consensusScore.toFixed(0)}% pathway consensus and ${input.graphAnalytics.connectednessScore.toFixed(0)}% graph connectedness.`,
+    driverSummary: `${bias} evidence pressure. The ${input.score.confidence.toFixed(0)}/100 evidence confidence is not a calibrated probability of a future outcome.`,
+    semantics: "evidence-pressure-not-calibrated-probability",
   };
 }
 
 function buildResearchMatrix(input: {
   cohorts: Record<ResearchCohort, ResearchCohortResult>;
+  weights: ResearchWeights;
 }): ResearchMatrixRow[] {
   return (["media", "technical", "economy"] as const).flatMap((cohort) => {
     const result = input.cohorts[cohort];
@@ -1635,7 +1621,7 @@ function buildResearchMatrix(input: {
         confidence: result.confidence,
         evidenceCount: result.evidenceCount,
         agentCount: result.requestedAgents,
-        weight: 1 / 3,
+        weight: input.weights[cohort],
       },
       {
         cohort,
@@ -1644,7 +1630,7 @@ function buildResearchMatrix(input: {
         confidence: result.confidence,
         evidenceCount: result.evidenceCount,
         agentCount: result.requestedAgents,
-        weight: 1 / 3,
+        weight: input.weights[cohort],
       },
       {
         cohort,
@@ -1653,7 +1639,7 @@ function buildResearchMatrix(input: {
         confidence: result.confidence,
         evidenceCount: result.evidenceCount,
         agentCount: result.requestedAgents,
-        weight: 1 / 3,
+        weight: input.weights[cohort],
       },
     ];
   });
@@ -1665,30 +1651,36 @@ export function runResearchSwarm(
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   const runId = randomUUID();
-  const allocationResult = allocateAgents(input.requestedAgents);
+  const allocationResult = allocateResearchAgents(input.requestedAgents, input.researchWeights);
+  const weights = allocationResult.weights;
   const sector = input.alpha.overview?.sector || input.economy.sector || "Unknown";
   const industry =
     input.alpha.overview?.industry || input.economy.industry || "Unknown";
   const companyName = input.alpha.overview?.name || input.symbol;
-  const media = mediaEvidence({
+  const rawMedia = mediaEvidence({
     alpha: input.alpha,
     scan: input.scan,
     sector,
     industry,
   });
-  const technical = technicalEvidence({
+  const rawTechnical = technicalEvidence({
     alpha: input.alpha,
     sector,
     industry,
   });
-  const economy = economyEvidence({
+  const rawEconomy = economyEvidence({
     economy: input.economy,
     symbol: input.symbol,
   });
-  const evidence = [...media, ...technical, ...economy];
+  const deduplicated = deduplicateResearchEvidence([...rawMedia, ...rawTechnical, ...rawEconomy]);
+  const evidence = deduplicated.evidence;
+  const media = evidence.filter((item) => item.cohort === "media");
+  const technical = evidence.filter((item) => item.cohort === "technical");
+  const economy = evidence.filter((item) => item.cohort === "economy");
   const generatedAt = new Date().toISOString();
   const mediaAgents = generateAgents({
     runId,
+    symbol: input.symbol, sector, industry,
     cohort: "media",
     count: allocationResult.allocation.media,
     evidence: media,
@@ -1696,6 +1688,7 @@ export function runResearchSwarm(
   });
   const technicalAgents = generateAgents({
     runId,
+    symbol: input.symbol, sector, industry,
     cohort: "technical",
     count: allocationResult.allocation.technical,
     evidence: technical,
@@ -1703,6 +1696,7 @@ export function runResearchSwarm(
   });
   const economyAgents = generateAgents({
     runId,
+    symbol: input.symbol, sector, industry,
     cohort: "economy",
     count: allocationResult.allocation.economy,
     evidence: economy,
@@ -1712,16 +1706,19 @@ export function runResearchSwarm(
     cohort: "media",
     agents: mediaAgents,
     evidence: media,
+    weight: weights.media,
   });
   const technicalAggregation = aggregateCohort({
     cohort: "technical",
     agents: technicalAgents,
     evidence: technical,
+    weight: weights.technical,
   });
   const economyAggregation = aggregateCohort({
     cohort: "economy",
     agents: economyAgents,
     evidence: economy,
+    weight: weights.economy,
   });
   const agents = [
     ...mediaAggregation.agents,
@@ -1733,23 +1730,11 @@ export function runResearchSwarm(
     technical: technicalAggregation.result,
     economy: economyAggregation.result,
   };
-  const overall =
-    (cohorts.media.score + cohorts.technical.score + cohorts.economy.score) /
-    3;
-  const baseConfidence =
-    (cohorts.media.confidence +
-      cohorts.technical.confidence +
-      cohorts.economy.confidence) /
-    3;
+  const overall = RESEARCH_WEIGHT_KEYS.reduce((sum, key) => sum + cohorts[key].score * weights[key], 0);
+  const baseConfidence = RESEARCH_WEIGHT_KEYS.reduce((sum, key) => sum + cohorts[key].confidence * weights[key], 0);
   const contradictionPenalty = clamp(
-    average(
-      [
-        Math.abs(cohorts.media.score - cohorts.technical.score),
-        Math.abs(cohorts.media.score - cohorts.economy.score),
-        Math.abs(cohorts.technical.score - cohorts.economy.score),
-      ],
-      0,
-    ) * 0.75,
+    RESEARCH_WEIGHT_KEYS.reduce((sum, left, index) => sum + RESEARCH_WEIGHT_KEYS.slice(index + 1).reduce((subtotal, right) =>
+      subtotal + Math.abs(cohorts[left].score - cohorts[right].score) * weights[left] * weights[right] * 3, 0), 0) * 0.75,
     0,
     25,
   );
@@ -1765,24 +1750,38 @@ export function runResearchSwarm(
           agents.length) *
         100
       : 0;
-  const sourceDiversity = clamp(
-    new Set(evidence.map((item) => item.source).filter(Boolean)).size * 7,
-  );
+  const scoringEvidence = evidence.filter((item) => weights[item.cohort] > 0 && item.kind !== "industry-context");
+  const independentSourceCount = new Set(scoringEvidence.map(researchSourceIdentity).filter(Boolean)).size;
+  const retrievedSourceCount = new Set(evidence.map(researchSourceIdentity).filter(Boolean)).size;
+  const sourceDiversity = clamp(independentSourceCount * 7);
+  const retainedMediaIds = new Set(media.map((item) => item.id));
+  const retainedNews = input.alpha.news?.items.filter((item) => retainedMediaIds.has(`media:alpha:${hash(item.id).slice(0, 20)}`)) ?? [];
+  const retainedScan = input.scan?.items?.filter((item) => retainedMediaIds.has(`media:scan:${hash(item.id).slice(0, 20)}`)) ?? [];
+  const snapshotAlpha = {
+    ...input.alpha,
+    news: input.alpha.news ? {
+      ...input.alpha.news,
+      items: retainedNews,
+      articleCount: retainedNews.length,
+      relevanceWeightedSentiment: weightedAverage(retainedNews.map((item) => ({ value: item.tickerSentimentScore, weight: item.tickerRelevance })), 0),
+    } : input.alpha.news,
+  };
   const live = buildLiveMarketSnapshot({
     symbol: input.symbol,
-    alpha: input.alpha,
-    scan: input.scan,
+    alpha: snapshotAlpha,
+    scan: input.scan ? { ...input.scan, items: retainedScan } : null,
     simulationPaths: input.simulationPaths ?? 500,
   });
   const evidenceCoverage = live.coverage.score;
-  const confidence = clamp(
+  const evidenceAvailability = RESEARCH_WEIGHT_KEYS.reduce((sum, key) => sum + (cohorts[key].confidence > 0 ? weights[key] : 0), 0);
+  const confidence = Math.min(baseConfidence, clamp(
     baseConfidence * 0.55 +
       evidenceCoverage * 0.2 +
       sourceDiversity * 0.1 +
-      agentCompletionRate * 0.15 -
+      evidenceAvailability * 100 * 0.15 -
       contradictionPenalty -
       freshnessPenalty,
-  );
+  ));
   const score: SliceAgenticScore = {
     schemaVersion: "slice-agentic-score-1.0.0",
     overall: Math.round(overall * 100) / 100,
@@ -1790,11 +1789,7 @@ export function runResearchSwarm(
     label: scoreLabel(overall),
     generatedAt,
     providerAsOf: input.alpha.providerAsOf,
-    weighting: {
-      media: 1 / 3,
-      technical: 1 / 3,
-      economy: 1 / 3,
-    },
+    weighting: weights,
     cohorts,
     quality: {
       realTimeConfirmed: input.alpha.freshness.isRealtime,
@@ -1808,23 +1803,17 @@ export function runResearchSwarm(
     },
     drivers: {
       positive: topStrings([
-        ...cohorts.media.topPositiveDrivers,
-        ...cohorts.technical.topPositiveDrivers,
-        ...cohorts.economy.topPositiveDrivers,
+        ...RESEARCH_WEIGHT_KEYS.filter((key) => weights[key] > 0).flatMap((key) => cohorts[key].topPositiveDrivers),
       ]),
       negative: topStrings([
-        ...cohorts.media.topNegativeDrivers,
-        ...cohorts.technical.topNegativeDrivers,
-        ...cohorts.economy.topNegativeDrivers,
+        ...RESEARCH_WEIGHT_KEYS.filter((key) => weights[key] > 0).flatMap((key) => cohorts[key].topNegativeDrivers),
       ]),
       contradictions: topStrings([
-        ...cohorts.media.contradictions,
-        ...cohorts.technical.contradictions,
-        ...cohorts.economy.contradictions,
+        ...RESEARCH_WEIGHT_KEYS.filter((key) => weights[key] > 0).flatMap((key) => cohorts[key].contradictions),
       ]),
     },
     safeguards: {
-      equalThirdWeighting: true,
+      equalThirdWeighting: hasEqualResearchWeights(weights),
       autonomousTradingEnabled: false,
       unavailableInputsNeutralized: true,
       simulatedAgentsAreObservedTruth: false,
@@ -1840,18 +1829,12 @@ export function runResearchSwarm(
       dataQuality: clamp(
         score.quality.evidenceCoverage * 0.55 +
           score.quality.sourceDiversity * 0.2 +
-          score.quality.agentCompletionRate * 0.25 -
+          evidenceAvailability * 100 * 0.25 -
           score.quality.contradictionPenalty,
       ),
       sourceCount: evidence.length,
-      independentSourceCount: new Set(
-        evidence.map((item) => item.source).filter(Boolean),
-      ).size,
-      duplicateCount: Math.max(
-        0,
-        evidence.length -
-          new Set(evidence.map((item) => item.source).filter(Boolean)).size,
-      ),
+      independentSourceCount,
+      duplicateCount: deduplicated.duplicateCount,
     },
     news: {
       ...live.snapshot.news,
@@ -1892,23 +1875,24 @@ export function runResearchSwarm(
     botTopology,
     quoteChangePercent: input.alpha.quote?.changePercent ?? 0,
   });
-  const researchMatrix = buildResearchMatrix({ cohorts });
+  const researchMatrix = buildResearchMatrix({ cohorts, weights });
   const completedAt = new Date().toISOString();
   const warnings = unique([
     ...input.alpha.health.warnings,
     ...input.economy.warnings,
     ...evidence.flatMap((item) => item.warnings),
-    ...(!media.length
+    ...(weights.media > 0 && !media.length
       ? ["Media cohort had no live evidence and was neutralized at low confidence."]
       : []),
-    ...(!technical.length
+    ...(weights.technical > 0 && !technical.length
       ? ["Technical cohort had no live evidence and was neutralized at low confidence."]
       : []),
-    ...(!economy.length
+    ...(weights.economy > 0 && !economy.length
       ? ["Economy cohort had no release evidence and was neutralized at low confidence."]
       : []),
     "Economic indicators are latest-release data, not continuous market ticks.",
-    "The 2,000 agents are independent analytical pathways over shared evidence; they do not each make an external API request.",
+    `${allocationResult.total.toLocaleString("en-US")} analytical agents evaluate shared retrieved evidence. Agent count does not represent unique sources, external API requests, or independently calibrated forecasts.`,
+    "The graph summarizes evidence relationships; scenario probabilities require the separate validated forecast model.",
   ]);
 
   return {
@@ -1955,5 +1939,18 @@ export function runResearchSwarm(
     researchMatrix,
     forecastSnapshot,
     warnings,
+    researchPlan: {
+      mode: "shared-evidence-analysis",
+      weights,
+      allocatedAgents: allocationResult.total,
+      evaluatedAgents: agents.length,
+      evidenceBackedAgents: agents.filter((agent) => agent.evidenceIds.length > 0).length,
+      uniqueEvidenceCount: evidence.length,
+      uniqueSourceCount: retrievedSourceCount,
+      duplicateEvidenceCount: deduplicated.duplicateCount,
+      uniqueEvidenceAssignments: new Set(agents.map((agent) => agent.evidenceFingerprint).filter(Boolean)).size,
+      reusedEvidenceAssignments: agents.filter((agent) => agent.evidenceReused).length,
+      evidenceCoveragePercent: agents.length ? Math.round(agents.filter((agent) => agent.evidenceIds.length > 0).length / agents.length * 10_000) / 100 : 0,
+    },
   };
 }
