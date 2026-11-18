@@ -41,15 +41,15 @@ import {
 } from "@/lib/intelligence/freshness";
 import { getPublicIntelligence } from "@/lib/public-intelligence";
 import type { PublicArticle } from "@/lib/public-intelligence-types";
-import FutureLandingHero from "@/components/public-site/future-landing-hero";
+import KnowledgeGraphLandingHero from "@/components/knowledge-graph/landing-hero";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "Slice | Advisor Intelligence and Operations",
+  title: "Slice | Connected Market Intelligence",
   description:
-    "Source-aware market intelligence, forecasting, client workflows, evidence, and governance for modern advisory firms.",
+    "Explore stock research through knowledge graphs. Connect media, technical, and economic evidence to traceable probability estimates and advisor workflows.",
 };
 
 const OPERATING_STAGES = [
@@ -64,7 +64,7 @@ const OPERATING_STAGES = [
     number: "02",
     title: "Analyze",
     description:
-      "Apply equal-third research, forecast models, and relationship intelligence.",
+      "Apply your research balance, forecast models, and relationship intelligence.",
     icon: BrainCircuit,
   },
   {
@@ -85,6 +85,14 @@ const OPERATING_STAGES = [
 
 const SYSTEMS = [
   {
+    title: "Knowledge graph",
+    description:
+      "Connect a stock to its evidence, sources, sectors, contradictions, and possible outcomes in one inspectable network.",
+    href: "/knowledge-graph",
+    action: "Explore relationships",
+    icon: Network,
+  },
+  {
     title: "Market intelligence",
     description:
       "Provider-timestamped quotes, technical structure, company context, news, and economic evidence.",
@@ -95,18 +103,10 @@ const SYSTEMS = [
   {
     title: "Research and forecasting",
     description:
-      "Three independent research cohorts, eight forecast horizons, calibration, and retained accuracy history.",
+      "Three complementary research cohorts, eight forecast horizons, calibration, and retained accuracy history.",
     href: "/daily-intelligence",
     action: "Read intelligence",
     icon: Target,
-  },
-  {
-    title: "Knowledge graph",
-    description:
-      "Evidence, sources, agents, sectors, topics, contradictions, and score pathways in one inspectable network.",
-    href: "/knowledge-graph",
-    action: "Explore relationships",
-    icon: Network,
   },
   {
     title: "Advisor operations",
@@ -342,7 +342,7 @@ export default async function HomePage() {
 
   return (
     <PublicPage active="home"><div className="slice-future-public">
-      <FutureLandingHero />
+      <KnowledgeGraphLandingHero />
 
       <section className="border-y border-emerald-950/10 bg-white/50 py-14 sm:py-18">
         <div className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
@@ -350,7 +350,7 @@ export default async function HomePage() {
             ["7 days", "Maximum age of public source articles"],
             ["30 days", "Durable intelligence operating memory"],
             ["8", "Independent forecast horizons"],
-            ["3 × ⅓", "Media, technical, and economy research"],
+            ["Your balance", "Personal media, technical, and economy research weights"],
           ].map(([value, label]) => (
             <PublicSurface key={label} className="p-5">
               <p className="text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)]">

@@ -8,6 +8,8 @@ export const RESEARCH_COHORTS = [
 
 export type ResearchCohort = (typeof RESEARCH_COHORTS)[number];
 
+export type ResearchWeights = Record<ResearchCohort, number>;
+
 export type ResearchAgentStatus =
   | "completed"
   | "degraded"
@@ -45,6 +47,10 @@ export type ResearchEvidence = {
   topics: string[];
   metrics: Record<string, number | string | boolean | null>;
   warnings: string[];
+  canonicalUrl?: string | null;
+  sourceDomain?: string | null;
+  duplicateCount?: number;
+  relatedSources?: Array<{ source: string; url: string; asOf: string | null }>;
 };
 
 export type ResearchAgent = {
@@ -64,6 +70,12 @@ export type ResearchAgent = {
   contradictions: string[];
   latencyMs: number;
   generatedAt: string;
+  missionKey?: string;
+  sector?: string;
+  industry?: string;
+  researchQuestion?: string;
+  evidenceFingerprint?: string | null;
+  evidenceReused?: boolean;
 };
 
 export type ResearchCohortResult = {
@@ -123,7 +135,7 @@ export type SliceAgenticScore = {
     contradictions: string[];
   };
   safeguards: {
-    equalThirdWeighting: true;
+    equalThirdWeighting: boolean;
     autonomousTradingEnabled: false;
     unavailableInputsNeutralized: true;
     simulatedAgentsAreObservedTruth: false;
@@ -362,7 +374,7 @@ export type ResearchBotTopology = {
 };
 
 export type ResearchForecastVector = {
-  algorithmVersion: "slice-swarm-forecast-vector-2.0.0";
+  algorithmVersion: "slice-swarm-forecast-vector-2.0.0" | "slice-swarm-forecast-vector-3.0.0";
   forecastBias: "bullish" | "neutral" | "bearish";
   expectedDriftPercent: number;
   confidenceLift: number;
@@ -372,6 +384,7 @@ export type ResearchForecastVector = {
   networkAmplification: number;
   contradictionDrag: number;
   driverSummary: string;
+  semantics?: "evidence-pressure-not-calibrated-probability";
 };
 
 export type ResearchMatrixRow = {
@@ -399,7 +412,7 @@ export type ResearchGraphPersistence =
 export type ResearchSwarmAlgorithmDiagnostics = {
   version: "slice-swarm-diagnostics-3.0.0";
   scoreSemanticsPreserved: true;
-  equalThirdWeightingPreserved: true;
+  equalThirdWeightingPreserved: boolean;
   stabilityScore: number;
   sourceConcentration: number;
   uncertaintyBand: {
@@ -469,6 +482,21 @@ export type ResearchSwarmResponse = {
   warnings: string[];
   /** Additive Phase 10 metadata. */
   algorithm?: ResearchSwarmAlgorithmDiagnostics;
+  researchPlan?: ResearchPlanDiagnostics;
+};
+
+export type ResearchPlanDiagnostics = {
+  mode: "shared-evidence-analysis";
+  weights: ResearchWeights;
+  allocatedAgents: number;
+  evaluatedAgents: number;
+  evidenceBackedAgents: number;
+  uniqueEvidenceCount: number;
+  uniqueSourceCount: number;
+  duplicateEvidenceCount: number;
+  uniqueEvidenceAssignments: number;
+  reusedEvidenceAssignments: number;
+  evidenceCoveragePercent: number;
 };
 
 export type ResearchGraphViewResponse = {
@@ -490,6 +518,8 @@ export type ResearchGraphViewResponse = {
     confidence?: number;
     providerAsOf?: string | null;
     durationMs?: number;
+    researchPlan?: ResearchPlanDiagnostics;
+    researchWeights?: ResearchWeights;
   };
   persistence: {
     configured: boolean;

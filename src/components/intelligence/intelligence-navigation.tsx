@@ -101,11 +101,11 @@ export default function IntelligenceNavigation() {
               Slice Intelligence
             </p>
             <p className="mt-0.5 truncate text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-accent-strong)]">
-              Evidence first · deep work on demand
+              Knowledge graphs · connected evidence
             </p>
           </div>
           <span className="hidden rounded-full border border-[var(--slice-green-border)] bg-[var(--slice-green-bg)] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[var(--slice-green-text)] sm:inline-flex">
-            Equal thirds preserved
+            Your research mix
           </span>
         </div>
 

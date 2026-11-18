@@ -52,7 +52,8 @@ import type {
   ResearchGraphViewResponse,
   ResearchSwarmResponse,
 } from "@/lib/intelligence/research-swarm-types";
-import UnifiedForecastPanel from "@/components/intelligence-unified/unified-forecast-panel";
+import KnowledgeGraphOutcomes from "./knowledge-graph-outcomes";
+import KnowledgeGraphSources from "./knowledge-graph-sources";
 
 const ResearchKnowledgeGraphCanvas = dynamic(
   () => import("@/components/intelligence/research-knowledge-graph"),
@@ -178,8 +179,8 @@ const PRESETS: Record<
   },
   maximum: {
     label: "Maximum graph",
-    helper: "Full 2,000-pathway build",
-    agents: 2_000,
+    helper: "10,000 pathways with bounded rendering",
+    agents: 10_000,
     projection: "full",
     simulationPaths: 1_250,
     graphMode: "full",
@@ -328,8 +329,10 @@ export default function KnowledgeGraphWorkspace() {
 
       if (runId) {
         url.searchParams.set("runId", runId);
+        url.searchParams.set("researchRunId", runId);
       } else {
         url.searchParams.delete("runId");
+        url.searchParams.delete("researchRunId");
       }
 
       window.history.replaceState(
@@ -346,6 +349,7 @@ export default function KnowledgeGraphWorkspace() {
       symbol: string;
       projection: ResearchGraphProjectionMode;
       runId?: string | null;
+      selectedNodeId?: string | null;
       quiet?: boolean;
     }) => {
       loadController.current?.abort();
@@ -358,6 +362,9 @@ export default function KnowledgeGraphWorkspace() {
 
       if (input.runId) {
         params.set("runId", input.runId);
+      }
+      if (input.selectedNodeId) {
+        params.set("nodeId", input.selectedNodeId);
       }
 
       if (!input.quiet) {
@@ -671,7 +678,7 @@ export default function KnowledgeGraphWorkspace() {
       cleanIntelligenceSymbol(
         params.get("symbol") || "MSFT",
       ) || "MSFT";
-    const initialRunId = params.get("runId");
+    const initialRunId = params.get("runId") || params.get("researchRunId");
 
     setSymbolInput(initialSymbol);
     setActiveSymbol(initialSymbol);
@@ -679,6 +686,7 @@ export default function KnowledgeGraphWorkspace() {
       symbol: initialSymbol,
       projection: "overview",
       runId: initialRunId,
+      selectedNodeId: params.get("nodeId"),
     });
 
     return () => {
@@ -771,7 +779,6 @@ export default function KnowledgeGraphWorkspace() {
 
   return (
     <IntelligencePage>
-      <UnifiedForecastPanel symbol={activeSymbol} researchRunId={currentRunId} refreshKey={currentRunId} />
       <IntelligenceSurface className="p-5 sm:p-7">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-5xl">
@@ -786,7 +793,7 @@ export default function KnowledgeGraphWorkspace() {
               </IntelligencePill>
               <IntelligencePill tone="violet">
                 <Bot className="h-3.5 w-3.5" />
-                Up to 2,000 pathways
+                Up to 10,000 pathways
               </IntelligencePill>
               {currentGraph ? (
                 <>
@@ -822,7 +829,7 @@ export default function KnowledgeGraphWorkspace() {
             className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-4 text-xs font-black text-[var(--slice-text)] transition hover:border-[var(--slice-accent-border)]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Control plane
+            Intelligence overview
           </Link>
         </div>
 
@@ -1062,7 +1069,7 @@ export default function KnowledgeGraphWorkspace() {
                 metadata.score,
                 1,
               )}
-              helper="Original equal-third score."
+              helper="Score using this run's research mix."
               icon={<Gauge className="h-5 w-5" />}
             />
             <IntelligenceMetric
@@ -1141,12 +1148,17 @@ export default function KnowledgeGraphWorkspace() {
 
           <IntelligenceSurface className="mt-5 p-3 sm:p-4">
             <ResearchKnowledgeGraphCanvas
+              key={`${currentRunId}:${graphView?.selectedNode?.node.id ?? ""}`}
               graph={currentGraph}
               analytics={currentAnalytics}
               height={700}
               live
+              initialNodeId={graphView?.selectedNode?.node.id ?? null}
             />
           </IntelligenceSurface>
+
+          <KnowledgeGraphOutcomes symbol={activeSymbol} runId={currentRunId} />
+          <KnowledgeGraphSources symbol={activeSymbol} runId={currentRunId} />
 
           <section className="mt-5 grid gap-5 xl:grid-cols-2">
             <IntelligenceSurface className="p-5 sm:p-6">

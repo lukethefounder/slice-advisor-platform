@@ -18,7 +18,7 @@ export const POST = withApiRoute({ route: "/api/intelligence/canonical", timeout
   const userId = await strategyAccess(request, true);
   try {
     const body = await readResearchJson(request), symbol = symbolOf(body.symbol);
-    const research = await buildResearchSwarmForUser({ userId, symbol, requestedAgents: 600, simulationPaths: 300, graphMode: "summary", detailMode: "summary", projection: "overview", persistGraph: false, forceRefresh: true });
+    const research = await buildResearchSwarmForUser({ userId, symbol, simulationPaths: 300, graphMode: "summary", detailMode: "summary", projection: "overview", persistGraph: false, forceRefresh: true });
     const bundle = await readCanonical(userId, symbol, research.runId);
     return apiJson({ ok: true, bundle });
   } catch (error) { strategyFailure(error); }

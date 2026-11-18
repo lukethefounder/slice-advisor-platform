@@ -14,6 +14,8 @@ import {
   getResearchGraphPersistenceConfiguration,
 } from "@/lib/intelligence/research-graph";
 import type { ResearchGraphProjectionMode } from "@/lib/intelligence/research-swarm-types";
+import { MAX_RESEARCH_AGENTS, normalizeResearchWeights } from "@/lib/intelligence/research-config";
+import { readResearchPreferences, saveResearchPreferences } from "@/lib/intelligence/research-preferences";
 import {
   checkRateLimit,
   getClientIp,
@@ -40,6 +42,7 @@ type RequestBody = {
   persistGraph?: unknown;
   forceRefresh?: unknown;
   executionMode?: unknown;
+  researchWeights?: unknown;
 };
 
 function cleanString(value: unknown, maximumLength = 100) {
@@ -184,7 +187,7 @@ export const GET = withApiRoute(
       cleanString(url.searchParams.get("nodeId"), 220) || null;
     const runId =
       cleanString(url.searchParams.get("runId"), 120) || undefined;
-    const [latest, persistence] = await Promise.all([
+    const [latest, persistence, researchPreferences] = await Promise.all([
       loadLatestResearchGraphView({
         userId: access.user.id,
         symbol,
@@ -195,6 +198,7 @@ export const GET = withApiRoute(
       Promise.resolve(
         getResearchGraphPersistenceConfiguration(),
       ),
+      readResearchPreferences(access.user.id),
     ]);
 
     const latestFreshness = latest
@@ -213,15 +217,15 @@ export const GET = withApiRoute(
     return apiJson({
       ok: true,
       service: "Slice research swarm",
-      maximumAgents: 2_000,
+      maximumAgents: MAX_RESEARCH_AGENTS,
+      researchPreferences,
       defaults: {
         interactiveAgents: DEFAULT_INTERACTIVE_AGENTS,
         simulationPaths: DEFAULT_SIMULATION_PATHS,
         projection: "overview" as const,
         automaticRefreshMs: 5 * 60_000,
       },
-      allocation:
-        "One third media, one third technical, one third economy",
+      allocation: "Personal media, technical, and economy research weights",
       latest,
       latestFreshness,
       graph: latest?.graph ?? null,
@@ -236,7 +240,7 @@ export const GET = withApiRoute(
       safeguards: {
         externalCallsPerAgent: false,
         autonomousTradingEnabled: false,
-        equalThirdWeighting: true,
+        equalThirdWeighting: Object.values(researchPreferences.weights).every(weight => Math.abs(weight - 1 / 3) < 0.000001),
         scoreSemanticsPreserved: true,
         automaticResearchOnPageLoad: false,
       },
@@ -297,6 +301,7 @@ export const POST = withApiRoute(
     let body: RequestBody;
     try {
       body = JSON.parse(rawBody || "{}") as RequestBody;
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Object required");
     } catch {
       throw new ApiError({
         status: 400,
@@ -306,12 +311,22 @@ export const POST = withApiRoute(
       });
     }
 
+    const preferences = await readResearchPreferences(access.user.id);
+    if (body.researchWeights !== undefined) {
+      const weights = body.researchWeights;
+      const values = weights && typeof weights === "object" && !Array.isArray(weights)
+        ? ["media", "technical", "economy"].map(key => (weights as Record<string, unknown>)[key]) : [];
+      if (values.length !== 3 || values.some(value => typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) || values.reduce<number>((sum, value) => sum + Number(value), 0) <= 0) {
+        throw new ApiError({status:400, code:"INVALID_RESEARCH_WEIGHTS", message:"Provide non-negative media, technical, and economy weights with a positive total.", expose:true});
+      }
+    }
+    const researchWeights = normalizeResearchWeights(body.researchWeights ?? preferences.weights);
     const symbol = cleanSymbol(body.symbol) || "MSFT";
     const requestedAgents = integer(
       body.agentCount,
-      DEFAULT_INTERACTIVE_AGENTS,
+      preferences.agentCount,
       30,
-      2_000,
+      MAX_RESEARCH_AGENTS,
     );
     const simulationPaths = integer(
       body.simulationPaths,
@@ -345,19 +360,13 @@ export const POST = withApiRoute(
       body.executionMode,
       20,
     ).toLowerCase();
-    const persistence =
-      getResearchGraphPersistenceConfiguration();
-    const backgroundAvailable = persistence.configured;
     const preferredExecution =
       requestedExecution === "background"
         ? "background"
         : "sync";
-    const executionMode =
-      preferredExecution === "background" &&
-      backgroundAvailable &&
-      persistGraph
-        ? "background"
-        : "sync";
+    // The durable PostgreSQL queue does not require optional Neo4j storage.
+    const executionMode = preferredExecution;
+    const researchPreferences = await saveResearchPreferences(access.user.id, {weights:researchWeights, agentCount:requestedAgents});
 
     if (executionMode === "background") {
       const bucket = forceRefresh
@@ -371,8 +380,10 @@ export const POST = withApiRoute(
             symbol,
             agentCount: requestedAgents,
             simulationPaths,
+            researchWeights,
+            persistGraph,
           },
-          idempotencyKey: `intelligence-graph:${symbol}:${requestedAgents}:${simulationPaths}:${bucket}`,
+          idempotencyKey: `intelligence-graph:${symbol}:${requestedAgents}:${simulationPaths}:${JSON.stringify(researchWeights)}:${persistGraph}:${bucket}`,
         },
       );
 
@@ -384,6 +395,7 @@ export const POST = withApiRoute(
           job: queued.job,
           symbol,
           requestedAgents,
+          researchPreferences,
           projection,
           message: queued.duplicate
             ? "An equivalent full graph is already queued or running."
@@ -397,6 +409,7 @@ export const POST = withApiRoute(
       userId: access.user.id,
       symbol,
       requestedAgents,
+      researchWeights,
       simulationPaths,
       graphMode: graph,
       detailMode: detail,
@@ -408,12 +421,9 @@ export const POST = withApiRoute(
 
     return apiJson({
       ...result,
+      researchPreferences,
       executionMode: "sync" as const,
-      executionFallback:
-        preferredExecution === "background" &&
-        (!backgroundAvailable || !persistGraph)
-          ? "Durable background graph execution was unavailable, so Slice completed this request synchronously."
-          : null,
+      executionFallback: null,
     });
   },
 );

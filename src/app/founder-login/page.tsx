@@ -1,31 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import {
-  ArrowRight,
-  CheckCircle2,
-  LockKeyhole,
-  LogIn,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  UsersRound,
-} from "lucide-react";
 import {
   useState,
   type FormEvent,
 } from "react";
 
-import {
-  BrandMark,
-  Card,
-  Pill,
-  SliceBackground,
-  SoftCard,
-  cx,
-} from "@/components/slice-ui";
-// SLICE_ACCESS_SURFACE_V1 — existing authentication and client context retained.
-import { AccessFrame } from "@/components/access-experience/access-frame";
+import FounderAccessFrame from "@/components/access-experience/founder-access-frame";
 
 
 type LoginResponse = {
@@ -43,7 +23,7 @@ export default function FounderLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState(
-    "Use a real firm owner or invited advisor account.",
+    "Your research and firm workspace are waiting.",
   );
   const [loading, setLoading] = useState(false);
 
@@ -86,5 +66,5 @@ export default function FounderLoginPage() {
     }
   }
 
-  return <AccessFrame variant="founder" email={email} secret={password} onEmailChange={setEmail} onSecretChange={setPassword} onSubmit={login} loading={loading} message={message}/>;
+  return <FounderAccessFrame email={email} secret={password} onEmailChange={setEmail} onSecretChange={setPassword} onSubmit={login} loading={loading} message={message}/>;
 }
