@@ -16,3 +16,11 @@
 @keyframes sourceHalo{0%{transform:scale(.7);opacity:.22}80%,100%{transform:scale(1.7);opacity:0}}
 .chart[data-motion=off] .observationHalo{animation:none;display:none}
 @media(prefers-reduced-motion:reduce){.observationHalo{animation:none;display:none}}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.toolbar{border-radius:13px;background:var(--slice-surface-muted,#f4f8f6);padding:8px}
+.readoutMain strong{font-variant-numeric:tabular-nums;letter-spacing:-.035em}
+.dataTable{border-radius:12px;border:1px solid var(--slice-border,#dce9e3);padding:10px 13px}
+:global(html[data-slice-effects="quiet"]) .chart *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+.windowSliders label{white-space:nowrap;min-width:0}.windowSliders input{flex:1;width:0;min-width:0}

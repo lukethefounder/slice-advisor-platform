@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
-import StrategyLabWorkspace from "@/components/strategy-lab/strategy-lab-workspace";
-export const metadata: Metadata = { title: "Strategy Lab | Slice", description: "Build and replay transparent historical strategies using verified Alpha Vantage daily data." };
-export default function StrategyLabPage() { return <StrategyLabWorkspace />; }
+import { redirect } from "next/navigation";
+import { queryString } from "@/lib/strategy-space/routes";
+export default async function LegacyPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ redirect("/workspace/strategy-lab" + queryString(await searchParams));
+}

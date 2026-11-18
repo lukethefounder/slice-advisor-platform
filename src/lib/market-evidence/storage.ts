@@ -46,6 +46,10 @@ export function marketStorage(scope: StudioScope): MarketStorage {
   },
   async reserve() {
    let policy;try{policy=gatewayPolicy(process.env);}catch(e){throw new MarketError("GATEWAY_CONFIGURATION",e instanceof Error?e.message:"Review gateway configuration.",503);}
+   if (policy.enforcement === "beta-uncapped" && policy.perMinute === null && policy.perDay === null) {
+    await prisma.backendPlatformEvent.create({data:{userId:scope.userId,eventKey:`pulse-call:${randomUUID()}`,eventType:CALL,area:"Market Evidence",title:"Beta market provider request reservation",severity:"Info",status:"Reserved",sourceType:cfg.fingerprint,sourceId:scope.firmId,metadataJson:"{}"}});
+    return;
+   }
    await prisma.$transaction(async tx=>{
     const held=await tx.$queryRaw<Array<{locked:boolean}>>`SELECT pg_try_advisory_xact_lock(${lock}::bigint) AS locked`;
     if(!held[0]?.locked)throw new MarketError("MARKET_BUSY","The market gateway is reserving capacity. Retry shortly.",409,2);

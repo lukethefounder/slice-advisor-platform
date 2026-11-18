@@ -55,7 +55,7 @@ export default function UnifiedForecastPanel({ symbol, researchRunId, refreshKey
   }
   return <section className={`${styles.suite} ${styles.card}`} aria-label="Canonical forecast" style={{ marginTop: 20, marginBottom: 20 }}>
     <div className={styles.sectionHead}><div><p className={styles.eyebrow}>One research run · three connected views</p><h2 className={styles.heading}>Unified forecast / {symbol}</h2><p className={styles.description}>The same stored forecast appears in Market Visuals, Intelligence, and the research graph.</p></div>
-      <Link className={styles.secondary} href="/workspace/intelligence/strategy-lab" prefetch={false}>Strategy Lab ↗</Link></div>
+      <Link className={styles.secondary} href="/workspace/strategy-lab" prefetch={false}>Strategy Lab ↗</Link></div>
     <div className={styles.actions}>
       <label className={styles.field}><span>Forecast horizon</span><select value={horizon} onChange={e => chooseHorizon(e.target.value as CanonicalHorizon)}>{HORIZONS.map(h => <option key={h}>{h}</option>)}</select></label>
       <button className={styles.secondary} disabled={busy} onClick={() => void load()}>Reload saved run</button>

@@ -47,3 +47,9 @@
 .suite{--ink:var(--slice-heading,#092f2a);--muted:var(--slice-muted,#526f69);--line:var(--slice-border,#d9e9e2);--paper:var(--slice-surface-strong,#fff);--soft:var(--slice-surface-muted,#f3faf6);--accent:var(--slice-accent-strong,#087e60);--cyan:var(--slice-cyan-text,#047a92);--violet:var(--slice-violet-text,#7255ba);}
 .hero{background:radial-gradient(ellipse at top right,color-mix(in srgb,var(--accent) 10%,transparent),transparent 70%),var(--paper);box-shadow:0 12px 40px var(--slice-shadow, #073c2910);}
 .stat{background:linear-gradient(145deg,var(--paper),var(--soft));}.selected,.step,.tabActive{background:var(--slice-accent-soft,#eef9f3);}.tab,.table td select{background:var(--paper);}.pill{background:var(--soft);}.positive{color:var(--slice-green-text,#067a5c);}.negative{color:var(--slice-rose-text,#a53b50);}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.card,.hero{box-shadow:var(--slice-elevation-panel);border-radius:var(--slice-panel-radius,20px)}
+.button,.tab{transition:border-color var(--slice-ui-duration,150ms),background-color var(--slice-ui-duration,150ms)}
+.title{letter-spacing:-.04em;text-wrap:balance}.table tbody tr:focus-within{background:var(--soft)}

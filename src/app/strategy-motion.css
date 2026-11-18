@@ -1,0 +1,11 @@
+/* Additive motion language. No layout-affecting animation or fabricated market ticks. */
+html[data-slice-document-visible="false"] .slice-app-theme *,
+html[data-slice-document-visible="false"] .slice-app-theme *::before,
+html[data-slice-document-visible="false"] .slice-app-theme *::after{animation-play-state:paused!important}
+@media(prefers-reduced-motion:no-preference){
+ .slice-app-theme :where(button,a[role="button"]){transition:transform 160ms ease,opacity 160ms ease}
+ .slice-app-theme :where(button:active,a[role="button"]:active):not(:disabled){transform:translateY(1px)}
+ .slice-app-theme :where(a[aria-current="page"]){position:relative}
+}
+@media(prefers-reduced-motion:reduce){.slice-app-theme *, .slice-app-theme *::before,.slice-app-theme *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+html[data-slice-motion="reduced"] .slice-app-theme *,html[data-slice-motion="reduced"] .slice-app-theme *::before,html[data-slice-motion="reduced"] .slice-app-theme *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}

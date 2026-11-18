@@ -1,4 +1,5 @@
 import "server-only";
+import { initialMarketSections } from "@/lib/experience/critical-sections";
 import { workspaceRequests } from "./compose";
 import { serverWorkspaceAccess } from "./access";
 import { cacheOnly } from "./cache-only";
@@ -54,7 +55,7 @@ export async function terminalBootstrap(query: Record<string, string | string[] 
   result.defaultSymbol=symbol;result.defaultRange=range as MarketRange;
   try {
     const input = parseSection({ section: "quote", symbol, range });
-    result.sections = await savedSections(access, ["quote", "history", "fundamentals", "earnings", "news"].map(section => parseSection({ section, symbol: input.symbol, range: input.range as MarketRange })));
+    result.sections = await savedSections(access, initialMarketSections(query.view, input));
   } catch { result.notes.push("The requested instrument or range was invalid; choose a supported selection."); }
   return result;
 }

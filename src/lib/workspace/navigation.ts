@@ -33,6 +33,11 @@ const ROUTE_OVERRIDES: Array<{
   prefix: string;
   meta: WorkspaceRouteMeta;
 }> = [
+{"prefix":"/workspace/strategy-lab/scenarios","meta":{"label":"Forward Scenarios","shortLabel":"Forward Scenarios","description":"Scenario Studio","category":"Strategy","href":"/workspace/strategy-lab/scenarios"}},
+{"prefix":"/workspace/strategy-lab/live","meta":{"label":"Live Watch","shortLabel":"Live Watch","description":"Live Watch","category":"Strategy","href":"/workspace/strategy-lab/live"}},
+{"prefix":"/workspace/strategy-lab/sensitivity","meta":{"label":"Cost Sensitivity","shortLabel":"Cost Sensitivity","description":"Strategy cost sensitivity","category":"Strategy","href":"/workspace/strategy-lab/sensitivity"}},
+{"prefix":"/workspace/strategy-lab","meta":{"label":"Strategy Lab","shortLabel":"Strategy Lab","description":"Strategy Lab","category":"Strategy","href":"/workspace/strategy-lab"}},
+
   {
     prefix: "/workspace/intelligence/knowledge-graph",
     meta: {

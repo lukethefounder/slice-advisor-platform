@@ -13,12 +13,17 @@ import { chartRows } from "@/lib/market-evidence/chart-model";
 import { DEFAULT_CHART, type ChartSettings } from "@/lib/market-evidence/chart-settings";
 import type { Entitlement, MarketRange } from "@/lib/market-evidence/contracts";
 import { sectionValue, useMarketResources, type Resource } from "@/lib/market-visuals/client";
-import { technicalSummary } from "@/lib/market-visuals/parse";
+
 import type { Section } from "@/lib/market-visuals/contracts";
 import css from "./terminal.module.css";
 import PriceChart from "@/components/market-pulse/price-chart";
 import type { TerminalSeed } from "@/lib/instant-workspace/contracts";
 import SourceContinuity from "@/components/instant-workspace/source-continuity";
+import ExperienceControls from "@/components/experience/experience-controls";
+import { useRetryClock } from "@/components/experience/use-retry-clock";
+// SLICE_MARKET_TECHNICAL_WORKBENCH_V1
+const TechnicalWorkbench = dynamic(() => import("@/components/market-workbench/technical-workbench"));
+
 const GatewayStatus = dynamic(() => import("@/components/market-pulse/gateway-status"));
 const Forecast = dynamic(() => import("@/components/intelligence-unified/unified-forecast-panel"), { ssr: false, loading: () => <Placeholder text="Opening the shared forecast…"/> });
 const CompanyPanel = dynamic(() => import("./detail-panels").then(m => m.CompanyPanel));
@@ -39,8 +44,7 @@ const validSymbol = (v: string | null) => { try { return exactSymbol(v || "SPY")
 const number = (v: number | null | undefined, digits = 2) => v == null || !Number.isFinite(v) ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: digits });
 export function Placeholder({ text = "Waiting for verified provider observations…" }: { text?: string }) { return <div className={css.placeholder} role="status"><div className={css.skeletonLine}/><div className={css.skeletonChart}/><span><Loader2 size={15}/>{text}</span></div>; }
 function ResourcePanel({ state, children, title, retry, compact = false }: { state: Resource; children: ReactNode; title: string; retry: () => void; compact?: boolean }) {
- const [clock,setClock]=useState(Date.now());
- useEffect(()=>{if(state.retryAt<=Date.now())return;const timer=setInterval(()=>setClock(Date.now()),1000);return()=>clearInterval(timer);},[state.retryAt]);
+ const clock = useRetryClock(state.retryAt);
  const remaining=Math.max(0,Math.ceil((state.retryAt-clock)/1000));
  return <>{state.error && <div className={css.failure} role="alert"><div><strong>{title} could not refresh</strong><p>{state.error}{state.value ? " The last successful snapshot remains visible below; it is not a new observation." : ""}</p></div><button onClick={retry} disabled={state.busy || remaining>0}>{remaining>0?`Retry in ${remaining>=60?`${Math.ceil(remaining/60)} min`:`${remaining}s`}`:"Retry"}</button></div>}
  {state.busy && state.value && <p className={css.update} role="status"><Loader2 size={13}/>Checking for newer evidence…</p>}
@@ -76,6 +80,10 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
  const nativeIndex=isIndex(active);
  const wantsChart = ["market", "compare", "technicals"].includes(tab);
  const comparisonSymbol = tab === "compare" ? comparison : options.compareSymbol;
+ // SLICE_EXPERIENCE_TERMINAL_V1
+ const stableChartOptions = useMemo(() => ({ ...options, compareSymbol: comparisonSymbol }), [options, comparisonSymbol]);
+ const stableChartSymbols = useMemo(() => [...new Set([active, comparisonSymbol].filter((v): v is string => Boolean(v)))], [active, comparisonSymbol]);
+ const changeChartOptions = useCallback((next: ChartSettings) => { setOptions(next); if (tab === "compare") setComparison(next.compareSymbol); }, [tab]);
  useEffect(() => {
   if (!session || !session.configured || !online) return;
   if (wantsChart) { void load("quote", active, range); void load("history", active, range); if (comparisonSymbol && comparisonSymbol !== active) void load("history", comparisonSymbol, range); }
@@ -92,7 +100,7 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
  useEffect(()=>{const delay=chain.retryAt-Date.now();if(delay<=0)return;const timer=setTimeout(()=>setNow(Date.now()),Math.min(delay+25,86_400_025));return()=>clearTimeout(timer);},[chain.retryAt]);
  const quoteFreshness = quote && session ? freshness(quote.observedAt, quote.precision, session.entitlement, now) : null;
  const receiptRows = all().flatMap(s => s.value?.receipts ?? []), receipts = [...new Map(receiptRows.map(r => [`${r.endpoint}:${r.sha256}`, r])).values()];
- const technicals = useMemo(() => technicalSummary(series ? chartRows(series, options.session) : []), [series, options.session]);
+ 
  const currentTab = TABS.find(([id]) => id === tab)!;
  function chooseSymbol() {
   try {
@@ -110,9 +118,9 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
   const u = new URL(window.location.href); u.searchParams.set("symbol", active); u.searchParams.set("view", tab); u.searchParams.set("range", range);
   try { await navigator.clipboard.writeText(u.href); setNotice("Research view link copied. Chart appearance controls remain local to this page."); } catch { setNotice("Copy unavailable. Use the address bar to share the pinned view."); }
  }
- return <main className={css.terminal} data-motion={motion ? "on" : "off"}><ResearchBetaBanner />
+ return <main data-slice-market-terminal="true" className={css.terminal} data-motion={motion ? "on" : "off"}><ResearchBetaBanner />
   <DataReadinessPanel />
-  <div className={css.topline}><Link href="/workspace" prefetch={false}><ArrowLeft size={14}/>Workspace</Link><span>RESEARCH / MARKET VISUALS</span><div><span className={`${css.dot} ${online ? "" : css.offline}`}/>{online ? "Browser online" : "Offline"}</div></div>
+  <div className={css.topline}><ExperienceControls scopeKey={session?.scope ?? null}/><Link href="/workspace" prefetch={false}><ArrowLeft size={14}/>Workspace</Link><span>RESEARCH / MARKET VISUALS</span><div><span className={`${css.dot} ${online ? "" : css.offline}`}/>{online ? "Browser online" : "Offline"}</div></div>
   <header className={css.hero}><div className={css.heroText}><p className={css.kicker}><LineChart size={15}/>SLICE MARKET INTELLIGENCE</p><h1>A clearer view.<br/><span>A faster decision.</span></h1><p>Observed markets, explainable signals and one shared forecast. Each section loads independently—without collecting data you did not ask for.</p><div className={css.heroTags}><span><ShieldCheck size={12}/>Alpha Vantage observations</span><span><Zap size={12}/>Local chart controls</span><span><Database size={12}/>Source receipts retained</span></div></div><div className={css.heroQuote}><span className={css.label}>{active} / {nativeIndex?"COMPLETED INDEX CLOSE":"LAST PROVIDER QUOTE"}</span><strong>{quote ? number(quote.price) : "—"}<small>{company.value?.data.currency ? ` ${company.value.data.currency}` : ""}</small></strong><p className={quote?.changePct != null && quote.changePct < 0 ? css.negative : css.positive}>{quote?.changePct == null ? "Open Market to load a quote" : `${quote.changePct > 0 ? "+" : ""}${number(quote.changePct)}% vs prior close`}</p><span className={css.badge}>{quoteFreshness?.state ?? "Not loaded"}</span><small>{quote ? `${quote.observedAt} · ${quote.priceKind}` : "No sample prices. No implied live status."}</small></div></header>
   {sessionError && <div className={css.failure} role="alert"><p>{sessionError}</p><button onClick={() => setRetrySession(v => v+1)}>Retry session</button><Link href="/advisor-login">Sign in</Link></div>}
   {session && !session.configured && <div className={css.failure} role="alert"><p>The server market credential is missing or is a demonstration key. No substitute prices were generated. Ask your administrator to check the private provider configuration.</p></div>}
@@ -128,8 +136,8 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
     {tab === "compare" && <form className={css.controls} onSubmit={e => { e.preventDefault(); try { const s = exactSymbol(compareInput); if (s === active) throw new Error("Choose a different comparison instrument."); setComparison(s); setNotice(""); } catch (err) { setNotice(err instanceof Error ? err.message : "Check the symbol."); } }}><label>Compare with<input value={compareInput} maxLength={21} onChange={e => setCompareInput(e.target.value.toUpperCase())}/></label><button type="submit" className={css.primary}>Load comparison</button>{comparison && <button type="button" onClick={() => setComparison(null)}>Remove</button>}<span className={css.fine}>Exact timestamps; one shared percentage baseline. Missing observations stay missing.</span></form>}
     <ResourcePanel compact state={q} title="Quote" retry={() => void load("quote",active,range,true)}><div className={css.observationStrip}><span><strong>Quote</strong> {quote?.observedAt}</span><span>{quoteFreshness?.note}</span></div></ResourcePanel>
     {comparative?.error && <p className={css.failure} role="alert">Comparison unavailable: {comparative.error}. The primary history is still usable.</p>}
-    <ResourcePanel state={h} title="Price history" retry={() => void load("history",active,range,true)}>{series && <><PriceChart series={series} comparison={comparative ? sectionValue(comparative) : null} options={{ ...options, compareSymbol: comparisonSymbol }} symbols={[...new Set([active, comparisonSymbol].filter((v): v is string => Boolean(v)))]} motion={motion} onOptionsChange={next => { setOptions(next); if (tab === "compare") setComparison(next.compareSymbol); }}/><p className={css.fine}>{series.note}</p></>}</ResourcePanel>
-    {tab === "technicals" && <div className={css.metricGrid}>{technicals.map(m => <div key={m.label} className={css.metric}><span>{m.label}</span><strong>{number(m.value)} <small>{m.value === null ? "" : m.suffix}</small></strong><small>{m.detail}</small></div>)}</div>}
+    <ResourcePanel state={h} title="Price history" retry={() => void load("history",active,range,true)}>{series && <><PriceChart series={series} comparison={comparative ? sectionValue(comparative) : null} options={stableChartOptions} symbols={stableChartSymbols} motion={motion} onOptionsChange={changeChartOptions}/><p className={css.fine}>{series.note}</p></>}</ResourcePanel>
+    {(tab === "market" || tab === "technicals") && series && <TechnicalWorkbench series={series} session={options.session}/>}
     <div className={css.connectedStrip}><div><Sparkles size={18}/><span><strong>Continue with the same instrument</strong><small>Saved predictions remain separate from newly observed prices.</small></span></div><Link href={`/workspace/personal-bot?${new URLSearchParams({ marketSymbol: active, prompt: `Explain the observed market evidence for ${active}. Distinguish it from any saved forecasts.` })}`} prefetch={false}>Explain in AI Studio <ArrowUpRight size={14}/></Link>{!nativeIndex&&<button onClick={() => setTab("forecast")}>Open shared forecast →</button>}</div>
    </>}
    {session && !nativeIndex && tab === "forecast" && <Forecast symbol={active} researchRunId={params.get("researchRunId")}/>}

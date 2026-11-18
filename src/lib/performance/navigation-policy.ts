@@ -1,6 +1,6 @@
 /** Only explicit, read-only route surfaces. Never prefetch APIs, signout, actions, or arbitrary URLs. */
 export const PREFETCH_ROUTES = new Set([
- "/workspace", "/workspace/clients", "/workspace/client-portal-inbox", "/workspace/documents", "/workspace/client-emails", "/workspace/brief", "/workspace/watchlists", "/workspace/team-board", "/workspace/settings", "/workspace/personal-bot", "/workspace/connected", "/workspace/intelligence", "/workspace/intelligence/knowledge-graph", "/workspace/intelligence/forecast-lab", "/workspace/intelligence/strategy-lab", "/workspace/intelligence/scenarios", "/market-visuals",
+ "/workspace", "/workspace/clients", "/workspace/client-portal-inbox", "/workspace/documents", "/workspace/client-emails", "/workspace/brief", "/workspace/watchlists", "/workspace/team-board", "/workspace/settings", "/workspace/personal-bot", "/workspace/connected", "/workspace/intelligence", "/workspace/intelligence/knowledge-graph", "/workspace/intelligence/forecast-lab", "/workspace/strategy-lab", "/workspace/strategy-lab/scenarios", "/market-visuals",
 ]);
 export function prefetchPath(href: string, origin: string): string | null {
  try {

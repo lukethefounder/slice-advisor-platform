@@ -1,0 +1,7 @@
+/* Shared additions only. No input, security, data, strategy or chart-calculation behavior is changed. */
+:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]){--slice-decision-radius:20px;scroll-padding-top:90px}
+:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]) :where(button,a,input,select,textarea){-webkit-tap-highlight-color:transparent}
+:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]) :where(button,a):focus-visible{outline:3px solid color-mix(in srgb,var(--slice-accent-strong,#078367) 75%,#46c9e0);outline-offset:3px}
+:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]) [data-slice-surface="panel"]{box-shadow:0 6px 24px color-mix(in srgb,var(--slice-shadow,#123d2a15) 35%,transparent)}
+@media(max-width:480px){:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]) :where(input[type=text],input[type=number],input[type=date],select,textarea){font-size:max(16px,1em)}:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]) :where(button,a){scroll-margin-top:90px}}
+@media(prefers-reduced-motion:reduce){:where(.slice-workspace-theme-root,[data-slice-market-terminal="true"]){scroll-behavior:auto}}

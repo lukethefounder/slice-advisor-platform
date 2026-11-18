@@ -29,3 +29,11 @@
 .marketHeadline>div>strong{font-variant-numeric:tabular-nums;letter-spacing:-.045em}
 .cardTop h2{letter-spacing:-.035em}.marketCard .eyebrow{color:var(--slice-accent-strong,#008d72)}
 @media(prefers-reduced-motion:reduce){.quoteTile{transition:none}.quoteTile:hover{transform:none}}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.card,.focusCard{box-shadow:var(--slice-elevation-panel);border-radius:var(--slice-panel-radius,20px)}
+.cardTop h2{letter-spacing:-.025em}.topline h1{letter-spacing:-.045em;text-wrap:balance}
+.controlLine{border-color:var(--slice-border-strong,var(--slice-border));box-shadow:0 3px 14px #07533c05}
+.button,.iconButton,.intentButton{transition:border-color var(--slice-ui-duration,150ms),background-color var(--slice-ui-duration,150ms),box-shadow var(--slice-ui-duration,150ms)}
+.button:hover,.iconButton:hover{box-shadow:var(--slice-elevation-hover)}

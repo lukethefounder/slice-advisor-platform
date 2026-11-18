@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useReportWebVitals } from "next/web-vitals";
+import { VitalsDedupe } from "@/lib/experience/vitals-dedupe";
 
 const SESSION_STORAGE_KEY = "slice-web-vitals-session-v1";
 const SUPPORTED_METRICS = new Set(["CLS", "FCP", "INP", "LCP", "TTFB"]);
@@ -47,7 +48,7 @@ function connectionType() {
 function send(payload: Record<string, unknown>) {
   const body = JSON.stringify(payload);
 
-  if (navigator.sendBeacon) {
+  if (typeof navigator.sendBeacon === "function") {
     const accepted = navigator.sendBeacon(
       "/api/operations/web-vitals",
       new Blob([body], { type: "application/json" }),
@@ -68,16 +69,11 @@ function send(payload: Record<string, unknown>) {
 export default function WebVitalsReporter() {
   const sampledRef = useRef<boolean | null>(null);
 
-  useEffect(() => {
-    if (sampledRef.current === null) {
-      sampledRef.current = Math.random() <= sampleRate();
-    }
-  }, []);
-
-  useReportWebVitals((metric) => {
-    if (sampledRef.current !== true || !SUPPORTED_METRICS.has(metric.name)) {
-      return;
-    }
+  const dedupe = useRef(new VitalsDedupe());
+  const report = useCallback<Parameters<typeof useReportWebVitals>[0]>((metric) => {
+    if (sampledRef.current === null) sampledRef.current = Math.random() < sampleRate();
+    if (!sampledRef.current || !SUPPORTED_METRICS.has(metric.name) ||
+        !dedupe.current.accept(metric, window.location.pathname)) return;
 
     send({
       metricId: metric.id,
@@ -91,7 +87,8 @@ export default function WebVitalsReporter() {
       connectionType: connectionType(),
       recordedAt: new Date().toISOString(),
     });
-  });
+  }, []);
+  useReportWebVitals(report);
 
   return null;
 }

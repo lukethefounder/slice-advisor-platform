@@ -159,7 +159,7 @@ export function WorkspaceSurface({
   const Component = as;
 
   return (
-    <Component
+    <Component data-slice-surface="panel"
       className={cx(
         "relative min-w-0 overflow-hidden rounded-[1.45rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_18px_60px_var(--slice-shadow)] backdrop-blur-xl",
         className,

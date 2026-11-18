@@ -1,12 +1,12 @@
 "use client";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { MarketSeries } from "@/lib/market-evidence/contracts";
 import type { ChartSettings } from "@/lib/market-evidence/chart-settings";
 import { analyzeLoadedSeries, miniPath } from "@/lib/instant-workspace/chart-analysis";
 import { observationLabel, priceText } from "@/lib/market-evidence/chart-model";
 import css from "./surface.module.css";
 const pct = (v: number | null) => v === null ? "Not enough history" : `${v > 0 ? "+" : ""}${priceText(v, 2)}%`;
-export default function ChartInsights({ series, session }: { series: MarketSeries; session: ChartSettings["session"] }) {
+function ChartInsights({ series, session }: { series: MarketSeries; session: ChartSettings["session"] }) {
   const a = useMemo(() => { try { return analyzeLoadedSeries(series, session); } catch { return null; } }, [series,session]);
   if (!a) return null;
   return <section className={css.insights} aria-label="Historical research detail">
@@ -19,3 +19,5 @@ export default function ChartInsights({ series, session }: { series: MarketSerie
     <p className={css.note}>Calculated from the full loaded range, not just the zoom window. Raw prices are not adjusted total returns; splits can affect these statistics. RSI uses simple windows, not Wilder smoothing. Daily volatility assumes 252 sessions; intraday volatility is per five-minute bar. These are historical descriptions, not forecasts or calibrated probabilities.</p>
   </section>;
 }
+
+export default memo(ChartInsights);

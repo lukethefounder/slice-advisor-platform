@@ -1,0 +1,14 @@
+/* Slice shared polish. Display effects only; no data, geometry or authorization changes. */
+:root{--slice-elevation-panel:0 3px 8px rgba(8,52,43,.025),0 14px 35px rgba(8,52,43,.045);--slice-elevation-hover:0 7px 24px rgba(8,52,43,.08);--slice-panel-radius:20px;--slice-glass-filter:none;--slice-ui-duration:150ms}
+html[data-slice-theme="dark"]{--slice-elevation-panel:0 4px 18px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.025);--slice-elevation-hover:0 8px 30px rgba(0,0,0,.24)}
+html[data-slice-effects="rich"]{--slice-elevation-panel:0 8px 32px rgba(7,55,43,.085),inset 0 1px 0 rgba(255,255,255,.12);--slice-glass-filter:blur(8px)}
+html[data-slice-effects="quiet"]{--slice-elevation-panel:none;--slice-elevation-hover:none;--slice-glass-filter:none;--slice-ui-duration:0ms}
+.slice-workspace-theme-root{accent-color:var(--slice-accent-strong,#087c62)}
+.slice-workspace-theme-root :where(button,input,select,textarea,a):focus-visible{outline:3px solid var(--slice-accent-strong,#087c62);outline-offset:3px}
+.slice-workspace-theme-root :where(input,textarea,select){caret-color:var(--slice-accent-strong,#087c62)}
+[data-slice-surface="panel"]{border-radius:var(--slice-panel-radius)!important;box-shadow:var(--slice-elevation-panel)!important;backdrop-filter:var(--slice-glass-filter)!important;-webkit-backdrop-filter:var(--slice-glass-filter)!important}
+html[data-slice-effects="quiet"] :is(.slice-workspace-theme-root,[data-slice-market-terminal]) *,html[data-slice-effects="quiet"] :is(.slice-workspace-theme-root,[data-slice-market-terminal]) *::before,html[data-slice-effects="quiet"] :is(.slice-workspace-theme-root,[data-slice-market-terminal]) *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+@media(prefers-reduced-motion:reduce){:root{--slice-ui-duration:0ms}}
+html[data-slice-motion="reduced"]{--slice-ui-duration:0ms}
+@media(forced-colors:active){[data-slice-surface="panel"]{box-shadow:none!important;border:1px solid CanvasText!important}}
+@media print{[data-slice-surface="panel"]{box-shadow:none!important;backdrop-filter:none!important}}

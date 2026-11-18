@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
-import ScenarioWorkspace from "@/components/connected-workspace/scenario-workspace";
-export const metadata: Metadata = { robots: { index: false, follow: false }, title: "Scenario Studio", description: "Explore explicit assumptions and track frozen strategy rules against later Alpha Vantage daily observations." };
-export default function Page() { return <ScenarioWorkspace/>; }
+import { redirect } from "next/navigation";
+import { queryString } from "@/lib/strategy-space/routes";
+export default async function LegacyPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ redirect("/workspace/strategy-lab/scenarios" + queryString(await searchParams));
+}

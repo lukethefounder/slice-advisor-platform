@@ -4,3 +4,10 @@
 @media(max-width:1000px){.studio{grid-template-columns:1fr}.history{display:none}.mobileHistory{display:inline-grid}.historyVisible{display:flex;position:relative;top:0;max-height:330px;min-height:0;border-bottom:1px solid var(--s-line);border-right:0}.historyVisible .historyFooter{display:none}.thread .archive{opacity:1}.welcome{margin-top:15px}.headerRight{gap:5px}.chatArea{min-height:calc(100dvh - 72px)}}
 @media(max-width:760px){.studio,.chatArea{min-height:calc(100dvh - 62px)}.header{padding:13px 16px;min-height:63px}.headerRight .smallButton span{display:none}.chatScroll{padding:18px 16px}.welcome h1{font-size:29px}.welcome p{font-size:12px}.orbWrap{height:120px}.orb{width:78px;height:78px}.orbSmall{width:28px;height:28px}.welcome{margin-top:5px}.prompts{gap:8px;margin-top:20px}.prompt{padding:13px 12px}.prompt strong{font-size:11px}.prompt span{font-size:9px}.composerDock{padding:12px 12px max(12px,env(safe-area-inset-bottom))}.composer{padding:12px;border-radius:14px}.composer textarea{height:63px;font-size:14px}.composerTools{gap:4px}.modeSelect{font-size:9px!important;max-width:110px}.smallButton{font-size:9px!important;padding:7px}.message{gap:9px}.messageText{font-size:13px}.userText{font-size:13px}.detailGrid{grid-template-columns:1fr}.disclaimer{font-size:8px}.charCount{display:none}}
 @media(prefers-reduced-motion:reduce){.studio *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}:global(html[data-slice-motion="reduced"]) .studio *{animation:none!important;transition:none!important}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.composer,.prompt,.reference{box-shadow:var(--slice-elevation-panel)}
+.composer{border-radius:22px;border-color:var(--slice-border-strong,var(--s-line))}
+.prompt,.reference{border-radius:16px}.messageText{line-height:1.7}.welcome h1{text-wrap:balance;letter-spacing:-.04em}
+.prompt:hover{box-shadow:var(--slice-elevation-hover)}

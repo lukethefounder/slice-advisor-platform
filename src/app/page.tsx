@@ -41,6 +41,7 @@ import {
 } from "@/lib/intelligence/freshness";
 import { getPublicIntelligence } from "@/lib/public-intelligence";
 import type { PublicArticle } from "@/lib/public-intelligence-types";
+import FutureLandingHero from "@/components/public-site/future-landing-hero";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -340,28 +341,8 @@ export default async function HomePage() {
   const intelligence = await loadHomeIntelligence();
 
   return (
-    <PublicPage active="home">
-      <PublicHero
-        eyebrow="Advisor intelligence and operating control"
-        title={
-          <>
-            Evidence-aware intelligence.{" "}
-            <span className="text-emerald-700">
-              One operating system for the advisory firm.
-            </span>
-          </>
-        }
-        description="Slice connects current market evidence, research, forecasting, portfolios, clients, documents, communications, workflows, and governance without hiding source time, model state, or review responsibility."
-        actions={
-          <>
-            <PrimaryLink href="/platform">Explore Slice</PrimaryLink>
-            <SecondaryLink href="/advisor-login">
-              Advisor login
-            </SecondaryLink>
-          </>
-        }
-        aside={<OperatingMap />}
-      />
+    <PublicPage active="home"><div className="slice-future-public">
+      <FutureLandingHero />
 
       <section className="border-y border-emerald-950/10 bg-white/50 py-14 sm:py-18">
         <div className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
@@ -642,6 +623,6 @@ export default async function HomePage() {
           </PublicSurface>
         </div>
       </section>
-    </PublicPage>
+    </div></PublicPage>
   );
 }

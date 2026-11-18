@@ -16,3 +16,9 @@
 @media(max-width:950px){.shell{grid-template-columns:1fr;}.sidebar{display:none;}.drawer{display:flex;position:fixed;inset:0 30% 0 0;z-index:100;height:100dvh;box-shadow:0 0 0 100vmax #001e1a66;}.mobileMenu{display:inline-grid;}.topbar{padding:12px 16px;min-height:67px;}.context{padding:10px 16px;}.page{padding:22px 16px 45px;}.hero{padding:23px;}}
 @media(max-width:600px){.search kbd,.search>span{display:none;}.hero{padding:20px;}.card{padding:18px;}.formGrid{grid-template-columns:1fr;}.contextLabel{width:100%;}.heroBottom{align-items:flex-start;}.statValue{font-size:24px;}.drawer{right:15%;}.cards{gap:10px;}.sectionHead{flex-direction:column;}}
 @media(prefers-reduced-motion:reduce){.root *{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.card{box-shadow:var(--slice-elevation-panel);border-radius:var(--slice-panel-radius,20px)}
+.button{transition:border-color var(--slice-ui-duration,150ms),background-color var(--slice-ui-duration,150ms)}
+.heading{letter-spacing:-.025em}.table tbody tr:focus-within{background:var(--slice-accent-soft,#ecf9f2)}

@@ -25,6 +25,6 @@ export function researchHref(path: string, context: ResearchContext): string {
   return u.pathname + u.search;
 }
 export function routeKey(path: string, params: URLSearchParams): string {
-  if (path !== "/market-visuals" && path !== "/workspace/connected" && !path.startsWith("/workspace/intelligence")) return path;
+  if (path !== "/market-visuals" && path !== "/workspace/connected" && !path.startsWith("/workspace/strategy-lab") && !path.startsWith("/workspace/intelligence")) return path;
   const c = contextFrom(params); return [path, c.symbol, c.researchRunId ?? "latest", c.horizon, params.get("runId") ?? "", params.get("strategyRunId") ?? "", params.get("sourceRunId") ?? ""].join(":");
 }

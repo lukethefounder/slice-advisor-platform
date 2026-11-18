@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/unified-studio/studio-link";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDownToLine, ArrowRight, Check, Database, FlaskConical, History, Layers3, Loader2, Plus, Save, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
@@ -14,6 +14,8 @@ import DecisionInspector from "./decision-inspector";
 import { importHistoryQueue, researchPost, type ImportState } from "@/lib/strategy-lab/import-client";
 import type { Readiness } from "@/lib/strategy-lab/readiness";
 import pro from "./strategy-pro.module.css";
+import { useWorkspaceSession } from "@/components/workspace/premium/session";
+import { strategyRead } from "@/lib/strategy-space/request-once";
 
 const StrategyChart = dynamic(() => import("./strategy-chart"), { ssr: false, loading: () => <div className={css.empty}>Opening saved calculation…</div> });
 
@@ -33,13 +35,17 @@ function NumberField({ label, value, onChange, min, max, step = 1, optional = fa
 function Stat({ label, value, helper }: { label: string; value: string; helper?: string }) { return <div className={css.stat}><span>{label}</span><strong>{value}</strong>{helper && <small>{helper}</small>}</div>; }
 function download(run: RunResponse) { const blob = new Blob([JSON.stringify(run, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `slice-strategy-${run.runId}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
-export default function StrategyLabWorkspace() {
+export default function StrategyLabWorkspace({ embedded = false, onRunReady, onBusyChange }: { embedded?: boolean; onRunReady?: (id: string) => void; onBusyChange?: (busy: boolean) => void } = {}) {
+  const session = useWorkspaceSession();
+  const scope = session.user && session.firm ? `${session.user.id}:${session.firm.id}` : null;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
   const [spec, setSpec] = useState<StrategySpec>(() => defaultSpec());
   const [symbolsInput, setSymbolsInput] = useState("XLK, XLF, XLV, XLE, XLI");
   const [datasets, setDatasets] = useState<DatasetRow[]>([]), [selection, setSelection] = useState<Record<string, string>>({});
   const [runs, setRuns] = useState<RunSummary[]>([]), [saved, setSaved] = useState<Saved[]>([]);
   const [result, setResult] = useState<RunResponse | null>(null), [comparison, setComparison] = useState<RunResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null), [error, setError] = useState(""), [message, setMessage] = useState("Choose a template, configure your rules, and import verified daily history.");
+  useEffect(() => { onBusyChange?.(Boolean(busy)); }, [busy, onBusyChange]);
   const [progress, setProgress] = useState(0), [tab, setTab] = useState<ResultTab>("performance"), [tradePage, setTradePage] = useState(0);
   const [importRows, setImportRows] = useState<Record<string, ImportState>>({});
   const [readiness, setReadiness] = useState<Readiness | null>(null);
@@ -49,24 +55,20 @@ export default function StrategyLabWorkspace() {
   const needed = useMemo(() => [...new Set([...spec.symbols, spec.benchmark])], [spec.symbols, spec.benchmark]);
   function patch<K extends keyof StrategySpec>(key: K, value: StrategySpec[K]) { setSpec(current => ({ ...current, [key]: value, ...(key === "symbols" && Array.isArray(value) ? { maxHoldings: Math.min(current.maxHoldings, Math.max(1, value.length)) } : {}) })); }
   const refresh = useCallback(async () => {
-    const results = await Promise.allSettled([
-      intelligenceFetch<{ datasets: DatasetRow[] }>("/api/strategy-lab/datasets", {}, { retries: 0 }),
-      intelligenceFetch<{ runs: RunSummary[] }>("/api/strategy-lab/runs", {}, { retries: 0 }),
-      intelligenceFetch<{ saved: Saved[] }>("/api/strategy-lab/templates", {}, { retries: 0 }),
-    ]);
-    if (!alive.current) return;
-    const [a, b, c] = results;
-    if (a.status === "fulfilled") {
-      setDatasets(a.value.datasets);
-      setSelection(prev => { const next = { ...prev }; for (const d of a.value.datasets) if (!next[d.symbol]) next[d.symbol] = d.id; return next; });
+    if (!scope) return;
+    type Part<T> = { ok: boolean; data?: T[]; message?: string };
+    const payload = await strategyRead<{ sections: [Part<DatasetRow>, Part<RunSummary>, Part<Saved>] }>(scope, "/api/strategy-lab/bootstrap");
+    if (!alive.current || scopeRef.current !== scope) return;
+    const [a, b, c] = payload.sections;
+    if (a.ok && a.data) {
+      setDatasets(a.data);
+      setSelection(prev => { const next = { ...prev }; for (const d of a.data!) if (!next[d.symbol]) next[d.symbol] = d.id; return next; });
     }
-    if (b.status === "fulfilled") setRuns(b.value.runs);
-    if (c.status === "fulfilled") setSaved(c.value.saved);
-    const failures = results.flatMap((r, i) => r.status === "rejected" ? [`${["Datasets", "Saved runs", "Saved templates"][i]}: ${errorText(r.reason)}`] : []);
-    setError(failures.join(" · "));
-
-  }, []);
-  useEffect(() => { alive.current = true; void refresh().then(async () => { const id = new URLSearchParams(window.location.search).get("strategyRunId"); if (!id || !alive.current) return; const stored = await intelligenceFetch<RunResponse>(`/api/strategy-lab/runs?id=${encodeURIComponent(id)}`); if (alive.current) { setResult(stored); setMessage("Opened the exact saved historical run from connected research."); } }).catch(e => { if (alive.current) setError(errorText(e)); }); return () => { alive.current = false; importsCancelled.current = true; sequence.current++; }; }, [refresh]);
+    if (b.ok && b.data) setRuns(b.data);
+    if (c.ok && c.data) setSaved(c.data);
+    setError(payload.sections.filter(s => !s.ok).map(s => s.message || "A summary section did not load.").join(" · "));
+  }, [scope]);
+  useEffect(() => { alive.current = true; setDatasets([]); setRuns([]); setSaved([]); setResult(null); setComparison(null); setSelection({}); if (!scope) return; void refresh().then(async () => { const id = new URLSearchParams(window.location.search).get("strategyRunId"); if (!id || !alive.current || scopeRef.current !== scope) return; const stored = await intelligenceFetch<RunResponse>(`/api/strategy-lab/runs?id=${encodeURIComponent(id)}`); if (alive.current && scopeRef.current === scope) { setResult(stored); setMessage("Opened the exact saved historical run from connected research."); } }).catch(e => { if (alive.current && scopeRef.current === scope) setError(errorText(e)); }); return () => { alive.current = false; importsCancelled.current = true; sequence.current++; }; }, [refresh, scope]);
   function inputForTest() { return { spec, datasetIds: needed.map(symbol => selection[symbol]).filter(Boolean) }; }
   async function importAll(force = false, failuresOnly = false) {
     if (busy || operation.current) return;
@@ -106,6 +108,7 @@ export default function StrategyLabWorkspace() {
       const data = await researchPost<RunResponse>("/api/strategy-lab/runs", input, 58000);
       if (!alive.current) return; setResult(data); setComparison(null); setTradePage(0); setTab("performance"); await refresh();
       setMessage("Simulation saved with exact rules, pinned datasets, engine version, and order ledger. Use Inspect saved decision to audit individual sessions.");
+      onRunReady?.(data.runId);
     } catch (e) { if (alive.current) setError(errorText(e)); }
     finally { operation.current = false; if (alive.current) setBusy(null); }
   }
@@ -124,8 +127,8 @@ export default function StrategyLabWorkspace() {
   }, [result, comparison, comparable]);
   const trades = result?.result.trades.slice(tradePage * 40, tradePage * 40 + 40) ?? [];
   const selectedManifest = needed.map(s => datasets.find(d => d.id === selection[s] && d.symbol === s));
-  return <main className={`${css.suite} ${css.page}`}>
-    <header className={css.hero}><div><div className={css.topline}><span className={css.pill}><FlaskConical size={13} /> Strategy Lab</span><span className={css.pill}><Database size={13} /> Alpha Vantage only</span><span className={`${css.pill} ${css.pillAlt}`}>Historical simulation · not a forecast</span></div><h1 className={css.title}>Turn an investment idea<br />into a testable strategy.</h1><p className={css.lede}>Choose a template. Define entry, exit, sizing, and risk rules. Replay verified daily observations with visible costs and an inspectable trade ledger.</p></div><Link className={css.secondary} href="/workspace/intelligence/scenarios" prefetch={false}><Layers3 size={15}/>Scenario Studio</Link><Link href="/workspace/intelligence" className={css.secondary}>Intelligence <ArrowRight size={15} /></Link></header>
+  return <main data-studio-embedded={embedded ? "builder" : undefined} className={`${css.suite} ${css.page}`}>
+    <header className={css.hero}><div><div className={css.topline}><span className={css.pill}><FlaskConical size={13} /> Strategy Lab</span><span className={css.pill}><Database size={13} /> Alpha Vantage only</span><span className={`${css.pill} ${css.pillAlt}`}>Historical simulation · not a forecast</span></div><h1 className={css.title}>Turn an investment idea<br />into a testable strategy.</h1><p className={css.lede}>Choose a template. Define entry, exit, sizing, and risk rules. Replay verified daily observations with visible costs and an inspectable trade ledger.</p></div><Link className={css.secondary} href="/workspace/strategy-lab/scenarios" prefetch={false}><Layers3 size={15}/>Scenario Studio</Link><Link href="/workspace/intelligence" className={css.secondary}>Intelligence <ArrowRight size={15} /></Link></header>
     <nav className={pro.steps} aria-label="Strategy setup steps"><a href="#strategy-framework">1 · Template</a><a href="#strategy-universe">2 · Universe</a><a href="#strategy-rules">3 · Rules</a><a href="#strategy-allocation">4 · Risk</a><a href="#strategy-data">5 · Import & verify</a><a href="#strategy-results">6 · Results</a></nav>
     <div className={css.layout}><div className={css.main}>
       <fieldset disabled={!!busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} className={css.main}>
@@ -176,7 +179,7 @@ export default function StrategyLabWorkspace() {
       <section className={css.card}><p className={css.eyebrow}>Saved runs</p><div className={css.stack}>{runs.slice(0, 8).map(r => <button key={r.id} className={css.secondary} disabled={!!busy} style={{ textAlign: "left", justifyContent: "flex-start" }} onClick={() => void loadRun(r.id)}><History size={14} /><span>{r.name}<small style={{ display: "block", fontWeight: 400 }}>{r.summary.start} → {r.summary.end}</small></span></button>)}{!runs.length && <p className={css.description}>Your completed tests will appear here. No sample results are displayed.</p>}</div></section>
     </aside></div>
     <div role={error ? "alert" : "status"} aria-live="polite" className={`${css.notice} ${error ? css.error : ""}`} style={{ margin: "18px 0" }}>{busy && <Loader2 size={14} style={{ display: "inline", marginRight: 8 }} />}{error || message}</div>
-    {result ? <section className={css.card} id="strategy-results"><div className={css.sectionHead}><div><p className={css.eyebrow}>Saved historical simulation</p><h2 className={css.heading}>{result.result.spec.name}</h2><p className={css.description}>{result.result.effectiveStart} → {result.result.effectiveEnd} · {result.result.engineVersion}</p></div><Link className={css.button} href={`/workspace/intelligence/scenarios?sourceRunId=${encodeURIComponent(result.runId)}`} prefetch={false}><Layers3 size={15}/>Create forward scenario</Link><button className={css.secondary} onClick={() => download(result)}><ArrowDownToLine size={15} /> Export audit JSON</button></div>
+    {result ? <section className={css.card} id="strategy-results"><div className={css.sectionHead}><div><p className={css.eyebrow}>Saved historical simulation</p><h2 className={css.heading}>{result.result.spec.name}</h2><p className={css.description}>{result.result.effectiveStart} → {result.result.effectiveEnd} · {result.result.engineVersion}</p></div><Link className={css.button} href={`/workspace/strategy-lab/scenarios?sourceRunId=${encodeURIComponent(result.runId)}`} prefetch={false}><Layers3 size={15}/>Create forward scenario</Link><Link className={css.secondary} href={`/workspace/strategy-lab/sensitivity?strategyRunId=${encodeURIComponent(result.runId)}`} prefetch={false}>Test execution costs</Link><button className={css.secondary} onClick={() => download(result)}><ArrowDownToLine size={15} /> Export audit JSON</button></div>
       <div className={css.topline}><span className={`${css.pill} ${css.pillWarn}`}>Hypothetical—not actual client performance</span><span className={css.pill}><Check size={12} /> Saved source hashes</span><span className={css.pill}>{result.result.signalWarmupSessions} warmup sessions</span></div>
       <div className={css.stats}><Stat label="Total return" value={percent(result.result.strategy.totalReturnPct)} helper={`Benchmark ${percent(result.result.benchmark.totalReturnPct)}`} /><Stat label="Annualized return" value={percent(result.result.strategy.cagrPct)} /><Stat label="Maximum drawdown" value={percent(result.result.strategy.maxDrawdownPct)} /><Stat label="Final equity" value={money(result.result.strategy.finalEquity)} /><Stat label="Annualized volatility" value={percent(result.result.strategy.annualizedVolatilityPct)} /><Stat label="Sharpe" value={number(result.result.strategy.sharpe)} helper={`Reference rate ${result.result.spec.riskFreeRatePct}%`} /><Stat label="Fees + slippage" value={money(result.result.strategy.fees + result.result.strategy.slippage)} /><Stat label="Trades / exposure" value={`${result.result.strategy.tradeCount} / ${percent(result.result.strategy.averageExposurePct)}`} /></div>
       <div className={css.grid}><Field label="Compare another saved run"><select disabled={!!busy} value={comparison?.runId ?? ""} onChange={e => void loadRun(e.target.value, true)}><option value="">No comparison</option>{runs.filter(r => r.id !== result.runId).map(r => <option key={r.id} value={r.id}>{r.name} · {r.summary.start} → {r.summary.end}</option>)}</select></Field><p className={css.description}>Comparison overlays require identical dates, benchmark, starting capital, and engine version. Different rules and assumptions remain visible in each exported record.</p></div>

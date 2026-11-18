@@ -20,68 +20,67 @@ import { usePathname } from "next/navigation";
 import { cx } from "@/components/intelligence/intelligence-ui";
 
 const NAVIGATION = [
-  { href: "/workspace/intelligence/strategy-lab", label: "Strategy Lab", icon: FlaskConical },
-  {
+{
     href: "/workspace/intelligence",
     label: "Control Plane",
     icon: BrainCircuit,
     exact: true,
   },
-  {
+{
     href: "/workspace/intelligence/agent-simulation",
     label: "Research Swarm",
     icon: Bot,
   },
-  {
+{
     href: "/workspace/intelligence/knowledge-graph",
     label: "Knowledge Graph",
     icon: Network,
   },
-  {
+{
     href: "/workspace/intelligence/forecast-lab",
     label: "Forecast Lab",
     icon: Target,
   },
-  {
+{
     href: "/workspace/intelligence/advisor-bot",
     label: "Slice Advisor",
     icon: Sparkles,
   },
-  {
+{
     href: "/workspace/intelligence/horizon-models",
     label: "Horizon Models",
     icon: Radar,
   },
-  {
+{
     href: "/workspace/intelligence/ensemble-lab",
     label: "Ensemble Lab",
     icon: FlaskConical,
   },
-  {
+{
     href: "/workspace/intelligence/forecast-history",
     label: "History & Accuracy",
     icon: History,
   },
-  {
+{
     href: "/workspace/intelligence/model-governance",
     label: "Governance",
     icon: SlidersHorizontal,
   },
-  {
+{
     href: "/workspace/intelligence/data-warehouse",
     label: "Evidence Warehouse",
     icon: Database,
   },
-  {
+{
     href: "/workspace/intelligence/production-controls",
     label: "Production Controls",
     icon: Gauge,
   },
-  {
+{
     href: "/workspace/intelligence/launch-readiness",
     label: "Launch Readiness",
     icon: ShieldCheck,
-  },
+  }
 ] as const;
 
 function isActive(pathname: string, href: string, exact = false) {

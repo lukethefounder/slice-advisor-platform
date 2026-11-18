@@ -1,0 +1,27 @@
+/* Scoped refinements: no financial data, access control or engine behavior is changed. */
+[data-slice-future-shell] [data-slice-shell-grid]{grid-template-columns:254px minmax(0,1fr)}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]{height:100dvh;overflow:hidden;padding:23px 14px 13px;background:linear-gradient(180deg,color-mix(in srgb,var(--slice-surface-strong,#fff) 98%,#98d6b9),var(--slice-surface-strong,#fff));border-right-color:var(--slice-border,#dce8e1)}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#7fba9b55 transparent;margin-top:6px;padding-bottom:14px}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav a{min-height:43px;border-radius:12px;padding:11px 13px;font-size:12px;transition:background-color .16s,border-color .16s;position:relative}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav a[aria-current="page"]{background:linear-gradient(100deg,var(--slice-accent-soft,#e1f4e9),color-mix(in srgb,var(--slice-surface-strong,#fff) 70%,#75c9e1));border:1px solid var(--slice-accent-border,#b1ddc3);box-shadow:0 4px 14px #073e2110}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav a[aria-current="page"]:before{content:"";width:3px;height:17px;position:absolute;left:-1px;top:50%;transform:translateY(-50%);background:var(--slice-accent-strong,#108361);border-radius:3px}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav>div{margin-top:18px}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav p{font-size:8px;letter-spacing:.16em;margin-bottom:9px;opacity:.86}
+[data-slice-future-shell] aside[aria-label="Workspace navigation"]>div:last-child{flex-shrink:0;border-top:1px solid var(--slice-border,#dde9e1);padding-top:10px;background:var(--slice-surface-strong,#fff)}
+[data-slice-future-shell] [data-sidebar-toggle]{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:var(--slice-surface-strong,#fff);color:var(--slice-muted,#60766b);border:1px solid var(--slice-border,#dce8e1);border-radius:10px;cursor:pointer;flex-shrink:0}
+[data-slice-future-shell] [data-sidebar-toggle]:focus-visible{outline:3px solid #1ba57a;outline-offset:3px}
+@media(min-width:1101px){[data-slice-future-shell][data-rail="compact"] [data-slice-shell-grid]{grid-template-columns:82px minmax(0,1fr)}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]{padding:23px 9px 12px}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>div:first-child{padding:0 3px 16px;overflow:hidden;max-width:64px}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>div:first-child p{display:none}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>nav a{font-size:0;justify-content:center;padding:12px 0;gap:0}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>nav p{font-size:0;padding:0;height:1px;background:var(--slice-border,#dce8e1);margin:11px}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>div:last-child>a,[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>div:last-child>button{font-size:0;justify-content:center;gap:0;padding:11px 0}
+[data-slice-future-shell][data-rail="compact"] aside[aria-label="Workspace navigation"]>div:last-child>div{display:none}}
+@media(min-width:761px) and (max-width:1100px){[data-slice-future-shell] [data-slice-shell-grid]{grid-template-columns:216px minmax(0,1fr)}[data-slice-future-shell] [data-sidebar-toggle]{display:none}}
+@media(max-width:760px){[data-slice-future-shell] [data-slice-shell-grid]{display:block}[data-slice-future-shell] [data-sidebar-toggle]{display:none}[data-slice-future-shell] aside[aria-label="Workspace navigation"]{width:min(300px,88vw)}[data-slice-future-shell] aside[aria-label="Workspace navigation"]>nav a{min-height:45px}}
+.slice-future-public>section:not(:first-child){background-color:var(--slice-page,#f5f9f6)}
+.slice-future-public>section:not(:first-child) h2{letter-spacing:-.04em}
+.slice-future-public>section:not(:first-child) article{border-radius:20px;box-shadow:0 9px 35px #0a3d2110}
+.slice-future-public :focus-visible{outline:3px solid #13a77d;outline-offset:4px}
+@media(prefers-reduced-motion:reduce){[data-slice-future-shell] aside[aria-label="Workspace navigation"] *{transition:none!important}}

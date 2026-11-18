@@ -9,3 +9,24 @@
 @keyframes soft-pulse{50%{opacity:.6}}@media(prefers-reduced-motion:reduce){.terminal *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}:global([data-slice-motion=reduced]) .terminal *{animation:none!important;transition:none!important}.terminal[data-motion=off] *{animation:none!important;transition:none!important}
 @media(max-width:1050px){.hero{gap:22px}.heroTags{gap:10px}.metricGrid{grid-template-columns:repeat(3,minmax(0,1fr))}.newsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.commandActions{margin-left:0}.heroQuote{padding:22px}.rangeGroup{margin-left:auto}}
 @media(max-width:760px){.terminal{padding:18px 14px 25px}.topline{gap:12px;font-size:8px;padding-bottom:17px}.topline>span{display:none}.hero{grid-template-columns:1fr;gap:22px;padding:27px 3px 22px}.hero h1{font-size:42px}.heroQuote{gap:8px;padding:18px 20px}.heroQuote>strong{font-size:38px}.heroTags{font-size:8px}.commandBar{gap:9px;padding:10px}.commandActions{width:100%;border-top:1px solid var(--mt-line);padding-top:7px;justify-content:space-between}.commandActions button{padding:8px;font-size:9px}.symbolForm{border:0;padding:0;gap:7px}.symbolForm input{width:65px}.rangeGroup{gap:0}.rangeGroup button{min-width:29px;padding:8px 6px;font-size:10px}.tabBar{margin:17px 0 10px}.tabBar button{min-width:114px;flex:none}.panel{padding:16px;border-radius:16px}.sectionHead{flex-direction:column;gap:12px}.sectionHead h2{font-size:23px}.metricGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{padding:13px}.metric>strong{font-size:20px}.newsGrid,.receipts{grid-template-columns:1fr}.optionsGate{padding:16px}.connectedStrip{padding:16px}.failure,.notice{align-items:flex-start;flex-wrap:wrap}.controls{gap:8px}.footer>span:nth-child(2){display:none}.placeholder{padding:19px;min-height:260px}}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.heroQuote,.panel,.metric,.commandBar{box-shadow:var(--slice-elevation-panel);border-radius:var(--slice-panel-radius,20px)}
+.tabBar{background:var(--mt-surface);border:1px solid var(--mt-line);border-radius:16px;padding:6px;scroll-padding-inline:12px}
+.tabBar button{transition:background-color var(--slice-ui-duration,150ms),border-color var(--slice-ui-duration,150ms)}
+.hero h1{letter-spacing:-.045em;text-wrap:balance}.panel{border-top:3px solid var(--slice-accent-border,#a9dccd)}
+.topline{flex-wrap:wrap;gap:12px}
+
+/* SLICE_MARKET_TASK_V1: visual refinement; observations and timing are unchanged. */
+.hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,.55fr); padding:clamp(22px,3vw,42px); gap:28px; border-radius:24px; background:radial-gradient(ellipse at 80% 0%,#157f7244,transparent 60%),#0d3029; color:#eafff3; }
+.hero .heroText h1 {font-size:clamp(28px,3.4vw,47px);letter-spacing:-.05em;line-height:1.1;}
+.hero .heroText p {color:#bbd8c9;}
+.hero .heroText h1 span {color:#81e1bc;}
+.hero .heroQuote {border:1px solid #9dd2bc30;border-radius:18px;background:#ffffff08;padding:22px;color:#eefff7;}
+.hero .heroQuote strong {font-variant-numeric:tabular-nums;font-size:clamp(32px,3.6vw,54px);}
+.hero .heroQuote small {color:#bdd9cc;}
+.tabBar {gap:7px; padding:12px 0; scroll-padding:12px;}
+.tabBar button {min-height:52px;border-radius:12px;}
+.commandBar {border-radius:16px;box-shadow:0 7px 20px #17412e06;}
+@media(max-width:700px){.hero{grid-template-columns:1fr;gap:18px;}.hero .heroQuote{padding:18px;}.tabBar button small{display:none;}.tabBar button{min-height:44px;}}

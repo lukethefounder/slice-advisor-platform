@@ -1,3 +1,5 @@
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
+import { parseScenarioCursor } from "@/lib/strategy-space/scenario-cursor";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -15,9 +17,13 @@ function unpack<T>(text: string, expectedHash?: string | null): T {
 }
 function definitionHash(specJson: string, assumptionsJson: string, weightsJson: string) { return digest(specJson + "\n" + assumptionsJson + "\n" + weightsJson); }
 const summarySelect = { id: true, name: true, sourceRunId: true, status: true, acceptedSessions: true, lastSession: true, version: true, frozenAt: true, earliestStart: true, lastCheckedAt: true, nextCheckAt: true, lastError: true, createdAt: true, updatedAt: true } as const;
-export async function listScenarios(scope: Scope) {
-  return prisma.sliceForwardScenario.findMany({ where: scope, orderBy: { createdAt: "desc" }, take: 60, select: summarySelect });
+export async function listScenarioPage(scope: Scope, before?: string | null) {
+  const c = parseScenarioCursor(before);
+  const rows = await prisma.sliceForwardScenario.findMany({ where: { ...scope, ...(c ? { OR: [{ createdAt: { lt: c.createdAt } }, { createdAt: c.createdAt, id: { lt: c.id } }] } : {}) }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 61, select: summarySelect });
+  const scenarios = rows.slice(0, 60), last = scenarios.at(-1);
+  return { scenarios, nextCursor: rows.length > 60 && last ? `${last.createdAt.toISOString()}|${last.id}` : null };
 }
+export async function listScenarios(scope: Scope) { return (await listScenarioPage(scope)).scenarios; }
 async function originalRun(scope: Scope, id: string) {
   const run = await prisma.sliceStrategyRun.findFirst({ where: { userId: scope.userId, id } });
   if (!run) throw new StrategyError("SOURCE_NOT_FOUND", "The source strategy run is unavailable to this user.", 404);
@@ -59,7 +65,7 @@ export async function scenarioDetail(scope: Scope, rawId: unknown, audit = false
 export async function createScenario(scope: Scope, body: Record<string, unknown>) {
   const source = await originalRun(scope, idOf(body.sourceRunId));
   const spec = validateSpec(source.result.spec), assumptions = validateAssumptions(body.assumptions, spec);
-  const count = await prisma.sliceForwardScenario.count({ where: { ...scope, status: { in: ["Draft", "Watching"] } } });
+  const count = researchBetaEnabled(process.env) ? 0 : await prisma.sliceForwardScenario.count({ where: { ...scope, status: { in: ["Draft", "Watching"] } } });
   if (count >= 50) throw new StrategyError("SCENARIO_LIMIT", "Archive unused scenarios before creating more; this workspace allows 50 draft/watching scenarios.", 409);
   const specJson = JSON.stringify(spec), assumptionsJson = JSON.stringify(assumptions), baselineWeightsJson = JSON.stringify(source.result.equity.at(-1)?.weights ?? {});
   const row = await prisma.sliceForwardScenario.create({ data: { ...scope, name: nameOf(body.name), sourceRunId: source.row.id, specJson, assumptionsJson, baselineWeightsJson, definitionHash: definitionHash(specJson, assumptionsJson, baselineWeightsJson) } });

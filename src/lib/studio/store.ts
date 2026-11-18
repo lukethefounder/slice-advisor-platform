@@ -1,3 +1,4 @@
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 import "server-only";
 import { randomUUID, createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -52,7 +53,7 @@ export async function acquireOperation(scope: StudioScope, action: "chat" | "tes
             // Fixed daily limits are per authenticated user, not a provider-wide invoice cap.
             const day = new Date(now);
             day.setUTCHours(0, 0, 0, 0);
-            const [minute, daily] = await Promise.all([
+            const [minute, daily] = researchBetaEnabled(process.env) ? [0, 0] : await Promise.all([
                 prisma.backendPlatformEvent.count({ where: { userId: scope.userId, eventType: USAGE, createdAt: { gte: new Date(now.getTime() - 60000) } } }),
                 prisma.backendPlatformEvent.count({ where: { userId: scope.userId, eventType: USAGE, createdAt: { gte: day } } })
             ]);

@@ -1,3 +1,5 @@
+import WorkspaceMotion from "@/components/performance/workspace-motion";
+import "./strategy-motion.css";
 import type { Metadata, Viewport } from "next";
 
 import WebVitalsReporter from "@/components/production/web-vitals-reporter";
@@ -7,6 +9,9 @@ import "./globals.css";
 import "./market-green.css";
 import "./connected-experience.css";
 import NavigationAccelerator from "@/components/performance/navigation-accelerator";
+import "./experience-polish.css";
+import "./scenario-experience.css";
+import "./future-experience.css";
 // slice-market-speed-runtime-v1
 
 
@@ -93,7 +98,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
+    <html data-scroll-behavior="smooth"
       lang="en"
       data-slice-brand="market-green"
       data-slice-theme="light"
@@ -117,6 +122,7 @@ export default function RootLayout({
         <NavigationAccelerator />
         <WebVitalsReporter />
         <ChunkRecovery />
+      <WorkspaceMotion />
       </body>
     </html>
   );

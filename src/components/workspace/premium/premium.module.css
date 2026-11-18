@@ -4,3 +4,11 @@
 @media(max-width:1100px){.shell{grid-template-columns:220px minmax(0,1fr)}.content{padding:24px}.topbar{padding:0 24px}.bodyGrid{grid-template-columns:1fr}.hero{align-items:flex-start}.tileGrid{grid-template-columns:repeat(3,1fr)}.metrics{gap:10px}.metric{padding:16px}.identity{display:none}.searchTrigger kbd{display:none}}
 @media(max-width:760px){.shell{display:block}.sidebar{display:none}.drawer{display:flex;position:fixed;left:0;top:0;width:min(290px,88vw);box-shadow:10px 0 40px #06281c20}.mobileOnly{display:inline-flex}.topbar{padding:0 16px;height:62px;gap:10px}.topActions{gap:6px}.searchTrigger{padding:8px;min-width:36px}.searchTrigger span{display:none}.breadcrumb{font-size:9px}.breadcrumb strong{font-size:12px}.contextToggle{max-width:100px}.content{padding:24px 16px}.hero{display:block}.hero .actions{margin-top:18px}.hero h1{font-size:32px}.hero p{font-size:12px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metricValue{font-size:27px}.metric small{font-size:9px}.panel{padding:18px;border-radius:15px}.bodyGrid,.stack{gap:16px}.tileGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.listRow{gap:8px}.pill{font-size:8px}.panelHead{flex-wrap:wrap}.filter{max-width:100%}.footerLine{font-size:9px}.workflow{gap:6px}.workflow div{padding:9px}}
 @media(prefers-reduced-motion:reduce){.root *{animation:none!important;scroll-behavior:auto!important;transition:none!important}}:global(html[data-slice-motion="reduced"]) .root *{animation:none!important;transition:none!important}
+
+
+/* SLICE_EXPERIENCE_POLISH_V1 */
+.topbar{background:linear-gradient(110deg,var(--p-panel),var(--p-panel) 70%,var(--slice-accent-soft,#ecf8f2));box-shadow:0 1px 0 var(--p-line);isolation:isolate}
+.panel,.metric{box-shadow:var(--slice-elevation-panel);border-radius:var(--slice-panel-radius,20px)}
+.button,.searchTrigger,.iconButton{transition:border-color var(--slice-ui-duration,150ms),background-color var(--slice-ui-duration,150ms),box-shadow var(--slice-ui-duration,150ms)}
+.topActions{flex-wrap:nowrap}.breadcrumb{min-width:0}.breadcrumb strong{overflow-wrap:anywhere}
+@media(max-width:560px){.topbar{padding-inline:12px;gap:9px}.topActions{gap:6px}.contextToggle{min-width:36px;padding:8px}.breadcrumb{font-size:10px}}
