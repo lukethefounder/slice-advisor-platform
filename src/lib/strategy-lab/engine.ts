@@ -1,6 +1,6 @@
 import { runBacktest as runLegacyBacktest } from "./legacy-v1/engine";
 import { StrategyError as LegacyStrategyError } from "./legacy-v1/contracts";
-import { ENGINE_VERSION, PROVIDER, StrategyError, manifestOf, type StrategySpec, type Dataset, type DailyBar, type BacktestResult, type EquityPoint, type Trade, type ActionEvent, type Performance } from "./contracts";
+import { engineVersionFor, PROVIDER, StrategyError, manifestOf, type StrategySpec, type Dataset, type DailyBar, type BacktestResult, type EquityPoint, type Trade, type ActionEvent, type Performance } from "./contracts";
 import { Series, evaluateRules, flattenRules } from "./indicators";
 import { validateSpec } from "./validation";
 const DAY = 86400000;
@@ -33,7 +33,7 @@ function allocate(scores: { symbol: string; value: number }[], gross: number, ca
   }
   return w;
 }
-type Holding = { shares: number; opened: number; peakClose: number };
+type Holding = { shares: number; opened: number; peakClose: number; averageEntry: number };
 function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference: Series, dates: string[], priorDates: string[]) {
   const holdings = new Map<string, Holding>(), cooldown = new Map<string, number>();
   const equity: EquityPoint[] = [], trades: Trade[] = [], corporateActions: ActionEvent[] = [];
@@ -48,8 +48,11 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
     if (spec.portfolioStopPct !== null && lastEquity / peakEquity - 1 <= -spec.portfolioStopPct / 100) halted = true;
     for (const [symbol, h] of holdings) {
       const s = seriesOf(symbol), j = s.index.get(signalDate)!;
+      const entryPriceTolerance = Math.max(1, h.averageEntry) * 1e-12;
       if (halted) exits.set(symbol, "Portfolio closing-drawdown circuit: cash for remainder of run");
       else if (!regimeOn) exits.set(symbol, "Benchmark regime failed at prior close");
+      else if (spec.version === 3 && spec.stopLossPct != null && at(s, signalDate).close <= h.averageEntry * (1 - spec.stopLossPct / 100) + entryPriceTolerance) exits.set(symbol, "Prior-close stop-loss from average entry");
+      else if (spec.version === 3 && spec.takeProfitPct != null && at(s, signalDate).close >= h.averageEntry * (1 + spec.takeProfitPct / 100) - entryPriceTolerance) exits.set(symbol, "Prior-close take-profit from average entry");
       else if (spec.trailingStopPct !== null && at(s, signalDate).close <= h.peakClose * (1 - spec.trailingStopPct / 100)) exits.set(symbol, "Prior-close trailing stop");
       else if (spec.maxHoldingSessions !== null && day - h.opened >= spec.maxHoldingSessions) exits.set(symbol, "Maximum holding sessions");
       else if (evaluateRules(spec.exit, s, j, reference, false)) exits.set(symbol, "Exit criteria at prior close");
@@ -57,7 +60,7 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
     // Corporate actions apply to shares carried from the preceding session, before new trades.
     for (const [symbol, h] of holdings) {
       const b = at(seriesOf(symbol), date);
-      if (b.split !== 1) { h.shares *= b.split; h.peakClose /= b.split; corporateActions.push({ date, symbol, type: "SPLIT", value: b.split, shares: h.shares, cash: 0 }); }
+      if (b.split !== 1) { h.shares *= b.split; h.peakClose /= b.split; h.averageEntry /= b.split; corporateActions.push({ date, symbol, type: "SPLIT", value: b.split, shares: h.shares, cash: 0 }); }
       if (b.dividend > 0) { const amount = h.shares * b.dividend; cash += amount; corporateActions.push({ date, symbol, type: "DIVIDEND", value: b.dividend, shares: h.shares, cash: amount }); }
     }
     const navOpen = cash + [...holdings].reduce((s, [symbol, h]) => s + h.shares * at(seriesOf(symbol), date).open, 0);
@@ -102,8 +105,8 @@ function portfolio(spec: StrategySpec, prepared: Map<string, Series>, reference:
         if (h) { h.shares -= shares; if (h.shares < 1e-8) { holdings.delete(symbol); cooldown.set(symbol, day + 1 + spec.cooldownSessions); } }
       } else {
         cash -= notional + fee;
-        if (h) h.shares += shares;
-        else holdings.set(symbol, { shares, opened: day, peakClose: b.open });
+        if (h) { if (spec.version === 3) h.averageEntry = (h.averageEntry * h.shares + fillPrice * shares) / (h.shares + shares); h.shares += shares; }
+        else holdings.set(symbol, { shares, opened: day, peakClose: b.open, averageEntry: fillPrice });
       }
       if (cash < -1e-5) throw new StrategyError("NEGATIVE_CASH", "Internal cash invariant failed.");
       cash = Math.max(0, cash);
@@ -186,7 +189,7 @@ export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Dat
   }
   const { spec, unique, prepared, reference, dates, previous, warmup } = prepareBacktest(rawSpec, datasets, now, options);
   const p = portfolio(spec, prepared, reference, dates, previous);
-  const bSpec: StrategySpec = { ...spec, regime: undefined, allocationGroups: undefined, symbols: [spec.benchmark], entry: { mode: "all", rules: [] }, exit: { mode: "any", rules: [] }, ranking: "alphabetical", weighting: "equal", rebalance: "once", maxHoldings: 1, maxPositionPct: 100, maxExposurePct: 100, trailingStopPct: null, portfolioStopPct: null, maxHoldingSessions: null };
+  const bSpec: StrategySpec = { ...spec, regime: undefined, allocationGroups: undefined, symbols: [spec.benchmark], entry: { mode: "all", rules: [] }, exit: { mode: "any", rules: [] }, ranking: "alphabetical", weighting: "equal", rebalance: "once", maxHoldings: 1, maxPositionPct: 100, maxExposurePct: 100, trailingStopPct: null, portfolioStopPct: null, maxHoldingSessions: null, stopLossPct: null, takeProfitPct: null };
   const b = portfolio(bSpec, prepared, reference, dates, previous), strategy = performance(spec, p), benchmark = performance(bSpec, b);
   const groups = new Map<string, { first: number; last: number }>();
   dates.forEach((date, i) => { const m = date.slice(0, 7); const g = groups.get(m); groups.set(m, { first: g?.first ?? i, last: i }); });
@@ -204,10 +207,11 @@ export function runBacktest(rawSpec: unknown, datasets: Dataset[], now = new Dat
     "User-defined industry groups are fixed portfolio labels, not historically reconstructed sector membership. Group-cap reductions remain as cash; targets can drift between rebalances.",
     "Historical results are hypothetical. Repeatedly adjusting criteria to fit the same period creates selection bias; reserve a separate test period.",
   ];
+  if (spec.version === 3) warnings.push("Entry-relative stop-loss and take-profit use the split-adjusted average purchase fill. Entry fees, dividends, and exit costs are excluded from the trigger, but fees and cash flows remain in performance. Thresholds are checked at the prior close; execution is at the next observed open, which may gap beyond the trigger.");
   if (dates.length < 252) warnings.push("Less than one trading year: annualized metrics can be unstable.");
   if (p.halted) warnings.push("Portfolio closing-drawdown circuit triggered. The strategy remained in cash afterward.");
   const diff = strategy.totalReturnPct - benchmark.totalReturnPct;
-  return { version: 1, engineVersion: ENGINE_VERSION, classification: "hypothetical-historical-simulation", spec, effectiveStart: dates[0], effectiveEnd: dates.at(-1)!, signalWarmupSessions: warmup,
+  return { version: 1, engineVersion: engineVersionFor(spec), classification: "hypothetical-historical-simulation", spec, effectiveStart: dates[0], effectiveEnd: dates.at(-1)!, signalWarmupSessions: warmup,
     manifests: unique.map(s => manifestOf(prepared.get(s)!.data)), strategy, benchmark,
     equity: p.equity, benchmarkEquity: b.equity, trades: p.trades, corporateActions: p.corporateActions, monthly, warnings,
     interpretation: [

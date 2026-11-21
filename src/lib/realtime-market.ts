@@ -55,6 +55,7 @@ export type RealtimeMarketResponse = {
   staleCount: number;
   warnings: string[];
   snapshots: RealtimeAssetSnapshot[];
+  unavailableSymbols?: string[];
 };
 
 type ProviderResult = {
@@ -172,25 +173,6 @@ function round(
   return Number(value.toFixed(digits));
 }
 
-function simpleHash(value: string) {
-  let hash = 0;
-
-  for (
-    let index = 0;
-    index < value.length;
-    index += 1
-  ) {
-    hash =
-      (hash << 5) -
-      hash +
-      value.charCodeAt(index);
-
-    hash |= 0;
-  }
-
-  return Math.abs(hash);
-}
-
 function normalizeSymbol(
   symbol: string
 ) {
@@ -258,13 +240,11 @@ function providerPriority() {
           "alphavantage",
           "finnhub",
           "twelvedata",
-          "demo",
         ]
       : [
           "finnhub",
           "twelvedata",
           "alphavantage",
-          "demo",
         ];
   }
 
@@ -281,9 +261,7 @@ function providerPriority() {
     )
   );
 
-  return normalized.includes("demo")
-    ? normalized
-    : [...normalized, "demo"];
+  return normalized.filter(provider => ["alphavantage", "finnhub", "twelvedata"].includes(provider));
 }
 
 function pollAfterMs() {
@@ -688,10 +666,9 @@ function finalizeSnapshot(
     ...snapshot.warnings,
   ];
 
-  if (!snapshot.isRealtime) {
-    warnings.push(
-      "Demo or delayed fallback — connect an entitled real-time provider for production."
-    );
+  const isRealtime = snapshot.isRealtime && snapshot.marketState === "Live" && Boolean(snapshot.providerTimestamp);
+  if (!isRealtime) {
+    warnings.push("This is not a verified current real-time quote. Its original provider timestamp and state are retained.");
   }
 
   if (
@@ -713,6 +690,7 @@ function finalizeSnapshot(
 
   const withWarnings = {
     ...snapshot,
+    isRealtime,
     warnings: Array.from(
       new Set(warnings)
     ),
@@ -742,7 +720,7 @@ async function fetchFinnhubSnapshots(
   }
 
   const snapshots =
-    await Promise.all(
+    await Promise.allSettled(
       symbols.map(async (symbol) => {
         const mappedSymbol =
           providerSymbol(
@@ -883,11 +861,8 @@ async function fetchFinnhubSnapshots(
     );
 
   return {
-    snapshots:
-      snapshots.filter(
-        Boolean
-      ) as RealtimeAssetSnapshot[],
-    warnings: [] as string[],
+    snapshots: snapshots.flatMap(result => result.status === "fulfilled" && result.value ? [result.value] : []),
+    warnings: snapshots.flatMap((result, index) => result.status === "rejected" ? [`Finnhub observation unavailable for ${symbols[index]}.`] : []),
   };
 }
 
@@ -908,7 +883,7 @@ async function fetchTwelveDataSnapshots(
   }
 
   const snapshots =
-    await Promise.all(
+    await Promise.allSettled(
       symbols.map(async (symbol) => {
         const mappedSymbol =
           providerSymbol(
@@ -1067,11 +1042,8 @@ async function fetchTwelveDataSnapshots(
     );
 
   return {
-    snapshots:
-      snapshots.filter(
-        Boolean
-      ) as RealtimeAssetSnapshot[],
-    warnings: [] as string[],
+    snapshots: snapshots.flatMap(result => result.status === "fulfilled" && result.value ? [result.value] : []),
+    warnings: snapshots.flatMap((result, index) => result.status === "rejected" ? [`Twelve Data observation unavailable for ${symbols[index]}.`] : []),
   };
 }
 
@@ -1721,110 +1693,6 @@ async function fetchAlphaVantageSnapshots(
   }
 }
 
-function demoSnapshot(
-  symbol: string
-): RealtimeAssetSnapshot {
-  const hash = simpleHash(symbol);
-
-  const minuteWave = Math.sin(
-    Date.now() / 60_000 + hash
-  );
-
-  const basePrice =
-    20 + (hash % 900);
-
-  const price =
-    round(
-      basePrice +
-        minuteWave *
-          (basePrice * 0.012),
-      2
-    ) ?? basePrice;
-
-  const previousClose = round(
-    basePrice,
-    2
-  );
-
-  const change = previousClose
-    ? round(
-        price - previousClose,
-        2
-      )
-    : null;
-
-  const changePercent =
-    previousClose &&
-    change !== null
-      ? round(
-          (change /
-            previousClose) *
-            100,
-          2
-        )
-      : null;
-
-  const closes = Array.from(
-    {
-      length: 220,
-    },
-    (_, index) => {
-      const drift =
-        index * 0.05;
-
-      const wave =
-        Math.sin(
-          index / 9 + hash
-        ) * 4;
-
-      return Math.max(
-        1,
-        basePrice * 0.82 +
-          drift +
-          wave
-      );
-    }
-  );
-
-  const base = {
-    symbol,
-    providerSymbol: symbol,
-    assetType:
-      symbol.includes("BTC") ||
-      symbol.includes("ETH")
-        ? "Crypto"
-        : "Equity",
-    provider: "Demo fallback",
-    isRealtime: false,
-    price,
-    previousClose,
-    change,
-    changePercent,
-    bid: null,
-    ask: null,
-    volume:
-      1_000_000 +
-      (hash % 9_000_000),
-    currency: "USD",
-    marketState: "Demo" as const,
-    latencyMs: 0,
-    providerTimestamp: null,
-    receivedAt:
-      new Date().toISOString(),
-    technicals:
-      computeTechnicals(closes),
-    warnings: [
-      "Demo fallback value. Do not use for trading or client reporting.",
-    ],
-    raw: null,
-  } satisfies Omit<
-    RealtimeAssetSnapshot,
-    "qualityScore"
-  >;
-
-  return finalizeSnapshot(base);
-}
-
 async function fetchProvider(
   provider: string,
   symbols: string[]
@@ -1849,11 +1717,7 @@ async function fetchProvider(
     );
   }
 
-  return {
-    snapshots:
-      symbols.map(demoSnapshot),
-    warnings: [] as string[],
-  };
+  return { snapshots: [] as RealtimeAssetSnapshot[], warnings: [`Unsupported market provider: ${provider}. No substitute prices were generated.`] };
 }
 
 export async function getRealtimeMarketSnapshots(
@@ -1901,6 +1765,7 @@ export async function getRealtimeMarketSnapshots(
 
       for (const snapshot of
         result.snapshots) {
+        if (snapshot.marketState === "Demo" || /demo/i.test(snapshot.provider) || !Number.isFinite(snapshot.price) || snapshot.price <= 0) continue;
         if (
           !bySymbol.has(
             snapshot.symbol
@@ -1923,14 +1788,8 @@ export async function getRealtimeMarketSnapshots(
     }
   }
 
-  for (const symbol of symbols) {
-    if (!bySymbol.has(symbol)) {
-      bySymbol.set(
-        symbol,
-        demoSnapshot(symbol)
-      );
-    }
-  }
+  const unavailableSymbols = symbols.filter(symbol => !bySymbol.has(symbol));
+  if (unavailableSymbols.length) warnings.push(`No verified provider observation is available for ${unavailableSymbols.join(", ")}. Prices remain unavailable; synthetic replacements are disabled.`);
 
   const snapshots = symbols
     .map((symbol) =>
@@ -1968,6 +1827,7 @@ export async function getRealtimeMarketSnapshots(
       new Set(warnings)
     ),
     snapshots,
+    unavailableSymbols,
   };
 }
 
@@ -1978,16 +1838,18 @@ export async function persistRealtimeSnapshots(
     | undefined,
   snapshots: RealtimeAssetSnapshot[]
 ) {
+  // The archive is evidence, so explicitly illustrative/invalid records never enter it.
+  const observed = snapshots.filter(snapshot => snapshot.marketState !== "Demo" && !/demo/i.test(snapshot.provider) && Number.isFinite(snapshot.price) && snapshot.price > 0);
   if (
     !userId ||
-    !snapshots.length
+    !observed.length
   ) {
     return;
   }
 
   await prisma.realtimePriceSnapshot.createMany(
     {
-      data: snapshots.map(
+      data: observed.map(
         (snapshot) => ({
           userId,
           symbol: snapshot.symbol,

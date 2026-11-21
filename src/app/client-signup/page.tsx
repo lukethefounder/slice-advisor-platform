@@ -1,5 +1,7 @@
 "use client";
 
+import portalTheme from "@/components/portal-experience/portal-tools.module.css";
+
 import { FormEvent, useEffect, useState } from "react";
 import {
   DEFAULT_CLIENT_ALLOCATION,
@@ -48,7 +50,7 @@ function Pill({
   tone?: "red" | "cyan" | "purple" | "amber" | "green";
 }) {
   const tones = {
-    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    red: "border-rose-500/30 bg-rose-500/10 text-rose-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
     purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
@@ -58,7 +60,7 @@ function Pill({
   return (
     <span
       className={cx(
-        "inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+        "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
         tones[tone],
       )}
     >
@@ -235,7 +237,7 @@ export default function ClientSignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+    <main className={`${portalTheme.page} min-h-screen  p-5`}>
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[430px_1fr] lg:items-start">
         <section className="rounded-[2rem] border border-white/10 bg-black/70 p-6 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="flex flex-wrap gap-2">
@@ -243,7 +245,7 @@ export default function ClientSignupPage() {
             <Pill>Secure Signup</Pill>
           </div>
 
-          <h1 className="mt-5 text-4xl font-black md:text-6xl">
+          <h1 className="mt-5 text-4xl font-semibold md:text-6xl">
             Create your client portal.
           </h1>
           <p className="mt-4 text-sm leading-7 text-slate-400">
@@ -252,10 +254,10 @@ export default function ClientSignupPage() {
 
           {context?.advisor ? (
             <div className="mt-6 rounded-2xl border border-cyan-500/25 bg-cyan-500/10 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-cyan-300">
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-cyan-300">
                 Assigned advisor
               </div>
-              <div className="mt-2 text-lg font-black text-white">
+              <div className="mt-2 text-lg font-semibold text-white">
                 {context.advisor.name}
               </div>
               <div className="mt-1 text-xs font-semibold text-cyan-100">
@@ -275,10 +277,10 @@ export default function ClientSignupPage() {
                 key={step}
                 className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.055] p-4"
               >
-                <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-600 text-sm font-black">
+                <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-600 text-sm font-semibold">
                   {step}
                 </div>
-                <div className="font-black">{title}</div>
+                <div className="font-semibold">{title}</div>
               </div>
             ))}
           </div>
@@ -288,10 +290,10 @@ export default function ClientSignupPage() {
           onSubmit={submit}
           className="rounded-[2rem] border border-white/10 bg-zinc-950/82 p-6 shadow-2xl shadow-black/35 backdrop-blur-xl"
         >
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
+          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
             Advisor-linked client profile
           </div>
-          <h2 className="mt-2 text-3xl font-black">Client profile</h2>
+          <h2 className="mt-2 text-3xl font-semibold">Client profile</h2>
 
           {message ? (
             <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-100">
@@ -306,7 +308,7 @@ export default function ClientSignupPage() {
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   First name
                 </span>
                 <input
@@ -317,7 +319,7 @@ export default function ClientSignupPage() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Last name
                 </span>
                 <input
@@ -328,7 +330,7 @@ export default function ClientSignupPage() {
               </label>
 
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Email
                 </span>
                 <input
@@ -339,7 +341,7 @@ export default function ClientSignupPage() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Phone
                 </span>
                 <input
@@ -350,7 +352,7 @@ export default function ClientSignupPage() {
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Preferred contact
                 </span>
                 <select
@@ -369,7 +371,7 @@ export default function ClientSignupPage() {
               </label>
 
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                   Household name
                 </span>
                 <input
@@ -395,7 +397,7 @@ export default function ClientSignupPage() {
 
           <button
             disabled={loading || !context}
-            className="mt-5 w-full rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white shadow-lg shadow-emerald-950/40 disabled:opacity-50"
+            className="mt-5 w-full rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)] shadow-lg shadow-emerald-950/40 disabled:opacity-50"
           >
             {loading ? "Saving Secure Profile…" : "Create Portal"}
           </button>

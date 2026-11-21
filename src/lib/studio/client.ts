@@ -1,7 +1,10 @@
+
+import { applicationRequestTimeout } from "@/lib/research/beta-client";
 import { record, StudioError } from "./core";
 import type { StudioEvent } from "./contracts";
 export async function studioJson<T>(url: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
-    const response = await fetch(url, { ...init, cache: "no-store", signal: AbortSignal.any([...(init.signal ? [init.signal] : []), AbortSignal.timeout(timeoutMs)]), headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });
+    const duration = applicationRequestTimeout(timeoutMs);
+    const response = await fetch(url, { ...init, cache: "no-store", signal: duration > 0 ? AbortSignal.any([...(init.signal ? [init.signal] : []), AbortSignal.timeout(duration)]) : init.signal, headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });
     const p = await response.json().catch(() => ({}));
     if (!response.ok)
         throw new StudioError(typeof p.code === "string" ? p.code : "REQUEST_FAILED", typeof p.message === "string" ? p.message : "The request could not be completed.", response.status);

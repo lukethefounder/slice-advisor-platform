@@ -31,6 +31,7 @@ type CacheEntry = {
 
 type FetchResult = {
   payload: AlphaEconomicPayload;
+  fetchedAt: string;
   warning: string | null;
   cacheState:
     | "fresh-cache"
@@ -509,6 +510,7 @@ function expectedReleaseAgeDays(
 
 async function fetchSeries(
   definition: SeriesDefinition,
+  forceRefresh = false,
 ): Promise<FetchResult> {
   const apiKey = String(
     process.env.ALPHA_VANTAGE_API_KEY ?? "",
@@ -526,21 +528,22 @@ async function fetchSeries(
   const ttlMs = configuredCacheMs(definition);
 
   if (
-    current &&
+    !forceRefresh && current &&
     now - current.storedAt <= ttlMs
   ) {
     return {
       payload: current.payload,
+      fetchedAt: new Date(current.storedAt).toISOString(),
       warning: null,
       cacheState: "fresh-cache",
     };
   }
 
-  const existing = inflight.get(key);
-
-  if (existing) return existing;
-
-  const request = (async () => {
+  // Only a network result is shared. Strict refresh callers never inherit another
+  // caller's stale-cache fallback after the same provider request fails.
+  let request = inflight.get(key);
+  if (!request) {
+    request = (async () => {
     const url = new URL(ALPHA_ENDPOINT);
     url.searchParams.set(
       "function",
@@ -554,7 +557,6 @@ async function fetchSeries(
       url.searchParams.set(name, value);
     }
 
-    try {
       const controller = new AbortController();
       const timeout = setTimeout(
         () => controller.abort(),
@@ -587,45 +589,39 @@ async function fetchSeries(
           throw new Error(providerError);
         }
 
+        const storedAt = Date.now();
         cache.set(key, {
           payload,
-          storedAt: Date.now(),
+          storedAt,
         });
 
         return {
           payload,
+          fetchedAt: new Date(storedAt).toISOString(),
           warning: null,
           cacheState: "network" as const,
         };
       } finally {
         clearTimeout(timeout);
       }
-    } catch (error) {
-      if (
-        current &&
-        now - current.storedAt <=
-          configuredStaleCacheMs()
-      ) {
-        return {
-          payload: current.payload,
-          warning: `${definition.label} is using a previously verified provider response because the current request failed: ${
-            error instanceof Error
-              ? error.message
-              : String(error)
-          }`,
-          cacheState:
-            "stale-cache" as const,
-        };
-      }
-
-      throw error;
-    } finally {
-      inflight.delete(key);
+    })();
+    inflight.set(key, request);
+    const flight = request;
+    const finish = () => { if (inflight.get(key) === flight) inflight.delete(key); };
+    void request.then(finish, finish);
+  }
+  try { return await request; }
+  catch (error) {
+    if (!forceRefresh && current && Date.now() - current.storedAt <= configuredStaleCacheMs()) {
+      return {
+        payload: current.payload,
+        fetchedAt: new Date(current.storedAt).toISOString(),
+        warning: `${definition.label} is using an earlier cached provider response because the refresh failed. Its original collection time and observation dates are preserved.`,
+        cacheState: "stale-cache",
+      };
     }
-  })();
-
-  inflight.set(key, request);
-  return request;
+    throw error;
+  }
 }
 
 function normalizeData(
@@ -721,6 +717,7 @@ function parseSeries(
   const warning = [
     fetched.warning,
     releaseWarning,
+    scored === null ? `${definition.label} has fewer than two usable observations; its descriptive level does not establish a scored economic signal.` : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -742,7 +739,7 @@ function parseSeries(
     sourceUrl:
       "https://www.alphavantage.co/documentation/",
     asOf: data[0]?.date ?? null,
-    retrievedAt,
+    retrievedAt: fetched.fetchedAt,
     latestValue: latest,
     previousValue: previous,
     change: scored?.change ?? null,
@@ -750,7 +747,7 @@ function parseSeries(
       scored?.changePercent ?? null,
     direction: scored?.direction ?? "unknown",
     score: Math.round(scored?.score ?? 50),
-    confidence: Math.round(
+    confidence: scored === null ? 0 : Math.round(
       warning ? confidence * 0.82 : confidence,
     ),
     industrySensitivity:
@@ -920,6 +917,7 @@ async function runPool<T, R>(
 export async function getEconomicResearch(input: {
   sector: string;
   industry: string;
+  forceRefresh?: boolean;
 }): Promise<EconomicResearchSnapshot> {
   const retrievedAt = new Date().toISOString();
 
@@ -949,7 +947,7 @@ export async function getEconomicResearch(input: {
     concurrencyLimit(),
     async (definition) => {
       const fetched =
-        await fetchSeries(definition);
+        await fetchSeries(definition, input.forceRefresh);
 
       return parseSeries(
         definition,
@@ -988,8 +986,10 @@ export async function getEconomicResearch(input: {
         left.confidence,
   );
 
+  const scoredSeries = series.filter(item => item.confidence > 0 && item.latestValue !== null && item.previousValue !== null);
+
   const score = weightedAverage(
-    series.map((item) => ({
+    scoredSeries.map((item) => ({
       value: item.score,
       weight: Math.max(
         item.industrySensitivity *
@@ -999,7 +999,7 @@ export async function getEconomicResearch(input: {
     })),
   );
   const confidence = weightedAverage(
-    series.map((item) => ({
+    scoredSeries.map((item) => ({
       value: item.confidence,
       weight: Math.max(
         item.industrySensitivity,
@@ -1017,7 +1017,7 @@ export async function getEconomicResearch(input: {
     industry: input.industry,
     score: Math.round(score),
     confidence: Math.round(confidence),
-    regime: deriveRegime(series),
+    regime: deriveRegime(scoredSeries),
     series,
     warnings: Array.from(new Set(warnings)),
   };

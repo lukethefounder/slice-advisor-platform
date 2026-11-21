@@ -365,10 +365,10 @@ function Metric({
     <div className="rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
             {label}
           </div>
-          <div className="mt-2 truncate text-2xl font-black tracking-[-0.035em] text-[var(--slice-heading)]">
+          <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-[var(--slice-heading)]">
             {value}
           </div>
           <div className="mt-1 truncate text-xs font-semibold text-[var(--slice-muted)]">
@@ -390,7 +390,7 @@ function ArticleCard({ article, featured }: { article: PublicArticle; featured: 
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cx(
-            "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em]",
+            "rounded-full border px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.15em]",
             article.shouldAlert
               ? "border-amber-700/20 bg-amber-50 text-amber-950"
               : "border-emerald-700/15 bg-emerald-50 text-emerald-900",
@@ -398,14 +398,14 @@ function ArticleCard({ article, featured }: { article: PublicArticle; featured: 
         >
           {article.shouldAlert ? "Priority review" : article.urgency}
         </span>
-        <span className="rounded-full border border-emerald-950/10 bg-white px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em] text-[var(--slice-subtle)]">
+        <span className="rounded-full border border-emerald-950/10 bg-white px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.15em] text-[var(--slice-subtle)]">
           Score {Math.round(article.score)}
         </span>
       </div>
 
       <h3
         className={cx(
-          "mt-5 font-black tracking-[-0.035em] text-[var(--slice-heading)]",
+          "mt-5 font-semibold tracking-[-0.035em] text-[var(--slice-heading)]",
           featured ? "text-2xl sm:text-3xl" : "text-xl",
         )}
       >
@@ -430,7 +430,7 @@ function ArticleCard({ article, featured }: { article: PublicArticle; featured: 
 
       <div className="mt-auto flex items-end justify-between gap-4 pt-6">
         <div>
-          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-800">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-800">
             {article.sourceName}
           </div>
           <div className="mt-1 text-[9px] font-bold text-[var(--slice-subtle)]">
@@ -438,7 +438,7 @@ function ArticleCard({ article, featured }: { article: PublicArticle; featured: 
           </div>
         </div>
         {external ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-800">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
             Read source
             <ExternalLink className="h-3.5 w-3.5" />
           </span>
@@ -586,11 +586,11 @@ export default function DailyIntelligenceFeed() {
     <section className="rounded-[2rem] border border-emerald-950/10 bg-white/88 p-4 shadow-[0_24px_80px_rgba(6,78,55,0.11)] backdrop-blur-xl sm:p-6 lg:p-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-900">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-900">
             <Newspaper className="h-3.5 w-3.5" />
             Completed daily edition
           </div>
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
             Sourced intelligence without a visit-triggered provider scan.
           </h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -603,7 +603,7 @@ export default function DailyIntelligenceFeed() {
           type="button"
           onClick={() => void refresh(true)}
           disabled={status === "loading" || status === "refreshing"}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-950/15 bg-white px-4 py-3 text-sm font-black text-emerald-950 shadow-sm transition hover:border-emerald-700/30 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-950/15 bg-white px-4 py-3 text-sm font-semibold text-emerald-950 shadow-sm transition hover:border-emerald-700/30 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCcw
             className={cx(
@@ -646,7 +646,7 @@ export default function DailyIntelligenceFeed() {
         <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-700/20 bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-950">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <div className="font-black">Edition notice</div>
+            <div className="font-semibold">Edition notice</div>
             <div className="mt-1">{error}</div>
           </div>
         </div>
@@ -654,7 +654,7 @@ export default function DailyIntelligenceFeed() {
 
       {snapshot?.warnings.length ? (
         <details className="mt-4 rounded-2xl border border-amber-700/15 bg-amber-50/70 p-4">
-          <summary className="cursor-pointer text-xs font-black text-amber-950">
+          <summary className="cursor-pointer text-xs font-semibold text-amber-950">
             Edition warnings ({snapshot.warnings.length})
           </summary>
           <ul className="mt-3 grid gap-2 text-xs font-semibold leading-6 text-amber-950">
@@ -678,7 +678,7 @@ export default function DailyIntelligenceFeed() {
             className="min-h-12 w-full rounded-xl border border-emerald-950/15 bg-white pl-11 pr-4 text-sm font-semibold text-[var(--slice-heading)] shadow-sm outline-none transition placeholder:text-[var(--slice-subtle)] focus:border-emerald-700/35 focus:ring-2 focus:ring-emerald-600/15"
           />
         </label>
-        <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--slice-subtle)]">
+        <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--slice-subtle)]">
           <Filter className="h-3.5 w-3.5 text-emerald-700" />
           {filtered.length} matching stories
         </div>
@@ -692,7 +692,7 @@ export default function DailyIntelligenceFeed() {
             onClick={() => setCategory(item.id)}
             aria-pressed={category === item.id}
             className={cx(
-              "shrink-0 rounded-full border px-3.5 py-2 text-[10px] font-black transition",
+              "shrink-0 rounded-full border px-3.5 py-2 text-[10px] font-semibold transition",
               category === item.id
                 ? "border-emerald-800/20 bg-emerald-700 text-white shadow-sm"
                 : "border-emerald-950/10 bg-white text-[var(--slice-muted)] hover:border-emerald-700/25 hover:bg-emerald-50",
@@ -714,7 +714,7 @@ export default function DailyIntelligenceFeed() {
             ) : (
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-700" />
             )}
-            <h3 className="mt-4 text-xl font-black text-[var(--slice-heading)]">
+            <h3 className="mt-4 text-xl font-semibold text-[var(--slice-heading)]">
               {status === "error"
                 ? "The scheduled edition is unavailable."
                 : "Loading the completed intelligence edition…"}
@@ -739,7 +739,7 @@ export default function DailyIntelligenceFeed() {
       ) : (
         <div className="mt-6 rounded-[1.6rem] border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-8 text-center">
           <Target className="mx-auto h-8 w-8 text-emerald-700" />
-          <h3 className="mt-4 text-xl font-black text-[var(--slice-heading)]">
+          <h3 className="mt-4 text-xl font-semibold text-[var(--slice-heading)]">
             No stories match this view.
           </h3>
           <p className="mt-2 text-sm font-semibold text-[var(--slice-muted)]">
@@ -750,7 +750,7 @@ export default function DailyIntelligenceFeed() {
 
       {snapshot?.sources.length ? (
         <details className="mt-6 rounded-[1.6rem] border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4 sm:p-5">
-          <summary className="cursor-pointer text-sm font-black text-[var(--slice-heading)]">
+          <summary className="cursor-pointer text-sm font-semibold text-[var(--slice-heading)]">
             Inspect source health and retrieval counts
           </summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -761,7 +761,7 @@ export default function DailyIntelligenceFeed() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-black text-[var(--slice-heading)]">
+                    <div className="text-sm font-semibold text-[var(--slice-heading)]">
                       {source.name}
                     </div>
                     <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.13em] text-[var(--slice-subtle)]">

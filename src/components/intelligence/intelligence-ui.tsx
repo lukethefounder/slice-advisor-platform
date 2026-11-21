@@ -16,15 +16,15 @@ export function cx(
 
 const TONE_CLASSES: Record<IntelligenceTone, string> = {
   emerald:
-    "border-emerald-600/20 bg-emerald-50 text-emerald-800 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-100",
+    "border-[var(--slice-green-border)] bg-[var(--slice-green-bg)] text-[var(--slice-green-text)]",
   cyan:
-    "border-cyan-600/20 bg-cyan-50 text-cyan-800 dark:border-cyan-400/25 dark:bg-cyan-500/10 dark:text-cyan-100",
+    "border-[var(--slice-cyan-border)] bg-[var(--slice-cyan-bg)] text-[var(--slice-cyan-text)]",
   violet:
-    "border-violet-600/20 bg-violet-50 text-violet-800 dark:border-violet-400/25 dark:bg-violet-500/10 dark:text-violet-100",
+    "border-[var(--slice-violet-border)] bg-[var(--slice-violet-bg)] text-[var(--slice-violet-text)]",
   amber:
-    "border-amber-600/20 bg-amber-50 text-amber-900 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100",
+    "border-[var(--slice-amber-border)] bg-[var(--slice-amber-bg)] text-[var(--slice-amber-text)]",
   rose:
-    "border-rose-600/20 bg-rose-50 text-rose-800 dark:border-rose-400/25 dark:bg-rose-500/10 dark:text-rose-100",
+    "border-[var(--slice-rose-border)] bg-[var(--slice-rose-bg)] text-[var(--slice-rose-text)]",
   slate:
     "border-[var(--slice-border)] bg-[var(--slice-surface-muted)] text-[var(--slice-muted)]",
 };
@@ -62,7 +62,7 @@ export function IntelligenceSurface({
   return (
     <Component data-slice-surface="panel"
       className={cx(
-        "relative min-w-0 overflow-hidden rounded-[1.55rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_18px_55px_var(--slice-shadow)] backdrop-blur-xl",
+        "relative min-w-0 overflow-hidden rounded-[1.15rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[var(--slice-elevation-panel)]",
         className,
       )}
     >
@@ -83,7 +83,7 @@ export function IntelligencePill({
   return (
     <span
       className={cx(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em]",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]",
         TONE_CLASSES[tone],
         className,
       )}
@@ -126,10 +126,10 @@ export function IntelligenceMetric({
       />
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
             {label}
           </p>
-          <div className="mt-2 truncate text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             {value}
           </div>
           <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-5 text-[var(--slice-muted)]">
@@ -192,13 +192,13 @@ export function IntelligenceSectionHeading({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-4xl">
-        <p className="text-[10px] font-black uppercase tracking-[0.19em] text-[var(--slice-accent-strong)]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[var(--slice-accent-strong)]">
           {eyebrow}
         </p>
-        <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)] sm:text-3xl">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)] sm:text-3xl">
           {title}
         </h2>
-        <p className="mt-2 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
+        <p className="mt-3 text-sm leading-7 text-[var(--slice-muted)]">
           {description}
         </p>
       </div>

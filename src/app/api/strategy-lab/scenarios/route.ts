@@ -5,7 +5,7 @@ import { readResearchJson, strategyFailure } from "@/lib/strategy-lab/http";
 import { StrategyError } from "@/lib/strategy-lab/contracts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
 export const GET = withApiRoute({ route: "/api/strategy-lab/scenarios", timeoutMs: 20000, cacheControl: "private, no-store, max-age=0" }, async ({ request }) => {
  const scope = await connectedAccess(request); const url = new URL(request.url), id = url.searchParams.get("id");
  try { return apiJson(id ? { ok: true, ...await scenarioDetail(scope, id, url.searchParams.get("audit") === "1", url.searchParams.get("after")) } : { ok: true, ...await listScenarioPage(scope, url.searchParams.get("before")), automaticChecksEnabled: process.env.SLICE_SCENARIO_CRON_ENABLED === "true", observationFrequency: "completed-daily-sessions" }); } catch (e) { strategyFailure(e); }

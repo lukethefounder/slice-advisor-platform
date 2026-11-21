@@ -1,4 +1,5 @@
 import type { MarketSnapshot } from "@/lib/intelligence-forecast/types";
+import type { CurrentResearchReport } from "./research-current-types";
 
 export const RESEARCH_COHORTS = [
   "media",
@@ -7,6 +8,8 @@ export const RESEARCH_COHORTS = [
 ] as const;
 
 export type ResearchCohort = (typeof RESEARCH_COHORTS)[number];
+
+export type ResearchWeights = Record<ResearchCohort, number>;
 
 export type ResearchAgentStatus =
   | "completed"
@@ -45,6 +48,10 @@ export type ResearchEvidence = {
   topics: string[];
   metrics: Record<string, number | string | boolean | null>;
   warnings: string[];
+  canonicalUrl?: string | null;
+  sourceDomain?: string | null;
+  duplicateCount?: number;
+  relatedSources?: Array<{ source: string; url: string; asOf: string | null }>;
 };
 
 export type ResearchAgent = {
@@ -64,6 +71,51 @@ export type ResearchAgent = {
   contradictions: string[];
   latencyMs: number;
   generatedAt: string;
+  missionKey?: string;
+  sector?: string;
+  industry?: string;
+  researchQuestion?: string;
+  evidenceFingerprint?: string | null;
+  evidenceReused?: boolean;
+};
+
+/** Versioned, deterministic robustness diagnostics; these are not forecast probabilities. */
+export type ResearchEvidenceRobustness = {
+  version: "slice-evidence-robust-2.0.0" | "slice-evidence-robust-2.1.0" | "slice-evidence-robust-2.2.0";
+  evaluatedAt: string;
+  eligibleEvidenceCount: number;
+  excludedEvidenceCount: number;
+  sourceCount: number;
+  effectiveSourceCount: number;
+  sourceConcentrationPercent: number;
+  factorFamilyCount: number;
+  freshnessScore: number;
+  rawScore: number;
+  shrinkagePercent: number;
+  stabilityScore: number;
+  maximumSourceImpact: number;
+  sourceSensitivityBand: { low: number; high: number; meaning: "source-removal-sensitivity-not-a-prediction-interval" };
+  exclusions: { missingTimestamp: number; futureTimestamp: number; stale: number; unverifiedSource: number; zeroQuality: number };
+  factors: Array<{ family: string; label: string; weightPercent: number; score: number; contribution: number; evidenceCount: number; sourceCount: number }>;
+  sourceInfluence: Array<{ domain: string; weightPercent: number; withoutSourceScore: number; impact: number }>;
+};
+
+export type ResearchScoreMethodology = {
+  version: ResearchEvidenceRobustness["version"];
+  evaluatedAt: string;
+  semantics: "evidence-sentiment-not-outcome-probability";
+  stabilityScore: number;
+  maximumSourceImpact: number;
+  sourceSensitivityBand: ResearchEvidenceRobustness["sourceSensitivityBand"];
+  effectiveSourceCount: number;
+  sourceConcentrationPercent: number;
+  freshnessScore: number;
+  eligibleEvidenceCount: number;
+  excludedEvidenceCount: number;
+  factorFamilyCount: number;
+  contributions: Array<{ cohort: ResearchCohort; weightPercent: number; score: number; confidence: number; contribution: number; rawScore: number; shrinkagePercent: number }>;
+  sourceInfluence: ResearchEvidenceRobustness["sourceInfluence"];
+  limitations: string[];
 };
 
 export type ResearchCohortResult = {
@@ -82,6 +134,23 @@ export type ResearchCohortResult = {
   topPositiveDrivers: string[];
   topNegativeDrivers: string[];
   contradictions: string[];
+  robustness?: ResearchEvidenceRobustness;
+};
+
+export type ResearchConfidenceAudit = {
+  version: "slice-confidence-audit-1.0.0";
+  validInputs: boolean;
+  weightedCohortConfidence: number;
+  supportBeforePenalties: number;
+  contradictionPenalty: number;
+  freshnessPenalty: number;
+  supportAfterPenalties: number;
+  confidenceCap: number;
+  finalConfidence: number;
+  /** Weights are fractions; contributions and penalties are confidence points. */
+  components: Array<{ key: string; label: string; value: number; weight: number; contribution: number }>;
+  cohorts: Array<{ cohort: ResearchCohort; weightPercent: number; confidence: number; contribution: number; evidenceCount: number; sourceCount: number }>;
+  inputs: { observed: string[]; derived: string[]; neutralized: string[] };
 };
 
 export type SliceAgenticScore = {
@@ -102,6 +171,8 @@ export type SliceAgenticScore = {
     economy: number;
   };
   cohorts: Record<ResearchCohort, ResearchCohortResult>;
+  methodology?: ResearchScoreMethodology;
+  confidenceAudit?: ResearchConfidenceAudit;
   quality: {
     realTimeConfirmed: boolean;
     delayed: boolean;
@@ -123,7 +194,7 @@ export type SliceAgenticScore = {
     contradictions: string[];
   };
   safeguards: {
-    equalThirdWeighting: true;
+    equalThirdWeighting: boolean;
     autonomousTradingEnabled: false;
     unavailableInputsNeutralized: true;
     simulatedAgentsAreObservedTruth: false;
@@ -362,7 +433,7 @@ export type ResearchBotTopology = {
 };
 
 export type ResearchForecastVector = {
-  algorithmVersion: "slice-swarm-forecast-vector-2.0.0";
+  algorithmVersion: "slice-swarm-forecast-vector-2.0.0" | "slice-swarm-forecast-vector-3.0.0";
   forecastBias: "bullish" | "neutral" | "bearish";
   expectedDriftPercent: number;
   confidenceLift: number;
@@ -372,6 +443,7 @@ export type ResearchForecastVector = {
   networkAmplification: number;
   contradictionDrag: number;
   driverSummary: string;
+  semantics?: "evidence-pressure-not-calibrated-probability";
 };
 
 export type ResearchMatrixRow = {
@@ -399,7 +471,7 @@ export type ResearchGraphPersistence =
 export type ResearchSwarmAlgorithmDiagnostics = {
   version: "slice-swarm-diagnostics-3.0.0";
   scoreSemanticsPreserved: true;
-  equalThirdWeightingPreserved: true;
+  equalThirdWeightingPreserved: boolean;
   stabilityScore: number;
   sourceConcentration: number;
   uncertaintyBand: {
@@ -444,7 +516,7 @@ export type ResearchSwarmResponse = {
     previousClose: number;
     change: number;
     changePercent: number;
-    volume: number;
+    volume: number | null;
     currency: string;
     freshnessMode: string;
     freshnessLabel: string;
@@ -453,6 +525,12 @@ export type ResearchSwarmResponse = {
     marketOpen: boolean | null;
     marketStatus: string;
     providerTimeZone: string;
+    observationKind?: "global-quote" | "intraday-bar" | "native-index-daily";
+    observationInterval?: string | null;
+    volumeScope?: "bar" | "session" | "daily" | "unavailable";
+    comparisonAvailable?: boolean;
+    comparisonAsOf?: string | null;
+    comparisonSource?: string | null;
   };
   score: SliceAgenticScore;
   cohorts: Record<ResearchCohort, ResearchCohortResult>;
@@ -469,6 +547,22 @@ export type ResearchSwarmResponse = {
   warnings: string[];
   /** Additive Phase 10 metadata. */
   algorithm?: ResearchSwarmAlgorithmDiagnostics;
+  researchPlan?: ResearchPlanDiagnostics;
+  currentResearch?: CurrentResearchReport;
+};
+
+export type ResearchPlanDiagnostics = {
+  mode: "shared-evidence-analysis";
+  weights: ResearchWeights;
+  allocatedAgents: number;
+  evaluatedAgents: number;
+  evidenceBackedAgents: number;
+  uniqueEvidenceCount: number;
+  uniqueSourceCount: number;
+  duplicateEvidenceCount: number;
+  uniqueEvidenceAssignments: number;
+  reusedEvidenceAssignments: number;
+  evidenceCoveragePercent: number;
 };
 
 export type ResearchGraphViewResponse = {
@@ -490,6 +584,9 @@ export type ResearchGraphViewResponse = {
     confidence?: number;
     providerAsOf?: string | null;
     durationMs?: number;
+    researchPlan?: ResearchPlanDiagnostics;
+    researchWeights?: ResearchWeights;
+    currentResearch?: CurrentResearchReport;
   };
   persistence: {
     configured: boolean;

@@ -139,7 +139,7 @@ function OriginalBrandMark() {
     <div className="flex min-w-0 items-center gap-3">
       <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-600 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
         <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-semibold text-white shadow-inner">
           S
         </div>
         <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
@@ -147,10 +147,10 @@ function OriginalBrandMark() {
       </div>
 
       <div className="min-w-0">
-        <div className="truncate text-2xl font-black tracking-tight text-white">
+        <div className="truncate text-2xl font-semibold tracking-tight text-white">
           Slice
         </div>
-        <div className="line-clamp-2 text-[10px] font-black uppercase leading-snug tracking-[0.22em] text-emerald-300 sm:truncate">
+        <div className="line-clamp-2 text-[10px] font-semibold uppercase leading-snug tracking-[0.22em] text-emerald-300 sm:truncate">
           Advisor Intelligence Platform
         </div>
       </div>
@@ -520,10 +520,10 @@ function Metric({
     <div className="relative overflow-hidden rounded-[1.45rem] border border-white/[0.11] bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/55 to-transparent" />
       <Icon className="h-4 w-4 text-emerald-200" />
-      <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-white">
+      <div className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
         {value}
       </div>
-      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.15em] text-slate-300">
+      <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-300">
         {label}
       </div>
       <div className="mt-2 text-[10px] leading-4 text-slate-400">
@@ -546,7 +546,7 @@ function UrgencyBadge({ article }: { article: PublicArticle }) {
   return (
     <span
       className={cx(
-        "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.14em]",
+        "rounded-full border px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.14em]",
         style,
       )}
     >
@@ -585,12 +585,12 @@ function StoryCard({
             alt=""
             className="h-full w-full object-cover opacity-65 saturate-75 transition duration-700 group-hover:scale-105 group-hover:opacity-80"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#06100b] via-[#06100b]/35 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0a1825] via-[#0a1825]/35 to-transparent" />
         </div>
       ) : (
         <div
           className={cx(
-            "relative overflow-hidden border-b border-white/[0.1] bg-[radial-gradient(circle_at_30%_35%,rgba(16,185,129,0.26),transparent_42%),linear-gradient(135deg,#07140e,#020604)]",
+            "relative overflow-hidden border-b border-white/[0.1] bg-[radial-gradient(circle_at_30%_35%,rgba(16,185,129,0.26),transparent_42%),linear-gradient(135deg,#0d1b2b,#050a12)]",
             featured ? "h-44" : "h-32",
           )}
         >
@@ -602,7 +602,7 @@ function StoryCard({
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <UrgencyBadge article={article} />
-          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-300">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.13em] text-slate-300">
             {article.sourceName}
           </span>
           <span className="text-[9px] font-bold text-slate-400">
@@ -612,7 +612,7 @@ function StoryCard({
 
         <h2
           className={cx(
-            "mt-4 font-black tracking-[-0.04em] text-white",
+            "mt-4 font-semibold tracking-[-0.04em] text-white",
             featured ? "text-2xl sm:text-4xl" : "text-xl",
           )}
         >
@@ -635,7 +635,7 @@ function StoryCard({
           ].map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-white/[0.12] bg-black/30 px-2.5 py-1 text-[8px] font-black text-slate-300"
+              className="rounded-full border border-white/[0.12] bg-black/30 px-2.5 py-1 text-[8px] font-semibold text-slate-300"
             >
               {tag}
             </span>
@@ -645,20 +645,20 @@ function StoryCard({
         <div className="mt-auto pt-6">
           <div className="grid grid-cols-3 gap-3 border-t border-white/[0.1] pt-4">
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-semibold uppercase tracking-[0.13em] text-slate-400">
                 Relevance
               </div>
-              <div className="mt-1 text-lg font-black text-white">
+              <div className="mt-1 text-lg font-semibold text-white">
                 {article.score}/100
               </div>
             </div>
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-semibold uppercase tracking-[0.13em] text-slate-400">
                 Sentiment
               </div>
               <div
                 className={cx(
-                  "mt-1 truncate text-xs font-black",
+                  "mt-1 truncate text-xs font-semibold",
                   sentimentPositive ? "text-emerald-200" : "text-rose-200",
                 )}
               >
@@ -666,10 +666,10 @@ function StoryCard({
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">
+              <div className="text-[8px] font-semibold uppercase tracking-[0.13em] text-slate-400">
                 Feed
               </div>
-              <div className="mt-1 text-[9px] font-black text-slate-200">
+              <div className="mt-1 text-[9px] font-semibold text-slate-200">
                 {article.sourceKind === "alpha-vantage-news"
                   ? "Alpha Vantage"
                   : "Official"}
@@ -682,7 +682,7 @@ function StoryCard({
               href={external}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 text-xs font-black text-emerald-200 transition hover:text-white"
+              className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-emerald-200 transition hover:text-white"
             >
               Read original source
               <ExternalLink className="h-3.5 w-3.5" />
@@ -701,7 +701,7 @@ function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
         <div className="flex items-center gap-3">
           <Radar className="h-5 w-5 text-emerald-200" />
           <div>
-            <h3 className="text-lg font-black text-white">Source health</h3>
+            <h3 className="text-lg font-semibold text-white">Source health</h3>
             <p className="mt-1 text-[10px] text-slate-400">
               Status retained from the latest 6:00 AM Eastern publication
             </p>
@@ -713,7 +713,7 @@ function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
           <div key={source.id} className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-xs font-black text-slate-100">
+                <div className="truncate text-xs font-semibold text-slate-100">
                   {source.name}
                 </div>
                 <div className="mt-1 text-[9px] font-bold text-slate-400">
@@ -722,7 +722,7 @@ function SourceHealth({ sources }: { sources: PublicSourceStatus[] }) {
               </div>
               <span
                 className={cx(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.13em]",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.13em]",
                   source.ok
                     ? "border-emerald-300/25 bg-emerald-400/[0.11] text-emerald-200"
                     : "border-amber-300/30 bg-amber-400/[0.11] text-amber-100",
@@ -774,28 +774,9 @@ export default function BlogPage() {
     <main
       data-slice-color-lock="true"
       data-slice-tone="dark"
-      className="relative min-h-screen overflow-hidden bg-[#010403] text-white selection:bg-emerald-400/30 selection:text-white"
+      className="relative min-h-screen overflow-hidden bg-[#030811] text-white selection:bg-emerald-400/30 selection:text-white"
     >
       <style jsx global>{`
-        html {
-          background: #010403;
-        }
-
-        body {
-          background:
-            radial-gradient(
-              circle at 12% 0%,
-              rgba(16, 185, 129, 0.11),
-              transparent 30%
-            ),
-            radial-gradient(
-              circle at 88% 13%,
-              rgba(34, 211, 238, 0.055),
-              transparent 27%
-            ),
-            linear-gradient(180deg, #010403 0%, #020705 45%, #010403 100%);
-        }
-
         @keyframes slice-blog-float {
           0%,
           100% {
@@ -829,19 +810,24 @@ export default function BlogPage() {
           background-image:
             radial-gradient(
               circle,
-              rgba(167, 243, 208, 0.2) 1px,
+              rgba(112, 227, 210, 0.2) 1px,
               transparent 1.5px
             ),
             linear-gradient(
               110deg,
               transparent 0%,
-              rgba(52, 211, 153, 0.08) 46%,
+              rgba(106, 203, 229, 0.08) 46%,
               transparent 58%
             );
           background-size:
             28px 28px,
             220px 100%;
           animation: slice-blog-sweep 16s linear infinite;
+        }
+
+        html[data-slice-motion="reduced"] .slice-blog-dot,
+        html[data-slice-motion="reduced"] .slice-blog-sweep {
+          animation: none !important;
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -858,7 +844,7 @@ export default function BlogPage() {
       >
         <div className="absolute -left-48 -top-56 h-[42rem] w-[42rem] rounded-full bg-emerald-500/10 blur-[130px]" />
         <div className="absolute -right-40 top-[12%] h-[38rem] w-[38rem] rounded-full bg-cyan-500/[0.055] blur-[140px]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.022)_1px,transparent_1px)] [background-size:58px_58px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(106,203,229,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(106,203,229,0.035)_1px,transparent_1px)] [background-size:58px_58px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
         {Array.from({ length: 20 }, (_, index) => (
           <span
             key={index}
@@ -872,7 +858,7 @@ export default function BlogPage() {
         ))}
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-emerald-300/15 bg-[#020705]/90 shadow-[0_12px_40px_rgba(0,0,0,0.26)] backdrop-blur-2xl">
+      <header className="sticky top-0 z-50 border-b border-emerald-300/15 bg-[#07111d]/90 shadow-[0_12px_40px_rgba(0,0,0,0.26)] backdrop-blur-2xl">
         <div className="mx-auto flex h-[76px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link href="/" prefetch={false} aria-label="Slice homepage">
             <OriginalBrandMark />
@@ -881,7 +867,7 @@ export default function BlogPage() {
             <Link
               href="/"
               prefetch={false}
-              className="hidden items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-slate-200 transition hover:border-emerald-300/30 hover:bg-white/[0.09] hover:text-white sm:inline-flex"
+              className="hidden items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-semibold text-slate-200 transition hover:border-emerald-300/30 hover:bg-white/[0.09] hover:text-white sm:inline-flex"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Platform
@@ -889,7 +875,7 @@ export default function BlogPage() {
             <Link
               href="/founder-login"
               prefetch={false}
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-black text-white shadow-[0_12px_30px_rgba(5,150,105,0.24)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-900 px-4 py-2.5 text-xs font-semibold text-white shadow-[0_12px_30px_rgba(5,150,105,0.24)] transition hover:-translate-y-0.5 hover:from-emerald-400 hover:to-emerald-800"
             >
               Founder login
               <ArrowRight className="h-3.5 w-3.5" />
@@ -902,7 +888,7 @@ export default function BlogPage() {
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1fr)_430px]">
             <div>
-              <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/[0.11] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100 backdrop-blur-xl">
+              <div className="inline-flex flex-wrap items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/[0.11] px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-100 backdrop-blur-xl">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-300 opacity-50" />
                   <span className="relative h-2 w-2 rounded-full bg-emerald-300" />
@@ -913,7 +899,7 @@ export default function BlogPage() {
                   ? "Prior completed edition"
                   : intelligence.snapshot.storage}
               </div>
-              <h1 className="mt-7 max-w-5xl text-balance text-5xl font-black leading-[0.96] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
+              <h1 className="mt-7 max-w-5xl text-balance text-5xl font-semibold leading-[0.96] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl">
                 Six articles selected for today—
                 <span className="bg-gradient-to-r from-emerald-100 via-emerald-300 to-cyan-200 bg-clip-text text-transparent">
                   connected to what matters.
@@ -931,10 +917,10 @@ export default function BlogPage() {
             <div className="rounded-[1.9rem] border border-emerald-300/20 bg-white/[0.06] p-6 shadow-[0_30px_90px_rgba(0,0,0,0.3)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
                     Edition state
                   </div>
-                  <div className="mt-2 text-xl font-black text-white">
+                  <div className="mt-2 text-xl font-semibold text-white">
                     {intelligence.snapshot.dateKey || "Awaiting first publication"}
                   </div>
                 </div>
@@ -1029,7 +1015,7 @@ export default function BlogPage() {
               <div className="flex items-start gap-3">
                 <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-200" />
                 <div>
-                  <span className="font-black text-amber-100">Feed status:</span>{" "}
+                  <span className="font-semibold text-amber-100">Feed status:</span>{" "}
                   {intelligence.error}. The interface does not insert placeholder
                   articles or start an unplanned provider scan.
                 </div>
@@ -1047,7 +1033,7 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#040a07]/72 py-6">
+      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#09141f]/72 py-6">
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
@@ -1072,7 +1058,7 @@ export default function BlogPage() {
             <button
               type="button"
               onClick={() => setMobileFilters((value) => !value)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.15] bg-white/[0.06] px-4 py-3.5 text-xs font-black text-slate-200 lg:hidden"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.15] bg-white/[0.06] px-4 py-3.5 text-xs font-semibold text-slate-200 lg:hidden"
             >
               <Filter className="h-4 w-4" /> Filters
             </button>
@@ -1083,7 +1069,7 @@ export default function BlogPage() {
                   type="button"
                   onClick={() => setCategory(item.id)}
                   className={cx(
-                    "rounded-full border px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.13em] transition",
+                    "rounded-full border px-3.5 py-2 text-[9px] font-semibold uppercase tracking-[0.13em] transition",
                     category === item.id
                       ? "border-emerald-300/35 bg-emerald-400/[0.15] text-emerald-100"
                       : "border-white/[0.13] bg-white/[0.05] text-slate-300 hover:border-emerald-300/28 hover:bg-white/[0.08] hover:text-white",
@@ -1106,7 +1092,7 @@ export default function BlogPage() {
                     setMobileFilters(false);
                   }}
                   className={cx(
-                    "rounded-xl border px-3 py-3 text-[9px] font-black uppercase tracking-[0.12em]",
+                    "rounded-xl border px-3 py-3 text-[9px] font-semibold uppercase tracking-[0.12em]",
                     category === item.id
                       ? "border-emerald-300/35 bg-emerald-400/[0.15] text-emerald-100"
                       : "border-white/[0.13] bg-white/[0.05] text-slate-300",
@@ -1126,10 +1112,10 @@ export default function BlogPage() {
             <div>
               <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
                     {CATEGORIES.find((item) => item.id === category)?.label}
                   </div>
-                  <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white">
+                  <h2 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-white">
                     {filtered.length} sourced{" "}
                     {filtered.length === 1 ? "article" : "articles"}
                   </h2>
@@ -1153,7 +1139,7 @@ export default function BlogPage() {
                   ) : (
                     <Search className="mx-auto h-8 w-8 text-emerald-200" />
                   )}
-                  <h3 className="mt-4 text-xl font-black text-white">
+                  <h3 className="mt-4 text-xl font-semibold text-white">
                     {intelligence.loading
                       ? "Loading the completed daily edition"
                       : "No articles match the current filter"}
@@ -1173,7 +1159,7 @@ export default function BlogPage() {
               <div className="rounded-[1.8rem] border border-white/[0.12] bg-white/[0.055] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl">
                 <div className="flex items-center gap-3">
                   <Link2 className="h-5 w-5 text-cyan-200" />
-                  <h3 className="text-lg font-black text-white">Connected themes</h3>
+                  <h3 className="text-lg font-semibold text-white">Connected themes</h3>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {topTopics.map((topic) => (
@@ -1197,7 +1183,7 @@ export default function BlogPage() {
 
               <div className="rounded-[1.8rem] border border-emerald-300/20 bg-gradient-to-br from-emerald-400/[0.12] to-white/[0.04] p-5">
                 <ShieldCheck className="h-5 w-5 text-emerald-200" />
-                <h3 className="mt-4 text-lg font-black text-white">
+                <h3 className="mt-4 text-lg font-semibold text-white">
                   Advisor review remains required
                 </h3>
                 <p className="mt-3 text-xs leading-6 text-slate-300">
@@ -1211,7 +1197,7 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#040a07]/72 py-16 sm:py-20">
+      <section className="relative z-10 border-y border-emerald-300/[0.12] bg-[#09141f]/72 py-16 sm:py-20">
         <div className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
           <button
             type="button"
@@ -1220,10 +1206,10 @@ export default function BlogPage() {
             aria-expanded={methodOpen}
           >
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
                 Editorial and technical methodology
               </div>
-              <h2 className="mt-3 text-3xl font-black tracking-[-0.045em] text-white sm:text-5xl">
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">
                 Why Slice selected these six articles.
               </h2>
             </div>
@@ -1269,7 +1255,7 @@ export default function BlogPage() {
                     className="rounded-[1.6rem] border border-white/[0.12] bg-white/[0.055] p-6"
                   >
                     <Icon className="h-5 w-5 text-emerald-200" />
-                    <h3 className="mt-5 text-lg font-black text-white">
+                    <h3 className="mt-5 text-lg font-semibold text-white">
                       {item.title}
                     </h3>
                     <p className="mt-3 text-sm leading-7 text-slate-300">
@@ -1284,13 +1270,13 @@ export default function BlogPage() {
       </section>
 
       <section className="relative z-10 px-4 py-20 sm:px-6 lg:px-8">
-        <div className="slice-blog-sweep relative mx-auto max-w-[1500px] overflow-hidden rounded-[2.4rem] border border-emerald-300/25 bg-gradient-to-br from-emerald-500/25 via-emerald-900/40 to-[#020604] px-6 py-12 shadow-[0_40px_125px_rgba(5,150,105,0.2)] sm:px-10 sm:py-14 lg:px-14">
+        <div className="slice-blog-sweep relative mx-auto max-w-[1500px] overflow-hidden rounded-[2.4rem] border border-emerald-300/25 bg-gradient-to-br from-emerald-500/25 via-emerald-900/40 to-[#050a12] px-6 py-12 shadow-[0_40px_125px_rgba(5,150,105,0.2)] sm:px-10 sm:py-14 lg:px-14">
           <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.19em] text-emerald-100">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.19em] text-emerald-100">
                 Continue into Slice
               </div>
-              <h2 className="mt-4 max-w-4xl text-balance text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl">
+              <h2 className="mt-4 max-w-4xl text-balance text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
                 Turn sourced intelligence into connected advisor work.
               </h2>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-emerald-50/85 sm:text-base">
@@ -1303,7 +1289,7 @@ export default function BlogPage() {
               <Link
                 href="/founder-login"
                 prefetch={false}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 shadow-xl transition hover:-translate-y-1 hover:bg-emerald-50"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-4 text-sm font-semibold text-slate-950 shadow-xl transition hover:-translate-y-1 hover:bg-emerald-50"
               >
                 Founder login
                 <ArrowRight className="h-4 w-4" />
@@ -1311,7 +1297,7 @@ export default function BlogPage() {
               <Link
                 href="/"
                 prefetch={false}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-black/30 px-6 py-4 text-sm font-black text-white transition hover:bg-white/[0.1]"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-black/30 px-6 py-4 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
               >
                 Platform overview
                 <ArrowLeft className="h-4 w-4" />
@@ -1321,12 +1307,12 @@ export default function BlogPage() {
         </div>
       </section>
 
-      <footer className="relative z-10 border-t border-emerald-300/[0.12] bg-[#010403]/90 py-10 backdrop-blur-xl">
+      <footer className="relative z-10 border-t border-emerald-300/[0.12] bg-[#030811]/90 py-10 backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1500px] gap-7 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr] lg:items-center lg:px-8">
           <Link href="/" prefetch={false} className="justify-self-start">
             <OriginalBrandMark />
           </Link>
-          <div className="flex flex-wrap gap-x-5 gap-y-3 text-[10px] font-black uppercase tracking-[0.13em] text-slate-300 lg:justify-center">
+          <div className="flex flex-wrap gap-x-5 gap-y-3 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-300 lg:justify-center">
             <Link href="/" prefetch={false} className="hover:text-emerald-100">
               Platform
             </Link>

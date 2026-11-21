@@ -33,6 +33,16 @@ const ROUTE_OVERRIDES: Array<{
   prefix: string;
   meta: WorkspaceRouteMeta;
 }> = [
+  {
+    prefix: "/workspace/intelligence/agent-desk",
+    meta: {
+      label: "Six-Agent Trading Desk",
+      shortLabel: "Agent Desk",
+      description: "Inspect your six AI roles, source-grounded decisions, and controlled paper execution.",
+      category: "AI",
+      href: "/workspace/intelligence/agent-desk",
+    },
+  },
 {"prefix":"/workspace/strategy-lab/scenarios","meta":{"label":"Forward Scenarios","shortLabel":"Forward Scenarios","description":"Scenario Studio","category":"Strategy","href":"/workspace/strategy-lab/scenarios"}},
 {"prefix":"/workspace/strategy-lab/live","meta":{"label":"Live Watch","shortLabel":"Live Watch","description":"Live Watch","category":"Strategy","href":"/workspace/strategy-lab/live"}},
 {"prefix":"/workspace/strategy-lab/sensitivity","meta":{"label":"Cost Sensitivity","shortLabel":"Cost Sensitivity","description":"Strategy cost sensitivity","category":"Strategy","href":"/workspace/strategy-lab/sensitivity"}},
@@ -115,7 +125,12 @@ export const WORKSPACE_MOBILE_TOOLS = [
 
 export function workspaceToolIsActive(pathname: string, href: string) {
   if (href === "/workspace") return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+  if (pathname === href) return true;
+  if (!pathname.startsWith(`${href}/`)) return false;
+  return !WORKSPACE_TOOLS.some((tool) =>
+    tool.href !== href && tool.href.startsWith(`${href}/`) &&
+    (pathname === tool.href || pathname.startsWith(`${tool.href}/`)),
+  );
 }
 
 export function workspaceRouteMeta(pathname: string): WorkspaceRouteMeta {

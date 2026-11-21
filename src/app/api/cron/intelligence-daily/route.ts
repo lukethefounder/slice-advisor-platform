@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 180;
+
 
 const MARKET_TIME_ZONE = "America/New_York";
 const CHECKPOINT_ID = "slice-public-intelligence-v2";

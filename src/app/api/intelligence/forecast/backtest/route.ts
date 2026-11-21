@@ -14,7 +14,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+
 
 const MAX_BODY_BYTES = 20_000;
 

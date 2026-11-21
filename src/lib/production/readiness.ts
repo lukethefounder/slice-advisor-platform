@@ -3,7 +3,7 @@ import "server-only";
 import { performance } from "node:perf_hooks";
 
 import { Prisma } from "@/generated/prisma/client";
-import { getBackgroundJobMetrics } from "@/lib/background-jobs/queue";
+import { backgroundJobVisibilityWhere, getBackgroundJobMetrics } from "@/lib/background-jobs/queue";
 import { documentStorageConfigured } from "@/lib/document-center/storage";
 import { getIntegrationRuntimeSnapshot } from "@/lib/integrations/core";
 import { getAlphaVantageIntegrationStatus } from "@/lib/integrations/alpha-vantage";
@@ -197,6 +197,7 @@ async function queueCheck(firmId: string | null): Promise<ProductionCheck> {
       await Promise.all([
         prisma.backendJobRun.count({
           where: {
+            ...backgroundJobVisibilityWhere(),
             ...(firmId ? { firmId } : {}),
             status: "Processing",
             updatedAt: { lt: staleBefore },
@@ -204,6 +205,7 @@ async function queueCheck(firmId: string | null): Promise<ProductionCheck> {
         }),
         prisma.backendJobRun.count({
           where: {
+            ...backgroundJobVisibilityWhere(),
             ...(firmId ? { firmId } : {}),
             status: "DeadLetter",
             updatedAt: { gte: since },
@@ -211,13 +213,14 @@ async function queueCheck(firmId: string | null): Promise<ProductionCheck> {
         }),
         prisma.backendJobRun.count({
           where: {
+            ...backgroundJobVisibilityWhere(),
             ...(firmId ? { firmId } : {}),
             status: { in: ["Failed", "DeadLetter"] },
             updatedAt: { gte: since },
           },
         }),
         prisma.backendJobRun.findFirst({
-          where: firmId ? { firmId } : undefined,
+          where: { ...backgroundJobVisibilityWhere(), ...(firmId ? { firmId } : {}) },
           orderBy: { updatedAt: "desc" },
           select: {
             id: true,

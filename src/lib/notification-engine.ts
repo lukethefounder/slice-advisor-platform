@@ -1,197 +1,37 @@
 import { prisma } from "@/lib/prisma";
 
-type AlertEventLite = {
-  id: string;
-  userId: string;
-  title: string;
-  body: string;
-  source: string;
-  ticker: string | null;
-  urgency: string;
-  score: number;
-  channel: string;
-  status: string;
-  createdAt: Date;
-};
+import { DEFAULT_NOTIFICATIONS, readAccountPreferences } from "@/lib/account-settings/contracts";
+import { notificationRuleDecision, urgencyRank, type DeliveryPreference } from "@/lib/account-settings/notification-policy";
 
-type NotificationPreferenceLite = {
-  id: string;
-  userId: string;
-  channel: string;
-  enabled: boolean;
-  minUrgency: string;
-  minScore: number;
-  digestOnly: boolean;
-  quietHoursStart: string | null;
-  quietHoursEnd: string | null;
-  cooldownMinutes: number;
-};
-
-const DEFAULT_NOTIFICATION_PREFERENCES = [
-  {
-    channel: "Dashboard",
-    enabled: true,
-    minUrgency: "Low",
-    minScore: 0,
-    digestOnly: false,
-    quietHoursStart: null,
-    quietHoursEnd: null,
-    cooldownMinutes: 0,
-  },
-  {
-    channel: "Email",
-    enabled: true,
-    minUrgency: "High",
-    minScore: 75,
-    digestOnly: false,
-    quietHoursStart: "22:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 30,
-  },
-  {
-    channel: "SMS",
-    enabled: true,
-    minUrgency: "Critical",
-    minScore: 88,
-    digestOnly: false,
-    quietHoursStart: "22:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 60,
-  },
-  {
-    channel: "Push",
-    enabled: true,
-    minUrgency: "High",
-    minScore: 80,
-    digestOnly: false,
-    quietHoursStart: "22:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 30,
-  },
-  {
-    channel: "Digest",
-    enabled: true,
-    minUrgency: "Medium",
-    minScore: 55,
-    digestOnly: true,
-    quietHoursStart: null,
-    quietHoursEnd: null,
-    cooldownMinutes: 0,
-  },
-];
-
-function urgencyRank(urgency: string) {
-  const normalized = urgency.toLowerCase();
-
-  if (normalized === "critical") return 4;
-  if (normalized === "high") return 3;
-  if (normalized === "medium") return 2;
-  if (normalized === "low") return 1;
-
-  return 0;
+async function accountTimezone(userId: string) {
+  const memory = await prisma.personalUserBotMemory.findUnique({
+    where: { userId_memoryKey: { userId, memoryKey: "account.settings" } }, select: { value: true },
+  });
+  return readAccountPreferences(memory?.value).timezone;
 }
 
-function isWithinQuietHours(
-  quietHoursStart: string | null,
-  quietHoursEnd: string | null
-) {
-  if (!quietHoursStart || !quietHoursEnd) {
-    return false;
-  }
-
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const [startHour, startMinute] = quietHoursStart.split(":").map(Number);
-  const [endHour, endMinute] = quietHoursEnd.split(":").map(Number);
-
-  const startMinutes = startHour * 60 + startMinute;
-  const endMinutes = endHour * 60 + endMinute;
-
-  if (startMinutes < endMinutes) {
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
-  }
-
-  return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-}
-
-async function hasCooldownConflict(
-  userId: string,
-  channel: string,
-  cooldownMinutes: number
-) {
-  if (cooldownMinutes <= 0) {
-    return false;
-  }
-
-  const cutoff = new Date(Date.now() - cooldownMinutes * 60 * 1000);
-
+/** Actual email delivery and the preview queue use the same saved rules. Simulations never throttle real sends. */
+export async function evaluateAccountNotificationDelivery(input: {
+  userId: string; score: number; urgency: string; preference: DeliveryPreference;
+  timezone?: string; now?: Date; includeSimulated?: boolean;
+}) {
+  const now = input.now ?? new Date();
+  const timezone = input.timezone ?? await accountTimezone(input.userId);
+  const decision = notificationRuleDecision(input, input.preference, timezone, now);
+  if (!decision.allowed || input.preference.channel === "Dashboard" || input.preference.cooldownMinutes <= 0) return decision;
   const recent = await prisma.notificationDelivery.findFirst({
     where: {
-      userId,
-      channel,
-      status: {
-        in: ["Queued", "Delivered"],
-      },
-      createdAt: {
-        gt: cutoff,
-      },
-    },
+      userId: input.userId, channel: input.preference.channel,
+      ...(input.includeSimulated ? {} : { simulated: false }),
+      status: { in: ["Queued", "Delivered"] },
+      createdAt: { gt: new Date(now.getTime() - input.preference.cooldownMinutes * 60_000) },
+    }, select: { id: true },
   });
-
-  return Boolean(recent);
-}
-
-function shouldDeliverToChannel(
-  alert: AlertEventLite,
-  preference: NotificationPreferenceLite
-) {
-  if (!preference.enabled) {
-    return {
-      allowed: false,
-      reason: "Channel disabled.",
-    };
-  }
-
-  if (preference.digestOnly) {
-    return {
-      allowed: false,
-      reason: "Digest-only channel.",
-    };
-  }
-
-  if (alert.score < preference.minScore) {
-    return {
-      allowed: false,
-      reason: `Alert score ${alert.score} is below channel threshold ${preference.minScore}.`,
-    };
-  }
-
-  if (urgencyRank(alert.urgency) < urgencyRank(preference.minUrgency)) {
-    return {
-      allowed: false,
-      reason: `Urgency ${alert.urgency} is below channel minimum ${preference.minUrgency}.`,
-    };
-  }
-
-  if (
-    preference.channel !== "Dashboard" &&
-    isWithinQuietHours(preference.quietHoursStart, preference.quietHoursEnd)
-  ) {
-    return {
-      allowed: false,
-      reason: "Quiet hours active.",
-    };
-  }
-
-  return {
-    allowed: true,
-    reason: "Passed delivery rules.",
-  };
+  return recent ? { allowed: false, reason: "Cooldown active for this channel." } : decision;
 }
 
 export async function ensureNotificationPreferences(userId: string) {
-  for (const preference of DEFAULT_NOTIFICATION_PREFERENCES) {
+  for (const preference of DEFAULT_NOTIFICATIONS) {
     await prisma.notificationPreference.upsert({
       where: {
         userId_channel: {
@@ -210,6 +50,7 @@ export async function ensureNotificationPreferences(userId: string) {
   return prisma.notificationPreference.findMany({
     where: {
       userId,
+      channel: { in: DEFAULT_NOTIFICATIONS.map(preference => preference.channel) },
     },
     orderBy: {
       channel: "asc",
@@ -218,7 +59,7 @@ export async function ensureNotificationPreferences(userId: string) {
 }
 
 export async function queueNotificationDeliveries(userId: string) {
-  const preferences = await ensureNotificationPreferences(userId);
+  const [preferences, timezone] = await Promise.all([ensureNotificationPreferences(userId), accountTimezone(userId)]);
 
   const alerts = await prisma.alertEvent.findMany({
     where: {
@@ -254,7 +95,7 @@ export async function queueNotificationDeliveries(userId: string) {
         continue;
       }
 
-      const rule = shouldDeliverToChannel(alert, preference);
+      const rule = await evaluateAccountNotificationDelivery({ userId, score: alert.score, urgency: alert.urgency, preference, timezone, includeSimulated: true });
 
       if (!rule.allowed) {
         await prisma.notificationDelivery.create({
@@ -275,37 +116,13 @@ export async function queueNotificationDeliveries(userId: string) {
         continue;
       }
 
-      const cooldownConflict = await hasCooldownConflict(
-        userId,
-        preference.channel,
-        preference.cooldownMinutes
-      );
-
-      if (cooldownConflict && preference.channel !== "Dashboard") {
-        await prisma.notificationDelivery.create({
-          data: {
-            userId,
-            alertEventId: alert.id,
-            channel: preference.channel,
-            status: "Suppressed",
-            urgency: alert.urgency,
-            score: alert.score,
-            title: alert.title,
-            body: alert.body,
-            reason: "Cooldown active for this channel.",
-          },
-        });
-
-        suppressed += 1;
-        continue;
-      }
-
       await prisma.notificationDelivery.create({
         data: {
           userId,
           alertEventId: alert.id,
           channel: preference.channel,
           status: preference.channel === "Dashboard" ? "Delivered" : "Queued",
+          simulated: preference.channel !== "Dashboard",
           urgency: alert.urgency,
           score: alert.score,
           title: alert.title,
@@ -339,22 +156,18 @@ export async function processQueuedDeliveries(userId: string) {
     take: 100,
   });
 
-  await prisma.notificationDelivery.updateMany({
-    where: {
-      id: {
-        in: queued.map((item) => item.id),
-      },
-      userId,
-    },
-    data: {
-      status: "Delivered",
-      deliveredAt: new Date(),
-    },
+  const inApp = queued.filter(item => item.channel === "Dashboard");
+  const simulations = queued.filter(item => item.channel !== "Dashboard" && item.simulated);
+  if (inApp.length) await prisma.notificationDelivery.updateMany({
+    where: { id: { in: inApp.map(item => item.id) }, userId, status: "Queued" },
+    data: { status: "Delivered", simulated: false, deliveredAt: new Date() },
   });
-
-  return {
-    processed: queued.length,
-  };
+  if (simulations.length) await prisma.notificationDelivery.updateMany({
+    where: { id: { in: simulations.map(item => item.id) }, userId, status: "Queued", simulated: true },
+    data: { status: "Simulated", deliveredAt: null, reason: "Delivery simulation only. No external provider was contacted." },
+  });
+  // This processor has no external provider handoff. Real pending deliveries must not be falsely marked delivered.
+  return { processed: inApp.length + simulations.length, simulated: simulations.length, pendingProvider: queued.length - inApp.length - simulations.length };
 }
 
 export async function generateInvestorDigest(userId: string) {
@@ -386,6 +199,7 @@ export async function generateInvestorDigest(userId: string) {
       score: {
         gte: digestPreference.minScore,
       },
+      urgency: { in: ["Low", "Medium", "High", "Critical"].filter(value => urgencyRank(value) >= urgencyRank(digestPreference.minUrgency)) },
     },
     orderBy: [
       {
@@ -440,7 +254,8 @@ export async function generateInvestorDigest(userId: string) {
       score: alerts[0]?.score ?? 0,
       title: digest.title,
       body: digest.summary,
-      reason: "Generated from recent alert events.",
+      simulated: false,
+      reason: "Generated in-app from recent alert events. No external delivery was attempted.",
       deliveredAt: new Date(),
     },
   });

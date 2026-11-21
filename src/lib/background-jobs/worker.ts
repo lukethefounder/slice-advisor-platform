@@ -11,9 +11,11 @@ import {
 import { emitBackendEvent } from "@/lib/backend/events";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 import {
   BackgroundJobCancelledError,
   BackgroundJobTimeoutError,
+  backgroundJobEventType,
   claimBackgroundJobById,
   claimNextBackgroundJob,
   completeBackgroundJob,
@@ -171,10 +173,14 @@ async function executeClaimedJob(input: {
   claimed: NonNullable<Awaited<ReturnType<typeof claimNextBackgroundJob>>>;
 }) {
   const { row, envelope } = input.claimed;
-  const context = await contextForJob({
-    userId: row.userId,
-    firmId: row.firmId,
-  });
+  let context: BackendContext;
+  try {
+    context = await contextForJob({ userId: row.userId, firmId: row.firmId });
+  } catch (error) {
+    const failed = await failBackgroundJob({ jobId: row.id, workerId: input.workerId,
+      code: safeErrorCode(error), error, retryable: retryableError(error) });
+    return { id: row.id, jobKey: row.jobKey, status: failed?.status ?? "Superseded" };
+  }
   const controller = new AbortController();
   let lastCancellationCheckAt = 0;
   let cancelled = false;
@@ -244,6 +250,11 @@ async function executeClaimedJob(input: {
           controller.abort();
         }
       })
+      .catch((error) => {
+        // A missed heartbeat is recovered by the durable lease. Never emit an
+        // unhandled rejection from the interval or mark transient I/O complete.
+        workerLog.warn("job.heartbeat_unavailable", { jobId: row.id, errorType: error instanceof Error ? error.name : "Unknown" });
+      })
       .finally(() => {
         heartbeatRunning = false;
       });
@@ -253,10 +264,12 @@ async function executeClaimedJob(input: {
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutTimer = setTimeout(() => {
-        controller.abort();
-        reject(new BackgroundJobTimeoutError(envelope.timeoutMs));
-      }, envelope.timeoutMs);
+      if (!researchBetaEnabled(process.env)) {
+        timeoutTimer = setTimeout(() => {
+          controller.abort();
+          reject(new BackgroundJobTimeoutError(envelope.timeoutMs));
+        }, envelope.timeoutMs);
+      }
     });
 
     await runtime.reportProgress(Math.max(2, progress), "Worker started");
@@ -274,6 +287,8 @@ async function executeClaimedJob(input: {
       output,
     });
 
+    if (!completed) throw new BackgroundJobCancelledError("The worker no longer owns this job.");
+
     await updateJobDefinition({
       context,
       jobKey: row.jobKey,
@@ -283,7 +298,7 @@ async function executeClaimedJob(input: {
 
     await emitBackendEvent(context, {
       eventKey: `background-job-complete:${row.id}`,
-      eventType: "background_job.completed",
+      eventType: backgroundJobEventType(row.jobKey, "background_job.completed"),
       area: "Background Jobs",
       title: `Background job completed: ${row.jobName}`,
       detail: "The queued operation completed successfully.",
@@ -317,6 +332,7 @@ async function executeClaimedJob(input: {
       error,
       retryable,
     });
+    if (!failed) return { id: row.id, jobKey: row.jobKey, status: "Superseded" as const };
 
     await updateJobDefinition({
       context,
@@ -327,12 +343,12 @@ async function executeClaimedJob(input: {
 
     await emitBackendEvent(context, {
       eventKey: `background-job-result:${row.id}:${envelope.attempt}`,
-      eventType:
+      eventType: backgroundJobEventType(row.jobKey,
         failed?.status === "Retrying"
           ? "background_job.retry_scheduled"
           : failed?.status === "Cancelled"
             ? "background_job.cancelled"
-            : "background_job.failed",
+            : "background_job.failed"),
       area: "Background Jobs",
       title:
         failed?.status === "Retrying"

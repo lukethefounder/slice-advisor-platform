@@ -11,6 +11,16 @@ export type CanonicalBundle = {
   forecast: ForecastResponse; targets: Record<string, string>;
   graphAnalytics: ResearchGraphAnalytics;
   operations: Record<string, string>; warnings: string[];
+  currentResearch?: ResearchSwarmResponse["currentResearch"];
+};
+/** Preserved research with no forecast, target, or invented probability. */
+export type ResearchOnlyBundle = {
+  schemaVersion: "slice-research-only-bundle-1.0.0";
+  id: string; symbol: string; researchRunId: string; generatedAt: string;
+  classification: "research-only-no-forecast";
+  score: SliceAgenticScore; market: ResearchSwarmResponse["market"];
+  currentResearch?: ResearchSwarmResponse["currentResearch"];
+  warnings: string[];
 };
 export function selectHorizon(bundle: CanonicalBundle, horizon: string) {
   return bundle.forecast.horizons.find(h => h.horizon === horizon) ?? null;

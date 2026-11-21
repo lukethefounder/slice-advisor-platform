@@ -28,5 +28,5 @@ export async function loadMarketSection<S extends Section>(input: SectionRequest
   // A view ID describes its normalized content and source. No provider credential is included.
   const stableData = JSON.stringify(data, (name, value: unknown) => name === "state" || name === "note" ? undefined : value);
   const snapshotId = createHash("sha256").update(JSON.stringify({ section: input.section, symbol: input.symbol, range: input.section === "history" ? input.range : null, raw: receipts.map(r => r.sha256), data: stableData })).digest("hex");
-  return { ok: true, section: input.section, symbol: input.symbol, range: input.range, preparedAt: new Date().toISOString(), elapsedMs: Date.now() - started, receipts, data, snapshotId };
+  return { ok: true, section: input.section, symbol: input.symbol, range: input.range, preparedAt: new Date().toISOString(), elapsedMs: Date.now() - started, refreshAfterMs: spec.ttlMs, receipts, data, snapshotId };
 }

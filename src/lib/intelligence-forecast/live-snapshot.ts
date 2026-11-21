@@ -66,8 +66,19 @@ function clamp(value: number, minimum = 0, maximum = 100) {
 }
 
 function safeNumber(value: unknown, fallback = 0) {
+  if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function measured(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function observedScore(parts: Array<{ value: number | null; weight: number }>) {
+  const observed = parts.filter((part): part is { value: number; weight: number } => measured(part.value));
+  const weight = observed.reduce((sum, part) => sum + part.weight, 0);
+  return weight ? clamp(observed.reduce((sum, part) => sum + part.value * part.weight, 0) / weight) : null;
 }
 
 function scoreHigherIsBetter(value: number, low: number, high: number) {
@@ -148,44 +159,66 @@ export function buildLiveMarketSnapshot({
     );
   }
 
-  const actual: string[] = [
-    "latest quote",
-    "previous close",
-    "traded volume",
-  ];
+  const actual: string[] = [quote.sourceKind === "intraday-bar" ? `${quote.interval ?? "intraday"} bar close` : quote.sourceKind === "native-index-daily" ? "completed native index level" : "daily provider quote"];
   const derived: string[] = [];
   const neutralized: string[] = [];
   const warnings = [...alpha.health.warnings];
+  if (quote.comparisonSource || (quote.sourceKind === "native-index-daily" && quote.previousClose > 0)) actual.push("previous observed session close");
+  else if (quote.previousClose > 0 && quote.comparisonSource === undefined) actual.push("previous close (legacy provider record)");
+  else neutralized.push("previous session close unavailable; internal price fallback is not an observed comparison");
+  if (quote.volume !== null) actual.push(quote.volumeScope === "bar" ? "intraday bar traded volume" : "daily traded volume");
+  else {
+    neutralized.push("volume input unavailable; internal zero sentinel is not observed volume");
+    warnings.push(alpha.instrument?.kind === "index" ? "An index has no traded share volume. No index liquidity observation was invented." : "The provider did not report traded volume; volume-dependent inputs are unavailable.");
+  }
 
   if (alpha.intraday?.bars.length) {
     actual.push(
       `${alpha.intraday.interval} intraday OHLCV`,
       "provider timestamp",
-      "session high/low",
-      "session VWAP",
+      "returned intraday window high/low",
+      "returned-bar VWAP",
     );
   }
 
-  if (alpha.technicals) {
-    actual.push("daily price history");
-    derived.push(
-      "moving averages",
-      "RSI",
-      "annualized realized volatility",
-      "momentum",
-      "drawdown",
-      "ATR",
-      "trend and risk scores",
-    );
+  if ((alpha.technicals?.historyPointCount ?? 0) > 0) actual.push(`${alpha.technicals!.historyPointCount} dated daily price observations`);
+  const technicalInputs = [
+    ["20-session moving average", alpha.technicals?.sma20],
+    ["50-session moving average", alpha.technicals?.sma50],
+    ["200-session moving average", alpha.technicals?.sma200],
+    ["14-session RSI", alpha.technicals?.rsi14],
+    ["20-return annualized realized volatility", alpha.technicals?.volatility20Annualized],
+    ["30-session momentum", alpha.technicals?.momentum30],
+    ["60-session drawdown", alpha.technicals?.drawdownFrom60DayHigh],
+    ["14-session ATR", alpha.technicals?.averageTrueRange14],
+    ["20-session volume trend", alpha.technicals?.volumeTrendPercent],
+    ["trend score", alpha.technicals?.trendScore],
+    ["momentum score", alpha.technicals?.momentumScore],
+    ["risk score", alpha.technicals?.riskScore],
+    ["volume score", alpha.technicals?.volumeScore],
+  ] as const;
+  for (const [label, value] of technicalInputs) {
+    if (measured(value)) derived.push(label);
+    else neutralized.push(`${label} unavailable; excluded from research evidence`);
   }
-
-  if (alpha.overview) {
-    actual.push("company fundamentals");
+  for (const [factor, weight] of Object.entries(alpha.technicals?.componentCoverage ?? {})) {
+    if (weight > 0 && weight < 1) neutralized.push(`${factor} factor excludes ${Math.round((1 - weight) * 100)}% unobserved component weight; confidence is reduced in proportion`);
+  }
+  const fundamentalInputs = [
+    ["P/E", alpha.overview?.peRatio], ["PEG", alpha.overview?.pegRatio],
+    ["profit margin", alpha.overview?.profitMargin], ["operating margin", alpha.overview?.operatingMargin],
+    ["return on equity", alpha.overview?.returnOnEquity],
+    ["revenue growth", alpha.overview?.quarterlyRevenueGrowthYOY], ["earnings growth", alpha.overview?.quarterlyEarningsGrowthYOY],
+    ["analyst target", alpha.overview?.analystTargetPrice], ["beta", alpha.overview?.beta],
+  ] as const;
+  for (const [label, value] of fundamentalInputs) {
+    if (measured(value)) actual.push(`reported ${label}`);
+    else neutralized.push(`${label} unavailable; numeric model fallback is not an observation`);
   }
 
   if (alpha.news?.items.length) {
     actual.push("Alpha Vantage news and ticker sentiment");
-  }
+  } else neutralized.push("ticker news sentiment unavailable; neutral model value 50/100");
 
   if (alpha.market) {
     actual.push("global market open/close status");
@@ -240,53 +273,28 @@ export function buildLiveMarketSnapshot({
     alpha.technicals?.volumeScore,
     50,
   );
-  const valuationScore = clamp(
-    scoreLowerIsBetter(alpha.overview?.peRatio ?? 25, 8, 45) * 0.35 +
-      scoreLowerIsBetter(alpha.overview?.pegRatio ?? 2.5, 0.5, 4) * 0.25 +
-      scoreHigherIsBetter(
-        (((alpha.overview?.analystTargetPrice || quote.price) -
-          quote.price) /
-          quote.price) *
-          100,
-        -20,
-        40,
-      ) *
-        0.4,
-  );
-  const growthScore = clamp(
-    scoreHigherIsBetter(
-      (alpha.overview?.quarterlyRevenueGrowthYOY ?? 0) * 100,
-      -10,
-      35,
-    ) *
-      0.45 +
-      scoreHigherIsBetter(
-        (alpha.overview?.quarterlyEarningsGrowthYOY ?? 0) * 100,
-        -15,
-        45,
-      ) *
-        0.55,
-  );
-  const qualityScore = clamp(
-    scoreHigherIsBetter(
-      (alpha.overview?.profitMargin ?? 0) * 100,
-      0,
-      35,
-    ) *
-      0.3 +
-      scoreHigherIsBetter(
-        (alpha.overview?.operatingMargin ?? 0) * 100,
-        0,
-        40,
-      ) *
-        0.3 +
-      scoreHigherIsBetter(
-        (alpha.overview?.returnOnEquity ?? 0) * 100,
-        0,
-        45,
-      ) *
-        0.4,
-  );
+  const overview = alpha.overview;
+  const valuation = observedScore([
+    { value: measured(overview?.peRatio) && overview.peRatio > 0 ? scoreLowerIsBetter(overview.peRatio, 8, 45) : null, weight: 0.35 },
+    { value: measured(overview?.pegRatio) && overview.pegRatio > 0 ? scoreLowerIsBetter(overview.pegRatio, 0.5, 4) : null, weight: 0.25 },
+    { value: measured(overview?.analystTargetPrice) && overview.analystTargetPrice > 0 ? scoreHigherIsBetter((overview.analystTargetPrice / quote.price - 1) * 100, -20, 40) : null, weight: 0.4 },
+  ]);
+  const growth = observedScore([
+    { value: measured(overview?.quarterlyRevenueGrowthYOY) ? scoreHigherIsBetter(overview.quarterlyRevenueGrowthYOY * 100, -10, 35) : null, weight: 0.45 },
+    { value: measured(overview?.quarterlyEarningsGrowthYOY) ? scoreHigherIsBetter(overview.quarterlyEarningsGrowthYOY * 100, -15, 45) : null, weight: 0.55 },
+  ]);
+  const quality = observedScore([
+    { value: measured(overview?.profitMargin) ? scoreHigherIsBetter(overview.profitMargin * 100, 0, 35) : null, weight: 0.3 },
+    { value: measured(overview?.operatingMargin) ? scoreHigherIsBetter(overview.operatingMargin * 100, 0, 40) : null, weight: 0.3 },
+    { value: measured(overview?.returnOnEquity) ? scoreHigherIsBetter(overview.returnOnEquity * 100, 0, 45) : null, weight: 0.4 },
+  ]);
+  for (const [label, value] of [["valuation score", valuation], ["growth score", growth], ["fundamental quality score", quality]] as const) {
+    if (value === null) neutralized.push(`${label} unavailable; neutral model value 50/100`);
+    else derived.push(`${label} from available reported components`);
+  }
+  const valuationScore = valuation ?? 50;
+  const growthScore = growth ?? 50;
+  const qualityScore = quality ?? 50;
   const contradictionScore = clamp(
     Math.abs(newsSentiment - trendScore) * 0.5 +
       Math.abs(valuationScore - growthScore) * 0.3 +
@@ -378,6 +386,11 @@ export function buildLiveMarketSnapshot({
   const annualizedVolatility =
     alpha.technicals?.volatility20Annualized ??
     dailyVolatility * Math.sqrt(252);
+  if (!measured(alpha.technicals?.volatility20Daily)) neutralized.push("forecast daily volatility assumption 2.5%; not observed realized volatility");
+  if (!measured(alpha.technicals?.rsi14)) neutralized.push("forecast RSI neutral value 50; not an observed oscillator");
+  for (const [label, value] of [["trend", alpha.technicals?.trendScore], ["momentum", alpha.technicals?.momentumScore], ["risk", alpha.technicals?.riskScore], ["volume", alpha.technicals?.volumeScore]] as const) {
+    if (!measured(value)) neutralized.push(`forecast ${label} score neutral value 50/100; not research evidence`);
+  }
   const marketStress = clamp(
     annualizedVolatility * 0.8 +
       Math.abs(
@@ -404,7 +417,10 @@ export function buildLiveMarketSnapshot({
       price: {
         current: quote.price,
         previousClose: quote.previousClose || quote.price,
-        volume: quote.volume || 0,
+        observedAt: (quote.observedAt === undefined ? alpha.providerAsOf : quote.observedAt) ?? undefined,
+        // Legacy engine numeric contract: zero neutralizes an unavailable input;
+        // raw market/source records retain null and coverage records the gap.
+        volume: quote.volume ?? 0,
       },
       slice: {
         sentimentScore: compositeSentiment,

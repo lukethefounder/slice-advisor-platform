@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { createLogger } from "@/lib/logger";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 
 export type ApiRouteContext = {
   request: Request;
@@ -96,22 +97,26 @@ async function runWithTimeout<T>(
   timeoutMs: number | undefined,
   controller: AbortController,
 ) {
-  if (!timeoutMs) return operation;
-
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
 
   try {
     return await Promise.race([
       operation,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          controller.abort();
-          reject(timeoutError(timeoutMs));
-        }, timeoutMs);
+        onAbort = () => reject(controller.signal.reason instanceof ApiError
+          ? controller.signal.reason
+          : new ApiError({ status: 499, code: "REQUEST_CANCELLED", message: "The request was cancelled.", expose: true }));
+        if (controller.signal.aborted) onAbort();
+        else controller.signal.addEventListener("abort", onAbort, { once: true });
+        if (timeoutMs && !controller.signal.aborted) {
+          timer = setTimeout(() => controller.abort(timeoutError(timeoutMs)), timeoutMs);
+        }
       }),
     ]);
   } finally {
     if (timer) clearTimeout(timer);
+    if (onAbort) controller.signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -140,6 +145,11 @@ export function withApiRoute(
     const requestId = requestIdFrom(request);
     const startedAt = performance.now();
     const controller = new AbortController();
+    const onRequestAbort = () => controller.abort(new ApiError({
+      status: 499, code: "REQUEST_CANCELLED", message: "The request was cancelled.", expose: true,
+    }));
+    if (request.signal.aborted) onRequestAbort();
+    else request.signal.addEventListener("abort", onRequestAbort, { once: true });
     const log = routeLogger.child("request", {
       requestId,
       method: request.method,
@@ -148,6 +158,8 @@ export function withApiRoute(
     log.info("request.started");
 
     try {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const timeoutMs = researchBetaEnabled(process.env) ? undefined : options.timeoutMs;
       const response = await runWithTimeout(
         Promise.resolve(
           handler({
@@ -158,7 +170,7 @@ export function withApiRoute(
             log,
           }),
         ),
-        options.timeoutMs,
+        timeoutMs,
         controller,
       );
       const durationMs = Math.max(0, Math.round(performance.now() - startedAt));
@@ -178,8 +190,8 @@ export function withApiRoute(
       const apiError =
         error instanceof ApiError
           ? error
-          : controller.signal.aborted
-            ? timeoutError(options.timeoutMs ?? 0)
+          : controller.signal.aborted && controller.signal.reason instanceof ApiError
+            ? controller.signal.reason
             : new ApiError({
                 status: 500,
                 code: "INTERNAL_SERVER_ERROR",
@@ -216,6 +228,8 @@ export function withApiRoute(
         durationMs,
         cacheControl: "private, no-store, max-age=0",
       });
+    } finally {
+      request.signal.removeEventListener("abort", onRequestAbort);
     }
   };
 }

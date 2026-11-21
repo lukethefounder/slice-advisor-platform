@@ -1,0 +1,14 @@
+.brand { display:flex; align-items:center; gap:12px; min-width:0; }
+.brandMark { position:relative; display:grid; place-items:center; flex:none; width:44px; height:47px; border:1px solid var(--slice-accent-border,#397b73); border-radius:14px 4px 14px 4px; color:var(--slice-accent-strong,#8ef0d1); background:linear-gradient(135deg,var(--slice-accent-soft,#10332f),var(--slice-surface-strong,#0d1b2b)); font-size:30px; font-weight:800; line-height:1; box-shadow:inset 0 0 20px var(--slice-accent-glow,#70e3d21a),0 0 24px var(--slice-accent-glow,#70e3d21a); }
+.brandMark>span { position:absolute; width:7px; height:7px; right:5px; top:5px; border:1px solid var(--slice-surface-strong,#0d1b2b); border-radius:50%; background:var(--slice-accent,#70e3d2); }
+.compactMark { width:38px; height:40px; font-size:27px; }
+.brandCopy { min-width:0; }
+.brandCopy strong { display:block; margin:0; font-size:26px; line-height:1; letter-spacing:-.055em; font-weight:700; color:var(--slice-heading,#e9f6ff); }
+.brandCopy small { display:block; margin-top:7px; font-size:8px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--slice-muted,#94a9bf); }
+.surface { background:linear-gradient(125deg,color-mix(in srgb,var(--slice-accent-soft,#10332f) 18%,transparent),transparent 48%),var(--slice-surface,#09141f); }
+.metric { background:linear-gradient(135deg,color-mix(in srgb,var(--slice-accent-soft,#10332f) 25%,transparent),transparent 72%),var(--slice-surface-muted,#0a1825); box-shadow:inset 0 1px 0 color-mix(in srgb,var(--slice-heading,#e9f6ff) 3%,transparent); }
+.pageHeader { position:relative; padding:clamp(20px,2.6vw,32px); border:1px solid var(--slice-border,#294456); border-radius:24px; background:radial-gradient(ellipse at 95% 0%,color-mix(in srgb,var(--slice-cyan-text,#91dfee) 8%,transparent),transparent 55%),linear-gradient(110deg,var(--slice-surface-strong,#0d1b2b),var(--slice-surface,#09141f)); box-shadow:var(--slice-elevation-panel,0 12px 32px #0002); }
+.pageHeader::after { content:""; position:absolute; left:28px; top:-1px; width:76px; height:2px; border-radius:2px; background:linear-gradient(90deg,var(--slice-accent,#70e3d2),var(--slice-cyan-text,#91dfee)); pointer-events:none; }
+@media(max-width:600px) { .pageHeader { border-radius:18px; padding:20px; } .brandCopy strong { font-size:24px; } }
+
+@media(min-width:1101px) { :global([data-slice-future-shell][data-rail="compact"]) .brandCopy { display:none; } }

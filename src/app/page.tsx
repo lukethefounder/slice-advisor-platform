@@ -1,184 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  BarChart3,
-  BrainCircuit,
-  BriefcaseBusiness,
-  Building2,
-  CheckCircle2,
-  Clock3,
-  Database,
-  FileCheck2,
-  GitBranch,
-  LockKeyhole,
-  Mail,
-  Network,
-  Newspaper,
-  Radar,
-  Scale,
-  ShieldCheck,
-  Target,
-  UsersRound,
-  Workflow,
-} from "lucide-react";
-
-import {
-  GovernanceBadge,
-  PrimaryLink,
-  PublicHero,
-  PublicPage,
-  PublicSurface,
-  SectionHeading,
-  SecondaryLink,
-  TrustLine,
-} from "@/components/public-site/public-shell";
-import {
-  DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS,
-  DEFAULT_PUBLIC_EDITION_MAX_AGE_MS,
-  freshenPublicSnapshot,
-  isTimestampWithin,
-} from "@/lib/intelligence/freshness";
+import { Suspense } from "react";
+import { ArrowUpRight, ChartNoAxesCombined, Database, GitBranch, Globe2, LockKeyhole, Menu, Newspaper, ShieldCheck } from "lucide-react";
+import KnowledgeGraphLandingHero from "@/components/knowledge-graph/landing-hero";
+import styles from "@/components/knowledge-graph/neural-home.module.css";
+import { DEFAULT_PUBLIC_ARTICLE_MAX_AGE_MS, DEFAULT_PUBLIC_EDITION_MAX_AGE_MS, freshenPublicSnapshot, isTimestampWithin } from "@/lib/intelligence/freshness";
 import { getPublicIntelligence } from "@/lib/public-intelligence";
 import type { PublicArticle } from "@/lib/public-intelligence-types";
-import FutureLandingHero from "@/components/public-site/future-landing-hero";
+import { safeResearchSourceUrl } from "@/lib/intelligence/research-evidence";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
 export const metadata: Metadata = {
-  title: "Slice | Advisor Intelligence and Operations",
-  description:
-    "Source-aware market intelligence, forecasting, client workflows, evidence, and governance for modern advisory firms.",
+  title: "Slice | A Mind for the Market",
+  description: "Explore connected stock research through neural knowledge graphs, source evidence, personalized research weights, and inspectable model outcomes.",
 };
 
-const OPERATING_STAGES = [
-  {
-    number: "01",
-    title: "Observe",
-    description:
-      "Collect timestamped market, company, source, and economic evidence.",
-    icon: Radar,
-  },
-  {
-    number: "02",
-    title: "Analyze",
-    description:
-      "Apply equal-third research, forecast models, and relationship intelligence.",
-    icon: BrainCircuit,
-  },
-  {
-    number: "03",
-    title: "Operate",
-    description:
-      "Connect findings to client, communication, portfolio, task, and meeting workflows.",
-    icon: Workflow,
-  },
-  {
-    number: "04",
-    title: "Govern",
-    description:
-      "Preserve evidence, require review, measure outcomes, and record decisions.",
-    icon: ShieldCheck,
-  },
-] as const;
-
-const SYSTEMS = [
-  {
-    title: "Market intelligence",
-    description:
-      "Provider-timestamped quotes, technical structure, company context, news, and economic evidence.",
-    href: "/markets",
-    action: "Open markets",
-    icon: BarChart3,
-  },
-  {
-    title: "Research and forecasting",
-    description:
-      "Three independent research cohorts, eight forecast horizons, calibration, and retained accuracy history.",
-    href: "/daily-intelligence",
-    action: "Read intelligence",
-    icon: Target,
-  },
-  {
-    title: "Knowledge graph",
-    description:
-      "Evidence, sources, agents, sectors, topics, contradictions, and score pathways in one inspectable network.",
-    href: "/knowledge-graph",
-    action: "Explore relationships",
-    icon: Network,
-  },
-  {
-    title: "Advisor operations",
-    description:
-      "Client profiles, risk context, documents, communications, tasks, scheduling, and approval queues.",
-    href: "/platform",
-    action: "See the platform",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Evidence and governance",
-    description:
-      "Point-in-time evidence, model validation, human promotion, audit history, and explicit operating safeguards.",
-    href: "/capabilities",
-    action: "Review capabilities",
-    icon: Scale,
-  },
-] as const;
-
-const OPERATING_STANDARD = [
-  {
-    title: "Current-source discipline",
-    description:
-      "Public articles require a valid publication time and remain within the seven-day currentness contract.",
-    icon: Newspaper,
-  },
-  {
-    title: "Thirty-day operating memory",
-    description:
-      "Forecasts, model activity, outcomes, evidence audits, and drift review remain available in durable operating memory.",
-    icon: Database,
-  },
-  {
-    title: "Source and model transparency",
-    description:
-      "Provider time, evidence age, model version, calibration, confidence, and limitations remain visible.",
-    icon: GitBranch,
-  },
-  {
-    title: "Human-controlled decisions",
-    description:
-      "Sensitive client output, model promotion, and advisor actions remain reviewable and approval-gated.",
-    icon: FileCheck2,
-  },
-] as const;
-
-const ACCESS = [
-  {
-    title: "Advisor workspace",
-    description:
-      "Market intelligence, clients, portfolios, communications, tasks, forecasts, and evidence operations.",
-    href: "/advisor-login",
-    action: "Advisor login",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Client portal",
-    description:
-      "Secure messages, documents, risk updates, meeting access, and the assigned advisor relationship.",
-    href: "/client-login",
-    action: "Client login",
-    icon: UsersRound,
-  },
-  {
-    title: "Founder command",
-    description:
-      "Firm-wide operating health, integrations, governance, team control, and leadership oversight.",
-    href: "/founder-login",
-    action: "Founder login",
-    icon: Building2,
-  },
-] as const;
+const NAVIGATION = [
+  { label: "The network", href: "#connections" },
+  { label: "The method", href: "#method" },
+  { label: "Source intelligence", href: "#sources" },
+  { label: "Platform", href: "/platform" },
+];
 
 type HomeIntelligence = {
   articles: PublicArticle[];
@@ -229,400 +72,114 @@ async function loadHomeIntelligence(): Promise<HomeIntelligence> {
   }
 }
 
+
 function displayDate(value: string | null | undefined) {
-  if (!value) return "Timestamp unavailable";
-
-  const parsed = new Date(value);
-
-  return Number.isFinite(parsed.getTime())
-    ? new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(parsed)
-    : "Timestamp unavailable";
+  if (!value || !Number.isFinite(Date.parse(value))) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
 }
 
-function safeArticleUrl(value: string | undefined) {
-  if (!value) return null;
-
-  try {
-    const url = new URL(value);
-
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
+function EvidencePlaceholder() {
+  return <div className={styles.emptyEvidence}><Database size={25}/><div><strong>Your research starts with traceable evidence.</strong><p>Explore the public edition or sign in to connect a stock with your saved sources and research.</p></div></div>;
 }
 
-function urgencyClass(urgency: string) {
-  const value = urgency.toLowerCase();
-
-  if (value === "critical" || value === "high") {
-    return "border-amber-700/20 bg-amber-50 text-amber-900";
-  }
-
-  if (value === "medium") {
-    return "border-cyan-700/20 bg-cyan-50 text-cyan-900";
-  }
-
-  return "border-emerald-700/20 bg-emerald-50 text-emerald-900";
-}
-
-function OperatingMap() {
-  return (
-    <PublicSurface className="p-5 sm:p-6 lg:p-7">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-800">
-            Slice operating loop
-          </p>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
-            Evidence moves into controlled action.
-          </h2>
-        </div>
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-emerald-700/20 bg-emerald-50 text-emerald-800">
-          <Workflow className="h-5 w-5" />
-        </span>
-      </div>
-
-      <div className="mt-6 grid gap-3">
-        {OPERATING_STAGES.map((stage, index) => {
-          const Icon = stage.icon;
-
-          return (
-            <div
-              key={stage.number}
-              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-3.5"
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-xl border border-emerald-700/15 bg-white text-emerald-800 shadow-sm">
-                <Icon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-700">
-                    {stage.number}
-                  </span>
-                  <span className="text-sm font-black text-[var(--slice-heading)]">
-                    {stage.title}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-semibold leading-5 text-[var(--slice-muted)]">
-                  {stage.description}
-                </p>
-              </div>
-              {index < OPERATING_STAGES.length - 1 ? (
-                <ArrowRight className="h-4 w-4 text-emerald-600" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-emerald-700/15 bg-[linear-gradient(120deg,rgba(16,163,111,0.10),rgba(6,182,212,0.06))] p-4">
-        <GovernanceBadge />
-        <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-muted)]">
-          Slice accelerates research, preparation, routing, drafting, and
-          monitoring. Advisors and designated reviewers remain responsible for
-          client-specific decisions and sensitive output.
-        </p>
-      </div>
-    </PublicSurface>
-  );
-}
-
-export default async function HomePage() {
+async function PublicEvidenceFeed() {
   const intelligence = await loadHomeIntelligence();
+  if (!intelligence.articles.length) return <EvidencePlaceholder/>;
+  return <>
+    <div className={styles.articleGrid}>
+      {intelligence.articles.map(article => {
+        const source = safeResearchSourceUrl(article.link);
+        return <article key={article.id} className={styles.article}>
+          <span>{article.sourceName || "Original source"}</span>
+          <h3>{article.title}</h3>
+          <p>{article.summary || "Open the original report to inspect the source."}</p>
+          <div className={styles.articleFoot}>
+            <time dateTime={article.publishedAt || undefined}>Published {displayDate(article.publishedAt)}</time>
+            {source && <a href={source} target="_blank" rel="noopener noreferrer" aria-label={`Read original source: ${article.title} (opens in a new tab)`}>Read source<ArrowUpRight size={13} aria-hidden="true"/></a>}
+          </div>
+        </article>;
+      })}
+    </div>
+    <p className={styles.edition}>Saved public edition · {displayDate(intelligence.generatedAt)} · Displayed articles have valid publication times within the current freshness window.</p>
+  </>;
+}
 
-  return (
-    <PublicPage active="home"><div className="slice-future-public">
-      <FutureLandingHero />
+export default function HomePage() {
+  return <div className={styles.root}>
+    <header className={styles.siteHeader}>
+      <div className={styles.headerInner}>
+        <Link href="/" prefetch={false} className={styles.brand} aria-label="Slice home"><span className={styles.brandMark} aria-hidden="true">S</span><span><strong>Slice</strong><small>Connected intelligence</small></span></Link>
+        <nav className={styles.navigation} aria-label="Public navigation">
+          {NAVIGATION.map(item => <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>)}
+        </nav>
+        <div className={styles.headerActions}>
+          <Link href="/client-login" prefetch={false} className={styles.headerClient}>Client access</Link>
+          <Link href="/founder-login" prefetch={false} className={styles.signIn}>Sign in<ArrowUpRight size={14}/></Link>
+          <details className={styles.mobileMenu}>
+            <summary aria-label="Navigation menu"><Menu size={18} aria-hidden="true"/></summary>
+            <nav aria-label="Mobile public navigation">
+              {NAVIGATION.map(item => <Link key={item.href} href={item.href} prefetch={false}>{item.label}</Link>)}
+              <Link href="/client-login" prefetch={false}>Client access</Link>
+              <Link href="/founder-login" prefetch={false}>Founder & advisor sign in</Link>
+            </nav>
+          </details>
+        </div>
+      </div>
+    </header>
 
-      <section className="border-y border-emerald-950/10 bg-white/50 py-14 sm:py-18">
-        <div className="mx-auto grid w-full max-w-[1500px] gap-4 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
+    <main>
+      <KnowledgeGraphLandingHero/>
+      <section id="connections" className={styles.connections} aria-labelledby="connections-title">
+        <div className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div><p className={styles.eyebrow}>An interconnected view</p><h2 id="connections-title">One stock.<br/>A whole world of relationships.</h2></div>
+            <p>Trace a company through its news, price structure, industry, and economic environment. See where the evidence agrees, where it conflicts, and what it could mean.</p>
+          </div>
+          <div className={styles.connectionGrid}>
+            {[
+              { number:"01", title:"Read the narrative.", detail:"Connect company news, catalysts, and original reporting. Follow each finding back to its source and publication time.", label:"MEDIA / EVENTS / SOURCE EVIDENCE", icon:Newspaper },
+              { number:"02", title:"Understand the structure.", detail:"Bring price behavior, momentum, fundamentals, and risk into the same research network. Inspect the inputs behind the score.", label:"TECHNICALS / COMPANY / RISK", icon:ChartNoAxesCombined },
+              { number:"03", title:"See the wider system.", detail:"Relate a stock to its sector and economic conditions. Keep changing assumptions and conflicting signals visible.", label:"ECONOMY / SECTORS / CONTEXT", icon:Globe2 },
+            ].map(item => <article className={styles.connection} key={item.number}><span className={styles.connectionNumber}>{item.number}</span><item.icon size={28}/><h3>{item.title}</h3><p>{item.detail}</p><small>{item.label}</small></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section id="method" className={styles.section + " " + styles.methodGrid} aria-labelledby="method-title">
+        <div className={styles.methodCopy}>
+          <p className={styles.eyebrow}>Reasoning you can inspect</p>
+          <h2 id="method-title">The connections matter.<br/>So does the evidence.</h2>
+          <p>Set your balance of media, technical, and economy research. Inspect source influence, disagreement, and score sensitivity before exploring possible outcomes across eight time horizons.</p>
+          <Link href="/knowledge-graph" prefetch={false} className={styles.textLink}>Explore knowledge graphs<ArrowUpRight size={14}/></Link>
+        </div>
+        <div className={styles.methodSteps}>
           {[
-            ["7 days", "Maximum age of public source articles"],
-            ["30 days", "Durable intelligence operating memory"],
-            ["8", "Independent forecast horizons"],
-            ["3 × ⅓", "Media, technical, and economy research"],
-          ].map(([value, label]) => (
-            <PublicSurface key={label} className="p-5">
-              <p className="text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)]">
-                {value}
-              </p>
-              <p className="mt-2 text-xs font-bold leading-5 text-[var(--slice-muted)]">
-                {label}
-              </p>
-            </PublicSurface>
-          ))}
+            ["01", "Start with the daily brief", "Bring the highlighted stock into your workspace and follow its saved research."],
+            ["02", "Explore the neural graph", "Select a node, trace its relationships, and open the original supporting sources."],
+            ["03", "Inspect the model", "Review the research score, evidence quality, uncertainty, and horizon-specific probability estimates."],
+          ].map(([number,title,description]) => <div key={number} className={styles.methodStep}><span>{number}</span><div><h3>{title}</h3><p>{description}</p></div></div>)}
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Current intelligence"
-            title="Source articles within the active freshness window."
-            description="The public edition displays only articles with a valid provider publication timestamp inside the seven-day currentness contract. If no current edition is available, Slice shows no article rather than substituting old content."
-            action={
-              <SecondaryLink href="/daily-intelligence">
-                Open daily intelligence
-              </SecondaryLink>
-            }
-          />
-
-          {intelligence.articles.length ? (
-            <>
-              <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-                {intelligence.articles.map((article) => {
-                  const external = safeArticleUrl(article.link);
-
-                  return (
-                    <PublicSurface
-                      key={article.id}
-                      as="article"
-                      className="flex min-h-[22rem] flex-col p-5"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${urgencyClass(
-                            article.urgency,
-                          )}`}
-                        >
-                          {article.urgency}
-                        </span>
-                        <span className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-[var(--slice-subtle)]">
-                          {article.sourceName}
-                        </span>
-                      </div>
-
-                      <h3 className="mt-5 line-clamp-3 text-xl font-black leading-7 tracking-[-0.03em] text-[var(--slice-heading)]">
-                        {article.title}
-                      </h3>
-                      <p className="mt-3 line-clamp-4 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                        {article.summary ||
-                          "Open the original source for the complete report."}
-                      </p>
-
-                      <div className="mt-auto pt-5">
-                        <p className="text-[10px] font-bold text-[var(--slice-subtle)]">
-                          Published {displayDate(article.publishedAt)}
-                        </p>
-                        {article.matchedThemes.length ? (
-                          <p className="mt-2 line-clamp-1 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-800">
-                            {article.matchedThemes.slice(0, 3).join(" · ")}
-                          </p>
-                        ) : null}
-                        {external ? (
-                          <a
-                            href={external}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            className="mt-4 inline-flex items-center gap-2 text-xs font-black text-emerald-800 hover:underline"
-                          >
-                            Read original source
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </a>
-                        ) : null}
-                      </div>
-                    </PublicSurface>
-                  );
-                })}
-              </div>
-
-              <p className="mt-5 text-center text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--slice-subtle)]">
-                Edition {displayDate(intelligence.generatedAt)} · Newest source{" "}
-                {displayDate(intelligence.newestPublishedAt)} · Oldest displayed
-                source {displayDate(intelligence.oldestPublishedAt)}
-              </p>
-            </>
-          ) : (
-            <PublicSurface className="mt-10 p-8 text-center sm:p-12">
-              <Clock3 className="mx-auto h-8 w-8 text-emerald-700" />
-              <h3 className="mt-4 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
-                Current public intelligence is temporarily unavailable.
-              </h3>
-              <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                Slice did not substitute an older edition. The protected
-                publication and recovery process will make the next
-                source-verified edition available after it passes the freshness
-                contract.
-              </p>
-            </PublicSurface>
-          )}
-        </div>
-      </section>
-
-      <section className="border-y border-emerald-950/10 bg-white/45 py-16 sm:py-20">
-        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Platform systems"
-            title="The operating capabilities behind Slice."
-            description="Each system has a defined job, evidence source, operating status, and review path."
-          />
-
-          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-            {SYSTEMS.map((system) => {
-              const Icon = system.icon;
-
-              return (
-                <Link
-                  key={system.href}
-                  href={system.href}
-                  prefetch={false}
-                  className="group flex min-h-[20rem] flex-col rounded-[1.8rem] border border-emerald-950/10 bg-white/88 p-5 shadow-[0_20px_60px_rgba(6,78,55,0.09)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-emerald-700/25 hover:shadow-[0_24px_70px_rgba(6,78,55,0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/40"
-                >
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-6 text-xl font-black tracking-[-0.035em] text-[var(--slice-heading)]">
-                    {system.title}
-                  </h3>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                    {system.description}
-                  </p>
-                  <span className="mt-auto inline-flex items-center gap-2 pt-6 text-xs font-black text-emerald-800">
-                    {system.action}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                  </span>
-                </Link>
-              );
-            })}
+      <section id="sources" className={styles.evidenceSection} aria-labelledby="sources-title">
+        <div className={styles.section}>
+          <div className={styles.sectionHead}>
+            <div><p className={styles.eyebrow}>From the source</p><h2 id="sources-title">Intelligence has a paper trail.</h2></div>
+            <Link href="/daily-intelligence" prefetch={false} className={styles.textLink}>Public intelligence<ArrowUpRight size={14}/></Link>
           </div>
+          <Suspense fallback={<EvidencePlaceholder/>}><PublicEvidenceFeed/></Suspense>
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Operating standard"
-            title="Current data, retained evidence, and controlled decisions."
-            description="Slice is built to preserve the difference between current observation, saved history, model evaluation, and human approval."
-          />
-
-          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {OPERATING_STANDARD.map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <PublicSurface key={item.title} className="p-6">
-                  <span className="grid h-11 w-11 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-5 text-lg font-black text-[var(--slice-heading)]">
-                    {item.title}
-                  </h3>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                    {item.description}
-                  </p>
-                </PublicSurface>
-              );
-            })}
-          </div>
-
-          <PublicSurface className="mt-6 grid gap-7 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">
-                Protected operating boundary
-              </div>
-              <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
-                Credentials, client information, and sensitive actions remain
-                inside protected systems.
-              </h3>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <TrustLine>
-                  Provider credentials remain server-side and are never
-                  displayed in the browser.
-                </TrustLine>
-                <TrustLine>
-                  Current, delayed, stale, saved, and unavailable states are
-                  labeled separately.
-                </TrustLine>
-                <TrustLine>
-                  Forecasts retain source time, model version, confidence,
-                  uncertainty, and limitations.
-                </TrustLine>
-                <TrustLine>
-                  Model promotion and sensitive client-facing actions require
-                  human review.
-                </TrustLine>
-              </div>
-            </div>
-            <span className="grid h-20 w-20 place-items-center rounded-[1.4rem] border border-emerald-700/20 bg-emerald-50 text-emerald-800">
-              <LockKeyhole className="h-8 w-8" />
-            </span>
-          </PublicSurface>
-        </div>
+      <section className={styles.section + " " + styles.closing} aria-labelledby="access-title">
+        <div><p className={styles.eyebrow}><ShieldCheck size={13} style={{display:"inline",verticalAlign:"middle",marginRight:8}}/>Your private research environment</p><h2 id="access-title">Connect the evidence.<br/>Bring your own perspective.</h2><p>Sign in to open your firm&apos;s workspace, saved briefs, and research graphs.</p></div>
+        <Link href="/founder-login" prefetch={false} className={styles.primary}><LockKeyhole size={15}/>Sign in to your workspace<ArrowUpRight size={16}/></Link>
       </section>
+    </main>
 
-      <section className="border-t border-emerald-950/10 bg-white/45 py-16 sm:py-20">
-        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            eyebrow="Secure access"
-            title="A dedicated operating view for each role."
-            description="Advisors, clients, and firm leadership enter through protected portals designed around their responsibilities."
-          />
-
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
-            {ACCESS.map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <PublicSurface
-                  key={item.href}
-                  className="flex min-h-[18rem] flex-col p-6"
-                >
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <h3 className="mt-5 text-xl font-black text-[var(--slice-heading)]">
-                    {item.title}
-                  </h3>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                    {item.description}
-                  </p>
-                  <Link
-                    href={item.href}
-                    prefetch={false}
-                    className="mt-auto inline-flex items-center gap-2 pt-6 text-xs font-black text-emerald-800"
-                  >
-                    {item.action}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </PublicSurface>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-14">
-        <div className="mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8">
-          <PublicSurface className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">
-                <Mail className="h-4 w-4" />
-                Advisor operating system
-              </div>
-              <h2 className="mt-3 text-3xl font-black tracking-[-0.045em] text-[var(--slice-heading)]">
-                Enter Slice through the portal that matches your role.
-              </h2>
-              <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
-                Market intelligence and forecasting support advisor judgment.
-                They do not replace suitability review, source verification, or
-                the advisor’s responsibility to the client.
-              </p>
-            </div>
-            <PrimaryLink href="/advisor-login">Advisor login</PrimaryLink>
-          </PublicSurface>
-        </div>
-      </section>
-    </div></PublicPage>
-  );
+    <footer className={styles.footer}>
+      <p><GitBranch size={12} style={{display:"inline",verticalAlign:"middle",marginRight:8}}/>Slice / Connected intelligence. Graph motion illustrates relationships; forecasts are model estimates. Research pathways can share evidence.</p>
+      <nav aria-label="Footer navigation"><Link href="/security" prefetch={false}>Security</Link><Link href="/capabilities" prefetch={false}>Capabilities</Link><Link href="/founder-login" prefetch={false}>Sign in</Link></nav>
+    </footer>
+  </div>;
 }

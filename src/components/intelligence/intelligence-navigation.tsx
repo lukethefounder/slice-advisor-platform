@@ -18,6 +18,7 @@ import {
 import { usePathname } from "next/navigation";
 
 import { cx } from "@/components/intelligence/intelligence-ui";
+import { useWorkspaceSession } from "@/components/workspace/premium/session";
 
 const NAVIGATION = [
 {
@@ -25,6 +26,11 @@ const NAVIGATION = [
     label: "Control Plane",
     icon: BrainCircuit,
     exact: true,
+  },
+{
+    href: "/workspace/intelligence/agent-desk",
+    label: "Six-Agent Desk",
+    icon: Bot,
   },
 {
     href: "/workspace/intelligence/agent-simulation",
@@ -91,6 +97,7 @@ function isActive(pathname: string, href: string, exact = false) {
 
 export default function IntelligenceNavigation() {
   const pathname = usePathname();
+  const { agentDeskFounder } = useWorkspaceSession();
 
   return (
     <div className="sticky top-16 z-30 border-b border-[var(--slice-border)] bg-[color-mix(in_srgb,var(--slice-surface-strong)_93%,transparent)] shadow-[0_8px_28px_var(--slice-shadow)] backdrop-blur-xl">
@@ -101,11 +108,11 @@ export default function IntelligenceNavigation() {
               Slice Intelligence
             </p>
             <p className="mt-0.5 truncate text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-accent-strong)]">
-              Evidence first · deep work on demand
+              Knowledge graphs · connected evidence
             </p>
           </div>
           <span className="hidden rounded-full border border-[var(--slice-green-border)] bg-[var(--slice-green-bg)] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[var(--slice-green-text)] sm:inline-flex">
-            Equal thirds preserved
+            Your research mix
           </span>
         </div>
 
@@ -113,7 +120,7 @@ export default function IntelligenceNavigation() {
           className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Intelligence sections"
         >
-          {NAVIGATION.map((item) => {
+          {NAVIGATION.filter(item => item.href !== "/workspace/intelligence/agent-desk" || agentDeskFounder === true).map((item) => {
             const active = isActive(
               pathname,
               item.href,

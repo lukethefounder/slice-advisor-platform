@@ -1,4 +1,5 @@
 import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import { isAgentDeskJob, isAgentDeskFounder } from "@/lib/agent-desk/access";
 import {
   hasFirmPermission,
   requireCurrentAccessContext,
@@ -39,6 +40,7 @@ function parseStatuses(value: string | null) {
 }
 
 function parseLimit(value: string | null) {
+  if (!value?.trim()) return 30;
   const parsed = Number(value);
 
   if (!Number.isInteger(parsed)) return 30;
@@ -81,21 +83,23 @@ export const GET = withApiRoute(
       firmId: access.firm!.id,
       ...(firmScopeRequested ? {} : { userId: access.user.id }),
     };
+    const agentViewer = { userId: access.user.id, firmId: access.firm!.id, founder: isAgentDeskFounder(access.user.email) && access.user.platformStatus === "Active" && access.firm!.platformStatus === "Active" };
     const [jobs, metrics] = await Promise.all([
       listBackgroundJobs({
         ...scope,
+        agentViewer,
         statuses: parseStatuses(url.searchParams.get("status")),
         limit: parseLimit(url.searchParams.get("limit")),
         includePayload,
       }),
-      getBackgroundJobMetrics(scope),
+      getBackgroundJobMetrics({ ...scope, agentViewer }),
     ]);
 
     return apiJson({
       ok: true,
       scope: firmScopeRequested ? "firm" : "user",
       metrics,
-      jobs,
+      jobs: jobs.filter(job => !isAgentDeskJob(job.jobKey) || agentViewer.founder && job.userId === access.user.id && job.firmId === access.firm?.id),
     });
   },
 );

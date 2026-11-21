@@ -1,14 +1,14 @@
 export default function RootLoading() {
   return (
     <main
-      className="min-h-screen bg-[#020604] px-4 py-5 text-white sm:px-6 lg:px-8"
+      className="min-h-screen bg-[var(--slice-bg,#030811)] px-4 py-5 text-[var(--slice-text,#c5d6e6)] sm:px-6 lg:px-8"
       aria-busy="true"
       aria-live="polite"
     >
       <span className="sr-only">Loading Slice</span>
 
-      <div className="mx-auto max-w-[1600px] animate-pulse">
-        <div className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-emerald-300/10 bg-zinc-950/70 p-4">
+      <div className="mx-auto max-w-[1600px] animate-pulse motion-reduce:animate-none">
+        <div className="flex items-center justify-between gap-4 rounded-[1.5rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] p-4">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-emerald-500/15" />
             <div className="space-y-2">
@@ -20,7 +20,7 @@ export default function RootLoading() {
         </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.45fr_0.8fr]">
-          <div className="min-h-[28rem] rounded-[2rem] border border-emerald-300/10 bg-zinc-950/70 p-6">
+          <div className="min-h-[28rem] rounded-[2rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] p-6">
             <div className="h-3 w-32 rounded-full bg-emerald-400/12" />
             <div className="mt-7 h-12 max-w-2xl rounded-2xl bg-white/10" />
             <div className="mt-3 h-12 max-w-xl rounded-2xl bg-white/[0.07]" />
@@ -35,7 +35,7 @@ export default function RootLoading() {
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
-                className="h-28 rounded-[1.5rem] border border-white/8 bg-white/[0.035]"
+                className="h-28 rounded-[1.5rem] border border-[var(--slice-border)] bg-[var(--slice-surface)]"
               />
             ))}
           </div>

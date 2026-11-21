@@ -212,7 +212,7 @@ function relativeTime(value: string | null | undefined) {
 
 function Pill({ children, tone = "slate" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -245,7 +245,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/16",
+    red: "from-rose-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -273,7 +273,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/18",
+    red: "from-rose-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -295,7 +295,7 @@ function Metric({
 
 function ProgressBar({ value, tone = "cyan" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-emerald-700 to-emerald-400",
+    red: "from-rose-700 to-rose-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",

@@ -1,3 +1,4 @@
+import { normalizeResearchSymbol } from "@/lib/intelligence/research-instrument";
 import "server-only";
 
 import { createHash } from "node:crypto";
@@ -79,11 +80,8 @@ function safeError(value: unknown, fallback: string) {
 }
 
 function cleanSymbol(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.\-:$]/g, "")
-    .slice(0, 24);
+  if (!String(value ?? "").trim()) return "";
+  return normalizeResearchSymbol(String(value));
 }
 
 function graphKeyFromStored(value: unknown, runId: string) {

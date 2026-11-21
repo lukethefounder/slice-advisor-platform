@@ -5,7 +5,7 @@ import { STUDIO_LIMITS } from "@/lib/studio/contracts";
 import { StudioError } from "@/lib/studio/core";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
 export async function POST(request: Request) {
     let lease: Awaited<ReturnType<typeof acquireOperation>> | null = null;
     try {

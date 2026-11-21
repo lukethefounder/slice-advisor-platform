@@ -40,6 +40,7 @@ export type WorkspaceTool = {
   tone: WorkspaceTone;
   href: string;
   category: WorkspaceCategory;
+  founderOnly?: boolean;
   outcome: string;
   differentiator: string;
   tags: string[];
@@ -211,6 +212,23 @@ export const WORKSPACE_TOOLS: WorkspaceTool[] = [
     differentiator: "Agentic Slice intelligence",
     tags: ["intelligence", "agents", "news", "technical", "forecast"],
     orbit: { x: 42, y: 91 },
+  },
+  {
+    id: "agent-desk",
+    founderOnly: true,
+    label: "Six-Agent Desk",
+    shortLabel: "Agents",
+    subtitle: "Your AI research team",
+    description:
+      "Review Chief, Sentiment, Scout, News, Skeptic, and Charts with shared sources, saved safeguards, and paper execution.",
+    icon: "intel",
+    tone: "cyan",
+    href: "/workspace/intelligence/agent-desk",
+    category: "AI",
+    outcome: "Review and control paper decisions",
+    differentiator: "Six specialist roles with an auditable source trail",
+    tags: ["agents", "chief", "sentiment", "scout", "news", "skeptic", "charts", "paper", "trading", "safeguards"],
+    orbit: { x: 54, y: 76 },
   },
   {
     id: "brief",
@@ -386,14 +404,19 @@ export const TEAM_ROLE_OPTIONS = [
   "Ops",
 ] as const;
 
-export function searchWorkspaceTools(query: string) {
+export function workspaceToolVisible(tool: WorkspaceTool, agentDeskFounder = false) {
+  return tool.founderOnly !== true || agentDeskFounder === true;
+}
+
+export function searchWorkspaceTools(query: string, agentDeskFounder = false) {
   const normalized = query.trim().toLowerCase();
+  const visibleTools = WORKSPACE_TOOLS.filter(tool => workspaceToolVisible(tool, agentDeskFounder));
 
   if (!normalized) {
-    return WORKSPACE_TOOLS.slice(0, 8);
+    return visibleTools.slice(0, 8);
   }
 
-  return WORKSPACE_TOOLS.map((tool) => {
+  return visibleTools.map((tool) => {
     const fields = [
       tool.label,
       tool.shortLabel,

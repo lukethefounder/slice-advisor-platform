@@ -5,7 +5,7 @@ import { StrategyError } from "@/lib/strategy-lab/contracts";
 import { readCanonical } from "@/lib/intelligence-unified/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+
 export const GET = withApiRoute({ route: "/api/intelligence/forecast", timeoutMs: 10000 }, async ({ request }) => {
   await strategyAccess(request, false);
   return apiJson({ ok: true, service: "Slice canonical forecast", generationRoute: "/api/intelligence/canonical", acceptsClientSuppliedMarketData: false });

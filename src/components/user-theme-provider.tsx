@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { applyWorkspaceAppearance, ensureNeuralDefaultPreference, notifyWorkspaceAppearanceChanged, readWorkspaceAppearance, rememberWorkspaceAppearanceForVisit, THEME_KEY, WORKSPACE_SETTINGS_KEY } from "@/lib/workspace/appearance";
 
 export type SliceAppearance = "dark" | "light" | "system";
 export type SliceAccentPreset =
@@ -104,13 +105,13 @@ export const DEFAULT_SLICE_PLATFORM_SETTINGS: SlicePlatformSettings = {
 
 const ACCENT_PALETTES: Record<Exclude<SliceAccentPreset, "auto">, ColorPalette> = {
   red: {
-    accent300: "#6ee7b7",
-    accent400: "#6ee7b7",
-    accent500: "#10b981",
-    accent600: "#059669",
-    accent700: "#047857",
-    accent900: "#064e3b",
-    accentSoft: "#d1fae5",
+    accent300: "#8ef0d1",
+    accent400: "#70e3d2",
+    accent500: "#40bdaa",
+    accent600: "#087d75",
+    accent700: "#07635d",
+    accent900: "#064b49",
+    accentSoft: "rgba(112,227,210,0.1)",
   },
   blue: {
     accent300: "#93c5fd",
@@ -305,22 +306,26 @@ export function saveSliceSettingsToStorage(
   key = SLICE_GLOBAL_SETTINGS_KEY,
 ) {
   if (typeof window === "undefined") return;
-
   const normalized = normalizeSliceSettings(settings);
-  window.localStorage.setItem(key, JSON.stringify(normalized));
+  const initial = ensureNeuralDefaultPreference();
+  const appearance = isRecord(initial.stored.appearance) ? initial.stored.appearance : {};
+  const shared = { mode: normalized.appearance, density: normalized.density,
+    motion: normalized.reduceMotion ? "reduced" as const : "full" as const,
+    textScale: normalized.largeText ? "large" as const : "standard" as const };
+  try {
+    window.localStorage.setItem(key, JSON.stringify(normalized));
+    window.localStorage.setItem(WORKSPACE_SETTINGS_KEY, JSON.stringify({ ...initial.stored, appearance: { ...appearance, ...shared } }));
+    window.localStorage.setItem(THEME_KEY, normalized.appearance);
+    rememberWorkspaceAppearanceForVisit(null);
+  } catch {
+    rememberWorkspaceAppearanceForVisit(shared);
+  }
+  notifyWorkspaceAppearanceChanged();
 }
 
-function effectiveAppearance(settings: SlicePlatformSettings) {
-  if (settings.appearance !== "system") return settings.appearance;
-
-  if (typeof window === "undefined") return "dark";
-
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-}
-
-function effectiveAccent(settings: SlicePlatformSettings, appearance: "dark" | "light") {
+function effectiveAccent(settings: SlicePlatformSettings) {
   if (settings.accentPreset === "auto") {
-    return appearance === "light" ? ACCENT_PALETTES.blue : ACCENT_PALETTES.red;
+    return ACCENT_PALETTES.red;
   }
 
   return ACCENT_PALETTES[settings.accentPreset];
@@ -335,14 +340,16 @@ export function applySliceSettings(settings: SlicePlatformSettings) {
 
   const normalized = normalizeSliceSettings(settings);
   const root = document.documentElement;
-  const appearance = effectiveAppearance(normalized);
-  const accent = effectiveAccent(normalized, appearance);
+  const current = readWorkspaceAppearance();
+  applyWorkspaceAppearance(current);
+  const appearance = current.resolvedTheme;
+  const accent = effectiveAccent(normalized);
 
   root.dataset.sliceUserTheme = "true";
   root.dataset.sliceAppearance = appearance;
-  root.dataset.sliceAppearancePreference = normalized.appearance;
-  root.dataset.sliceDensity = normalized.density;
-  root.dataset.sliceMotion = normalized.reduceMotion ? "reduced" : "full";
+  root.dataset.sliceAppearancePreference = current.mode;
+  root.dataset.sliceDensity = current.density;
+  root.dataset.sliceMotion = normalized.reduceMotion ? "reduced" : current.motion;
   root.dataset.sliceLargeText = normalized.largeText ? "true" : "false";
   root.dataset.sliceHighContrast = normalized.highContrast ? "true" : "false";
   root.dataset.sliceFocusOutlines = normalized.focusOutlines ? "true" : "false";
@@ -354,33 +361,18 @@ export function applySliceSettings(settings: SlicePlatformSettings) {
 
   root.style.colorScheme = appearance === "light" ? "light" : "dark";
 
-  setCssVar(root, "--slice-accent-300", accent.accent300);
-  setCssVar(root, "--slice-accent-400", accent.accent400);
-  setCssVar(root, "--slice-accent-500", accent.accent500);
-  setCssVar(root, "--slice-accent-600", accent.accent600);
-  setCssVar(root, "--slice-accent-700", accent.accent700);
-  setCssVar(root, "--slice-accent-900", accent.accent900);
-  setCssVar(root, "--slice-accent-soft", accent.accentSoft);
-
-  if (appearance === "light") {
-    setCssVar(root, "--background", "#f8fbff");
-    setCssVar(root, "--foreground", "#0f172a");
-    setCssVar(root, "--slice-page-bg", "#f8fbff");
-    setCssVar(root, "--slice-panel", "rgba(255,255,255,0.84)");
-    setCssVar(root, "--slice-panel-solid", "#ffffff");
-    setCssVar(root, "--slice-border", "rgba(37,99,235,0.14)");
-    setCssVar(root, "--slice-muted", "#475569");
-    setCssVar(root, "--slice-soft", "#eff6ff");
+  const scaleKeys = ["300", "400", "500", "600", "700", "900"] as const;
+  if (normalized.accentPreset === "auto") {
+    scaleKeys.forEach(key => root.style.removeProperty(`--slice-accent-${key}`));
   } else {
-    setCssVar(root, "--background", "#050505");
-    setCssVar(root, "--foreground", "#f8fafc");
-    setCssVar(root, "--slice-page-bg", "#050505");
-    setCssVar(root, "--slice-panel", "rgba(9,9,11,0.78)");
-    setCssVar(root, "--slice-panel-solid", "#09090b");
-    setCssVar(root, "--slice-border", "rgba(255,255,255,0.1)");
-    setCssVar(root, "--slice-muted", "#94a3b8");
-    setCssVar(root, "--slice-soft", "rgba(255,255,255,0.055)");
+    for (const key of scaleKeys) setCssVar(root, `--slice-accent-${key}`, accent[`accent${key}`]);
+    setCssVar(root, "--slice-accent", appearance === "light" ? accent.accent600 : accent.accent300);
+    setCssVar(root, "--slice-accent-strong", appearance === "light" ? accent.accent700 : accent.accent300);
+    setCssVar(root, "--slice-accent-dark", appearance === "light" ? accent.accent900 : accent.accent300);
+    setCssVar(root, "--slice-accent-soft", `color-mix(in srgb, ${accent.accent500} 12%, transparent)`);
   }
+  // neural-theme.css owns page, surface, text and status colors for every route.
+
 }
 
 function getNestedString(record: UnknownRecord, path: string[]) {

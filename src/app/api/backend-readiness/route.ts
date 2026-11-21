@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { backgroundJobEventVisibilityWhere } from "@/lib/background-jobs/queue";
 
 export const dynamic = "force-dynamic";
 
@@ -1172,7 +1173,9 @@ async function loadReadiness(user: { id: string; name: string; email: string }) 
       take: 50,
     }),
     prisma.backendPlatformEvent.findMany({
-      where: { userId: user.id },
+      // Agent receipts contain private conversations, portfolio state, and lessons.
+      // Those records are served only by the founder-scoped agent endpoints.
+      where: { userId: user.id, ...backgroundJobEventVisibilityWhere() },
       orderBy: { createdAt: "desc" },
       take: 40,
     }),
@@ -1202,7 +1205,7 @@ async function loadReadiness(user: { id: string; name: string; email: string }) 
       take: 80,
     }),
     prisma.backendJobDefinition.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, jobKey: { notIn: ["agent_desk_cycle", "agent_desk_scout"] } },
       orderBy: [{ category: "asc" }, { jobName: "asc" }],
       take: 80,
     }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 
 type User = {
   id: string;
@@ -143,7 +144,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "slate" | "purple";
 }) {
   const tones = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -206,7 +207,6 @@ export default function FirmPage() {
   const [selectedFirmId, setSelectedFirmId] = useState("");
   const [message, setMessage] = useState("");
   const [unauthorized, setUnauthorized] = useState(false);
-  const [inviteOutput, setInviteOutput] = useState("");
 
   const [firmForm, setFirmForm] = useState({
     name: "",
@@ -217,10 +217,9 @@ export default function FirmPage() {
     inviteCode: "",
   });
 
-  const [inviteForm, setInviteForm] = useState({
-    email: "",
-    role: "Member",
-  });
+  const [accessPassword, setAccessPassword] = useState("");
+  const [accessFactor, setAccessFactor] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
 
   const [projectForm, setProjectForm] = useState({
     title: "",
@@ -342,11 +341,7 @@ export default function FirmPage() {
       setSelectedFirmId(data.firm.id);
     }
 
-    if (data.inviteCode || data.inviteLink) {
-      setInviteOutput(
-        `Invite code: ${data.inviteCode}\nInvite link: ${data.inviteLink}`
-      );
-    }
+
 
     return data;
   }
@@ -379,46 +374,18 @@ export default function FirmPage() {
     }
   }
 
-  async function createInvite(event: FormEvent) {
-    event.preventDefault();
-
-    if (!firm) return;
-
-    const data = await postAction({
-      action: "createInvite",
-      firmId: firm.id,
-      ...inviteForm,
-    });
-
-    if (data) {
-      setInviteForm({ email: "", role: "Member" });
-      setMessage("Invite created. Copy the invite code or link.");
-    }
+  async function changeMember(member: Membership, action: "updateMember" | "removeMember", patch: Partial<Membership> = {}) {
+    if (!firm || accessBusy) return;
+    if (!accessPassword) { setMessage("Enter your current password in Team Members to verify this access change."); return; }
+    setAccessBusy(true);
+    try {
+      await postAction({ action, firmId: firm.id, membershipId: member.id, ...patch, currentPassword: accessPassword, factorCode: accessFactor });
+    } catch { setMessage("The access change could not be confirmed. Refresh the member list before retrying."); }
+    finally { setAccessBusy(false); setAccessPassword(""); setAccessFactor(""); }
   }
 
-  async function updateMember(
-    member: Membership,
-    patch: Partial<Membership>
-  ) {
-    if (!firm) return;
-
-    await postAction({
-      action: "updateMember",
-      firmId: firm.id,
-      membershipId: member.id,
-      ...patch,
-    });
-  }
-
-  async function removeMember(member: Membership) {
-    if (!firm) return;
-
-    await postAction({
-      action: "removeMember",
-      firmId: firm.id,
-      membershipId: member.id,
-    });
-  }
+  async function updateMember(member: Membership, patch: Partial<Membership>) { await changeMember(member, "updateMember", patch); }
+  async function removeMember(member: Membership) { await changeMember(member, "removeMember"); }
 
   async function createProject(event: FormEvent) {
     event.preventDefault();
@@ -735,57 +702,8 @@ export default function FirmPage() {
             {firm ? (
               <Card className="p-6">
                 <h2 className="text-2xl font-black">Invite Team Members</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Invites are local copyable codes until email variables are added.
-                </p>
-
-                {canInvite ? (
-                  <form onSubmit={createInvite} className="mt-5 space-y-3">
-                    <input
-                      value={inviteForm.email}
-                      onChange={(event) =>
-                        setInviteForm((current) => ({
-                          ...current,
-                          email: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition placeholder:text-slate-600 focus:ring-2"
-                      placeholder="Team member email"
-                    />
-
-                    <select
-                      value={inviteForm.role}
-                      onChange={(event) =>
-                        setInviteForm((current) => ({
-                          ...current,
-                          role: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 font-semibold text-white outline-none ring-emerald-500 transition focus:ring-2"
-                    >
-                      <option>Member</option>
-                      <option>Advisor</option>
-                      <option>Admin</option>
-                      <option>Viewer</option>
-                    </select>
-
-                    <button className="w-full rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white">
-                      Create Invite
-                    </button>
-                  </form>
-                ) : (
-                  <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-5 text-sm text-slate-400">
-                    You do not have invite permissions.
-                  </div>
-                )}
-
-                {inviteOutput ? (
-                  <textarea
-                    value={inviteOutput}
-                    readOnly
-                    className="mt-4 min-h-24 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-emerald-200 outline-none"
-                  />
-                ) : null}
+                <p className="mt-2 text-sm leading-6 text-slate-400">Choose a role, copy a private invitation link, or send it using your configured email provider. See pending invitations and replace or revoke their links.</p>
+                <Link href={`/workspace/team?firmId=${encodeURIComponent(firm.id)}`} className="mt-5 inline-flex rounded-2xl bg-emerald-500/15 px-5 py-3 font-bold text-emerald-200 ring-1 ring-emerald-400/30">{canInvite ? "Invite colleagues & manage links" : "View your team"}</Link>
               </Card>
             ) : null}
           </div>
@@ -855,6 +773,13 @@ export default function FirmPage() {
             <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
               <Card className="p-6">
                 <h2 className="text-2xl font-black">Team Members</h2>
+                {canManageFirm && <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-4">
+                  <p className="mb-3 text-sm text-slate-300">Verify each access change with your current password and a fresh authenticator or recovery code when enabled. Firm ownership and your own access are protected.</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="text-xs text-slate-300">Current password<input className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 p-3" type="password" autoComplete="current-password" maxLength={256} disabled={accessBusy} value={accessPassword} onChange={event => setAccessPassword(event.target.value)} /></label>
+                    <label className="text-xs text-slate-300">Authenticator or recovery code, if enabled<input className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 p-3" autoComplete="one-time-code" maxLength={80} disabled={accessBusy} value={accessFactor} onChange={event => setAccessFactor(event.target.value)} /></label>
+                  </div>
+                </div>}
 
                 <div className="mt-5 space-y-3">
                   {workspace?.members.map((member) => (
@@ -879,9 +804,10 @@ export default function FirmPage() {
                           </div>
                         </div>
 
-                        {canManageFirm && member.role !== "Owner" ? (
+                        {canManageFirm && member.role !== "Owner" && member.userId !== membership?.userId ? (
                           <div className="flex flex-wrap gap-2">
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateMember(member, {
                                   canAccessPortfolios:
@@ -895,6 +821,7 @@ export default function FirmPage() {
                             </button>
 
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateMember(member, {
                                   canManageProjects: !member.canManageProjects,
@@ -907,6 +834,7 @@ export default function FirmPage() {
                             </button>
 
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateMember(member, {
                                   canInviteMembers: !member.canInviteMembers,
@@ -919,6 +847,7 @@ export default function FirmPage() {
                             </button>
 
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() => removeMember(member)}
                               className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
                             >
@@ -1266,6 +1195,7 @@ export default function FirmPage() {
 
                           <div className="flex flex-wrap gap-2">
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateTask(task.id, {
                                   status:
@@ -1280,6 +1210,7 @@ export default function FirmPage() {
                             </button>
 
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateTask(task.id, {
                                   status: "Delayed",
@@ -1294,6 +1225,7 @@ export default function FirmPage() {
                             </button>
 
                             <button
+                              disabled={accessBusy || !accessPassword}
                               onClick={() =>
                                 updateTask(task.id, {
                                   inquiry:

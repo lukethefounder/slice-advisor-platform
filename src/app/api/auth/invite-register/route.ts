@@ -1,332 +1,42 @@
-import "server-only";
-
 import { NextResponse } from "next/server";
-
-import {
-  createSession,
-  hashPassword,
-  publicUser,
-  SESSION_COOKIE,
-  sessionCookieOptions,
-  verifyPassword,
-} from "@/lib/auth";
-import {
-  prisma,
-} from "@/lib/prisma";
-
+import { withApiRoute } from "@/lib/api-route";
+import { createSession, hashPassword, publicUser, SESSION_COOKIE, sessionCookieOptions, verifyPassword } from "@/lib/auth";
+import { accountHasMfa, verifyAccountSecondFactor } from "@/lib/account-security/service";
+import { passwordProblem } from "@/lib/account-security/policy";
+import { isFounderEmail } from "@/lib/founder-access";
+import { prisma } from "@/lib/prisma";
+import { acceptTeamInvitation, invitationToken, lookupInvitation } from "@/lib/team/invitations";
+import { guardTeamRate, readTeamJson, teamError, teamRequestIp } from "@/lib/team/http";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const TEAM_COLORS = [
-  "#10b981",
-  "#34d399",
-  "#059669",
-  "#14b8a6",
-  "#2dd4bf",
-  "#22d3ee",
-  "#84cc16",
-  "#65a30d",
-  "#0ea5e9",
-  "#06b6d4",
-];
-
-function teamColor(index: number) {
-  return TEAM_COLORS[index % TEAM_COLORS.length];
-}
-
-function permissionPreset(roleValue: string) {
-  const role = roleValue.trim().toLowerCase();
-
-  if (
-    role === "admin" ||
-    role === "principal advisor" ||
-    role === "lead advisor" ||
-    role === "chief compliance officer"
-  ) {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: true,
-      canInviteMembers: true,
-      canManageFirm: false,
-    };
+export const POST = withApiRoute({ route: "/api/auth/invite-register", cacheControl: "private, no-store, max-age=0" }, async ({ request }) => {
+  await guardTeamRate(request, "accept-ip", teamRequestIp(request), 30);
+  const body = await readTeamJson(request);
+  if (Object.keys(body).some(key => !["inviteCode", "name", "password", "factorCode"].includes(key))) throw teamError(400, "INVALID_INPUT", "The account request contains unsupported fields.");
+  const code = invitationToken(body.inviteCode), invite = await lookupInvitation(code);
+  await guardTeamRate(request, "accept-account", invite.email.toLowerCase(), 8);
+  const authenticationStartedAt = new Date();
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!password || password.length > 256) throw teamError(400, "PASSWORD_REQUIRED", "Enter the password for this account.");
+  const existing = await prisma.user.findUnique({ where: { email: invite.email.toLowerCase() } });
+  let mfaVerified = false;
+  if (existing) {
+    if (existing.platformStatus !== "Active" || !verifyPassword(password, existing.passwordHash)) throw teamError(401, "ACCOUNT_VERIFICATION_FAILED", "The account credentials could not be verified.");
+    if (await accountHasMfa(existing.id)) {
+      if (typeof body.factorCode !== "string" || !body.factorCode.trim()) throw teamError(401, "MFA_REQUIRED", "Enter your authenticator code or an unused recovery code.");
+      mfaVerified = await verifyAccountSecondFactor(existing.id, body.factorCode);
+      if (!mfaVerified) throw teamError(401, "MFA_INVALID", "The authenticator or recovery code could not be verified.");
+    }
+  } else {
+    if (isFounderEmail(invite.email)) throw teamError(403, "RESERVED_ACCOUNT", "Founder accounts cannot be created through a team invitation.");
+    const problem = passwordProblem(password);
+    if (problem) throw teamError(400, "PASSWORD_REQUIREMENTS", problem);
   }
-
-  if (
-    role === "senior wealth advisor" ||
-    role === "portfolio manager" ||
-    role === "compliance officer"
-  ) {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: true,
-      canInviteMembers: false,
-      canManageFirm: false,
-    };
-  }
-
-  if (
-    role === "associate advisor" ||
-    role === "service advisor" ||
-    role === "investment analyst" ||
-    role === "financial planning analyst" ||
-    role === "paraplanner" ||
-    role === "client service associate" ||
-    role === "relationship manager" ||
-    role === "operations associate" ||
-    role === "ops"
-  ) {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: role !== "client service associate",
-      canInviteMembers: false,
-      canManageFirm: false,
-    };
-  }
-
-  return {
-    canAccessPortfolios: false,
-    canManageProjects: false,
-    canInviteMembers: false,
-    canManageFirm: false,
-  };
-}
-
-export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as {
-      inviteCode?: string;
-      name?: string;
-      password?: string;
-    };
-    const inviteCode = body.inviteCode?.trim().toUpperCase();
-    const name = body.name?.trim();
-    const password = body.password ?? "";
-
-    if (!inviteCode) {
-      return NextResponse.json(
-        {
-          error: "Invite code is required.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const invite = await prisma.firmInvite.findUnique({
-      where: {
-        inviteCode,
-      },
-      include: {
-        firm: true,
-      },
-    });
-
-    if (!invite || invite.status !== "Pending") {
-      return NextResponse.json(
-        {
-          error: "Invite not found or no longer pending.",
-        },
-        { status: 404 },
-      );
-    }
-
-    if (invite.firm.platformStatus !== "Active") {
-      return NextResponse.json(
-        {
-          error:
-            invite.firm.governanceReason ||
-            "This firm workspace is not currently active.",
-        },
-        { status: 403 },
-      );
-    }
-
-    if (invite.expiresAt && invite.expiresAt < new Date()) {
-      await prisma.firmInvite
-        .update({
-          where: {
-            id: invite.id,
-          },
-          data: {
-            status: "Expired",
-          },
-        })
-        .catch(() => undefined);
-
-      return NextResponse.json(
-        {
-          error: "Invite has expired. Ask the firm to send a new invitation.",
-        },
-        { status: 410 },
-      );
-    }
-
-    const invitedEmail = invite.email.trim().toLowerCase();
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email: invitedEmail,
-      },
-    });
-
-    if (
-      existingUser &&
-      (existingUser.platformStatus === "Banned" ||
-        existingUser.platformStatus === "Suspended")
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            existingUser.governanceReason ||
-            "This account is blocked by platform governance.",
-        },
-        { status: 403 },
-      );
-    }
-
-    if (!existingUser && (!name || password.length < 8)) {
-      return NextResponse.json(
-        {
-          error:
-            "Name and a password of at least 8 characters are required to create the invited account.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (
-      existingUser &&
-      !verifyPassword(password, existingUser.passwordHash)
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "This invitation email already has a Slice account. Enter that account password to connect the firm membership.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const memberCount = await prisma.firmMembership.count({
-      where: {
-        firmId: invite.firmId,
-        status: "Active",
-      },
-    });
-    const permissions = permissionPreset(invite.role);
-
-    const result = await prisma.$transaction(async (tx) => {
-      const user =
-        existingUser ??
-        (await tx.user.create({
-          data: {
-            name: name || invitedEmail,
-            email: invitedEmail,
-            passwordHash: hashPassword(password),
-            platformStatus: "Active",
-          },
-        }));
-
-      const membership = await tx.firmMembership.upsert({
-        where: {
-          firmId_userId: {
-            firmId: invite.firmId,
-            userId: user.id,
-          },
-        },
-        update: {
-          status: "Active",
-          role: invite.role,
-          calendarColor: teamColor(memberCount),
-          ...permissions,
-        },
-        create: {
-          firmId: invite.firmId,
-          userId: user.id,
-          role: invite.role,
-          status: "Active",
-          calendarColor: teamColor(memberCount),
-          ...permissions,
-        },
-      });
-
-      const acceptedInvite = await tx.firmInvite.update({
-        where: {
-          id: invite.id,
-        },
-        data: {
-          status: "Accepted",
-          acceptedAt: new Date(),
-        },
-      });
-
-      await tx.userSecuritySetting.upsert({
-        where: {
-          userId: user.id,
-        },
-        update: {
-          advisorModeEnabled: true,
-          lastSecurityReviewAt: new Date(),
-        },
-        create: {
-          userId: user.id,
-          mfaEnabled: false,
-          requireReauthForSensitiveActions: true,
-          alertOnNewLogin: true,
-          advisorModeEnabled: true,
-          sessionTimeoutMinutes: 720,
-          lastSecurityReviewAt: new Date(),
-        },
-      });
-
-      const existingWatchlist = await tx.namedWatchlist.findFirst({
-        where: {
-          userId: user.id,
-        },
-      });
-
-      if (!existingWatchlist) {
-        await tx.namedWatchlist.create({
-          data: {
-            userId: user.id,
-            name: "Main Watchlist",
-            description:
-              "Live securities and ideas selected by the advisor. No demo observations are preloaded.",
-            focus: "General",
-            riskLevel: "Mixed",
-          },
-        });
-      }
-
-      return {
-        user,
-        membership,
-        acceptedInvite,
-      };
-    });
-
-    const session = await createSession(result.user.id);
-    const response = NextResponse.json({
-      user: publicUser(result.user),
-      firm: invite.firm,
-      membership: result.membership,
-      invite: result.acceptedInvite,
-      betaAccess: true,
-    });
-
-    response.headers.set("Cache-Control", "no-store");
-    response.cookies.set(
-      SESSION_COOKIE,
-      session.token,
-      sessionCookieOptions(session.expiresAt),
-    );
-
-    return response;
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Invite acceptance failed.",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
-  }
-}
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  if (!existing && (!name || name.length > 120 || /[\u0000-\u001f]/.test(name))) throw teamError(400, "NAME_REQUIRED", "Enter your name using 1 to 120 characters.");
+  const joined = await acceptTeamInvitation({ code, request, ...(existing ? { userId: existing.id, expectedPasswordHash: existing.passwordHash } : { newAccount: { name, passwordHash: hashPassword(password) } }) });
+  const session = await createSession(joined.user.id, { mfaVerified, request, authenticationStartedAt, expectedPasswordHash: existing?.passwordHash ?? joined.user.passwordHash });
+  const response = NextResponse.json({ ok: true, user: publicUser(joined.user), firm: joined.firm, membership: { id: joined.membership.id, role: joined.membership.role }, message: "Your firm membership is ready." });
+  response.cookies.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
+  return response;
+});

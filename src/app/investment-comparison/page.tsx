@@ -110,7 +110,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "slate" | "purple";
 }) {
   const tones = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -200,7 +200,7 @@ function ScoreBar({
   tone?: "red" | "green" | "amber" | "slate" | "purple";
 }) {
   const fills = {
-    red: "from-emerald-700 to-emerald-400",
+    red: "from-rose-700 to-rose-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     slate: "from-slate-700 to-slate-300",

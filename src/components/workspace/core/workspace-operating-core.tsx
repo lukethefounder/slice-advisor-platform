@@ -17,7 +17,9 @@ import {
   WORKSPACE_TOOLS,
   money,
   signedPercent,
+  workspaceToolVisible,
 } from "@/lib/workspace-green-core";
+import { useWorkspaceSession } from "@/components/workspace/premium/session";
 import {
   GreenSliceLogo,
   MarketStatePill,
@@ -93,7 +95,8 @@ export default function WorkspaceOperatingCore({
   onRefresh: () => void;
   generatedAt: string | null;
 }) {
-  const visibleTools = WORKSPACE_TOOLS.slice(0, 10);
+  const { agentDeskFounder } = useWorkspaceSession();
+  const visibleTools = WORKSPACE_TOOLS.filter(tool => workspaceToolVisible(tool, agentDeskFounder === true)).slice(0, 10);
   const liveCount = snapshots.filter((snapshot) => snapshot.isRealtime).length;
   const averageQuality = snapshots.length
     ? Math.round(

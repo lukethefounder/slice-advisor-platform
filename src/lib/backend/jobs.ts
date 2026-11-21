@@ -24,6 +24,9 @@ import {
 } from "@/lib/intelligence/research-swarm-service";
 import { fetchMarketQuote } from "@/lib/integrations/market";
 import { prisma } from "@/lib/prisma";
+import { executeAgentDeskCycleJob } from "@/lib/agent-desk/service";
+import { runDeskScoutJob } from "@/lib/agent-desk/scouting";
+import { isAgentDeskJob, requireAgentDeskAccess } from "@/lib/agent-desk/access";
 
 export const SUPPORTED_BACKGROUND_JOB_KEYS = [
   "vendor_health",
@@ -37,6 +40,8 @@ export const SUPPORTED_BACKGROUND_JOB_KEYS = [
   "intelligence_graph_refresh",
   "advisor_brief_generate",
   "workspace_watchlist_scan",
+  "agent_desk_cycle",
+  "agent_desk_scout",
 ] as const;
 
 export type SupportedBackgroundJobKey =
@@ -51,6 +56,8 @@ type JobDefinition = {
 };
 
 const JOB_DEFINITIONS: Record<SupportedBackgroundJobKey, JobDefinition> = {
+  agent_desk_cycle: { name: "Six-agent paper research cycle", timeoutMs: 1_200_000, maxAttempts: 1, backoffMs: 30_000, permission: null },
+  agent_desk_scout: { name: "Founder scout discovery", timeoutMs: 1_200_000, maxAttempts: 1, backoffMs: 30_000, permission: null },
   vendor_health: {
     name: "Vendor Health Check",
     timeoutMs: 30_000,
@@ -109,7 +116,7 @@ const JOB_DEFINITIONS: Record<SupportedBackgroundJobKey, JobDefinition> = {
   },
   intelligence_graph_refresh: {
     name: "Intelligence Knowledge Graph Refresh",
-    timeoutMs: 80_000,
+    timeoutMs: 175_000,
     maxAttempts: 2,
     backoffMs: 30_000,
     permission: null,
@@ -174,6 +181,10 @@ export async function enqueueBackendJob(
     backoffMs?: number;
   } = {},
 ): Promise<EnqueueBackgroundJobResult> {
+  if (isAgentDeskJob(jobKey)) {
+    if (!context.firmId) throw new ApiError({ status: 403, code: "FOUNDER_AGENT_ACCESS_REQUIRED", message: "An active founder workspace is required.", expose: true });
+    await requireAgentDeskAccess({ userId: context.userId, firmId: context.firmId });
+  }
   const definition = JOB_DEFINITIONS[jobKey];
 
   return enqueueBackgroundJob({
@@ -713,6 +724,13 @@ export async function executeBackendJob(
 
   if (jobKey === "workspace_watchlist_scan") {
     return executeWorkspaceWatchlistScanJob(context, runtime);
+  }
+
+  if (jobKey === "agent_desk_cycle") return executeAgentDeskCycleJob(context, runtime);
+  if (jobKey === "agent_desk_scout") {
+    if (!context.firmId) throw new ApiError({ status: 403, code: "FOUNDER_AGENT_ACCESS_REQUIRED", message: "Scout requires its founder's original workspace." });
+    return runDeskScoutJob({ jobId: runtime.jobId, scope: { userId: context.userId, firmId: context.firmId }, payload: runtime.payload, signal: runtime.signal,
+      progress: async (value, message) => { await runtime.throwIfCancelled(); await runtime.reportProgress(value, message); } });
   }
 
   if (jobKey === "data_quality_sweep") {

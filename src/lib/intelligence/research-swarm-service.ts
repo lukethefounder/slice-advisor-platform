@@ -8,8 +8,11 @@ import { ApiError } from "@/lib/api-route";
 import { StrategyError } from "@/lib/strategy-lab/contracts";
 import type { BackgroundJobRuntime } from "@/lib/background-jobs/queue";
 import type { BackendContext } from "@/lib/backend/config";
-import { getAlphaVantageIntelligence } from "@/lib/intelligence/alpha-vantage-live";
+import { getAlphaVantageIntelligence, getExpandedAlphaResearchNews } from "@/lib/intelligence/alpha-vantage-live";
 import { getEconomicResearch } from "@/lib/intelligence/economic-live";
+import { normalizeResearchSymbol, resolveResearchInstrument } from "./research-instrument";
+import { collectPublicResearchNews } from "./research-public-news";
+import { buildCurrentResearchReport, hasCompleteScoredResearch } from "./research-readiness";
 import {
   timestampFreshness,
 } from "@/lib/intelligence/freshness";
@@ -24,13 +27,23 @@ import {
   persistResearchKnowledgeGraph,
 } from "@/lib/intelligence/research-graph";
 import { runResearchSwarm } from "@/lib/intelligence/research-swarm";
+import { MAX_RESEARCH_AGENTS, normalizeResearchWeights } from "./research-config";
+import { readResearchPreferences } from "./research-preferences";
+import {
+  pruneResearchResultCache,
+  releaseResearchFlight,
+  researchResultByteSize,
+  retainResearchResult,
+  type ResearchResultCacheRecord,
+} from "./research-result-cache";
 import type {
   ResearchGraphProjectionMode,
   ResearchGraphViewResponse,
   ResearchSwarmAlgorithmDiagnostics,
   ResearchSwarmResponse,
+  ResearchWeights,
 } from "@/lib/intelligence/research-swarm-types";
-import { publishAlphaResearch, attachForecastNodes, readCanonicalGraph, retainCanonicalNodes } from "@/lib/intelligence-unified/service";
+import { publishAlphaResearch, publishResearchOnly, attachForecastNodes, readCanonicalGraph, retainCanonicalNodes } from "@/lib/intelligence-unified/service";
 
 export type ResearchSwarmDetailMode =
   | "summary"
@@ -46,6 +59,7 @@ export type BuildResearchSwarmInput = {
   userId: string;
   symbol: string;
   requestedAgents?: number;
+  researchWeights?: ResearchWeights;
   simulationPaths?: number;
   graphMode?: ResearchSwarmGraphMode;
   detailMode?: ResearchSwarmDetailMode;
@@ -59,10 +73,7 @@ export type BuildResearchSwarmInput = {
   ) => Promise<void> | void;
 };
 
-type CacheRecord = {
-  value: ResearchSwarmResponse;
-  expiresAt: number;
-};
+type CacheRecord = ResearchResultCacheRecord<ResearchSwarmResponse>;
 
 type GlobalResearchState = typeof globalThis & {
   __sliceResearchSwarmCache?: Map<
@@ -90,18 +101,15 @@ const inflight =
     string,
     Promise<ResearchSwarmResponse>
   >();
-const latestByUserSymbol =
-  globalResearch.__sliceResearchSwarmLatest ??
-  new Map<string, ResearchSwarmResponse>();
 
 globalResearch.__sliceResearchSwarmCache =
   cache;
 globalResearch.__sliceResearchSwarmInflight =
   inflight;
-globalResearch.__sliceResearchSwarmLatest =
-  latestByUserSymbol;
-
-
+// Drop the legacy second copy on hot reload as well as on a fresh process.
+globalResearch.__sliceResearchSwarmLatest?.clear();
+delete globalResearch.__sliceResearchSwarmLatest;
+pruneResearchResultCache(cache);
 
 function clampInteger(
   value: unknown,
@@ -120,11 +128,9 @@ function clampInteger(
 }
 
 function cleanSymbol(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.\-:$]/g, "")
-    .slice(0, 24);
+  if (!String(value ?? "").trim()) return "";
+  try { return normalizeResearchSymbol(String(value)); }
+  catch { throw new ApiError({ status: 400, code: "INVALID_RESEARCH_SYMBOL", message: "Use a valid stock symbol or index such as INDEX:SPX.", expose: true }); }
 }
 
 function hash(value: string) {
@@ -153,8 +159,8 @@ function cacheIdentity(input: {
   symbol: string;
   requestedAgents: number;
   simulationPaths: number;
-  graphMode: ResearchSwarmGraphMode;
   persistGraph: boolean;
+  researchWeights: ResearchWeights;
 }) {
   const digest = hash(
     [
@@ -162,8 +168,9 @@ function cacheIdentity(input: {
       input.symbol,
       input.requestedAgents,
       input.simulationPaths,
-      input.graphMode,
       input.persistGraph ? "persist" : "ephemeral",
+      JSON.stringify(input.researchWeights),
+      "graph-research-v7-current-evidence",
     ].join(":"),
   );
 
@@ -174,47 +181,7 @@ function cacheIdentity(input: {
 }
 
 function cleanupCache() {
-  const now = Date.now();
-
-  for (const [key, record] of cache) {
-    if (record.expiresAt <= now) {
-      cache.delete(key);
-    }
-  }
-
-  if (cache.size > 20) {
-    const ordered = [...cache.entries()].sort(
-      (left, right) =>
-        left[1].expiresAt -
-        right[1].expiresAt,
-    );
-
-    for (const [key] of ordered.slice(
-      0,
-      cache.size - 16,
-    )) {
-      cache.delete(key);
-    }
-  }
-}
-
-function storeLatest(
-  userId: string,
-  symbol: string,
-  response: ResearchSwarmResponse,
-) {
-  const key = `${userId}:${symbol}`;
-  latestByUserSymbol.delete(key);
-  latestByUserSymbol.set(key, response);
-
-  while (latestByUserSymbol.size > 24) {
-    const oldestKey =
-      latestByUserSymbol.keys().next()
-        .value as string | undefined;
-
-    if (!oldestKey) break;
-    latestByUserSymbol.delete(oldestKey);
-  }
+  pruneResearchResultCache(cache);
 }
 
 function cacheTtlMs(
@@ -409,7 +376,7 @@ function diagnostics(input: {
     version:
       "slice-swarm-diagnostics-3.0.0",
     scoreSemanticsPreserved: true,
-    equalThirdWeightingPreserved: true,
+    equalThirdWeightingPreserved: Object.values(input.response.score.weighting).every(weight => Math.abs(weight - 1 / 3) < 0.000001),
     stabilityScore:
       Math.round(stabilityScore * 100) /
       100,
@@ -457,11 +424,8 @@ function responseForView(
     input.detailMode ?? "graph";
   const projection =
     input.projection ?? "overview";
-  const agents =
-    detailMode === "agents" ||
-    detailMode === "full"
-      ? full.agents
-      : (
+  const agentLimitPerCohort = detailMode === "agents" || detailMode === "full" ? 100 : 36;
+  const agents = (
           [
             "media",
             "technical",
@@ -473,7 +437,7 @@ function responseForView(
               (agent) =>
                 agent.cohort === cohort,
             )
-            .slice(0, 36),
+            .slice(0, agentLimitPerCohort),
         );
   const graph = projectResearchGraph(
     full.graph,
@@ -494,6 +458,7 @@ function responseForView(
   return {
     ...full,
     agents,
+    warnings: [...full.warnings, ...(agents.length < full.agents.length ? ["Agent details in this response are sampled. The agent inspector pages through the complete saved research graph."] : [])],
     graph: retainCanonicalNodes(full.graph, graph),
     algorithm,
     score: {
@@ -538,7 +503,7 @@ function validateMarketFreshness(
     marketOpen &&
     (alpha.freshness.mode === "stale" ||
       alpha.freshness.mode ===
-        "unavailable" || alpha.freshness.mode === "end_of_day");
+        "unavailable");
 
   if (unacceptableDuringOpen) {
     throw new ApiError({
@@ -559,7 +524,7 @@ function validateMarketFreshness(
 }
 
 async function performBuild(
-  input: Required<Pick<BuildResearchSwarmInput, "userId" | "symbol" | "requestedAgents" | "simulationPaths" | "graphMode" | "persistGraph">> & Pick<BuildResearchSwarmInput, "progress">,
+  input: Required<Pick<BuildResearchSwarmInput, "userId" | "symbol" | "requestedAgents" | "researchWeights" | "simulationPaths" | "graphMode" | "persistGraph">> & Pick<BuildResearchSwarmInput, "progress" | "forceRefresh">,
 ): Promise<ResearchSwarmResponse> {
   // Fail before spending provider capacity when publication storage is absent.
   await requireResearchStorage(["SliceForecastBundle", "BackendPlatformEvent"]);
@@ -573,12 +538,12 @@ async function performBuild(
   }
   try {
   await input.progress?.(5, "Collecting Alpha Vantage observations");
-  const alpha = await getAlphaVantageIntelligence({symbol:input.symbol, interval:"5min"});
+  const alpha = await getAlphaVantageIntelligence({symbol:input.symbol, interval:"5min", forceRefresh:input.forceRefresh});
   validateMarketFreshness(alpha);
   if (!alpha.providerAsOf || !Number.isFinite(Date.parse(alpha.providerAsOf)) || Date.parse(alpha.providerAsOf) > Date.now() + 300000) {
     throw new ApiError({status:409, code:"INVALID_PROVIDER_TIME", message:"A valid non-future provider timestamp is required.", expose:true});
   }
-  if (Date.now() - Date.parse(alpha.providerAsOf) > 120 * 3600000) {
+  if (Date.now() - Date.parse(alpha.providerAsOf) > 168 * 3600000) {
     throw new ApiError({status:409, code:"STALE_PROVIDER_TIME", message:"The latest observed market data is too old to create a current forecast.", expose:true});
   }
   // A media item must have a valid publication time. Never replace it with retrieval time.
@@ -589,26 +554,45 @@ async function performBuild(
       return Number.isFinite(age) && age >= -300000 && age <= configuredNewsAgeMs();
     })};
   }
-  await input.progress?.(25, "Collecting Alpha Vantage economic releases");
-  const economy = await getEconomicResearch({sector:alpha.overview?.sector || "Unknown", industry:alpha.overview?.industry || "Unknown"});
-  await input.progress?.(48, "Computing equal-third research over verified provider evidence");
+  await input.progress?.(25, "Collecting sector-specific news and economic releases");
+  const [economy, newsCollection] = await Promise.all([
+    getEconomicResearch({sector:alpha.overview?.sector || "Unknown", industry:alpha.overview?.industry || "Unknown", forceRefresh:input.forceRefresh}),
+    getExpandedAlphaResearchNews({symbol:input.symbol, sector:alpha.overview?.sector || "Unknown", weights:input.researchWeights, existing:alpha.news, forceRefresh:input.forceRefresh, initialDiagnostics:alpha.health.newsDiagnostics}),
+  ]);
+  alpha.news = newsCollection.news;
+  const instrument = alpha.instrument ?? resolveResearchInstrument(input.symbol);
+  await input.progress?.(40, "Checking independent public sources from the latest seven days");
+  const publicNews = await collectPublicResearchNews({ symbol:input.symbol, companyName:alpha.overview?.name,
+    queryName:instrument.kind === "index" ? instrument.name : alpha.overview?.name,
+    aliases:instrument.newsAliases, assetType:instrument.kind === "index" ? "index" : "stock",
+    sector:alpha.overview?.sector, weights:input.researchWeights, existing:alpha.news?.items ?? [], forceRefresh:input.forceRefresh });
+  await input.progress?.(48, "Allocating research agents to your media, technical, and economy priorities");
   const base = runResearchSwarm({symbol:input.symbol, requestedAgents:input.requestedAgents, alpha, scan:null, economy,
-    simulationPaths:input.simulationPaths, graphMode:input.graphMode});
-  const enhanced: ResearchSwarmResponse = {...base, graphAnalytics:analyzeResearchGraph(base.graph, base.score),
-    graphPersistence:{status:"skipped", detail:"Neo4j persistence not requested; canonical forecast remains stored in PostgreSQL."},
-    warnings:[...base.warnings, "External RSS and advisor-source scans were excluded from this Alpha Vantage-only run."]};
-  await input.progress?.(70, "Publishing one immutable forecast for all linked views");
-  const canonical = await publishAlphaResearch(input.userId, enhanced);
-  enhanced.graph = attachForecastNodes(base.graph, canonical.forecast, canonical.id, canonical.forecastRunId, canonical.targets);
-  enhanced.graphAnalytics = canonical.graphAnalytics;
+    researchWeights:input.researchWeights, simulationPaths:input.simulationPaths, graphMode:"full"});
+  const enhanced: ResearchSwarmResponse = {...base,
+    graphPersistence:{status:"skipped", detail:"Neo4j persistence not requested; research and its source archive are stored in PostgreSQL."},
+    warnings:[...base.warnings, ...newsCollection.warnings,
+      `${newsCollection.completedQueries} of ${newsCollection.requestedQueries} provider news queries completed. Research paths share the collected evidence; they are not independently browsing agents.`,
+      "Original publisher links are retained for scored news. Additional public discoveries are separately labeled and do not change the forecast."]};
+  enhanced.currentResearch = buildCurrentResearchReport({ research:enhanced, alpha, newsDiagnostics:newsCollection.diagnostics, publicNews });
+  if (instrument.kind === "index") enhanced.market.currency = "index points";
+  await input.progress?.(70, "Saving the research and its source trail");
+  if (hasCompleteScoredResearch(enhanced)) {
+    const canonical = await publishAlphaResearch(input.userId, enhanced);
+    enhanced.graph = attachForecastNodes(base.graph, canonical.forecast, canonical.id, canonical.forecastRunId, canonical.targets);
+    enhanced.graphAnalytics = canonical.graphAnalytics;
+  } else {
+    enhanced.warnings.push("Research and sources were saved. A forecast was not generated because a weighted cohort has no usable scored evidence. See Research readiness for the specific collection gaps.");
+    await publishResearchOnly(input.userId, enhanced);
+  }
   if (input.persistGraph) {
     enhanced.graphPersistence = await persistResearchKnowledgeGraph({userId:input.userId, graph:enhanced.graph,
       metadata:{symbol:enhanced.symbol, companyName:enhanced.companyName, sector:enhanced.sector, industry:enhanced.industry,
         requestedAgents:enhanced.requestedAgents, activeAgents:enhanced.activeAgents, score:enhanced.score.overall,
         confidence:enhanced.score.confidence, providerAsOf:enhanced.providerAsOf, durationMs:enhanced.durationMs}});
   }
-  await input.progress?.(95, "Canonical forecast and research graph ready");
-  await completeIntelligenceOperation({ userId: input.userId, ticket, success: true, detail: `Canonical forecast published for ${enhanced.runId}` }).catch(() => { enhanced.warnings.push("Forecast stored, but production-control completion logging needs review."); });
+  await input.progress?.(95, enhanced.currentResearch.publication === "forecast" ? "Forecast and research graph ready" : "Research saved with evidence gaps explained");
+  await completeIntelligenceOperation({ userId: input.userId, ticket, success: true, detail: `Research saved for ${enhanced.runId} (${enhanced.currentResearch.publication})` }).catch(() => { enhanced.warnings.push("Research stored, but production-control completion logging needs review."); });
   return enhanced;
   } catch (error) {
     await completeIntelligenceOperation({ userId: input.userId, ticket, success: false, error }).catch(() => undefined);
@@ -624,11 +608,14 @@ export async function buildResearchSwarmForUser(
 
   const symbol =
     cleanSymbol(input.symbol) || "MSFT";
+  const preferences = input.researchWeights === undefined || input.requestedAgents === undefined
+    ? await readResearchPreferences(input.userId) : null;
+  const researchWeights = normalizeResearchWeights(input.researchWeights ?? preferences?.weights);
   const requestedAgents = clampInteger(
-    input.requestedAgents,
+    input.requestedAgents ?? preferences?.agentCount,
     600,
     30,
-    2_000,
+    MAX_RESEARCH_AGENTS,
   );
   const simulationPaths = clampInteger(
     input.simulationPaths,
@@ -645,8 +632,8 @@ export async function buildResearchSwarmForUser(
     symbol,
     requestedAgents,
     simulationPaths,
-    graphMode,
     persistGraph,
+    researchWeights,
   });
   const current = cache.get(
     identity.internal,
@@ -657,6 +644,8 @@ export async function buildResearchSwarmForUser(
     current &&
     current.expiresAt > Date.now()
   ) {
+    cache.delete(identity.internal);
+    cache.set(identity.internal, current);
     return responseForView(
       current.value,
       input,
@@ -683,7 +672,7 @@ export async function buildResearchSwarmForUser(
     return responseForView(value, input, {
       status: "coalesced",
       key: identity.public,
-      expiresAt: record
+      expiresAt: record?.value === value
         ? new Date(
             record.expiresAt,
           ).toISOString()
@@ -695,10 +684,12 @@ export async function buildResearchSwarmForUser(
     userId: input.userId,
     symbol,
     requestedAgents,
+    researchWeights,
     simulationPaths,
     graphMode,
     persistGraph,
     progress: input.progress,
+    forceRefresh: input.forceRefresh,
   });
 
   inflight.set(
@@ -711,25 +702,24 @@ export async function buildResearchSwarmForUser(
     const expiresAt =
       Date.now() + cacheTtlMs(full);
 
-    cache.set(identity.internal, {
+    // Only the current request may retain a value. A late, older forced build
+    // still returns its immutable result to its own caller without replacing
+    // the newer request's cache entry.
+    const retained = inflight.get(identity.internal) === operation && retainResearchResult(cache, identity.internal, {
       value: full,
       expiresAt,
+      byteCount: researchResultByteSize(full),
     });
-    storeLatest(
-      input.userId,
-      symbol,
-      full,
-    );
 
     return responseForView(full, input, {
       status: "miss",
       key: identity.public,
-      expiresAt: new Date(
+      expiresAt: retained ? new Date(
         expiresAt,
-      ).toISOString(),
+      ).toISOString() : null,
     });
   } finally {
-    inflight.delete(identity.internal);
+    releaseResearchFlight(inflight, identity.internal, operation);
   }
 }
 
@@ -745,74 +735,8 @@ export async function loadLatestResearchGraphView(
   const canonical = await readCanonicalGraph(input);
   if (canonical) return canonical;
   const symbol = cleanSymbol(input.symbol);
-  const memory = latestByUserSymbol.get(
-    `${input.userId}:${symbol}`,
-  );
   const persistence =
     getResearchGraphPersistenceConfiguration();
-
-  if (
-    memory &&
-    (!input.runId ||
-      memory.runId === input.runId)
-  ) {
-    const graph = projectResearchGraph(
-      memory.graph,
-      {
-        mode:
-          input.projection ??
-          "overview",
-        selectedNodeId:
-          input.selectedNodeId,
-        analytics:
-          memory.graphAnalytics,
-      },
-    );
-
-    return {
-      ok: true,
-      source: "memory",
-      symbol: memory.symbol,
-      runId: memory.runId,
-      generatedAt:
-        memory.graph.generatedAt,
-      graph,
-      analytics:
-        memory.graphAnalytics,
-      selectedNode:
-        getResearchGraphNodeDetail(
-          memory.graph,
-          input.selectedNodeId,
-        ),
-      metadata: {
-        companyName:
-          memory.companyName,
-        sector: memory.sector,
-        industry: memory.industry,
-        requestedAgents:
-          memory.requestedAgents,
-        activeAgents:
-          memory.activeAgents,
-        score:
-          memory.score.overall,
-        confidence:
-          memory.score.confidence,
-        providerAsOf:
-          memory.providerAsOf,
-        durationMs:
-          memory.durationMs,
-      },
-      persistence: {
-        configured:
-          persistence.configured,
-        status:
-          persistence.configured
-            ? "available"
-            : "unavailable",
-      },
-    };
-  }
-
   const record =
     await loadResearchKnowledgeGraphRecord({
       userId: input.userId,
@@ -892,7 +816,7 @@ export async function executeIntelligenceGraphRefreshJob(
     runtime.payload.agentCount,
     2_000,
     30,
-    2_000,
+    MAX_RESEARCH_AGENTS,
   );
   const simulationPaths = clampInteger(
     runtime.payload.simulationPaths,
@@ -906,11 +830,12 @@ export async function executeIntelligenceGraphRefreshJob(
       userId: context.userId,
       symbol,
       requestedAgents,
+      researchWeights: runtime.payload.researchWeights === undefined ? undefined : normalizeResearchWeights(runtime.payload.researchWeights),
       simulationPaths,
       graphMode: "full",
       detailMode: "summary",
       projection: "overview",
-      persistGraph: true,
+      persistGraph: runtime.payload.persistGraph === true,
       forceRefresh: true,
       progress: async (
         value,

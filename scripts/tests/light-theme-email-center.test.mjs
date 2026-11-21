@@ -9,47 +9,36 @@ function read(path) {
 }
 
 const layout = read("src/app/layout.tsx");
-const globals = read("src/app/globals.css");
-const marketGreen = read("src/app/market-green.css");
+const bootstrap = read("src/lib/workspace/theme-bootstrap.ts");
 const appearance = read("src/lib/workspace/appearance.ts");
-const shell = read("src/components/workspace/core/workspace-shell.tsx");
-const workspaceUi = read("src/components/workspace/core/workspace-ui.tsx");
-const sliceUi = read("src/components/slice-ui.tsx");
 const emailPage = read("src/app/workspace/client-emails/page.tsx");
 
 let assertions = 0;
 
-assert.match(layout, /data-slice-theme="light"/);
-assert.match(layout, /slice-light-default-v1/);
-assert.match(layout, /mode:\s*"light"/);
+// Behavioral prepaint, migration, storage and hydration coverage lives in
+// neural-theme-runtime.test.mjs. Keep this older entry point as a focused
+// theme/Email Center integration smoke test for existing validation callers.
+assert.match(layout, /data-slice-theme="dark"/);
+assert.match(layout, /data-slice-brand="neural"/);
+assert.match(layout, /NEURAL_THEME_BOOTSTRAP/);
+assert.match(layout, /PlatformAppearance/);
 assert.match(layout, /WebVitalsReporter/);
 assert.match(layout, /ChunkRecovery/);
-assertions += 5;
+assert.doesNotMatch(layout, /slice-light-default-v1/);
+assertions += 7;
 
-assert.match(appearance, /mode:\s*"light"/);
-assert.match(appearance, /resolvedTheme:\s*"light"/);
-assert.match(appearance, /"dark",\s*"light",\s*"system"/);
+assert.match(bootstrap, /slice-neural-default-v1/);
+assert.match(bootstrap, /candidate === "light"/);
+assert.match(bootstrap, /candidate === "system"/);
+assert.match(appearance, /mode:\s*"dark"/);
+assert.match(appearance, /resolvedTheme:\s*"dark"/);
 assert.match(appearance, /dataset\.sliceAppearance/);
-assert.match(appearance, /LIGHT_DEFAULT_MIGRATION_KEY/);
-assertions += 5;
+assert.match(appearance, /resolveNeuralTheme/);
+assertions += 7;
 
-assert.match(globals, /--slice-page-bg:\s*#f7fcf9/);
-assert.match(globals, /html\[data-slice-theme="dark"\]/);
-assert.match(globals, /\.slice-panel/);
-assert.match(globals, /Legacy light-mode normalization/);
-assert.match(globals, /data-slice-color-lock/);
-assert.match(marketGreen, /html\[data-slice-theme="light"\] body/);
-assertions += 6;
-
-assert.match(shell, /DEFAULT_APPEARANCE[\s\S]*mode:\s*"light"/);
-assert.match(shell, /bg-\[var\(--slice-surface-strong\)\]/);
-assert.match(workspaceUi, /text-\[var\(--slice-heading\)\]/);
-assert.match(workspaceUi, /bg-\[var\(--slice-surface\)\]/);
-assert.match(sliceUi, /bg-\[var\(--slice-bg\)\]/);
-assert.match(sliceUi, /border-\[var\(--slice-border\)\]/);
-assertions += 6;
-
-assert.match(emailPage, /slice-email-center-light/);
+assert.match(emailPage, /slice-email-center/);
+assert.doesNotMatch(emailPage, /slice-email-center-light/);
+assertions += 1;
 assert.match(emailPage, /data-slice-color-lock="true"/);
 assert.match(emailPage, /email-scroll-region/);
 assert.match(emailPage, /AI Prompt/);
@@ -74,10 +63,10 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      test: "light-theme-email-center",
+      test: "neural-theme-email-center",
       assertions,
-      defaultTheme: "light",
-      optionalDarkMode: true,
+      defaultTheme: "dark",
+      optionalLightMode: true,
       emailCenterViewportCockpit: true,
     },
     null,

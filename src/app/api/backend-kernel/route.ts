@@ -6,12 +6,15 @@ import {
 } from "@/lib/access-control";
 import {
   getBackgroundJobMetrics,
+  getBackgroundJob,
+  backgroundJobEventVisibilityWhere,
   listBackgroundJobs,
   requestBackgroundJobCancellation,
   retryBackgroundJob,
 } from "@/lib/background-jobs/queue";
 import type { BackendContext } from "@/lib/backend/config";
 import { emitBackendEvent } from "@/lib/backend/events";
+import { assertAgentJobViewer, isAgentDeskJob, isAgentDeskFounder } from "@/lib/agent-desk/access";
 import {
   SUPPORTED_BACKGROUND_JOB_KEYS,
   enqueueBackendJob,
@@ -64,6 +67,7 @@ function assertJobPermission(access: AccessContext, jobKey: string) {
     });
   }
 
+  assertAgentJobViewer(access, { jobKey, userId: access.user.id, firmId: access.firm?.id ?? null });
   const permission = requiredPermissionForBackgroundJob(jobKey);
 
   if (permission && !hasFirmPermission(access, permission)) {
@@ -84,6 +88,7 @@ async function loadKernel(access: AccessContext) {
     userId: context.userId,
     firmId: context.firmId,
   };
+  const agentViewer = { userId: access.user.id, firmId: access.firm!.id, founder: isAgentDeskFounder(access.user.email) && access.user.platformStatus === "Active" && access.firm!.platformStatus === "Active" };
   const [
     vendors,
     flags,
@@ -109,7 +114,7 @@ async function loadKernel(access: AccessContext) {
       where: {
         ...scope,
         jobKey: {
-          in: [...SUPPORTED_BACKGROUND_JOB_KEYS],
+          in: SUPPORTED_BACKGROUND_JOB_KEYS.filter(key => !isAgentDeskJob(key) || agentViewer.founder),
         },
       },
       orderBy: [{ category: "asc" }, { jobName: "asc" }],
@@ -117,10 +122,11 @@ async function loadKernel(access: AccessContext) {
     }),
     listBackgroundJobs({
       ...scope,
+      agentViewer,
       limit: 30,
       includePayload: hasFirmPermission(access, "security.review"),
     }),
-    getBackgroundJobMetrics(scope),
+    getBackgroundJobMetrics({ ...scope, agentViewer }),
     prisma.backendOutboundDelivery.findMany({
       where: scope,
       orderBy: { createdAt: "desc" },
@@ -137,7 +143,7 @@ async function loadKernel(access: AccessContext) {
       take: 30,
     }),
     prisma.backendPlatformEvent.findMany({
-      where: scope,
+      where: { ...scope, ...(agentViewer.founder ? {} : backgroundJobEventVisibilityWhere()) },
       orderBy: { createdAt: "desc" },
       take: 40,
     }),
@@ -332,7 +338,7 @@ export const POST = withApiRoute(
       }
 
       const queued = await Promise.all(
-        SUPPORTED_BACKGROUND_JOB_KEYS.map((jobKey) =>
+        SUPPORTED_BACKGROUND_JOB_KEYS.filter(key => !isAgentDeskJob(key)).map((jobKey) =>
           enqueueBackendJob(context, jobKey, {
             idempotencyKey: `kernel-core:${jobKey}:${Math.floor(Date.now() / 60_000)}`,
           }),
@@ -347,6 +353,11 @@ export const POST = withApiRoute(
         },
         { status: 202 },
       );
+    }
+
+    if (action === "cancelJob" || action === "retryJob") {
+      const existing = await getBackgroundJob({ jobId: readText(body.jobId), userId: context.userId, firmId: context.firmId });
+      if (existing) assertAgentJobViewer(access, existing);
     }
 
     if (action === "cancelJob") {

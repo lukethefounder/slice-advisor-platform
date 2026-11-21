@@ -47,8 +47,16 @@ export type AlphaQuoteSnapshot = {
   previousClose: number;
   change: number;
   changePercent: number;
-  volume: number;
+  volume: number | null;
   latestTradingDay: string | null;
+  /** Observation time belongs to this price, never a separately fetched series. */
+  observedAt?: string | null;
+  sourceKind?: "global-quote" | "intraday-bar" | "native-index-daily";
+  interval?: AlphaIntradayInterval | null;
+  volumeScope?: "bar" | "daily";
+  /** Null means the numeric previous-close/change fields are neutral model sentinels. */
+  comparisonSource?: "global-quote-previous-close" | "global-quote-close" | "daily-history-close" | "native-index-prior-close" | null;
+  comparisonAsOf?: string | null;
 };
 
 export type AlphaIntradayBar = {
@@ -86,30 +94,32 @@ export type AlphaCompanyOverview = {
   country: string;
   sector: string;
   industry: string;
-  marketCap: number;
-  peRatio: number;
-  pegRatio: number;
-  bookValue: number;
-  dividendYield: number;
-  eps: number;
-  profitMargin: number;
-  operatingMargin: number;
-  returnOnAssets: number;
-  returnOnEquity: number;
-  quarterlyRevenueGrowthYOY: number;
-  quarterlyEarningsGrowthYOY: number;
-  analystTargetPrice: number;
-  beta: number;
-  week52High: number;
-  week52Low: number;
-  movingAverage50Day: number;
-  movingAverage200Day: number;
-  sharesOutstanding: number;
+  marketCap: number | null;
+  peRatio: number | null;
+  pegRatio: number | null;
+  bookValue: number | null;
+  dividendYield: number | null;
+  eps: number | null;
+  profitMargin: number | null;
+  operatingMargin: number | null;
+  returnOnAssets: number | null;
+  returnOnEquity: number | null;
+  quarterlyRevenueGrowthYOY: number | null;
+  quarterlyEarningsGrowthYOY: number | null;
+  analystTargetPrice: number | null;
+  beta: number | null;
+  week52High: number | null;
+  week52Low: number | null;
+  movingAverage50Day: number | null;
+  movingAverage200Day: number | null;
+  sharesOutstanding: number | null;
   latestQuarter: string | null;
 };
 
 export type AlphaTechnicalSnapshot = {
   historyPointCount: number;
+  /** Date of the newest observed daily bar; this is not the quote or retrieval time. */
+  historyAsOf?: string | null;
   sma20: number | null;
   sma50: number | null;
   sma200: number | null;
@@ -126,10 +136,12 @@ export type AlphaTechnicalSnapshot = {
   volumeTrendPercent: number | null;
   /** Backward-compatible volume-trend alias. */
   volumeTrend: number | null;
-  trendScore: number;
-  momentumScore: number;
-  riskScore: number;
-  volumeScore: number;
+  trendScore: number | null;
+  momentumScore: number | null;
+  riskScore: number | null;
+  volumeScore: number | null;
+  /** Fraction of original component weight supported by actual measurements. */
+  componentCoverage?: { trend: number; momentum: number; risk: number; volume: number };
   technicalSummary: string;
 };
 
@@ -147,9 +159,14 @@ export type AlphaNewsItem = {
   tickerSentimentScore: number;
   tickerSentimentLabel: string;
   topics: string[];
+  sentimentBasis?: "provider-ticker" | "provider-overall-index-context";
+  /** Original provider response collection time; cache reads do not advance it. */
+  retrievedAt?: string;
 };
 
 export type AlphaNewsSnapshot = {
+  /** Latest original provider collection time; cache reads do not advance it. */
+  retrievedAt?: string;
   articleCount: number;
   latestPublishedAt: string | null;
   averageSentiment: number;
@@ -157,6 +174,26 @@ export type AlphaNewsSnapshot = {
   averageRelevance: number;
   latestTitle: string;
   items: AlphaNewsItem[];
+};
+
+export type AlphaProviderIssueCode =
+  | "rate_limited"
+  | "entitlement_required"
+  | "not_configured"
+  | "unsupported"
+  | "timeout"
+  | "provider_error"
+  | "transport_error"
+  | "invalid_response";
+
+export type AlphaNewsQueryDiagnostic = {
+  query: string;
+  status: "ready" | "empty" | AlphaProviderIssueCode;
+  message: string;
+  cacheState: AlphaCacheState;
+  retrievedAt: string | null;
+  returnedItems: number;
+  acceptedItems: number;
 };
 
 export type AlphaFreshnessSnapshot = {
@@ -181,12 +218,16 @@ export type AlphaProviderHealth = {
   cache: Record<string, AlphaCacheState>;
   errors: Record<string, string>;
   warnings: string[];
+  newsDiagnostics?: AlphaNewsQueryDiagnostic[];
+  /** Original successful provider fetch time for each endpoint, including cache hits. */
+  retrievedAt?: Record<string, string>;
 };
 
 export type AlphaVantageIntelligenceResponse = {
   schemaVersion: "slice-alpha-intelligence-3.0.0";
   ok: boolean;
   symbol: string;
+  instrument?: import("./research-instrument").ResearchInstrumentIdentity;
   provider: "Alpha Vantage";
   retrievedAt: string;
   /** Backward-compatible alias for retrieval time. */

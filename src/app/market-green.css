@@ -1,733 +1,471 @@
-:root {
-  /*
-   * Preserve the market-green migration for older red utility references.
-   */
-  --color-red-50: var(--color-emerald-50);
-  --color-red-100: var(--color-emerald-100);
-  --color-red-200: var(--color-emerald-200);
-  --color-red-300: var(--color-emerald-300);
-  --color-red-400: var(--color-emerald-400);
-  --color-red-500: var(--color-emerald-500);
-  --color-red-600: var(--color-emerald-600);
-  --color-red-700: var(--color-emerald-700);
-  --color-red-800: var(--color-emerald-800);
-  --color-red-900: var(--color-emerald-900);
-  --color-red-950: var(--color-emerald-950);
-
-  --slice-market-green: #16a36f;
-  --slice-market-green-bright: #34d399;
-  --slice-market-green-deep: #07533c;
-  --slice-market-lime: #65a30d;
-  --slice-market-cyan: #0891b2;
-
-  /*
-   * Higher-contrast light-theme values.
-   */
-  --slice-text: #12382c;
-  --slice-heading: #031f17;
-  --slice-muted: #3f5f53;
-  --slice-subtle: #587166;
-
-  --slice-surface: rgba(255, 255, 255, 0.95);
-  --slice-surface-strong: #ffffff;
-  --slice-surface-muted: #eef8f2;
-  --slice-panel: rgba(247, 252, 249, 0.97);
-  --slice-input: #ffffff;
-
-  --slice-border: rgba(7, 83, 60, 0.18);
-  --slice-border-strong: rgba(7, 101, 69, 0.34);
-  --slice-shadow: rgba(6, 70, 48, 0.14);
-
-  --slice-green-text: #075f43;
-  --slice-cyan-text: #075f73;
-  --slice-amber-text: #7a4705;
-  --slice-rose-text: #a30d35;
-  --slice-violet-text: #5b21b6;
-  --slice-slate-text: #3f5665;
-}
-
-html[data-slice-theme="dark"],
-html[data-slice-appearance="dark"] {
-  /*
-   * Higher-contrast dark-theme values.
-   */
-  --slice-text: #eefbf5;
-  --slice-heading: #ffffff;
-  --slice-muted: #b8c8c0;
-  --slice-subtle: #94a69d;
-
-  --slice-surface: rgba(4, 14, 10, 0.95);
-  --slice-surface-strong: #020806;
-  --slice-surface-muted: #091710;
-  --slice-panel: rgba(7, 20, 14, 0.97);
-  --slice-input: rgba(0, 0, 0, 0.5);
-
-  --slice-border: rgba(255, 255, 255, 0.14);
-  --slice-border-strong: rgba(52, 211, 153, 0.32);
-  --slice-shadow: rgba(0, 0, 0, 0.42);
-
-  --slice-green-text: #a7f3d0;
-  --slice-cyan-text: #a5f3fc;
-  --slice-amber-text: #fde68a;
-  --slice-rose-text: #fecdd3;
-  --slice-violet-text: #ddd6fe;
-  --slice-slate-text: #d0d9e2;
-}
-
-html {
-  accent-color: var(--slice-accent, var(--slice-market-green));
-}
-
-html[data-slice-theme="light"] body,
-html[data-slice-appearance="light"] body {
-  background:
-    radial-gradient(
-      circle at 12% -6%,
-      rgba(16, 185, 129, 0.14),
-      transparent 31%
-    ),
-    radial-gradient(
-      circle at 88% 8%,
-      rgba(6, 182, 212, 0.075),
-      transparent 28%
-    ),
-    linear-gradient(
-      145deg,
-      #f9fdfb 0%,
-      #f2faf5 54%,
-      #e8f6ee 100%
-    );
-}
-
-html[data-slice-theme="dark"] body,
-html[data-slice-appearance="dark"] body {
-  background:
-    radial-gradient(
-      circle at 15% 0%,
-      rgba(16, 185, 129, 0.13),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 85% 15%,
-      rgba(34, 211, 238, 0.08),
-      transparent 28%
-    ),
-    #020604;
-}
-
-::selection {
-  background: rgba(52, 211, 153, 0.28);
-  color: var(--slice-heading);
-}
-
-*:focus-visible {
-  outline-color: color-mix(
-    in srgb,
-    var(--slice-accent) 84%,
-    white 6%
-  );
-}
-
 /*
- * The homepage and public blog are intentionally dark even when the user's
- * saved workspace theme is light. These attributes stop the light-theme
- * compatibility layer from recoloring white text as dark text.
+ * Legacy Tailwind color bridge. The palette is owned by neural-theme.css.
+ * Exact class tokens retain their real states; no substring selectors, palette
+ * aliases, !important declarations, chart fill/stroke, or image filters.
+ * Every target excludes color-locked content. Screen-only scope leaves print
+ * utilities untouched. New UI should use semantic Slice tokens directly.
  */
-[data-slice-color-lock][data-slice-tone="dark"],
-[data-slice-color-lock][data-slice-tone="dark"] * {
-  color-scheme: dark !important;
-}
+@media screen {
 
-/*
- * ------------------------------------------------------------
- * LIGHT-THEME READABILITY
- * ------------------------------------------------------------
- */
+  /* Neutral surfaces and distinct semantic status tones */
+  :where(.slice-app-theme) :is(
+      [class~="bg-amber-200"], [class~="bg-amber-300/15"], [class~="bg-amber-400/10"], [class~="bg-amber-400/14"],
+      [class~="bg-amber-400/[0.11]"], [class~="bg-amber-400/[0.1]"], [class~="bg-amber-50"], [class~="bg-amber-50/70"],
+      [class~="bg-amber-500/10"], [class~="bg-amber-500/20"], [class~="bg-amber-500/[0.04]"],
+      [class~="bg-amber-500/[0.055]"], [class~="bg-amber-500/[0.05]"], [class~="bg-amber-500/[0.06]"],
+      [class~="bg-amber-500/[0.07]"], [class~="bg-amber-500/[0.08]"], [class~="bg-amber-500/[0.09]"],
+      [class~="bg-amber-500/[0.10]"], [class~="bg-orange-400/10"], [class~="bg-orange-500/10"],
+      [class~="bg-orange-500/[0.055]"], [class~="bg-orange-500/[0.09]"], [class~="bg-orange-700/12"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-amber-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-black"], [class~="bg-black/90"], [class~="bg-white"], [class~="bg-white/70"], [class~="bg-white/75"],
+      [class~="bg-white/88"], [class~="bg-white/90"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface-strong); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-black/10"], [class~="bg-black/15"], [class~="bg-black/20"], [class~="bg-black/22"],
+      [class~="bg-black/24"], [class~="bg-black/25"], [class~="bg-black/28"], [class~="bg-black/30"],
+      [class~="bg-black/35"], [class~="bg-black/38"], [class~="bg-black/40"], [class~="bg-slate-100"],
+      [class~="bg-slate-50"], [class~="bg-white/10"], [class~="bg-white/12"], [class~="bg-white/20"],
+      [class~="bg-white/5"], [class~="bg-white/8"], [class~="bg-white/[0.025]"], [class~="bg-white/[0.028]"],
+      [class~="bg-white/[0.02]"], [class~="bg-white/[0.035]"], [class~="bg-white/[0.03]"], [class~="bg-white/[0.045]"],
+      [class~="bg-white/[0.04]"], [class~="bg-white/[0.052]"], [class~="bg-white/[0.055]"], [class~="bg-white/[0.05]"],
+      [class~="bg-white/[0.06]"], [class~="bg-white/[0.07]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface-muted); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-black/42"], [class~="bg-black/45"], [class~="bg-black/48"], [class~="bg-black/50"],
+      [class~="bg-black/52"], [class~="bg-black/55"], [class~="bg-black/56"], [class~="bg-black/58"],
+      [class~="bg-black/60"], [class~="bg-black/65"], [class~="bg-black/68"], [class~="bg-black/70"],
+      [class~="bg-black/72"], [class~="bg-black/75"], [class~="bg-black/76"], [class~="bg-black/80"],
+      [class~="bg-black/85"], [class~="bg-white/45"], [class~="bg-zinc-950/70"], [class~="bg-zinc-950/72"],
+      [class~="bg-zinc-950/75"], [class~="bg-zinc-950/76"], [class~="bg-zinc-950/78"], [class~="bg-zinc-950/82"],
+      [class~="bg-zinc-950/84"], [class~="bg-zinc-950/88"], [class~="bg-zinc-950/90"], [class~="bg-zinc-950/92"],
+      [class~="bg-zinc-950/95"], [class~="bg-zinc-950/96"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface-glass); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-blue-500/10"], [class~="bg-cyan-300/20"], [class~="bg-cyan-400/10"], [class~="bg-cyan-400/[0.055]"],
+      [class~="bg-cyan-400/[0.06]"], [class~="bg-cyan-400/[0.09]"], [class~="bg-cyan-400/[0.12]"], [class~="bg-cyan-50"],
+      [class~="bg-cyan-500/10"], [class~="bg-cyan-500/15"], [class~="bg-cyan-500/20"], [class~="bg-cyan-500/[0.045]"],
+      [class~="bg-cyan-500/[0.04]"], [class~="bg-cyan-500/[0.055]"], [class~="bg-cyan-500/[0.05]"],
+      [class~="bg-cyan-500/[0.06]"], [class~="bg-cyan-500/[0.07]"], [class~="bg-cyan-500/[0.08]"],
+      [class~="bg-cyan-500/[0.10]"], [class~="bg-cyan-600/8"], [class~="bg-sky-50"], [class~="bg-sky-500/10"],
+      [class~="bg-sky-500/[0.09]"], [class~="bg-teal-500/10"], [class~="bg-teal-500/[0.09]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-cyan-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-emerald-100"], [class~="bg-emerald-400/10"], [class~="bg-emerald-400/12"],
+      [class~="bg-emerald-400/[0.07]"], [class~="bg-emerald-400/[0.08]"], [class~="bg-emerald-400/[0.11]"],
+      [class~="bg-emerald-400/[0.15]"], [class~="bg-emerald-50"], [class~="bg-emerald-50/75"],
+      [class~="bg-emerald-500/10"], [class~="bg-emerald-500/12"], [class~="bg-emerald-500/14"],
+      [class~="bg-emerald-500/15"], [class~="bg-emerald-500/18"], [class~="bg-emerald-500/20"],
+      [class~="bg-emerald-500/25"], [class~="bg-emerald-500/5"], [class~="bg-emerald-500/[0.045]"],
+      [class~="bg-emerald-500/[0.055]"], [class~="bg-emerald-500/[0.05]"], [class~="bg-emerald-500/[0.06]"],
+      [class~="bg-emerald-500/[0.07]"], [class~="bg-emerald-500/[0.085]"], [class~="bg-emerald-500/[0.08]"],
+      [class~="bg-emerald-500/[0.09]"], [class~="bg-emerald-500/[0.10]"], [class~="bg-emerald-500/[0.1]"],
+      [class~="bg-emerald-600/10"], [class~="bg-emerald-600/22"], [class~="bg-emerald-700/24"],
+      [class~="bg-emerald-700/30"], [class~="bg-emerald-950/45"], [class~="bg-green-500/10"], [class~="bg-lime-500/7"],
+      [class~="bg-lime-500/[0.07]"], [class~="bg-lime-500/[0.09]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-green-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-purple-400/10"], [class~="bg-purple-500/10"], [class~="bg-purple-500/20"],
+      [class~="bg-purple-500/[0.08]"], [class~="bg-purple-700/12"], [class~="bg-violet-400/10"], [class~="bg-violet-50"],
+      [class~="bg-violet-500/10"], [class~="bg-violet-500/[0.07]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-violet-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-rose-400/10"], [class~="bg-rose-400/14"], [class~="bg-rose-50"], [class~="bg-rose-500/10"],
+      [class~="bg-rose-500/[0.07]"], [class~="bg-rose-500/[0.08]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-rose-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-slate-500/10"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-slate-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="bg-slate-950"], [class~="bg-zinc-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface); }
+  :where(.slice-app-theme) :is(
+      [class~="border-amber-200/20"], [class~="border-amber-300/15"], [class~="border-amber-300/18"],
+      [class~="border-amber-300/20"], [class~="border-amber-300/24"], [class~="border-amber-300/25"],
+      [class~="border-amber-300/28"], [class~="border-amber-300/30"], [class~="border-amber-300/35"],
+      [class~="border-amber-300/40"], [class~="border-amber-300/70"], [class~="border-amber-400/15"],
+      [class~="border-amber-400/18"], [class~="border-amber-400/20"], [class~="border-amber-400/25"],
+      [class~="border-amber-400/35"], [class~="border-amber-500/10"], [class~="border-amber-500/15"],
+      [class~="border-amber-500/20"], [class~="border-amber-500/25"], [class~="border-amber-500/30"],
+      [class~="border-amber-500/40"], [class~="border-amber-600/20"], [class~="border-amber-700/15"],
+      [class~="border-amber-700/20"], [class~="border-orange-400/20"], [class~="border-orange-400/25"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-amber-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-blue-400/25"], [class~="border-blue-500/20"], [class~="border-blue-500/25"],
+      [class~="border-blue-500/30"], [class~="border-blue-500/35"], [class~="border-cyan-300/16"],
+      [class~="border-cyan-300/18"], [class~="border-cyan-300/25"], [class~="border-cyan-300/30"],
+      [class~="border-cyan-300/45"], [class~="border-cyan-300/55"], [class~="border-cyan-400"],
+      [class~="border-cyan-400/14"], [class~="border-cyan-400/15"], [class~="border-cyan-400/16"],
+      [class~="border-cyan-400/18"], [class~="border-cyan-400/20"], [class~="border-cyan-400/22"],
+      [class~="border-cyan-400/25"], [class~="border-cyan-400/28"], [class~="border-cyan-400/50"],
+      [class~="border-cyan-500/10"], [class~="border-cyan-500/20"], [class~="border-cyan-500/25"],
+      [class~="border-cyan-500/30"], [class~="border-cyan-500/35"], [class~="border-cyan-500/40"],
+      [class~="border-cyan-600/20"], [class~="border-cyan-700/20"], [class~="border-cyan-700/25"],
+      [class~="border-sky-400/25"], [class~="border-sky-500/20"], [class~="border-sky-700/20"],
+      [class~="border-sky-700/25"], [class~="border-teal-400/25"], [class~="border-teal-500/20"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-cyan-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-emerald-100/10"], [class~="border-emerald-200/10"], [class~="border-emerald-200/12"],
+      [class~="border-emerald-300"], [class~="border-emerald-300/12"], [class~="border-emerald-300/14"],
+      [class~="border-emerald-300/15"], [class~="border-emerald-300/16"], [class~="border-emerald-300/18"],
+      [class~="border-emerald-300/20"], [class~="border-emerald-300/22"], [class~="border-emerald-300/24"],
+      [class~="border-emerald-300/25"], [class~="border-emerald-300/28"], [class~="border-emerald-300/30"],
+      [class~="border-emerald-300/35"], [class~="border-emerald-300/40"], [class~="border-emerald-300/[0.12]"],
+      [class~="border-emerald-400"], [class~="border-emerald-400/15"], [class~="border-emerald-400/16"],
+      [class~="border-emerald-400/18"], [class~="border-emerald-400/20"], [class~="border-emerald-400/22"],
+      [class~="border-emerald-400/24"], [class~="border-emerald-400/25"], [class~="border-emerald-400/30"],
+      [class~="border-emerald-400/35"], [class~="border-emerald-400/40"], [class~="border-emerald-400/45"],
+      [class~="border-emerald-500/10"], [class~="border-emerald-500/15"], [class~="border-emerald-500/20"],
+      [class~="border-emerald-500/25"], [class~="border-emerald-500/30"], [class~="border-emerald-500/35"],
+      [class~="border-emerald-500/40"], [class~="border-emerald-600/15"], [class~="border-emerald-700/15"],
+      [class~="border-emerald-700/20"], [class~="border-emerald-700/25"], [class~="border-emerald-700/35"],
+      [class~="border-emerald-800/20"], [class~="border-emerald-800/25"], [class~="border-emerald-900/10"],
+      [class~="border-emerald-950/10"], [class~="border-emerald-950/15"], [class~="border-green-500/25"],
+      [class~="border-green-500/30"], [class~="border-lime-300/18"], [class~="border-lime-500/20"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-green-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-purple-300/70"], [class~="border-purple-400/20"], [class~="border-purple-400/25"],
+      [class~="border-purple-500/25"], [class~="border-purple-500/30"], [class~="border-violet-300/28"],
+      [class~="border-violet-400/18"], [class~="border-violet-400/20"], [class~="border-violet-400/25"],
+      [class~="border-violet-500/25"], [class~="border-violet-500/30"], [class~="border-violet-600/20"],
+      [class~="border-violet-700/20"], [class~="border-violet-700/25"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-violet-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-rose-300/35"], [class~="border-rose-400/18"], [class~="border-rose-400/20"],
+      [class~="border-rose-400/25"], [class~="border-rose-500/25"], [class~="border-rose-500/30"],
+      [class~="border-rose-600/15"], [class~="border-rose-600/20"], [class~="border-rose-700/20"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-rose-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-slate-200"], [class~="border-slate-300"], [class~="border-slate-300/40"],
+      [class~="border-slate-500/20"], [class~="border-slate-500/25"], [class~="border-slate-500/30"],
+      [class~="border-white/10"], [class~="border-white/12"], [class~="border-white/14"], [class~="border-white/15"],
+      [class~="border-white/5"], [class~="border-white/6"], [class~="border-white/7"], [class~="border-white/8"],
+      [class~="border-white/[0.065]"], [class~="border-white/[0.09]"], [class~="border-white/[0.11]"],
+      [class~="border-white/[0.12]"], [class~="border-white/[0.13]"], [class~="border-white/[0.15]"],
+      [class~="border-white/[0.1]"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-border); }
+  :where(.slice-app-theme) :is(
+      [class~="border-slate-950/70"], [class~="border-white"], [class~="border-white/20"], [class~="border-white/25"],
+      [class~="border-white/35"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-border-strong); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-amber-500"], [class~="ring-amber-500/30"], [class~="ring-orange-500"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-amber-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-blue-500/30"], [class~="ring-cyan-400"], [class~="ring-cyan-400/30"], [class~="ring-cyan-500/30"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-cyan-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-emerald-400"], [class~="ring-emerald-400/40"], [class~="ring-emerald-500"],
+      [class~="ring-emerald-500/20"], [class~="ring-emerald-500/30"], [class~="ring-emerald-500/40"],
+      [class~="ring-emerald-500/60"], [class~="ring-emerald-700/20"], [class~="ring-emerald-950/10"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-green-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-purple-500/30"], [class~="ring-violet-500"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-violet-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-rose-500/20"], [class~="ring-rose-500/30"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-rose-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-slate-500/30"], [class~="ring-white/10"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-border); }
+  :where(.slice-app-theme) :is(
+      [class~="ring-white/40"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-border-strong); }
+  :where(.slice-app-theme) :is(
+      [class~="text-amber-100"], [class~="text-amber-100/70"], [class~="text-amber-100/75"], [class~="text-amber-100/80"],
+      [class~="text-amber-200"], [class~="text-amber-300"], [class~="text-amber-400"], [class~="text-amber-50"],
+      [class~="text-amber-50/70"], [class~="text-amber-50/80"], [class~="text-amber-800"], [class~="text-amber-900"],
+      [class~="text-amber-900/70"], [class~="text-amber-950"], [class~="text-orange-100"], [class~="text-orange-200"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-amber-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-blue-100"], [class~="text-blue-200"], [class~="text-blue-200/70"], [class~="text-blue-300"],
+      [class~="text-blue-400"], [class~="text-cyan-100"], [class~="text-cyan-100/70"], [class~="text-cyan-100/75"],
+      [class~="text-cyan-200"], [class~="text-cyan-200/70"], [class~="text-cyan-300"], [class~="text-cyan-300/65"],
+      [class~="text-cyan-300/70"], [class~="text-cyan-400"], [class~="text-cyan-50"], [class~="text-cyan-50/65"],
+      [class~="text-cyan-50/80"], [class~="text-cyan-700"], [class~="text-cyan-800"], [class~="text-cyan-950"],
+      [class~="text-sky-100"], [class~="text-sky-700"], [class~="text-sky-800"], [class~="text-sky-900"],
+      [class~="text-sky-950"], [class~="text-teal-100"], [class~="text-teal-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-cyan-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-emerald-100"], [class~="text-emerald-100/60"], [class~="text-emerald-100/75"],
+      [class~="text-emerald-200"], [class~="text-emerald-200/70"], [class~="text-emerald-300"],
+      [class~="text-emerald-400"], [class~="text-emerald-50"], [class~="text-emerald-50/75"],
+      [class~="text-emerald-50/80"], [class~="text-emerald-50/85"], [class~="text-emerald-500"],
+      [class~="text-emerald-600"], [class~="text-emerald-700"], [class~="text-emerald-800"], [class~="text-emerald-900"],
+      [class~="text-emerald-900/75"], [class~="text-emerald-950"], [class~="text-green-100"], [class~="text-green-400"],
+      [class~="text-lime-200"], [class~="text-lime-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-green-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-purple-100"], [class~="text-purple-200"], [class~="text-purple-200/70"], [class~="text-purple-300"],
+      [class~="text-purple-400"], [class~="text-purple-50"], [class~="text-violet-100"], [class~="text-violet-200"],
+      [class~="text-violet-300"], [class~="text-violet-400"], [class~="text-violet-700"], [class~="text-violet-800"],
+      [class~="text-violet-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-violet-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-rose-100"], [class~="text-rose-200"], [class~="text-rose-200/75"], [class~="text-rose-300"],
+      [class~="text-rose-50"], [class~="text-rose-700"], [class~="text-rose-800"], [class~="text-rose-900"],
+      [class~="text-rose-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-rose-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-slate-100"], [class~="text-slate-200"], [class~="text-slate-800"], [class~="text-slate-950"],
+      [class~="text-white"], [class~="text-zinc-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-heading); }
+  :where(.slice-app-theme) :is(
+      [class~="text-slate-300"], [class~="text-slate-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-text); }
+  :where(.slice-app-theme) :is(
+      [class~="text-slate-400"], [class~="text-slate-500"], [class~="text-slate-600"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-muted); }
+  :where(.slice-app-theme) :is(
+      [class~="text-white/40"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-subtle); }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-white"],
-  [class*="text-slate-50"],
-  [class*="text-slate-100"],
-  [class*="text-slate-200"],
-  [class*="text-slate-300"],
-  [class*="text-zinc-50"],
-  [class*="text-zinc-100"],
-  [class*="text-zinc-200"],
-  [class*="text-zinc-300"],
-  [class*="text-neutral-50"],
-  [class*="text-neutral-100"],
-  [class*="text-neutral-200"],
-  [class*="text-neutral-300"],
-  [class*="text-gray-50"],
-  [class*="text-gray-100"],
-  [class*="text-gray-200"],
-  [class*="text-gray-300"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: var(--slice-heading) !important;
-}
+  /* dark variants: applied only in their matching state */
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-amber-500/[0.07]"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-amber-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-cyan-500/10"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-cyan-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-emerald-500/[0.07]"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-green-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-rose-500/10"], [class~="dark:bg-rose-500/[0.07]"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-rose-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-violet-500/10"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-violet-bg); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:bg-white/10"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface-muted); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:border-amber-400/20"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-amber-border); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:border-cyan-400/25"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-cyan-border); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:border-emerald-400/20"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-green-border); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:border-rose-400/20"], [class~="dark:border-rose-400/25"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-rose-border); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:border-violet-400/25"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-violet-border); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:text-amber-100"], [class~="dark:text-amber-100/70"], [class~="dark:text-amber-200"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-amber-text); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:text-cyan-100"], [class~="dark:text-sky-200"], [class~="dark:text-teal-200"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-cyan-text); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:text-emerald-100"], [class~="dark:text-emerald-100/75"], [class~="dark:text-emerald-200"],
+      [class~="dark:text-lime-200"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-green-text); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:text-rose-100"], [class~="dark:text-rose-200"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-rose-text); }
+  :where(.slice-app-theme) :is(
+      [class~="dark:text-violet-100"], [class~="dark:text-violet-200"]
+    ):where(.dark, .dark *):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-violet-text); }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-slate-400"],
-  [class*="text-slate-500"],
-  [class*="text-slate-600"],
-  [class*="text-slate-700"],
-  [class*="text-zinc-400"],
-  [class*="text-zinc-500"],
-  [class*="text-zinc-600"],
-  [class*="text-zinc-700"],
-  [class*="text-neutral-400"],
-  [class*="text-neutral-500"],
-  [class*="text-neutral-600"],
-  [class*="text-neutral-700"],
-  [class*="text-gray-400"],
-  [class*="text-gray-500"],
-  [class*="text-gray-600"],
-  [class*="text-gray-700"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: var(--slice-muted) !important;
-}
+  /* md variants: applied only in their matching state */
+  @media (width >= 48rem) {
+  :where(.slice-app-theme) :is(
+      [class~="md:border-emerald-950/10"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-green-border); }
+  }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-slate-800"],
-  [class*="text-slate-900"],
-  [class*="text-slate-950"],
-  [class*="text-zinc-800"],
-  [class*="text-zinc-900"],
-  [class*="text-zinc-950"],
-  [class*="text-neutral-800"],
-  [class*="text-neutral-900"],
-  [class*="text-neutral-950"],
-  [class*="text-gray-800"],
-  [class*="text-gray-900"],
-  [class*="text-gray-950"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: var(--slice-heading) !important;
-}
+  /* placeholder variants: applied only in their matching state */
+  :where(.slice-app-theme) :is(
+      [class~="placeholder:text-slate-500"], [class~="placeholder:text-slate-600"], [class~="placeholder:text-slate-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *))::placeholder { color: var(--slice-subtle); }
 
-/*
- * Accent text and Lucide icons now use darker, readable equivalents on
- * light cards and light page surfaces.
- */
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-emerald-50"],
-  [class*="text-emerald-100"],
-  [class*="text-emerald-200"],
-  [class*="text-emerald-300"],
-  [class*="text-emerald-400"],
-  [class*="text-emerald-500"],
-  [class*="text-green-100"],
-  [class*="text-green-200"],
-  [class*="text-green-300"],
-  [class*="text-green-400"],
-  [class*="text-green-500"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: #075f43 !important;
-}
+  /* selection variants: applied only in their matching state */
+  :where(.slice-app-theme) :is(
+      [class~="selection:bg-emerald-400/30"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *))::selection { background-color: color-mix(in srgb, var(--slice-accent) 28%, transparent); }
+  :where(.slice-app-theme) :is(
+      [class~="selection:text-white"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *))::selection { color: var(--slice-heading); }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-cyan-100"],
-  [class*="text-cyan-200"],
-  [class*="text-cyan-300"],
-  [class*="text-cyan-400"],
-  [class*="text-cyan-500"],
-  [class*="text-sky-100"],
-  [class*="text-sky-200"],
-  [class*="text-sky-300"],
-  [class*="text-sky-400"],
-  [class*="text-sky-500"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: #075f73 !important;
-}
+  /* hover variants: applied only in their matching state */
+  @media (hover: hover) {
+  :where(.slice-app-theme) :is(
+      [class~="hover:bg-amber-500/12"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: color-mix(in srgb, var(--slice-amber-bg) 82%, var(--slice-amber-border) 18%); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:bg-cyan-100"], [class~="hover:bg-cyan-400/20"], [class~="hover:bg-cyan-400/[0.07]"],
+      [class~="hover:bg-cyan-500/20"], [class~="hover:bg-cyan-500/[0.08]"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: color-mix(in srgb, var(--slice-cyan-bg) 82%, var(--slice-cyan-border) 18%); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:bg-emerald-400/[0.12]"], [class~="hover:bg-emerald-50"], [class~="hover:bg-emerald-50/55"],
+      [class~="hover:bg-emerald-50/70"], [class~="hover:bg-emerald-500/10"], [class~="hover:bg-emerald-500/15"],
+      [class~="hover:bg-emerald-500/20"], [class~="hover:bg-emerald-500/[0.035]"], [class~="hover:bg-emerald-500/[0.045]"],
+      [class~="hover:bg-emerald-500/[0.04]"], [class~="hover:bg-emerald-500/[0.05]"],
+      [class~="hover:bg-emerald-500/[0.075]"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: color-mix(in srgb, var(--slice-green-bg) 82%, var(--slice-green-border) 18%); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:bg-purple-500/20"], [class~="hover:bg-purple-500/[0.13]"], [class~="hover:bg-violet-100"],
+      [class~="hover:bg-violet-400/10"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: color-mix(in srgb, var(--slice-violet-bg) 82%, var(--slice-violet-border) 18%); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:bg-white"], [class~="hover:bg-white/10"], [class~="hover:bg-white/20"],
+      [class~="hover:bg-white/[0.03]"], [class~="hover:bg-white/[0.045]"], [class~="hover:bg-white/[0.04]"],
+      [class~="hover:bg-white/[0.055]"], [class~="hover:bg-white/[0.05]"], [class~="hover:bg-white/[0.065]"],
+      [class~="hover:bg-white/[0.06]"], [class~="hover:bg-white/[0.075]"], [class~="hover:bg-white/[0.07]"],
+      [class~="hover:bg-white/[0.08]"], [class~="hover:bg-white/[0.09]"], [class~="hover:bg-white/[0.1]"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-surface-hover); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:border-cyan-300/30"], [class~="hover:border-cyan-300/35"], [class~="hover:border-cyan-400/30"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-cyan-border); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:border-emerald-200/18"], [class~="hover:border-emerald-300/16"],
+      [class~="hover:border-emerald-300/18"], [class~="hover:border-emerald-300/20"],
+      [class~="hover:border-emerald-300/24"], [class~="hover:border-emerald-300/28"],
+      [class~="hover:border-emerald-300/30"], [class~="hover:border-emerald-300/35"],
+      [class~="hover:border-emerald-400/20"], [class~="hover:border-emerald-400/25"],
+      [class~="hover:border-emerald-400/30"], [class~="hover:border-emerald-500/35"],
+      [class~="hover:border-emerald-500/40"], [class~="hover:border-emerald-700/25"],
+      [class~="hover:border-emerald-700/30"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-green-border); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:border-white/10"], [class~="hover:border-white/12"], [class~="hover:border-white/14"],
+      [class~="hover:border-white/15"], [class~="hover:border-white/16"], [class~="hover:border-white/8"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-border); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:border-white/20"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-border-strong); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:ring-emerald-400/30"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-green-border); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:text-amber-200"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-amber-text); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:text-cyan-100"], [class~="hover:text-cyan-200"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-cyan-text); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:text-emerald-100"], [class~="hover:text-emerald-200"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-green-text); }
+  :where(.slice-app-theme) :is(
+      [class~="hover:text-white"]
+    ):hover:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-heading); }
+  }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-amber-100"],
-  [class*="text-amber-200"],
-  [class*="text-amber-300"],
-  [class*="text-amber-400"],
-  [class*="text-amber-500"],
-  [class*="text-yellow-100"],
-  [class*="text-yellow-200"],
-  [class*="text-yellow-300"],
-  [class*="text-yellow-400"],
-  [class*="text-yellow-500"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: #7a4705 !important;
-}
+  /* group-hover variants: applied only in their matching state */
+  @media (hover: hover) {
+  :where(.slice-app-theme) :where(.group):hover :is(
+      [class~="group-hover:bg-emerald-100"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: color-mix(in srgb, var(--slice-green-bg) 82%, var(--slice-green-border) 18%); }
+  :where(.slice-app-theme) :where(.group):hover :is(
+      [class~="group-hover:text-emerald-200"], [class~="group-hover:text-emerald-300"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-green-text); }
+  :where(.slice-app-theme) :where(.group):hover :is(
+      [class~="group-hover:text-slate-500"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-muted); }
+  :where(.slice-app-theme) :where(.group):hover :is(
+      [class~="group-hover:text-white"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-heading); }
+  }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-rose-100"],
-  [class*="text-rose-200"],
-  [class*="text-rose-300"],
-  [class*="text-rose-400"],
-  [class*="text-rose-500"],
-  [class*="text-red-100"],
-  [class*="text-red-200"],
-  [class*="text-red-300"],
-  [class*="text-red-400"],
-  [class*="text-red-500"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: #a30d35 !important;
-}
+  /* focus variants: applied only in their matching state */
+  :where(.slice-app-theme) :is(
+      [class~="focus:border-emerald-300/40"], [class~="focus:border-emerald-400/40"],
+      [class~="focus:border-emerald-400/50"], [class~="focus:border-emerald-700/35"]
+    ):focus:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { border-color: var(--slice-accent-strong); }
+  :where(.slice-app-theme) :is(
+      [class~="focus:ring-emerald-400/15"], [class~="focus:ring-emerald-500/15"], [class~="focus:ring-emerald-500/20"],
+      [class~="focus:ring-emerald-600/15"]
+    ):focus:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-accent-strong); }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="text-violet-100"],
-  [class*="text-violet-200"],
-  [class*="text-violet-300"],
-  [class*="text-violet-400"],
-  [class*="text-violet-500"],
-  [class*="text-purple-100"],
-  [class*="text-purple-200"],
-  [class*="text-purple-300"],
-  [class*="text-purple-400"],
-  [class*="text-purple-500"],
-  [class*="text-indigo-100"],
-  [class*="text-indigo-200"],
-  [class*="text-indigo-300"],
-  [class*="text-indigo-400"],
-  [class*="text-indigo-500"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  color: #5b21b6 !important;
-}
+  /* focus-visible variants: applied only in their matching state */
+  :where(.slice-app-theme) :is(
+      [class~="focus-visible:ring-emerald-400/45"], [class~="focus-visible:ring-emerald-600/40"],
+      [class~="focus-visible:ring-emerald-600/45"]
+    ):focus-visible:not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { --tw-ring-color: var(--slice-accent-strong); }
 
-/*
- * Stronger card separation.
- */
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="border-white/"],
-  [class*="border-black/"],
-  [class*="border-slate-"],
-  [class*="border-zinc-"],
-  [class*="border-neutral-"],
-  [class*="border-gray-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  border-color: var(--slice-border) !important;
-}
+  /* Keep authored foregrounds on unchanged solid markers and legacy brand art. */
+  :where(.slice-app-theme) :is(
+      [class~="bg-amber-300"], [class~="bg-amber-400"], [class~="bg-amber-500"], [class~="bg-amber-600"],
+      [class~="bg-blue-400"], [class~="bg-cyan-400"], [class~="bg-cyan-500"], [class~="bg-cyan-600"],
+      [class~="bg-cyan-700"], [class~="bg-emerald-300"], [class~="bg-emerald-400"], [class~="bg-emerald-500"],
+      [class~="bg-emerald-600"], [class~="bg-emerald-700"], [class~="bg-lime-500"], [class~="bg-purple-400"],
+      [class~="bg-rose-400"], [class~="bg-rose-600"], [class~="bg-sky-500"], [class~="bg-sky-600"], [class~="bg-teal-500"],
+      [class~="bg-violet-500"], [class~="bg-violet-600"], [class~="bg-violet-700"],
+      :where([class~="from-emerald-500"][class~="to-emerald-900"])
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: revert-layer; }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="border-emerald-"],
-  [class*="border-green-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  border-color: var(--slice-border-strong) !important;
-}
+  /* Filled controls use an explicit foreground/background pair. Solid chart
+     markers and non-interactive artwork retain their original colors. */
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):is(
+      [class~="bg-blue-400"], [class~="bg-cyan-400"], [class~="bg-cyan-500"], [class~="bg-cyan-600"],
+      [class~="bg-cyan-700"], [class~="bg-emerald-300"], [class~="bg-emerald-400"], [class~="bg-emerald-500"],
+      [class~="bg-emerald-600"], [class~="bg-emerald-700"], [class~="bg-lime-500"], [class~="bg-purple-400"],
+      [class~="bg-sky-500"], [class~="bg-sky-600"], [class~="bg-teal-500"], [class~="bg-violet-500"],
+      [class~="bg-violet-600"], [class~="bg-violet-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)),
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):where([class~="bg-gradient-to-r"], [class~="bg-linear-to-r"]):is([class~="from-emerald-500"], [class~="from-emerald-600"]):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) {
+    background-color: var(--slice-primary-bg);
+    color: var(--slice-primary-text);
+    border-color: var(--slice-primary-border);
+  }
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):where([class~="bg-gradient-to-r"], [class~="bg-linear-to-r"]):is([class~="from-emerald-500"], [class~="from-emerald-600"]):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) {
+    background-image: linear-gradient(120deg, var(--slice-primary-bg), color-mix(in srgb, var(--slice-primary-bg) 90%, var(--slice-secondary) 10%));
+  }
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):is(
+      [class~="bg-blue-400"], [class~="bg-cyan-400"], [class~="bg-cyan-500"], [class~="bg-cyan-600"],
+      [class~="bg-cyan-700"], [class~="bg-emerald-300"], [class~="bg-emerald-400"], [class~="bg-emerald-500"],
+      [class~="bg-emerald-600"], [class~="bg-emerald-700"], [class~="bg-lime-500"], [class~="bg-purple-400"],
+      [class~="bg-sky-500"], [class~="bg-sky-600"], [class~="bg-teal-500"], [class~="bg-violet-500"],
+      [class~="bg-violet-600"], [class~="bg-violet-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) :is(
+      [class~="text-slate-100"], [class~="text-slate-200"], [class~="text-slate-300"], [class~="text-slate-400"],
+      [class~="text-slate-500"], [class~="text-slate-600"], [class~="text-slate-700"], [class~="text-slate-800"],
+      [class~="text-slate-950"], [class~="text-white"], [class~="text-white/40"], [class~="text-zinc-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)),
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):where([class~="bg-gradient-to-r"], [class~="bg-linear-to-r"]):is([class~="from-emerald-500"], [class~="from-emerald-600"]):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) :is(
+      [class~="text-slate-100"], [class~="text-slate-200"], [class~="text-slate-300"], [class~="text-slate-400"],
+      [class~="text-slate-500"], [class~="text-slate-600"], [class~="text-slate-700"], [class~="text-slate-800"],
+      [class~="text-slate-950"], [class~="text-white"], [class~="text-white/40"], [class~="text-zinc-950"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { color: var(--slice-primary-text); }
+  @media (hover: hover) {
+    :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):is(
+      [class~="bg-blue-400"], [class~="bg-cyan-400"], [class~="bg-cyan-500"], [class~="bg-cyan-600"],
+      [class~="bg-cyan-700"], [class~="bg-emerald-300"], [class~="bg-emerald-400"], [class~="bg-emerald-500"],
+      [class~="bg-emerald-600"], [class~="bg-emerald-700"], [class~="bg-lime-500"], [class~="bg-purple-400"],
+      [class~="bg-sky-500"], [class~="bg-sky-600"], [class~="bg-teal-500"], [class~="bg-violet-500"],
+      [class~="bg-violet-600"], [class~="bg-violet-700"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)):hover,
+    :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):where([class~="bg-gradient-to-r"], [class~="bg-linear-to-r"]):is([class~="from-emerald-500"], [class~="from-emerald-600"]):not(:where([data-slice-color-lock], [data-slice-color-lock] *)):hover { background-color: var(--slice-primary-hover); color: var(--slice-primary-text); }
+    :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):where([class~="bg-gradient-to-r"], [class~="bg-linear-to-r"]):is([class~="from-emerald-500"], [class~="from-emerald-600"]):not(:where([data-slice-color-lock], [data-slice-color-lock] *)):hover { background-image: linear-gradient(120deg, var(--slice-primary-hover), var(--slice-primary-bg)); }
+  }
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):is(
+      [class~="bg-amber-300"], [class~="bg-amber-400"], [class~="bg-amber-500"], [class~="bg-amber-600"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) {
+    background-color: var(--slice-amber-bg);
+    color: var(--slice-amber-text);
+    border-color: var(--slice-amber-border);
+  }
+  :where(.slice-app-theme) :where(button, a, [role="button"], input[type="submit"], input[type="button"]):is(
+      [class~="bg-rose-400"], [class~="bg-rose-600"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) {
+    background-color: var(--slice-rose-bg);
+    color: var(--slice-rose-text);
+    border-color: var(--slice-rose-border);
+  }
 
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="bg-white/"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  background-color: rgba(255, 255, 255, 0.92) !important;
-}
-
-html[data-slice-theme="light"] .slice-app-theme :where(
-  [class*="bg-black/"],
-  [class*="bg-zinc-950"],
-  [class*="bg-zinc-900"],
-  [class*="bg-slate-950"],
-  [class*="bg-slate-900"],
-  [class*="bg-neutral-950"],
-  [class*="bg-neutral-900"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  background-color: var(--slice-surface) !important;
-  color: var(--slice-text) !important;
-}
-
-html[data-slice-theme="light"] .slice-app-theme :where(
-  input,
-  textarea,
-  select
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  border-color: var(--slice-border) !important;
-  background-color: var(--slice-input) !important;
-  color: var(--slice-heading) !important;
-  caret-color: var(--slice-accent-dark) !important;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.8) inset,
-    0 0 0 1px rgba(7, 83, 60, 0.025);
-}
-
-html[data-slice-theme="light"] .slice-app-theme :where(
-  input,
-  textarea
-)::placeholder {
-  color: var(--slice-subtle) !important;
-  opacity: 1 !important;
-}
-
-html[data-slice-theme="light"] .slice-app-theme :where(
-  option
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  background: var(--slice-surface-strong);
-  color: var(--slice-heading);
-}
-
-html[data-slice-theme="light"] .slice-app-theme :where(
-  code
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) {
-  background: var(--slice-accent-soft);
-  color: var(--slice-accent-dark);
-}
-
-/*
- * Existing compatibility CSS made every emerald-background link white,
- * including very pale translucent emerald buttons. Soft emerald controls
- * should instead use dark green text.
- */
-html[data-slice-theme="light"] .slice-app-theme :where(
-  button[class*="bg-emerald-"],
-  a[class*="bg-emerald-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-),
-html[data-slice-theme="light"] .slice-app-theme :where(
-  button[class*="bg-emerald-"],
-  a[class*="bg-emerald-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) * {
-  color: var(--slice-accent-dark) !important;
-}
-
-/*
- * Solid, filled actions retain white foregrounds.
- */
-html[data-slice-theme="light"] .slice-app-theme :is(
-  button[class~="bg-emerald-500"],
-  button[class~="bg-emerald-600"],
-  button[class~="bg-emerald-700"],
-  button[class~="bg-emerald-800"],
-  button[class~="bg-emerald-900"],
-  button[class~="bg-emerald-950"],
-  a[class~="bg-emerald-500"],
-  a[class~="bg-emerald-600"],
-  a[class~="bg-emerald-700"],
-  a[class~="bg-emerald-800"],
-  a[class~="bg-emerald-900"],
-  a[class~="bg-emerald-950"],
-  button[class~="bg-cyan-600"],
-  button[class~="bg-cyan-700"],
-  button[class~="bg-cyan-800"],
-  button[class~="bg-cyan-900"],
-  a[class~="bg-cyan-600"],
-  a[class~="bg-cyan-700"],
-  a[class~="bg-cyan-800"],
-  a[class~="bg-cyan-900"],
-  button[class~="bg-blue-600"],
-  button[class~="bg-blue-700"],
-  button[class~="bg-blue-800"],
-  button[class~="bg-blue-900"],
-  a[class~="bg-blue-600"],
-  a[class~="bg-blue-700"],
-  a[class~="bg-blue-800"],
-  a[class~="bg-blue-900"],
-  button[class~="bg-violet-600"],
-  button[class~="bg-violet-700"],
-  button[class~="bg-violet-800"],
-  button[class~="bg-violet-900"],
-  a[class~="bg-violet-600"],
-  a[class~="bg-violet-700"],
-  a[class~="bg-violet-800"],
-  a[class~="bg-violet-900"],
-  button[class~="bg-rose-600"],
-  button[class~="bg-rose-700"],
-  button[class~="bg-rose-800"],
-  button[class~="bg-rose-900"],
-  a[class~="bg-rose-600"],
-  a[class~="bg-rose-700"],
-  a[class~="bg-rose-800"],
-  a[class~="bg-rose-900"],
-  button[class*="from-emerald-"],
-  a[class*="from-emerald-"],
-  button[class*="from-cyan-"],
-  a[class*="from-cyan-"],
-  button[class*="from-blue-"],
-  a[class*="from-blue-"],
-  button[class*="from-violet-"],
-  a[class*="from-violet-"],
-  button[class*="from-rose-"],
-  a[class*="from-rose-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-),
-html[data-slice-theme="light"] .slice-app-theme :is(
-  button[class~="bg-emerald-500"],
-  button[class~="bg-emerald-600"],
-  button[class~="bg-emerald-700"],
-  button[class~="bg-emerald-800"],
-  button[class~="bg-emerald-900"],
-  button[class~="bg-emerald-950"],
-  a[class~="bg-emerald-500"],
-  a[class~="bg-emerald-600"],
-  a[class~="bg-emerald-700"],
-  a[class~="bg-emerald-800"],
-  a[class~="bg-emerald-900"],
-  a[class~="bg-emerald-950"],
-  button[class~="bg-cyan-600"],
-  button[class~="bg-cyan-700"],
-  button[class~="bg-cyan-800"],
-  button[class~="bg-cyan-900"],
-  a[class~="bg-cyan-600"],
-  a[class~="bg-cyan-700"],
-  a[class~="bg-cyan-800"],
-  a[class~="bg-cyan-900"],
-  button[class~="bg-blue-600"],
-  button[class~="bg-blue-700"],
-  button[class~="bg-blue-800"],
-  button[class~="bg-blue-900"],
-  a[class~="bg-blue-600"],
-  a[class~="bg-blue-700"],
-  a[class~="bg-blue-800"],
-  a[class~="bg-blue-900"],
-  button[class~="bg-violet-600"],
-  button[class~="bg-violet-700"],
-  button[class~="bg-violet-800"],
-  button[class~="bg-violet-900"],
-  a[class~="bg-violet-600"],
-  a[class~="bg-violet-700"],
-  a[class~="bg-violet-800"],
-  a[class~="bg-violet-900"],
-  button[class~="bg-rose-600"],
-  button[class~="bg-rose-700"],
-  button[class~="bg-rose-800"],
-  button[class~="bg-rose-900"],
-  a[class~="bg-rose-600"],
-  a[class~="bg-rose-700"],
-  a[class~="bg-rose-800"],
-  a[class~="bg-rose-900"],
-  button[class*="from-emerald-"],
-  a[class*="from-emerald-"],
-  button[class*="from-cyan-"],
-  a[class*="from-cyan-"],
-  button[class*="from-blue-"],
-  a[class*="from-blue-"],
-  button[class*="from-violet-"],
-  a[class*="from-violet-"],
-  button[class*="from-rose-"],
-  a[class*="from-rose-"]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) * {
-  color: #ffffff !important;
-}
-
-/*
- * A gradient using an explicitly tiny arbitrary opacity is a soft control,
- * not a solid primary control.
- */
-html[data-slice-theme="light"] .slice-app-theme :where(
-  button[class*="from-emerald-"][class*="/[0."],
-  a[class*="from-emerald-"][class*="/[0."]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-),
-html[data-slice-theme="light"] .slice-app-theme :where(
-  button[class*="from-emerald-"][class*="/[0."],
-  a[class*="from-emerald-"][class*="/[0."]
-):not(
-  [data-slice-color-lock],
-  [data-slice-color-lock] *
-) * {
-  color: var(--slice-accent-dark) !important;
-}
-
-/*
- * ------------------------------------------------------------
- * DARK-THEME AND INTENTIONALLY DARK PAGE READABILITY
- * ------------------------------------------------------------
- */
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-slate-700"],
-  [class*="text-zinc-700"],
-  [class*="text-neutral-700"],
-  [class*="text-gray-700"]
-) {
-  color: #8fa49a !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-slate-600"],
-  [class*="text-zinc-600"],
-  [class*="text-neutral-600"],
-  [class*="text-gray-600"]
-) {
-  color: #9fb2a8 !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-slate-500"],
-  [class*="text-zinc-500"],
-  [class*="text-neutral-500"],
-  [class*="text-gray-500"]
-) {
-  color: #b0beb7 !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-slate-400"],
-  [class*="text-slate-300"],
-  [class*="text-zinc-400"],
-  [class*="text-zinc-300"],
-  [class*="text-neutral-400"],
-  [class*="text-neutral-300"],
-  [class*="text-gray-400"],
-  [class*="text-gray-300"]
-) {
-  color: #cad5cf !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-emerald-100"],
-  [class*="text-emerald-200"],
-  [class*="text-emerald-300"],
-  [class*="text-emerald-400"],
-  [class*="text-emerald-500"],
-  [class*="text-green-100"],
-  [class*="text-green-200"],
-  [class*="text-green-300"],
-  [class*="text-green-400"],
-  [class*="text-green-500"]
-) {
-  color: #a7f3d0 !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-cyan-100"],
-  [class*="text-cyan-200"],
-  [class*="text-cyan-300"],
-  [class*="text-cyan-400"],
-  [class*="text-cyan-500"],
-  [class*="text-sky-100"],
-  [class*="text-sky-200"],
-  [class*="text-sky-300"],
-  [class*="text-sky-400"],
-  [class*="text-sky-500"]
-) {
-  color: #a5f3fc !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="text-amber-100"],
-  [class*="text-amber-200"],
-  [class*="text-amber-300"],
-  [class*="text-amber-400"],
-  [class*="text-rose-100"],
-  [class*="text-rose-200"],
-  [class*="text-rose-300"],
-  [class*="text-rose-400"],
-  [class*="text-violet-100"],
-  [class*="text-violet-200"],
-  [class*="text-violet-300"],
-  [class*="text-violet-400"]
-) {
-  filter: saturate(1.05) brightness(1.08);
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  [class*="border-white/"]
-) {
-  border-color: rgba(255, 255, 255, 0.14) !important;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  input,
-  textarea,
-  select
-) {
-  color: #f1fbf6;
-}
-
-:is(
-  html[data-slice-theme="dark"] .slice-app-theme,
-  html[data-slice-appearance="dark"] .slice-app-theme,
-  [data-slice-color-lock][data-slice-tone="dark"]
-) :where(
-  input,
-  textarea
-)::placeholder {
-  color: #94a69d !important;
-  opacity: 1 !important;
+  /* Only full-screen fixed overlays use the scrim token; cards stay surfaces. */
+  :where(.slice-app-theme) :where([class~="fixed"][class~="inset-0"]):is(
+      [class~="bg-black"], [class~="bg-black/10"], [class~="bg-black/15"], [class~="bg-black/20"], [class~="bg-black/22"],
+      [class~="bg-black/24"], [class~="bg-black/25"], [class~="bg-black/28"], [class~="bg-black/30"],
+      [class~="bg-black/35"], [class~="bg-black/38"], [class~="bg-black/40"], [class~="bg-black/42"],
+      [class~="bg-black/45"], [class~="bg-black/48"], [class~="bg-black/50"], [class~="bg-black/52"],
+      [class~="bg-black/55"], [class~="bg-black/56"], [class~="bg-black/58"], [class~="bg-black/60"],
+      [class~="bg-black/65"], [class~="bg-black/68"], [class~="bg-black/70"], [class~="bg-black/72"],
+      [class~="bg-black/75"], [class~="bg-black/76"], [class~="bg-black/80"], [class~="bg-black/85"],
+      [class~="bg-black/90"]
+    ):not(:where([data-slice-color-lock], [data-slice-color-lock] *)) { background-color: var(--slice-overlay); }
 }

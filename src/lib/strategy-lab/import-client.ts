@@ -1,5 +1,6 @@
 import type { DatasetManifest } from "./contracts";
 import { blocksImportQueue } from "./import-errors";
+import { applicationRequestTimeout } from "@/lib/research/beta-client";
 export type ImportState = { symbol: string; state: "pending" | "loading" | "ready" | "cached" | "failed"; dataset?: DatasetManifest; code?: string; message?: string; retryAt?: string };
 export class ImportRequestError extends Error {
   constructor(public code: string, message: string, public retryAfterSeconds = 0) { super(message); }
@@ -8,7 +9,8 @@ export async function researchPost<T>(path: string, body: unknown, timeoutMs = 8
   const controller = new AbortController();
   const onAbort = () => controller.abort(); signal?.addEventListener("abort", onAbort, { once: true });
   if (signal?.aborted) controller.abort();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const limit = applicationRequestTimeout(timeoutMs);
+  const timer = limit > 0 ? setTimeout(() => controller.abort(new DOMException("Request timed out.", "TimeoutError")), limit) : undefined;
   try {
     const response = await request(path, { method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
     const payload: unknown = await response.json();
@@ -16,7 +18,7 @@ export async function researchPost<T>(path: string, body: unknown, timeoutMs = 8
     const value = payload as Record<string, unknown>;
     if (!response.ok) { const retry = Number(response.headers.get("retry-after") || value.retryAfterSeconds || 0); throw new ImportRequestError(typeof value.code === "string" ? value.code : `HTTP_${response.status}`, typeof value.error === "string" ? value.error : typeof value.message === "string" ? value.message : "Research request failed.", Number.isFinite(retry) ? Math.max(0, retry) : 0); }
     return payload as T;
-  } finally { clearTimeout(timer); signal?.removeEventListener("abort", onAbort); }
+  } finally { if (timer !== undefined) clearTimeout(timer); signal?.removeEventListener("abort", onAbort); }
 }
 export async function importHistoryQueue(input: { symbols: string[]; force: boolean; cancelled: () => boolean; onState: (s: ImportState) => void;
   onDataset: (d: DatasetManifest) => void; request?: typeof fetch; signal?: AbortSignal }) {

@@ -234,10 +234,10 @@ function CapabilityAside() {
     <PublicSurface className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-800">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
             Four connected systems
           </div>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             Broad capability without a crowded public entry page.
           </h2>
         </div>
@@ -255,10 +255,10 @@ function CapabilityAside() {
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
                   System {group.number}
                 </div>
-                <div className="mt-0.5 text-sm font-black text-[var(--slice-heading)]">
+                <div className="mt-0.5 text-sm font-semibold text-[var(--slice-heading)]">
                   {group.label}
                 </div>
               </div>
@@ -301,10 +301,10 @@ export default function CapabilitiesPage() {
                     <GroupIcon className="h-6 w-6" />
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.19em] text-emerald-800">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.19em] text-emerald-800">
                       System {group.number} · {group.label}
                     </div>
-                    <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-[var(--slice-heading)]">
+                    <h2 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-[var(--slice-heading)]">
                       {group.title}
                     </h2>
                     <p className="mt-3 max-w-4xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -332,12 +332,12 @@ export default function CapabilitiesPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-3">
-                              <h3 className="text-xl font-black tracking-[-0.035em] text-[var(--slice-heading)]">
+                              <h3 className="text-xl font-semibold tracking-[-0.035em] text-[var(--slice-heading)]">
                                 {item.title}
                               </h3>
                               <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-emerald-700 transition-transform group-hover:translate-x-1" />
                             </div>
-                            <p className="mt-2 text-sm font-black leading-6 text-[var(--slice-text)]">
+                            <p className="mt-2 text-sm font-semibold leading-6 text-[var(--slice-text)]">
                               {item.description}
                             </p>
                             <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-muted)]">
@@ -370,7 +370,7 @@ export default function CapabilitiesPage() {
               <TrustLine>Live provider requests happen only where they add value.</TrustLine>
               <TrustLine>Governance, evidence, and firm context still travel across workflows.</TrustLine>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-900">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-900">
               <CheckCircle2 className="h-4 w-4" />
               Clearer product architecture
             </div>

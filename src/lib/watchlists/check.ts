@@ -44,7 +44,6 @@ type IntelligenceCacheEntry = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __sliceWatchlistIntelligenceCache:
     | Map<string, IntelligenceCacheEntry>
     | undefined;
@@ -192,17 +191,17 @@ function metricMap(
     "last-price": observed(
       quote?.price,
       compact(quote?.price ?? null),
-      "Alpha Vantage quote",
+      quote?.sourceKind === "intraday-bar" ? `Alpha Vantage ${quote.interval ?? "intraday"} bar close` : "Alpha Vantage quote",
     ),
     "change-pct": observed(
-      quote?.changePercent,
-      compact(quote?.changePercent ?? null, "%"),
-      "Alpha Vantage quote",
+      quote?.comparisonSource === null ? null : quote?.changePercent,
+      compact(quote?.comparisonSource === null ? null : quote?.changePercent ?? null, "%"),
+      quote?.comparisonSource === null ? "Prior-session comparison unavailable" : "Alpha Vantage observed price comparison",
     ),
     volume: observed(
       quote?.volume,
       compact(quote?.volume ?? null),
-      "Alpha Vantage quote",
+      quote?.volumeScope === "bar" ? `Alpha Vantage ${quote.interval ?? "intraday"} bar volume` : "Alpha Vantage daily volume",
     ),
     "avg-volume": observed(
       avgVolume,
@@ -240,8 +239,8 @@ function metricMap(
       "Alpha Vantage company overview",
     ),
     "dividend-yield": observed(
-      overview ? overview.dividendYield * 100 : null,
-      compact(overview ? overview.dividendYield * 100 : null, "%"),
+      overview?.dividendYield != null ? overview.dividendYield * 100 : null,
+      compact(overview?.dividendYield != null ? overview.dividendYield * 100 : null, "%"),
       "Alpha Vantage company overview",
     ),
     "news-score": observed(

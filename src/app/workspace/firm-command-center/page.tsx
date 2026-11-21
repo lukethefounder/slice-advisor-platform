@@ -146,7 +146,7 @@ const tabs: Array<[View, string, string, Tone]> = [
 ];
 
 const toneClasses: Record<Tone, string> = {
-  red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
+  red: "border-rose-500/25 bg-rose-500/10 text-rose-100",
   green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100",
   amber: "border-amber-500/25 bg-amber-500/10 text-amber-100",
   purple: "border-purple-500/25 bg-purple-500/10 text-purple-100",
@@ -564,7 +564,7 @@ function GlassPanel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/20",
+    red: "from-rose-500/20",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",
@@ -611,7 +611,7 @@ function MetricCard({
 
 function ProgressBar({ value, tone = "green" }: { value: number; tone?: Tone }) {
   const colors: Record<Tone, string> = {
-    red: "from-emerald-500 to-emerald-800",
+    red: "from-rose-500 to-rose-800",
     green: "from-emerald-400 to-emerald-700",
     amber: "from-amber-400 to-amber-700",
     purple: "from-purple-400 to-purple-800",

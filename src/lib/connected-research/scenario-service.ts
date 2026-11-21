@@ -98,8 +98,12 @@ export async function archiveScenario(scope: Scope, body: Record<string, unknown
   return id;
 }
 /** No provider I/O inside the transaction; version CAS and journal insert are committed together. */
-export async function advanceScenario(scope: Scope, rawId: unknown) {
+export async function advanceScenario(scope: Scope, rawId: unknown, lease?: { expiresAt: Date; cycleStart: Date }) {
   const row = await owned(scope, idOf(rawId));
+  const leaseWhere = lease ? { nextCheckAt: lease.expiresAt, refreshStartedAt: lease.cycleStart } : {};
+  if (lease && (row.nextCheckAt?.getTime() !== lease.expiresAt.getTime() || row.refreshStartedAt?.getTime() !== lease.cycleStart.getTime())) {
+    throw new StrategyError("SCENARIO_LEASE_LOST", "Another worker owns this observation cycle.", 409);
+  }
   if (row.status !== "Watching") throw new StrategyError("NOT_WATCHING", "Only an active forward scenario accepts new observations.", 409);
   const spec = unpack<StrategySpec>(row.specJson), assumptions = unpack<ScenarioAssumptions>(row.assumptionsJson);
   if (!row.journalJson || !row.journalHash) throw new StrategyError("JOURNAL_MISSING", "The frozen observation journal is missing.", 409);
@@ -113,7 +117,8 @@ export async function advanceScenario(scope: Scope, rawId: unknown) {
     const appended = appendObservations(spec, journal, datasets);
     const result = replayForward(spec, appended, assumptions.targetSessions, prior);
     if (!result || result.acceptedSessions === row.acceptedSessions) {
-      await prisma.sliceForwardScenario.updateMany({ where: { ...scope, id: row.id, version: row.version, status: "Watching" }, data: { lastCheckedAt: new Date(), refreshStartedAt: null, lastError: null, nextCheckAt: new Date(Date.now() + 6 * 3600000) } });
+      const updated = await prisma.sliceForwardScenario.updateMany({ where: { ...scope, ...leaseWhere, id: row.id, version: row.version, status: "Watching" }, data: { lastCheckedAt: new Date(), refreshStartedAt: null, lastError: null, nextCheckAt: new Date(Date.now() + (researchBetaEnabled(process.env) ? 1 : 6) * 3600000) } });
+      if (updated.count !== 1) throw new StrategyError("UPDATE_CONFLICT", "Another worker already updated this scenario.", 409);
       return { id: row.id, appendedSessions: 0, message: "No additional complete eligible session is available. Prior results were preserved." };
     }
     const resultJson = JSON.stringify(result), journalJson = JSON.stringify(appended), sourcesJson = JSON.stringify(appended.sources);
@@ -128,14 +133,14 @@ export async function advanceScenario(scope: Scope, rawId: unknown) {
       const item = { id: randomUUID(), ...scope, scenarioId: row.id, sessionDate: point.date, payloadJson, previousHash, recordHash }; previousHash = recordHash; return item;
     });
     await prisma.$transaction(async tx => {
-      const changed = await tx.sliceForwardScenario.updateMany({ where: { ...scope, id: row.id, version: row.version, status: "Watching" }, data: { resultJson, resultHash: digest(resultJson), journalJson, journalHash: digest(journalJson), sourcesJson, sourcesHash: digest(sourcesJson), ignoredAdjustedRevisions: appended.ignoredAdjustedRevisions, acceptedSessions: result.acceptedSessions, lastSession: result.throughDate, status: result.complete ? "Complete" : "Watching", version: { increment: 1 }, lastCheckedAt: new Date(), refreshStartedAt: null, nextCheckAt: new Date(Date.now() + 6 * 3600000), lastError: null } });
+      const changed = await tx.sliceForwardScenario.updateMany({ where: { ...scope, ...leaseWhere, id: row.id, version: row.version, status: "Watching" }, data: { resultJson, resultHash: digest(resultJson), journalJson, journalHash: digest(journalJson), sourcesJson, sourcesHash: digest(sourcesJson), ignoredAdjustedRevisions: appended.ignoredAdjustedRevisions, acceptedSessions: result.acceptedSessions, lastSession: result.throughDate, status: result.complete ? "Complete" : "Watching", version: { increment: 1 }, lastCheckedAt: new Date(), refreshStartedAt: null, nextCheckAt: new Date(Date.now() + (researchBetaEnabled(process.env) ? 1 : 6) * 3600000), lastError: null } });
       if (changed.count !== 1) throw new StrategyError("UPDATE_CONFLICT", "Another worker updated this scenario. Reload; no duplicate observation was committed.", 409);
       await tx.sliceScenarioObservation.createMany({ data: observations });
     }, { timeout: 15000 });
     return { id: row.id, appendedSessions: points.length, message: `${points.length} completed session(s) appended. Earlier checkpoints were not changed.` };
   } catch (error) {
     const detail = error instanceof StrategyError ? `${error.code}: ${error.message}` : "The update failed; prior observations remain intact.";
-    await prisma.sliceForwardScenario.updateMany({ where: { ...scope, id: row.id, version: row.version }, data: { lastCheckedAt: new Date(), nextCheckAt: new Date(Date.now() + 3600000), lastError: detail.slice(0, 1000) } }).catch(() => undefined);
+    await prisma.sliceForwardScenario.updateMany({ where: { ...scope, ...leaseWhere, id: row.id, version: row.version }, data: { lastCheckedAt: new Date(), nextCheckAt: new Date(Date.now() + 3600000), lastError: detail.slice(0, 1000) } }).catch(() => undefined);
     throw error;
   }
 }

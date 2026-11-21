@@ -8,7 +8,7 @@ import { validateSpec } from "@/lib/strategy-lab/validation";
 import { strategyAccess, readResearchJson, strategyFailure } from "@/lib/strategy-lab/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 export const GET = withApiRoute({ route: "/api/strategy-lab/runs", timeoutMs: 15000 }, async ({ request }) => {
   const userId = await strategyAccess(request, false), id = new URL(request.url).searchParams.get("id");
@@ -29,6 +29,13 @@ export const POST = withApiRoute({ route: "/api/strategy-lab/runs", timeoutMs: 5
     if (!Array.isArray(body.datasetIds) || body.datasetIds.some(id => typeof id !== "string" || id.length > 100)) throw new StrategyError("DATASET_IDS", "Provide the IDs of imported historical datasets.");
     const datasets = await loadDatasets(userId, body.datasetIds as string[]);
     const inputSha256 = hash(JSON.stringify({ spec, engineVersion: engineVersionFor(spec), sources: datasets.map(manifestOf).sort((a, b) => a.symbol.localeCompare(b.symbol)) }));
+    // A retry after an interrupted response can open the exact immutable result
+    // instead of recomputing the same inputs or creating another visible run.
+    const existing = await prisma.sliceStrategyRun.findFirst({ where: { userId, inputSha256 }, orderBy: { createdAt: "desc" } });
+    if (existing) {
+      if (hash(existing.resultJson) !== existing.outputSha256) throw new StrategyError("RESULT_INTEGRITY", "The matching saved result failed its checksum check.", 409);
+      return apiJson({ ok: true, reused: true, runId: existing.id, inputSha256, outputSha256: existing.outputSha256, result: JSON.parse(existing.resultJson) as unknown });
+    }
     const result = runBacktest(spec, datasets), resultJson = JSON.stringify(result);
     if (Buffer.byteLength(resultJson, "utf8") > 3200000) throw new StrategyError("RESULT_LIMIT", "This run exceeds the interactive audit-result limit. Reduce the date range, universe size, or rebalance frequency; no partial result was saved.");
     const outputSha256 = hash(resultJson);

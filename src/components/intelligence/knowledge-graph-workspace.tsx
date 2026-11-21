@@ -52,7 +52,9 @@ import type {
   ResearchGraphViewResponse,
   ResearchSwarmResponse,
 } from "@/lib/intelligence/research-swarm-types";
-import UnifiedForecastPanel from "@/components/intelligence-unified/unified-forecast-panel";
+import KnowledgeGraphOutcomes from "./knowledge-graph-outcomes";
+import { browserBetaEnabled } from "@/lib/research/beta-client";
+import KnowledgeGraphSources from "./knowledge-graph-sources";
 
 const ResearchKnowledgeGraphCanvas = dynamic(
   () => import("@/components/intelligence/research-knowledge-graph"),
@@ -178,8 +180,8 @@ const PRESETS: Record<
   },
   maximum: {
     label: "Maximum graph",
-    helper: "Full 2,000-pathway build",
-    agents: 2_000,
+    helper: "10,000 pathways with bounded rendering",
+    agents: 10_000,
     projection: "full",
     simulationPaths: 1_250,
     graphMode: "full",
@@ -239,6 +241,7 @@ export default function KnowledgeGraphWorkspace() {
     useRef<AbortController | null>(null);
   const pollController =
     useRef<AbortController | null>(null);
+  const pollGeneration = useRef(0);
   const pollTimer =
     useRef<number | null>(null);
   const projectionRef =
@@ -313,6 +316,7 @@ export default function KnowledgeGraphWorkspace() {
   }, [projection]);
 
   const stopPolling = useCallback(() => {
+    pollGeneration.current++;
     if (pollTimer.current !== null) {
       window.clearTimeout(pollTimer.current);
       pollTimer.current = null;
@@ -325,11 +329,14 @@ export default function KnowledgeGraphWorkspace() {
     (symbol: string, runId?: string | null) => {
       const url = new URL(window.location.href);
       url.searchParams.set("symbol", symbol);
+      url.searchParams.delete("researchJobId");
 
       if (runId) {
         url.searchParams.set("runId", runId);
+        url.searchParams.set("researchRunId", runId);
       } else {
         url.searchParams.delete("runId");
+        url.searchParams.delete("researchRunId");
       }
 
       window.history.replaceState(
@@ -346,6 +353,7 @@ export default function KnowledgeGraphWorkspace() {
       symbol: string;
       projection: ResearchGraphProjectionMode;
       runId?: string | null;
+      selectedNodeId?: string | null;
       quiet?: boolean;
     }) => {
       loadController.current?.abort();
@@ -358,6 +366,9 @@ export default function KnowledgeGraphWorkspace() {
 
       if (input.runId) {
         params.set("runId", input.runId);
+      }
+      if (input.selectedNodeId) {
+        params.set("nodeId", input.selectedNodeId);
       }
 
       if (!input.quiet) {
@@ -380,7 +391,17 @@ export default function KnowledgeGraphWorkspace() {
             },
           );
 
-        if (!mounted.current) return null;
+        if (!mounted.current || controller.signal.aborted || loadController.current !== controller) return null;
+
+        if (
+          response.symbol !== input.symbol ||
+          (response.view && (
+            response.view.symbol !== input.symbol ||
+            (input.runId && response.view.runId !== input.runId)
+          ))
+        ) {
+          throw new Error("The saved graph does not match the requested stock and research run.");
+        }
 
         setPersistence(response.persistence);
         setGraphView(response.view);
@@ -411,7 +432,7 @@ export default function KnowledgeGraphWorkspace() {
 
         return response.view;
       } catch (caught) {
-        if (isAbortError(caught) || !mounted.current) {
+        if (isAbortError(caught) || !mounted.current || controller.signal.aborted || loadController.current !== controller) {
           return null;
         }
 
@@ -434,10 +455,11 @@ export default function KnowledgeGraphWorkspace() {
       initialDelay = 1_500,
     ) => {
       stopPolling();
+      const generation = pollGeneration.current;
       let delay = initialDelay;
 
       const check = async () => {
-        if (!mounted.current) return;
+        if (!mounted.current || generation !== pollGeneration.current) return;
 
         if (
           document.visibilityState === "hidden" ||
@@ -467,9 +489,12 @@ export default function KnowledgeGraphWorkspace() {
               },
             );
 
-          if (!mounted.current) return;
+          if (!mounted.current || generation !== pollGeneration.current || controller.signal.aborted) return;
 
           const nextJob = response.job;
+          if (nextJob.jobKey !== "intelligence_graph_refresh") {
+            stopPolling(); setJob(null); setState("error"); setError("This identifier is not a research job."); return;
+          }
           setJob(nextJob);
           setState(
             nextJob.status === "Processing"
@@ -483,6 +508,8 @@ export default function KnowledgeGraphWorkspace() {
 
           if (nextJob.status === "Complete") {
             stopPolling();
+            const completionGeneration = pollGeneration.current;
+            const completionBuild = buildController.current;
             setState("loading");
             setMessage(
               "Loading the completed persisted graph.",
@@ -491,12 +518,25 @@ export default function KnowledgeGraphWorkspace() {
               nextJob.output,
               "runId",
             );
-            const completedView = await loadGraph({
+            if (!completedRunId || outputString(nextJob.output,"symbol") !== symbol) {
+              setState("error"); setJob(null); setError("The completed job has no matching research run. Load saved research to inspect it."); return;
+            }
+            const completion = loadGraph({
               symbol,
               projection: projectionRef.current,
               runId: completedRunId,
               quiet: true,
             });
+            const completionLoad = loadController.current;
+            const completedView = await completion;
+
+            if (
+              !mounted.current ||
+              completionGeneration !== pollGeneration.current ||
+              completionBuild !== buildController.current ||
+              completionLoad !== loadController.current ||
+              completionLoad?.signal.aborted
+            ) return;
 
             if (!completedView) {
               setState("error");
@@ -541,12 +581,15 @@ export default function KnowledgeGraphWorkspace() {
         } catch (caught) {
           if (
             isAbortError(caught) ||
-            !mounted.current
+            !mounted.current || generation !== pollGeneration.current || controller.signal.aborted
           ) {
             return;
           }
 
-          delay = Math.min(8_000, delay * 1.5);
+          if (caught && typeof caught === "object" && "status" in caught && [401,403,404].includes(Number(caught.status))) {
+            stopPolling(); setJob(null); setState("error"); setError("This saved job is unavailable to your session. Sign in again or load saved research."); return;
+          }
+          delay = Math.min(30000, delay * 1.5);
           setMessage(
             caught instanceof Error
               ? `${caught.message} Retrying job status.`
@@ -574,7 +617,9 @@ export default function KnowledgeGraphWorkspace() {
       buildController.current?.abort();
       const controller = new AbortController();
       buildController.current = controller;
+      loadController.current?.abort();
       stopPolling();
+      setSyncResult(null);setGraphView(null);setJob(null);
       setActiveSymbol(symbol);
       setSymbolInput(symbol);
       setPreset(input.selectedPreset);
@@ -605,7 +650,7 @@ export default function KnowledgeGraphWorkspace() {
                 forceRefresh:
                   input.forceRefresh === true,
                 executionMode:
-                  config.executionMode,
+                  browserBetaEnabled() ? "background" : config.executionMode,
               }),
             },
             {
@@ -613,9 +658,21 @@ export default function KnowledgeGraphWorkspace() {
             },
           );
 
-        if (!mounted.current) return;
+        if (!mounted.current || controller.signal.aborted || buildController.current !== controller) return;
+
+        if (response.symbol !== symbol) {
+          throw new Error("The completed research does not match the requested stock.");
+        }
 
         if (isBackgroundResponse(response)) {
+          if (response.job.jobKey !== "intelligence_graph_refresh") {
+            throw new Error("The returned job is not a research job.");
+          }
+          const location = new URL(window.location.href);
+          location.searchParams.set("symbol", symbol);
+          location.searchParams.set("researchJobId", response.job.id);
+          location.searchParams.delete("runId");location.searchParams.delete("researchRunId");
+          window.history.replaceState(window.history.state,"",location.pathname+location.search);
           setJob(response.job);
           setState(
             response.job.status === "Processing"
@@ -644,7 +701,7 @@ export default function KnowledgeGraphWorkspace() {
         );
         updateLocation(symbol, response.runId);
       } catch (caught) {
-        if (isAbortError(caught) || !mounted.current) {
+        if (isAbortError(caught) || !mounted.current || controller.signal.aborted || buildController.current !== controller) {
           return;
         }
 
@@ -671,14 +728,21 @@ export default function KnowledgeGraphWorkspace() {
       cleanIntelligenceSymbol(
         params.get("symbol") || "MSFT",
       ) || "MSFT";
-    const initialRunId = params.get("runId");
+    const initialRunId = params.get("runId") || params.get("researchRunId");
+    const initialJobId = params.get("researchJobId");
 
     setSymbolInput(initialSymbol);
     setActiveSymbol(initialSymbol);
-    void loadGraph({
+    if (initialJobId && /^[A-Za-z0-9_-]{1,120}$/.test(initialJobId)) {
+      setState("queued");setMessage("Reconnecting to your saved research job.");
+      const request=new AbortController();buildController.current=request;
+      void intelligenceFetch(`/api/jobs/${encodeURIComponent(initialJobId)}`,{method:"PATCH",signal:request.signal,body:JSON.stringify({action:"resume"})},{retries:0}).catch(()=>undefined);
+      void pollJob(initialJobId, initialSymbol);
+    } else void loadGraph({
       symbol: initialSymbol,
       projection: "overview",
       runId: initialRunId,
+      selectedNodeId: params.get("nodeId"),
     });
 
     return () => {
@@ -687,7 +751,7 @@ export default function KnowledgeGraphWorkspace() {
       loadController.current?.abort();
       buildController.current?.abort();
     };
-  }, [loadGraph, stopPolling]);
+  }, [loadGraph, stopPolling, pollJob]);
 
   useEffect(() => {
     if (!currentRunId || !activeSymbol) return;
@@ -722,6 +786,8 @@ export default function KnowledgeGraphWorkspace() {
 
   async function cancelJob() {
     if (!job) return;
+    const generation=pollGeneration.current, build=buildController.current, load=loadController.current;
+    const current=()=>mounted.current&&generation===pollGeneration.current&&build===buildController.current&&load===loadController.current;
 
     try {
       const response =
@@ -738,13 +804,12 @@ export default function KnowledgeGraphWorkspace() {
           },
         );
 
+      if (!current()) return;
       setJob(response.job);
-      setState("idle");
-      setMessage(
-        "Graph build cancellation requested.",
-      );
-      stopPolling();
+      setMessage("Graph build cancellation requested; waiting for worker confirmation.");
+      if (response.job.status === "Cancelled") { stopPolling();setState("idle");setJob(null);updateLocation(activeSymbol,currentRunId); }
     } catch (caught) {
+      if (!current()) return;
       setError(
         caught instanceof Error
           ? caught.message
@@ -771,7 +836,6 @@ export default function KnowledgeGraphWorkspace() {
 
   return (
     <IntelligencePage>
-      <UnifiedForecastPanel symbol={activeSymbol} researchRunId={currentRunId} refreshKey={currentRunId} />
       <IntelligenceSurface className="p-5 sm:p-7">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-5xl">
@@ -786,7 +850,7 @@ export default function KnowledgeGraphWorkspace() {
               </IntelligencePill>
               <IntelligencePill tone="violet">
                 <Bot className="h-3.5 w-3.5" />
-                Up to 2,000 pathways
+                Up to 10,000 pathways
               </IntelligencePill>
               {currentGraph ? (
                 <>
@@ -809,9 +873,9 @@ export default function KnowledgeGraphWorkspace() {
               Build the complete relationship map without freezing the advisor workspace.
             </h1>
             <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-[var(--slice-muted)] sm:text-base">
-              Saved graphs load first. Quick maps run synchronously;
-              deep and maximum graphs use tracked background jobs when
-              durable Neo4j persistence is available. The canvas adapts
+              Saved graphs load first. In beta, every graph size requests
+              tracked background research when durable Neo4j persistence
+              is available. The canvas adapts
               its edge budget, pixel ratio, and frame rate to the device.
             </p>
           </div>
@@ -822,7 +886,7 @@ export default function KnowledgeGraphWorkspace() {
             className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-4 text-xs font-black text-[var(--slice-text)] transition hover:border-[var(--slice-accent-border)]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Control plane
+            Intelligence overview
           </Link>
         </div>
 
@@ -923,7 +987,7 @@ export default function KnowledgeGraphWorkspace() {
                 ],
                 [
                   "Execution",
-                  PRESETS[preset].executionMode,
+                  "Tracked in beta",
                 ],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -1062,7 +1126,7 @@ export default function KnowledgeGraphWorkspace() {
                 metadata.score,
                 1,
               )}
-              helper="Original equal-third score."
+              helper="Score using this run's research mix."
               icon={<Gauge className="h-5 w-5" />}
             />
             <IntelligenceMetric
@@ -1141,12 +1205,17 @@ export default function KnowledgeGraphWorkspace() {
 
           <IntelligenceSurface className="mt-5 p-3 sm:p-4">
             <ResearchKnowledgeGraphCanvas
+              key={`${currentRunId}:${graphView?.selectedNode?.node.id ?? ""}`}
               graph={currentGraph}
               analytics={currentAnalytics}
               height={700}
               live
+              initialNodeId={graphView?.selectedNode?.node.id ?? null}
             />
           </IntelligenceSurface>
+
+          <KnowledgeGraphOutcomes symbol={activeSymbol} runId={currentRunId} score={syncResult?.symbol===activeSymbol?syncResult.score:undefined} market={syncResult?.symbol===activeSymbol?syncResult.market:undefined} />
+          <KnowledgeGraphSources symbol={activeSymbol} runId={currentRunId} />
 
           <section className="mt-5 grid gap-5 xl:grid-cols-2">
             <IntelligenceSurface className="p-5 sm:p-6">

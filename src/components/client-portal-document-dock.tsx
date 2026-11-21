@@ -183,7 +183,7 @@ export function ClientPortalDocumentDock() {
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className="flex w-full items-center justify-between gap-4 border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.22),transparent_48%),rgba(0,0,0,0.58)] px-5 py-4 text-left"
+          className="flex w-full items-center justify-between gap-4 border-b border-[var(--slice-border)] bg-[linear-gradient(135deg,var(--slice-surface-strong),var(--slice-surface))] px-5 py-4 text-left"
           aria-expanded={expanded}
         >
           <div className="flex items-center gap-3">

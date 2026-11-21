@@ -9,9 +9,10 @@ import { providerConfiguration, openResponse, readResponse } from "@/lib/studio/
 import { parseChat, conversationInput, StudioError } from "@/lib/studio/core";
 import { resolveResearch, instructions } from "@/lib/studio/research";
 import type { StudioEvent } from "@/lib/studio/contracts";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 120;
+
 export async function POST(request: Request) {
     let lease: Awaited<ReturnType<typeof acquireOperation>> | null = null;
     try {
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
         const reference = await resolveResearch(scope, input.research);
         const turn = await beginTurn(scope, { ...input, reference, model: config.model });
         const locked = lease;
-        const abort = new AbortController(), signal = AbortSignal.any([abort.signal, request.signal, AbortSignal.timeout(100000)]), encoder = new TextEncoder();
+        const beta = researchBetaEnabled(process.env);
+        const abort = new AbortController(), signal = AbortSignal.any([abort.signal, request.signal, ...(beta ? [] : [AbortSignal.timeout(100000)])]), encoder = new TextEncoder();
         let closed = false, partial = "";
         const stream = new ReadableStream<Uint8Array>({
             async start(controller) {
@@ -36,7 +38,8 @@ export async function POST(request: Request) {
                 let requestId: string | null = null, providerStarted = false, market: MarketEvidence | null = null;
                 try {
                     const started = Date.now();
-                    market = await gatherStudioEvidence(scope, input, turn.previous, AbortSignal.any([signal, AbortSignal.timeout(45000)]), message => send({ type: "status", message }));
+                    const evidenceSignal = beta ? signal : AbortSignal.any([signal, AbortSignal.timeout(45000)]);
+                    market = await gatherStudioEvidence(scope, input, turn.previous, evidenceSignal, message => send({ type: "status", message }));
                     if (market) {
                         turn.assistant.marketEvidence = market;
                         await persistThread(scope, turn.thread, "Running");

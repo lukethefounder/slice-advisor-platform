@@ -58,10 +58,10 @@ function MarketsAside() {
     <PublicSurface className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-800">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
             Loading sequence
           </div>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             Fast quote context before expensive research.
           </h2>
         </div>
@@ -81,10 +81,10 @@ function MarketsAside() {
             key={number}
             className="flex items-center gap-3 rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-3.5"
           >
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-700 text-xs font-black text-white">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-700 text-xs font-semibold text-white">
               {number}
             </div>
-            <div className="text-sm font-black text-[var(--slice-heading)]">
+            <div className="text-sm font-semibold text-[var(--slice-heading)]">
               {text}
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function MarketsPage() {
                   <div className="grid h-11 w-11 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
                     <Icon className="h-4.5 w-4.5" />
                   </div>
-                  <h3 className="mt-5 text-lg font-black text-[var(--slice-heading)]">
+                  <h3 className="mt-5 text-lg font-semibold text-[var(--slice-heading)]">
                     {item.title}
                   </h3>
                   <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -158,7 +158,7 @@ export default function MarketsPage() {
 
           <PublicSurface className="mt-6 grid gap-7 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
                 <Clock3 className="h-3.5 w-3.5" />
                 Before production deployment
               </div>
@@ -177,7 +177,7 @@ export default function MarketsPage() {
                 </TrustLine>
               </div>
             </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-900">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-900">
               <CheckCircle2 className="h-4 w-4" />
               Credential-safe design
             </div>

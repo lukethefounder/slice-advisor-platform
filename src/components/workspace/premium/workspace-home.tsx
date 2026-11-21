@@ -7,7 +7,7 @@ import DataReadinessPanel from "@/components/data-readiness/data-readiness-panel
 import { prioritizedWorkspaceRequests } from "@/lib/data-readiness/priority";
 import dynamic from "next/dynamic";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Activity, ArrowUpRight, ChevronRight, CirclePause, Clock3, Focus, Newspaper, RefreshCw, Settings2, Sparkles, ShieldCheck } from "lucide-react";
+import { Activity, ArrowUpRight, ChevronRight, CirclePause, Clock3, Focus, Network, Newspaper, RefreshCw, Settings2, Sparkles, ShieldCheck } from "lucide-react";
 import { useWorkspaceSession } from "./session";
 import { studioJson } from "@/lib/studio/client";
 import type { HomeSummary } from "@/lib/workspace/home-contract";
@@ -22,7 +22,8 @@ import { composeWorkspaceEvidence } from "@/lib/instant-workspace/compose";
 import type { WorkspaceSeed } from "@/lib/instant-workspace/contracts";
 import SourceContinuity from "@/components/instant-workspace/source-continuity";
 import WorkspaceDecisionLens from "@/components/scenario-decision/workspace-lens";
-import WorkspaceIntro from "@/components/future-workspace/workspace-intro";
+import NeuralWorkspaceOverview from "./neural-workspace-overview";
+import neural from "./neural-workspace.module.css";
 const GatewayStatus = dynamic(() => import("@/components/market-pulse/gateway-status"));
 const MarketConnectionPanel = dynamic(() => import("@/components/market-pulse/market-connection-panel"));
 const WorkspaceCustomizer = dynamic(() => import("@/components/market-pulse/workspace-customizer"));
@@ -36,14 +37,15 @@ export default function WorkspaceHome({ initial }: { initial?: WorkspaceSeed }) 
  const [savedPreferences, setSavedPreferences] = useState<PulsePreferences | null>(initial?.settings?.preferences ?? null), [customizing, setCustomizing] = useState(false), [saving, setSaving] = useState(false), [loading, setLoading] = useState(false), [error, setError] = useState(""), [summaryError, setSummaryError] = useState(""), [preferenceError, setPreferenceError] = useState(""), [connection, setConnection] = useState(false), [visible, setVisible] = useState(true), [online, setOnline] = useState(true), [day, setDay] = useState("Your working day"), [now, setNow] = useState(initial?.preparedAt ? Date.parse(initial.preparedAt) : Date.now()), [osReduced, setOsReduced] = useState(false), [localPaused, setLocalPaused] = useState(false), [saveMessage, setSaveMessage] = useState("");
  const marketAbort = useRef<AbortController | null>(null), bootAbort = useRef<AbortController | null>(null), marketSerial = useRef(0), inFlight = useRef(false), initialized = useRef(0), root = useRef<HTMLElement>(null), saveAbort = useRef<AbortController | null>(null);
  const [viewOwner, setViewOwner] = useState(initial?.scope ?? userKey);
- const prefs = settings?.preferences, presentation=prefs?.presentation??DEFAULT_HOME, motion = Boolean(prefs?.motion && !osReduced && visible && !localPaused);
+ const [marketArmed, setMarketArmed] = useState(false), [graphRevision, setGraphRevision] = useState(0), [refreshingSaved, setRefreshingSaved] = useState(false);
+ const prefs = settings?.preferences, presentation=prefs?.presentation??DEFAULT_HOME, motion = prefs?.motion !== false && !osReduced && visible && !localPaused;
  const refreshSummary = useCallback(async (signal?: AbortSignal) => { try { const r = await studioJson<HomeSummary>("/api/workspace/home", { signal }); if (!signal?.aborted) { setSummary(r); setSummaryError(""); } } catch (e) { if (!signal?.aborted) setSummaryError(e instanceof Error ? e.message : "Your priorities are unavailable."); } }, []);
  const unauthorized = useCallback(() => { setSettings(null); setSummary(null); setPreferenceError("Your session or firm changed. Reload before accessing private data."); }, []);
  const resources = useMarketResources(session.user && session.firm ? userKey : null, unauthorized, initial?.sections ?? []);
  const { load, all } = resources;
  const evidence = composeWorkspaceEvidence(prefs, settings?.market.entitlement ?? "historical", all(), initial?.preparedAt ?? new Date(now).toISOString());
  const loadMarket = useCallback(async (p: PulsePreferences, _reset = false, force = false) => {
-  const serial = ++marketSerial.current; inFlight.current = true; setLoading(true); setError("");
+  const serial = ++marketSerial.current; inFlight.current = true; setLoading(true); setError(""); setMarketArmed(true);
   try {
     for (const batch of prioritizedWorkspaceRequests(p).map(batch=>batch.filter(r=>r.section!=="news"))) {
       if (serial !== marketSerial.current) break;
@@ -62,23 +64,26 @@ export default function WorkspaceHome({ initial }: { initial?: WorkspaceSeed }) 
  useEffect(() => {
   const generation = ++initialized.current, c = new AbortController(); bootAbort.current?.abort(); bootAbort.current = c; marketAbort.current?.abort(); marketSerial.current++; inFlight.current = false;
   const seedMatches = initial?.scope === userKey && Boolean(initial.settings);
-  saveAbort.current?.abort(); setSaving(false); setSavedPreferences(seedMatches ? initial!.settings!.preferences : null); setViewOwner(userKey); setSettings(seedMatches ? initial!.settings : null); setSummary(seedMatches ? initial!.summary : null); setCustomizing(false); setConnection(false); setError(""); setPreferenceError(""); setLoading(false); setLocalPaused(false);
+  saveAbort.current?.abort(); setSaving(false); setSavedPreferences(seedMatches ? initial!.settings!.preferences : null); setViewOwner(userKey); setSettings(seedMatches ? initial!.settings : null); setSummary(seedMatches ? initial!.summary : null); setCustomizing(false); setConnection(false); setError(""); setPreferenceError(""); setLoading(false); setLocalPaused(false); setMarketArmed(false); setRefreshingSaved(false); setGraphRevision(0); setSummaryError("");
   if (!session.user || !session.firm) return () => c.abort();
   if (!seedMatches || !initial?.summary) void refreshSummary(c.signal);
-  if (seedMatches) {
-    if (initial!.settings!.market.configured) void loadMarket(initial!.settings!.preferences);
-  } else {
-    void studioJson<PreferenceResponse>("/api/workspace/pulse", { signal: c.signal }).then(r => { if (c.signal.aborted || generation !== initialized.current) return; setSettings(r); setSavedPreferences(r.preferences); if (r.market.configured) void loadMarket(r.preferences); }).catch(e => { if (!c.signal.aborted) setPreferenceError(e instanceof Error ? e.message : "Your saved workspace could not be loaded."); });
+  if (!seedMatches) {
+    void studioJson<PreferenceResponse>("/api/workspace/pulse", { signal: c.signal }).then(r => { if (c.signal.aborted || generation !== initialized.current) return; setSettings(r); setSavedPreferences(r.preferences); }).catch(e => { if (!c.signal.aborted) setPreferenceError(e instanceof Error ? e.message : "Your saved workspace could not be loaded."); });
   }
   return () => { c.abort(); saveAbort.current?.abort(); marketAbort.current?.abort(); marketSerial.current++; inFlight.current = false; };
  // Identity changes invalidate every client-held response; sensitive payloads are not in browser storage.
  // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [userKey, loadMarket, refreshSummary]);
+ }, [userKey, refreshSummary]);
  useEffect(() => {
-  if (!prefs?.refreshSeconds || !settings?.market.configured || !visible || !online || localPaused || customizing || saving) return;
+  if (!marketArmed || !prefs?.refreshSeconds || !settings?.market.configured || !visible || !online || localPaused || customizing || saving) return;
   const t = window.setInterval(() => { if (!document.hidden && navigator.onLine && !inFlight.current) { void loadMarket(prefs, false, true); void refreshSummary(bootAbort.current?.signal); } }, prefs.refreshSeconds * 1000);
   return () => clearInterval(t);
- }, [prefs, settings?.market.configured, visible, online, localPaused, customizing, saving, loadMarket, refreshSummary]);
+ }, [marketArmed, prefs, settings?.market.configured, visible, online, localPaused, customizing, saving, loadMarket, refreshSummary]);
+ async function refreshSavedResearch() {
+  const generation = initialized.current; setRefreshingSaved(true);
+  await refreshSummary(bootAbort.current?.signal);
+  if (generation === initialized.current) { setGraphRevision(value => value + 1); setRefreshingSaved(false); }
+ }
  function customize() { if (!prefs) return; setSaveMessage(""); setCustomizing(true); }
  async function persist(nextInput: PulsePreferences, closePanel = false) {
   if (!settings || saving) return; let next: PulsePreferences; setSaveMessage("");
@@ -109,11 +114,20 @@ export default function WorkspaceHome({ initial }: { initial?: WorkspaceSeed }) 
  const taskData = summary?.tasks.state === "ready" ? summary.tasks.data : null, scenarioData = summary?.scenarios.state === "ready" ? summary.scenarios.data : null, researchData = summary?.research.state === "ready" ? summary.research.data.filter(r=>r.symbol===prefs?.primary) : null;
  const studioHref = `/workspace/personal-bot?marketSymbol=${encodeURIComponent(prefs?.primary || "SPY")}&prompt=${encodeURIComponent(`Explain the latest verified observations for ${prefs?.primary || "SPY"}, note the source times and any limitations, and identify questions worth researching. Do not invent a forecast.`)}`;
  if (viewOwner !== userKey) return <main className={css.dashboard}><p role="status">Loading your workspace…</p></main>;
- return <main ref={root} className={`${css.dashboard} ${focusCss.home}`} data-layout={presentation.layout} data-density={presentation.density} data-accent={prefs?.chart?.accent??"emerald"} data-motion={motion ? "on" : "off"} data-focus={prefs?.focus || "balanced"}>
-  <div className={css.ambient} aria-hidden="true"/><WorkspaceIntro name={firstName} firm={session.firm?.name || "Slice"} title={presentation.title} subtitle={presentation.subtitle} symbol={prefs?.primary || ""} quote={quote ?? null} day={day} motion={motion} loading={loading} disabled={!prefs || saving} canRefresh={Boolean(prefs && !loading && online && !saving)} onCustomize={customize} onRefresh={() => { if(prefs) void loadMarket(prefs,false,true); void refreshSummary(bootAbort.current?.signal); }} />
+ return <main ref={root} className={`${css.dashboard} ${focusCss.home} ${neural.home}`} data-layout={presentation.layout} data-density={presentation.density} data-accent={prefs?.chart?.accent??"emerald"} data-motion={motion ? "on" : "off"} data-focus={prefs?.focus || "balanced"}>
+  <header className={neural.workspaceHeader}>
+   <div><span className={neural.headerEyebrow}><Network size={13} aria-hidden="true"/>{firstName ? `${firstName.toUpperCase()}'S NEURAL WORKSPACE` : "YOUR NEURAL WORKSPACE"} · {day}</span><h1>Your intelligence, <em>connected.</em></h1><p>A living map of the stock highlighted in your saved daily brief. Trace its evidence, challenge its signals, and explore its possible outcomes.</p></div>
+   <div className={neural.headerControls}><button type="button" disabled={refreshingSaved || !online || !session.user || !session.firm} onClick={() => void refreshSavedResearch()}><RefreshCw size={13} aria-hidden="true"/>{refreshingSaved ? "Reading saved research…" : "Refresh saved research"}</button><button type="button" onClick={() => setLocalPaused(value => !value)} aria-pressed={localPaused}><CirclePause size={13} aria-hidden="true"/>{localPaused ? "Resume motion" : "Pause motion"}</button><button type="button" disabled={!prefs || saving} onClick={customize}><Settings2 size={13} aria-hidden="true"/>Customize</button></div>
+  </header>
   {(preferenceError || session.error) && <p className={css.warning} role="alert">{preferenceError || session.error} <button className={css.textButton} onClick={() => window.location.reload()}>Reload workspace</button></p>}
-  {!session.loading && !session.user && <p className={css.warning}><Link href="/advisor-login">Sign in to load your own workspace.</Link></p>}
-  <div className={css.controlLine}><span className={css.statePill}><i className={loading ? css.busyDot : ""}/>{loading ? "Updating observations" : evidence?.quotes.length || evidence?.series ? "Alpha Vantage evidence" : evidence?.issues.length ? "Data needs attention" : settings?.market.configured ? "Ready to load observations" : "Market connection needs verification"}</span><span>{prefs?.refreshSeconds ? `Refresh ${prefs.refreshSeconds}s${localPaused ? " · paused" : ""}` : "Manual refresh"}</span><button className={css.textButton} onClick={() => setLocalPaused(v => !v)} disabled={!prefs}><CirclePause size={13}/>{localPaused ? "Resume motion & refresh" : "Pause motion & refresh"}</button><button className={css.textButton} onClick={() => setConnection(v => !v)}><ShieldCheck size={13}/>Connection</button>{!online && <strong className={css.down}>Offline</strong>}</div>
+  {summaryError && <p className={css.warning} role="alert">{summaryError}</p>}
+  {!session.loading && !session.user && <p className={css.warning}><Link href="/founder-login">Sign in to load your own workspace.</Link></p>}
+  <NeuralWorkspaceOverview key={userKey} scopeKey={userKey} enabled={Boolean(session.user && session.firm)} summary={summary} selectedSymbol={prefs?.primary || ""} motion={motion} revision={graphRevision}/>
+  <details className={neural.marketTools}>
+   <summary><span><Activity size={15} aria-hidden="true"/>Market tools &amp; saved workflow panels</span><small>{prefs?.primary ? `${instrumentLabel(prefs.primary)} · ` : ""}Charts, watchlist, tasks &amp; connection settings</small></summary>
+   {prefs && <div className={neural.focusSwitch} role="group" aria-label="Selected market instrument">{prefs.symbols.map(symbol => <button key={symbol} type="button" disabled={saving} aria-pressed={prefs.primary === symbol} onClick={() => selectSymbol(symbol)}>{instrumentLabel(symbol)}</button>)}</div>}
+   <div className={neural.headerControls}><button type="button" disabled={!prefs || !settings?.market.configured || loading || !online || saving} onClick={() => prefs && void loadMarket(prefs, false, true)}><RefreshCw size={13} aria-hidden="true"/>{loading ? "Updating market observations…" : "Refresh market observations"}</button></div>
+  <div className={css.controlLine}><span className={css.statePill}><i className={loading ? css.busyDot : ""}/>{loading ? "Updating observations" : evidence?.quotes.length || evidence?.series ? "Alpha Vantage evidence" : evidence?.issues.length ? "Data needs attention" : settings?.market.configured ? "Ready to load observations" : "Market connection needs verification"}</span><span>{prefs?.refreshSeconds ? `Refresh ${prefs.refreshSeconds}s${!marketArmed ? " · starts after manual refresh" : localPaused ? " · paused" : ""}` : "Manual refresh"}</span><button className={css.textButton} onClick={() => setLocalPaused(v => !v)} disabled={!prefs}><CirclePause size={13}/>{localPaused ? "Resume motion & refresh" : "Pause motion & refresh"}</button><button className={css.textButton} onClick={() => setConnection(v => !v)}><ShieldCheck size={13}/>Connection</button>{!online && <strong className={css.down}>Offline</strong>}</div>
   {connection && <><MarketConnectionPanel symbol={prefs?.primary || "SPY"} disabled={loading}/><GatewayStatus/></>}
   {error && <p className={css.warning} role="alert">{error}{evidence ? " Previously received data remains below with its original observation times." : ""}</p>}
   {evidence?.issues.length ? <details className={css.issueDetails}><summary>{evidence.issues.length} data notice{evidence.issues.length === 1 ? "" : "s"} · review coverage</summary>{evidence.issues.map(i => <p key={i.scope + i.code}>{i.scope}: {i.message}</p>)}</details> : null}
@@ -137,7 +151,8 @@ export default function WorkspaceHome({ initial }: { initial?: WorkspaceSeed }) 
    {widgetId === "scenarios" && prefs?.showScenarios && <section className={`${css.card} ${css.scenarioCard}`}><div className={css.cardTop}><div><div className={css.eyebrow}>IDEAS IN OBSERVATION</div><h2>Follow the hypothesis.</h2></div><Activity size={16}/></div>{scenarioData ? scenarioData.items.length ? scenarioData.items.map(s => <Link key={s.id} className={css.scenarioRow} href={`/workspace/strategy-lab/scenarios?scenarioId=${encodeURIComponent(s.id)}`} prefetch={false}><div><b>{s.name}</b><small>Last session {s.lastSession || "not observed"}</small></div><span>{s.status}</span></Link>) : <p className={css.empty}>No open paper scenarios are stored in your current firm workspace.</p> : <p className={css.empty}>Scenario data is unavailable.</p>}<p className={css.finePrint}>Paper observations, never brokerage execution. No outcome is fabricated.</p></section>}
    {widgetId === "news" && prefs?.showNews && <section className={`${css.card} ${css.newsCard}`}><div className={css.cardTop}><div><div className={css.eyebrow}>YOUR MARKET CONTEXT</div><h2>Beyond the price.</h2></div><Newspaper size={17}/></div><button type="button" className={css.button} disabled={!prefs||!online||isIndex(prefs.primary)} onClick={()=>prefs&&void load("news",prefs.primary,prefs.range,true)}>Load matching headlines</button>{isIndex(prefs?.primary??"")&&<p className={css.finePrint}>Equity-ticker news is not requested for a native index.</p>}{evidence?.news.length ? <div className={css.newsGrid}>{evidence.news.map(n => <a className={css.newsItem} key={n.url} href={n.url} target="_blank" rel="noopener noreferrer"><small>{n.source} · {formatObservation(n.publishedAt)}</small><h3>{n.title}</h3><p>{n.summary}</p><span>{prefs?.primary}<ArrowUpRight size={13}/></span></a>)}</div> : <p className={css.empty}>{loading ? "Checking recent source headlines…" : !evidence || !evidence.newsRetrieved ? "Current headlines are unavailable or have not been loaded. This does not mean there is no news." : "No returned article passed the matching-symbol and seven-day publication checks."}</p>}</section>}
   </Fragment>)}</div>
-  <footer className={css.footer}><span>{identity?.firm || session.firm?.name || "Slice"} / personal decision workspace</span><span>Last receipt {evidence ? formatObservation(evidence.preparedAt) : "not received"}. Provider observation times are shown separately.</span></footer>
+  </details>
+  <footer className={neural.homeFooter}><span>{identity?.firm || session.firm?.name || "Slice"} / private neural workspace</span><span>Saved research is read when you open this page. Market observations refresh when you request them.</span></footer>
   {customizing && prefs && <WorkspaceCustomizer preferences={prefs} suggested={settings?.suggestedSymbols ?? []} saving={saving} message={saveMessage} onSave={next => void persist(next,true)} onClose={() => { if(!saving)setCustomizing(false); }}/>}
  </main>;
 }

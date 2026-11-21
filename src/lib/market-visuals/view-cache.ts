@@ -1,5 +1,6 @@
 import type { MarketRange } from "@/lib/market-evidence/contracts";
 import { SECTION_TTLS, type Section, type SectionResponse } from "./contracts";
+import { applicationRequestTimeout } from "@/lib/research/beta-client";
 export type Resource<S extends Section = Section> = { request?: { section: Section; symbol: string; range: MarketRange }; value?: SectionResponse<S>; busy: boolean; error: string; receivedAt: number; retryAt: number; durationMs: number | null };
 export const EMPTY_RESOURCE: Resource = { busy: false, error: "", receivedAt: 0, retryAt: 0, durationMs: null };
 export const resourceKey = (section: Section, symbol: string, range: MarketRange) => `${section}:${symbol}:${section === "history" ? range : "snapshot"}`;
@@ -7,6 +8,17 @@ export function snapshotTime(r: SectionResponse): number {
   if (r.section === "quote") return Math.max(0, ...(r.data as import("@/lib/market-evidence/contracts").MarketQuote[]).map(q => Date.parse(q.observedAt) || 0));
   if (r.section === "history") return Date.parse((r.data as import("@/lib/market-evidence/contracts").MarketSeries).observedAt) || 0;
   return Math.max(0, ...r.receipts.map(p => Date.parse(p.retrievedAt) || 0));
+}
+export function resourceTtl(section: Section, value?: SectionResponse): number {
+  if (value?.refreshAfterMs && Number.isFinite(value.refreshAfterMs)) return Math.max(1_000, Math.min(21_600_000, value.refreshAfterMs));
+  if (section === "history" && value?.range !== "1D") return 3_600_000;
+  if (section === "quote" && value?.section === "quote") {
+    const row = (value.data as import("@/lib/market-evidence/contracts").MarketQuote[])[0];
+    if (row?.endpoint === "INDEX_DATA") return 3_600_000;
+    if (row?.precision === "date") return 900_000;
+    if (row?.state === "delayed") return 60_000;
+  }
+  return SECTION_TTLS[section];
 }
 export function shouldReplace(before: SectionResponse | undefined, after: SectionResponse): boolean {
   if (!before) return true;
@@ -55,13 +67,14 @@ export class MarketViewCache {
     const key = resourceKey(section, symbol, range), existing = this.jobs.get(key);
     if (existing) return existing.promise;
     const before = this.entries.get(key) || EMPTY_RESOURCE;
-    if (before.retryAt > Date.now() || (!refresh && before.value && Date.now() - before.receivedAt < SECTION_TTLS[section])) return Promise.resolve();
+    if (before.retryAt > Date.now() || (!refresh && before.value && Date.now() - before.receivedAt < resourceTtl(section, before.value))) return Promise.resolve();
     const controller = new AbortController(), epoch = this.epoch;
     const job = { controller, promise: Promise.resolve() };
     this.jobs.set(key, job);
     this.entries.set(key, { ...before, request: { section, symbol, range }, busy: true, error: "" }); this.trim(); this.notify();
     job.promise = (async () => {
-      const started = Date.now(), timer = setTimeout(() => controller.abort(), 50_000);
+      const started = Date.now(), timeoutMs = applicationRequestTimeout(50_000);
+      const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
       try {
         const response = await this.request("/api/market-visuals/sections", { method: "POST", cache: "no-store", credentials: "same-origin", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ section, symbol, range, confirmOptions: section === "options" }) });
         const p = await response.json() as Partial<SectionResponse> & { message?: string; retryAt?: string };

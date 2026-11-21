@@ -25,7 +25,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+
 
 function parseClientPayload(
   value: string | null | undefined,

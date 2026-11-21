@@ -11,7 +11,7 @@ import { getPublicIntelligence } from "@/lib/public-intelligence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
 
 const DEFAULT_ARTICLE_COUNT = 6;
 const MAX_ARTICLE_COUNT = 12;

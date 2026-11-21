@@ -1,722 +1,171 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import {
-  clearSessionCookieOptions,
-  hashSessionToken,
-  SESSION_COOKIE,
-  getCurrentUser,
-} from "@/lib/auth";
+import { clearSessionCookieOptions, SESSION_COOKIE, getCurrentUser } from "@/lib/auth";
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
 import { prisma } from "@/lib/prisma";
+import { accountHasMfa, requireAccountReauthentication } from "@/lib/account-security/service";
+import { checkRateLimit, getClientIp, hashForSecurity, recordSecurityEvent } from "@/lib/security";
+import {
+  DEFAULT_NOTIFICATIONS, NOTIFICATION_CHANNELS, SettingsValidationError, exactFields,
+  object, readAccountPreferences, validateAppearance, validateNotifications, validateProfile,
+} from "@/lib/account-settings/contracts";
+import type { AccountSettingsResponse, NotificationPreference } from "@/lib/account-settings/contracts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+const MEMORY_KEY = "account.settings";
+const MAX_BODY_BYTES = 24_576;
 
-const db = prisma as any;
+type User = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
-const SETTINGS_MEMORY_KEY = "account.settings";
-
-type NotificationInput = {
-  channel: string;
-  enabled: boolean;
-  minUrgency: string;
-  minScore: number;
-  digestOnly: boolean;
-  quietHoursStart?: string | null;
-  quietHoursEnd?: string | null;
-  cooldownMinutes: number;
-};
-
-type SecurityInput = {
-  mfaEnabled: boolean;
-  requireReauthForSensitiveActions: boolean;
-  alertOnNewLogin: boolean;
-  advisorModeEnabled: boolean;
-  sessionTimeoutMinutes: number;
-};
-
-type AccountMeta = {
-  phone: string;
-  timezone: string;
-  appearanceMode: "dark" | "light" | "system";
-  density: "Comfortable" | "Compact" | "Spacious";
-  accent: "Market Green" | "Crimson" | "Ruby" | "Graphite";
-  privacy: {
-    aiMemoryEnabled: boolean;
-    analyticsEnabled: boolean;
-    personalizationEnabled: boolean;
-    marketingEmailsEnabled: boolean;
-    shareUsageForImprovement: boolean;
-    showProfileToTeam: boolean;
-    retainReports: "30 days" | "90 days" | "1 year" | "Forever";
-    exportFormat: "PDF" | "CSV" | "JSON";
-  };
-};
-
-const defaultAccountMeta: AccountMeta = {
-  phone: "",
-  timezone: "America/Phoenix",
-  appearanceMode: "dark",
-  density: "Comfortable",
-  accent: "Market Green",
-  privacy: {
-    aiMemoryEnabled: true,
-    analyticsEnabled: true,
-    personalizationEnabled: true,
-    marketingEmailsEnabled: false,
-    shareUsageForImprovement: false,
-    showProfileToTeam: true,
-    retainReports: "1 year",
-    exportFormat: "PDF",
-  },
-};
-
-const defaultNotificationPreferences: NotificationInput[] = [
-  {
-    channel: "Dashboard",
-    enabled: true,
-    minUrgency: "Medium",
-    minScore: 70,
-    digestOnly: false,
-    quietHoursStart: "21:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 20,
-  },
-  {
-    channel: "Email",
-    enabled: true,
-    minUrgency: "High",
-    minScore: 80,
-    digestOnly: false,
-    quietHoursStart: "21:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 30,
-  },
-  {
-    channel: "Security",
-    enabled: true,
-    minUrgency: "Low",
-    minScore: 50,
-    digestOnly: false,
-    quietHoursStart: null,
-    quietHoursEnd: null,
-    cooldownMinutes: 0,
-  },
-  {
-    channel: "Reports",
-    enabled: true,
-    minUrgency: "Medium",
-    minScore: 70,
-    digestOnly: true,
-    quietHoursStart: "21:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 60,
-  },
-  {
-    channel: "SMS",
-    enabled: false,
-    minUrgency: "Critical",
-    minScore: 90,
-    digestOnly: false,
-    quietHoursStart: "21:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 60,
-  },
-  {
-    channel: "Push",
-    enabled: false,
-    minUrgency: "High",
-    minScore: 80,
-    digestOnly: false,
-    quietHoursStart: "21:00",
-    quietHoursEnd: "07:00",
-    cooldownMinutes: 30,
-  },
-];
-
-function parseJson<T>(value: string | null | undefined, fallback: T): T {
-  if (!value) return fallback;
-
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function cleanString(value: unknown, fallback = "") {
-  return typeof value === "string" ? value.trim() : fallback;
-}
-
-function cleanEmail(value: unknown) {
-  return cleanString(value).toLowerCase();
-}
-
-function validEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function readBoolean(value: unknown, fallback: boolean) {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function readNumber(value: unknown, fallback: number) {
-  const numeric = Number(value);
-
-  return Number.isFinite(numeric) ? numeric : fallback;
-}
-
-function normalizeAccountMeta(value: Partial<AccountMeta> | null | undefined): AccountMeta {
-  const merged = {
-    ...defaultAccountMeta,
-    ...(value || {}),
-    privacy: {
-      ...defaultAccountMeta.privacy,
-      ...(value?.privacy || {}),
-    },
-  };
-
-  return {
-    phone: cleanString(merged.phone),
-    timezone: cleanString(merged.timezone, "America/Phoenix"),
-    appearanceMode:
-      merged.appearanceMode === "light" ||
-      merged.appearanceMode === "system" ||
-      merged.appearanceMode === "dark"
-        ? merged.appearanceMode
-        : "dark",
-    density:
-      merged.density === "Compact" || merged.density === "Spacious"
-        ? merged.density
-        : "Comfortable",
-    accent:
-      merged.accent === "Crimson" ||
-      merged.accent === "Ruby" ||
-      merged.accent === "Graphite"
-        ? merged.accent
-        : "Market Green",
-    privacy: {
-      aiMemoryEnabled: Boolean(merged.privacy.aiMemoryEnabled),
-      analyticsEnabled: Boolean(merged.privacy.analyticsEnabled),
-      personalizationEnabled: Boolean(merged.privacy.personalizationEnabled),
-      marketingEmailsEnabled: Boolean(merged.privacy.marketingEmailsEnabled),
-      shareUsageForImprovement: Boolean(merged.privacy.shareUsageForImprovement),
-      showProfileToTeam: Boolean(merged.privacy.showProfileToTeam),
-      retainReports:
-        merged.privacy.retainReports === "30 days" ||
-        merged.privacy.retainReports === "90 days" ||
-        merged.privacy.retainReports === "Forever"
-          ? merged.privacy.retainReports
-          : "1 year",
-      exportFormat:
-        merged.privacy.exportFormat === "CSV" || merged.privacy.exportFormat === "JSON"
-          ? merged.privacy.exportFormat
-          : "PDF",
-    },
-  };
-}
-
-function normalizeSecurity(input: Partial<SecurityInput> | null | undefined): SecurityInput {
-  return {
-    mfaEnabled: readBoolean(input?.mfaEnabled, false),
-    requireReauthForSensitiveActions: readBoolean(
-      input?.requireReauthForSensitiveActions,
-      true,
-    ),
-    alertOnNewLogin: readBoolean(input?.alertOnNewLogin, true),
-    advisorModeEnabled: readBoolean(input?.advisorModeEnabled, false),
-    sessionTimeoutMinutes: Math.max(
-      15,
-      Math.min(43200, Math.round(readNumber(input?.sessionTimeoutMinutes, 43200))),
-    ),
-  };
-}
-
-function normalizeNotification(input: Partial<NotificationInput>): NotificationInput {
-  return {
-    channel: cleanString(input.channel, "Dashboard"),
-    enabled: readBoolean(input.enabled, true),
-    minUrgency: cleanString(input.minUrgency, "High"),
-    minScore: Math.max(0, Math.min(100, Math.round(readNumber(input.minScore, 75)))),
-    digestOnly: readBoolean(input.digestOnly, false),
-    quietHoursStart: input.quietHoursStart ? cleanString(input.quietHoursStart) : null,
-    quietHoursEnd: input.quietHoursEnd ? cleanString(input.quietHoursEnd) : null,
-    cooldownMinutes: Math.max(
-      0,
-      Math.min(1440, Math.round(readNumber(input.cooldownMinutes, 30))),
-    ),
-  };
-}
-
-async function readAccountMeta(userId: string) {
-  const memory = await db.personalUserBotMemory.findUnique({
-    where: {
-      userId_memoryKey: {
-        userId,
-        memoryKey: SETTINGS_MEMORY_KEY,
-      },
-    },
-  });
-
-  return normalizeAccountMeta(parseJson<Partial<AccountMeta>>(memory?.value, defaultAccountMeta));
-}
-
-async function saveAccountMeta(input: {
-  userId: string;
-  profileId?: string | null;
-  firmId?: string | null;
-  meta: AccountMeta;
-}) {
-  return db.personalUserBotMemory.upsert({
-    where: {
-      userId_memoryKey: {
-        userId: input.userId,
-        memoryKey: SETTINGS_MEMORY_KEY,
-      },
-    },
-    update: {
-      profileId: input.profileId || undefined,
-      firmId: input.firmId || undefined,
-      title: "Account, Privacy, Appearance, and Contact Settings",
-      value: JSON.stringify(input.meta),
-      confidenceScore: 100,
-      status: "Active",
-    },
-    create: {
-      userId: input.userId,
-      profileId: input.profileId || null,
-      firmId: input.firmId || null,
-      memoryKey: SETTINGS_MEMORY_KEY,
-      memoryType: "Account Settings",
-      title: "Account, Privacy, Appearance, and Contact Settings",
-      value: JSON.stringify(input.meta),
-      confidenceScore: 100,
-      sourcePrompt: "Saved from AI Studio settings.",
-      status: "Active",
-    },
-  });
-}
-
-async function ensureSecurity(userId: string) {
-  return db.userSecuritySetting.upsert({
-    where: {
-      userId,
-    },
-    update: {},
-    create: {
-      userId,
-      mfaEnabled: false,
-      requireReauthForSensitiveActions: true,
-      alertOnNewLogin: true,
-      advisorModeEnabled: false,
-      sessionTimeoutMinutes: 43200,
-    },
-  });
-}
-
-async function ensureNotifications(userId: string) {
-  for (const preference of defaultNotificationPreferences) {
-    await db.notificationPreference.upsert({
-      where: {
-        userId_channel: {
-          userId,
-          channel: preference.channel,
-        },
-      },
-      update: {},
-      create: {
-        userId,
-        channel: preference.channel,
-        enabled: preference.enabled,
-        minUrgency: preference.minUrgency,
-        minScore: preference.minScore,
-        digestOnly: preference.digestOnly,
-        quietHoursStart: preference.quietHoursStart,
-        quietHoursEnd: preference.quietHoursEnd,
-        cooldownMinutes: preference.cooldownMinutes,
-      },
-    });
-  }
-
-  return db.notificationPreference.findMany({
-    where: {
-      userId,
-    },
-    orderBy: {
-      channel: "asc",
-    },
-  });
-}
-
-async function writeAudit(input: {
-  userId: string;
-  eventType: string;
-  severity?: string;
-  area?: string;
-  title: string;
-  detail?: string;
-  metadata?: Record<string, unknown>;
-  request?: Request;
-}) {
-  return db.auditLog.create({
-    data: {
-      userId: input.userId,
-      eventType: input.eventType,
-      severity: input.severity || "Info",
-      area: input.area || "Account Settings",
-      title: input.title,
-      detail: input.detail || null,
-      metadataJson: JSON.stringify(input.metadata || {}),
-      userAgent: input.request?.headers.get("user-agent") || null,
-      ipAddress:
-        input.request?.headers.get("x-forwarded-for") ||
-        input.request?.headers.get("x-real-ip") ||
-        null,
-    },
-  });
-}
-
-async function loadSettings(user: any) {
-  const profile = await db.personalUserBotProfile.findUnique({
-    where: {
-      userId: user.id,
-    },
-  });
-
-  const [accountMeta, security, notifications] = await Promise.all([
-    readAccountMeta(user.id),
-    ensureSecurity(user.id),
-    ensureNotifications(user.id),
+async function loadSettings(user: User): Promise<AccountSettingsResponse> {
+  const [memory, security, enrolled, notifications, memberships, deliveries] = await Promise.all([
+    prisma.personalUserBotMemory.findUnique({ where: { userId_memoryKey: { userId: user.id, memoryKey: MEMORY_KEY } }, select: { value: true, updatedAt: true } }),
+    prisma.userSecuritySetting.findUnique({ where: { userId: user.id }, select: { sessionTimeoutMinutes: true, lastSecurityReviewAt: true } }),
+    accountHasMfa(user.id),
+    prisma.notificationPreference.findMany({ where: { userId: user.id, channel: { in: [...NOTIFICATION_CHANNELS] } }, orderBy: { channel: "asc" } }),
+    prisma.firmMembership.findMany({ where: { userId: user.id, status: "Active" }, select: { id: true, role: true, firm: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 50 }),
+    prisma.notificationDelivery.findMany({ where: { userId: user.id }, select: { id: true, channel: true, status: true, simulated: true, createdAt: true, deliveredAt: true }, orderBy: { createdAt: "desc" }, take: 8 }),
   ]);
-
-  return {
-    ok: true,
-    account: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: accountMeta.phone,
-      timezone: accountMeta.timezone,
-      platformStatus: user.platformStatus,
-      createdAt: user.createdAt,
-    },
-    appearance: {
-      mode: accountMeta.appearanceMode,
-      density: accountMeta.density,
-      accent: accountMeta.accent,
-    },
-    privacy: accountMeta.privacy,
-    security: {
-      mfaEnabled: security.mfaEnabled,
-      requireReauthForSensitiveActions: security.requireReauthForSensitiveActions,
-      alertOnNewLogin: security.alertOnNewLogin,
-      advisorModeEnabled: security.advisorModeEnabled,
-      sessionTimeoutMinutes: security.sessionTimeoutMinutes,
-      lastSecurityReviewAt: security.lastSecurityReviewAt,
-    },
-    notifications: notifications.map((item: any) => ({
-      id: item.id,
-      channel: item.channel,
-      enabled: item.enabled,
-      minUrgency: item.minUrgency,
-      minScore: item.minScore,
-      digestOnly: item.digestOnly,
-      quietHoursStart: item.quietHoursStart,
-      quietHoursEnd: item.quietHoursEnd,
-      cooldownMinutes: item.cooldownMinutes,
-    })),
-    contact: {
-      name: "Luke Royal Price",
-      phone: "(985) 290-3067",
-      phoneHref: "tel:+19852903067",
-      email: "price.luke.royal@gmail.com",
-      emailHref: "mailto:price.luke.royal@gmail.com",
-    },
-    profileContext: {
-      profileId: profile?.id || null,
-      firmId: profile?.firmId || null,
-    },
+  const meta = readAccountPreferences(memory?.value);
+  const normalized = DEFAULT_NOTIFICATIONS.map(fallback => {
+    const row = notifications.find(item => item.channel === fallback.channel);
+    if (!row) return { ...fallback };
+    // Saved legacy records are normalized for display; no credentials or destinations are returned.
+    return { channel: fallback.channel, enabled: row.enabled, minUrgency: ["Low", "Medium", "High", "Critical"].includes(row.minUrgency) ? row.minUrgency as NotificationPreference["minUrgency"] : fallback.minUrgency,
+      minScore: Math.min(100, Math.max(0, row.minScore)), digestOnly: row.digestOnly,
+      quietHoursStart: row.quietHoursStart, quietHoursEnd: row.quietHoursEnd, cooldownMinutes: Math.min(1440, Math.max(0, row.cooldownMinutes)) };
+  });
+  return { ok: true,
+    account: { id: user.id, name: user.name, email: user.email, phone: meta.phone, timezone: meta.timezone, platformStatus: user.platformStatus, createdAt: user.createdAt.toISOString() },
+    appearance: meta.appearance, privacy: meta.privacy, notifications: normalized,
+    security: { mfaEnabled: enrolled, sessionTimeoutMinutes: security?.sessionTimeoutMinutes ?? 720, lastSecurityReviewAt: security?.lastSecurityReviewAt?.toISOString() ?? null },
+    memberships: memberships.map(item => ({ id: item.id, role: item.role, firmName: item.firm.name })),
+    deliveries: deliveries.map(item => ({ ...item, createdAt: item.createdAt.toISOString(), deliveredAt: item.deliveredAt?.toISOString() ?? null })),
+    revision: memory?.updatedAt.toISOString() ?? null,
   };
 }
 
-function clearAuthResponse(payload: Record<string, unknown>, status = 200) {
-  const response = NextResponse.json(payload, { status });
-  response.cookies.set(SESSION_COOKIE, "", clearSessionCookieOptions());
-  return response;
+function requireSameOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  if (request.headers.get("sec-fetch-site") === "cross-site" || !origin || origin !== new URL(request.url).origin) {
+    throw new ApiError({ status: 403, code: "CROSS_SITE_REQUEST_BLOCKED", message: "Open Settings from this Slice site before changing the account." });
+  }
+}
+async function readBody(request: Request) {
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) throw new ApiError({ status: 415, code: "JSON_REQUIRED", message: "Settings require a JSON request." });
+  const length = Number(request.headers.get("content-length"));
+  if (Number.isFinite(length) && length > MAX_BODY_BYTES) throw new ApiError({ status: 413, code: "BODY_TOO_LARGE", message: "This settings request is too large." });
+  const reader = request.body?.getReader();
+  if (!reader) throw new ApiError({ status: 400, code: "INVALID_JSON", message: "The settings request is empty." });
+  const chunks: Uint8Array[] = []; let bytes = 0;
+  try {
+    while (true) {
+      const item = await reader.read(); if (item.done) break;
+      bytes += item.value.byteLength;
+      if (bytes > MAX_BODY_BYTES) { await reader.cancel(); throw new ApiError({ status: 413, code: "BODY_TOO_LARGE", message: "This settings request is too large." }); }
+      chunks.push(item.value);
+    }
+  } finally { reader.releaseLock(); }
+  try { return object(JSON.parse(Buffer.concat(chunks).toString("utf8")), "Settings"); }
+  catch (error) { if (error instanceof SettingsValidationError) throw error; throw new ApiError({ status: 400, code: "INVALID_JSON", message: "Settings must contain valid JSON." }); }
+}
+function rate(request: Request, userId: string) {
+  const result = checkRateLimit({ key: `account-settings:${userId}:${hashForSecurity(getClientIp(request))}`, limit: 40, windowMs: 60_000 });
+  if (!result.allowed) throw new ApiError({ status: 429, code: "SETTINGS_RATE_LIMIT", message: "Too many settings changes. Try again shortly.", details: { retryAfterSeconds: result.retryAfterSeconds } });
+}
+function asApiError(error: unknown): never {
+  if (error instanceof SettingsValidationError) throw new ApiError({ status: error.status, code: error.code, message: error.message });
+  throw error;
 }
 
-export async function GET() {
+export const GET = withApiRoute({ route: "/api/account-settings", timeoutMs: 15_000 }, async ({ request }) => {
   const user = await getCurrentUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  if (!user) throw new ApiError({ status: 401, code: "UNAUTHORIZED", message: "Sign in to open your settings." });
+  const settings = await loadSettings(user);
+  if (new URL(request.url).searchParams.get("export") === "account-preferences") {
+    return apiJson({ format: "slice-account-preferences-v1", exportedAt: new Date().toISOString(), account: settings.account, appearance: settings.appearance, notifications: settings.notifications,
+      privacy: settings.privacy, memberships: settings.memberships }, { headers: { "content-disposition": "attachment; filename=Slice_Account_Preferences.json" } });
   }
+  return apiJson(settings);
+});
 
-  return NextResponse.json(await loadSettings(user));
-}
-
-export async function POST(request: Request) {
+export const POST = withApiRoute({ route: "/api/account-settings", timeoutMs: 20_000 }, async ({ request }) => {
+  requireSameOrigin(request);
   const user = await getCurrentUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-
-  const body = await request.json().catch(() => ({}));
-  const action = cleanString(body.action);
-
-  if (action === "saveAccountSettings") {
-    const account = body.account && typeof body.account === "object" ? body.account : {};
-    const appearance =
-      body.appearance && typeof body.appearance === "object" ? body.appearance : {};
-    const privacy = body.privacy && typeof body.privacy === "object" ? body.privacy : {};
-    const security = normalizeSecurity(
-      body.security && typeof body.security === "object" ? body.security : {},
-    );
-    const notifications = Array.isArray(body.notifications)
-      ? body.notifications.map(normalizeNotification)
-      : defaultNotificationPreferences;
-
-    const name = cleanString(account.name, user.name);
-    const email = cleanEmail(account.email || user.email);
-    const phone = cleanString(account.phone);
-    const timezone = cleanString(account.timezone, "America/Phoenix");
-
-    if (!name) {
-      return NextResponse.json({ error: "Name is required." }, { status: 400 });
+  if (!user) throw new ApiError({ status: 401, code: "UNAUTHORIZED", message: "Sign in to change your settings." });
+  rate(request, user.id);
+  try {
+    const body = await readBody(request);
+    const action = body.action;
+    if (action === "saveAccountSettings" || action === "requestPasswordReset") {
+      throw new ApiError({ status: 409, code: "SETTINGS_UPGRADE_REQUIRED", message: "Refresh Settings to save each section. Password and security changes now use the Security Center." });
     }
-
-    if (!validEmail(email)) {
-      return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
-    }
-
-    const duplicate = await db.user.findFirst({
-      where: {
-        email,
-        NOT: {
-          id: user.id,
-        },
-      },
-    });
-
-    if (duplicate) {
-      return NextResponse.json(
-        { error: "That email is already in use by another Slice account." },
-        { status: 409 },
-      );
-    }
-
-    const profile = await db.personalUserBotProfile.findUnique({
-      where: {
-        userId: user.id,
-      },
-    });
-
-    const nextMeta = normalizeAccountMeta({
-      phone,
-      timezone,
-      appearanceMode: appearance.mode,
-      density: appearance.density,
-      accent: appearance.accent,
-      privacy,
-    });
-
-    await db.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        name,
-        email,
-      },
-    });
-
-    await saveAccountMeta({
-      userId: user.id,
-      profileId: profile?.id || null,
-      firmId: profile?.firmId || null,
-      meta: nextMeta,
-    });
-
-    await db.userSecuritySetting.upsert({
-      where: {
-        userId: user.id,
-      },
-      update: security,
-      create: {
-        userId: user.id,
-        ...security,
-      },
-    });
-
-    for (const preference of notifications) {
-      await db.notificationPreference.upsert({
-        where: {
-          userId_channel: {
-            userId: user.id,
-            channel: preference.channel,
-          },
-        },
-        update: {
-          enabled: preference.enabled,
-          minUrgency: preference.minUrgency,
-          minScore: preference.minScore,
-          digestOnly: preference.digestOnly,
-          quietHoursStart: preference.quietHoursStart,
-          quietHoursEnd: preference.quietHoursEnd,
-          cooldownMinutes: preference.cooldownMinutes,
-        },
-        create: {
-          userId: user.id,
-          channel: preference.channel,
-          enabled: preference.enabled,
-          minUrgency: preference.minUrgency,
-          minScore: preference.minScore,
-          digestOnly: preference.digestOnly,
-          quietHoursStart: preference.quietHoursStart,
-          quietHoursEnd: preference.quietHoursEnd,
-          cooldownMinutes: preference.cooldownMinutes,
-        },
+    if (["saveProfile", "saveAppearance", "saveNotifications"].includes(String(action))) {
+      exactFields(body, action === "saveProfile" ? ["action", "account"] : action === "saveAppearance" ? ["action", "appearance", "allowBrowserStorage"] : ["action", "notifications"], "Settings request");
+      const profile = action === "saveProfile" ? validateProfile(body.account, user.email) : null;
+      const appearance = action === "saveAppearance" ? validateAppearance(body.appearance) : null;
+      const notifications = action === "saveNotifications" ? validateNotifications(body.notifications) : null;
+      if (appearance && typeof body.allowBrowserStorage !== "boolean") throw new SettingsValidationError("INVALID_SETTINGS", "Browser appearance storage must be enabled or disabled.");
+      await prisma.$transaction(async tx => {
+        // Serialize metadata merges for the same account so independent section saves do not erase each other.
+        await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+        const current = await tx.user.findUnique({ where: { id: user.id }, select: { id: true, email: true, platformStatus: true } });
+        if (!current || current.platformStatus !== "Active") throw new ApiError({ status: 401, code: "ACCOUNT_UNAVAILABLE", message: "This account is no longer active." });
+        if (profile && profile.email !== current.email) throw new ApiError({ status: 409, code: "ACCOUNT_CHANGED", message: "Your account changed. Reload Settings before saving." });
+        if (profile || appearance) {
+          const memory = await tx.personalUserBotMemory.findUnique({ where: { userId_memoryKey: { userId: user.id, memoryKey: MEMORY_KEY } }, select: { value: true } });
+          const meta = readAccountPreferences(memory?.value);
+          const next = { ...meta.raw, ...(profile ? { phone: profile.phone, timezone: profile.timezone } : {}),
+            ...(appearance ? { appearance, appearanceMode: appearance.mode, density: appearance.density, accent: appearance.accent,
+              privacy: { ...(meta.raw.privacy && typeof meta.raw.privacy === "object" && !Array.isArray(meta.raw.privacy) ? meta.raw.privacy : {}), allowBrowserStorage: body.allowBrowserStorage } } : {}) };
+          if (profile) await tx.user.update({ where: { id: user.id }, data: { name: profile.name } });
+          await tx.personalUserBotMemory.upsert({ where: { userId_memoryKey: { userId: user.id, memoryKey: MEMORY_KEY } },
+            update: { value: JSON.stringify(next), title: "Account preferences", status: "Active" },
+            create: { userId: user.id, memoryKey: MEMORY_KEY, memoryType: "Account Settings", title: "Account preferences", value: JSON.stringify(next), confidenceScore: 100, status: "Active" } });
+        }
+        for (const preference of notifications ?? []) {
+          const { channel, ...data } = preference;
+          await tx.notificationPreference.upsert({ where: { userId_channel: { userId: user.id, channel } }, update: data, create: { userId: user.id, channel, ...data } });
+        }
+        await tx.auditLog.create({ data: { userId: user.id, eventType: "ACCOUNT_PREFERENCES_UPDATED", severity: "Info", area: "Account Settings", title: "Account preferences updated",
+          detail: action === "saveProfile" ? "Profile details updated; sign-in identity unchanged." : action === "saveAppearance" ? "Appearance and browser appearance-storage preference updated." : "Notification filtering preferences updated.",
+          metadataJson: JSON.stringify({ section: action, ipHash: hashForSecurity(getClientIp(request)) }) } });
       });
+      const refreshed = await prisma.user.findUnique({ where: { id: user.id } });
+      if (!refreshed) throw new ApiError({ status: 401, code: "ACCOUNT_UNAVAILABLE", message: "Your account is no longer available." });
+      return apiJson(await loadSettings(refreshed));
     }
-
-    await writeAudit({
-      userId: user.id,
-      eventType: "account_settings_updated",
-      area: "Account Settings",
-      title: "Account settings updated",
-      detail: "The user updated profile, security, privacy, appearance, or notification settings.",
-      metadata: {
-        emailChanged: email !== user.email,
-        appearanceMode: nextMeta.appearanceMode,
-      },
-      request,
-    });
-
-    const refreshedUser = await db.user.findUnique({
-      where: {
-        id: user.id,
-      },
-    });
-
-    return NextResponse.json(await loadSettings(refreshedUser));
-  }
-
-  if (action === "requestPasswordReset") {
-    await db.notificationDelivery.create({
-      data: {
-        userId: user.id,
-        channel: "Email",
-        destination: user.email,
-        status: "Queued",
-        urgency: "High",
-        score: 95,
-        title: "Slice password reset requested",
-        body:
-          "A password reset request was created from AI Studio settings. Connect your production email provider to deliver the reset link.",
-        reason: "User requested password reset email.",
-        simulated: true,
-      },
-    });
-
-    await writeAudit({
-      userId: user.id,
-      eventType: "password_reset_requested",
-      severity: "High",
-      area: "Security",
-      title: "Password reset requested",
-      detail:
-        "A password reset email request was queued. Production email delivery depends on the configured email provider.",
-      request,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      message:
-        "Password reset request queued. Connect your production email provider to deliver the email automatically.",
-    });
-  }
-
-  if (action === "deactivateAccount") {
-    const confirmation = cleanString(body.confirmation);
-
-    if (confirmation !== "DEACTIVATE") {
-      return NextResponse.json(
-        { error: 'Type "DEACTIVATE" to confirm account deactivation.' },
-        { status: 400 },
-      );
-    }
-
-    await writeAudit({
-      userId: user.id,
-      eventType: "account_deactivation_requested",
-      severity: "High",
-      area: "Account",
-      title: "Account deactivated by user",
-      detail: "The user requested account deactivation from AI Studio settings.",
-      request,
-    });
-
-    await db.user.update({
-      where: {
-        id: user.id,
-      },
-      data: {
-        platformStatus: "Suspended",
-        governanceReason: "User requested account deactivation.",
-        governedAt: new Date(),
-      },
-    });
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-
-    if (token) {
-      await db.session.deleteMany({
-        where: {
-          tokenHash: hashSessionToken(token),
-        },
+    if (action === "deactivateAccount" || action === "deleteAccount") {
+      exactFields(body, ["action", "confirmation", "currentPassword", "factorCode"], "Account action");
+      const required = action === "deactivateAccount" ? "DEACTIVATE" : "DELETE MY ACCOUNT";
+      if (body.confirmation !== required) throw new ApiError({ status: 422, code: "CONFIRMATION_REQUIRED", message: `Type ${required} exactly to continue.` });
+      await requireAccountReauthentication(user.id, body.currentPassword, body.factorCode, request);
+      await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`;
+        // The legacy schema cascades a firm's deletion through its creator. Never let self-service closure erase a shared firm.
+        const createdFirms = await tx.firm.count({ where: { createdByUserId: user.id } });
+        if (createdFirms > 0) throw new ApiError({ status: 409, code: "FIRM_OWNERSHIP_REQUIRED", message: "This account created a shared firm. Complete an ownership and record-retention review before closing it." });
+        const memberships = await tx.firmMembership.findMany({ where: { userId: user.id, status: "Active" }, select: { firmId: true }, orderBy: { firmId: "asc" } });
+        for (const { firmId } of memberships) {
+          await tx.$queryRaw`SELECT "id" FROM "Firm" WHERE "id" = ${firmId} FOR UPDATE`;
+          const remaining = await tx.firmMembership.count({ where: { firmId, userId: { not: user.id }, status: "Active", user: { platformStatus: "Active" },
+            OR: [{ canManageFirm: true }, { role: { in: ["Owner", "Founder", "Admin", "Administrator", "Firm Admin", "Lead Advisor", "Principal", "Managing Partner"] } }] } });
+          if (remaining === 0) throw new ApiError({ status: 409, code: "FIRM_ADMIN_REQUIRED", message: "An active firm administrator must remain before you close this account." });
+        }
+        await tx.session.deleteMany({ where: { userId: user.id } });
+        if (action === "deactivateAccount") {
+          await tx.user.update({ where: { id: user.id }, data: { platformStatus: "Suspended", governanceReason: "User requested account deactivation.", governedAt: new Date() } });
+          await tx.auditLog.create({ data: { userId: user.id, eventType: "ACCOUNT_DEACTIVATED", severity: "Warning", area: "Account", title: "Account deactivated after reauthentication", detail: "All account sessions were revoked." } });
+        } else {
+          await tx.personalUserBotMemory.deleteMany({ where: { userId: user.id } });
+          await tx.user.delete({ where: { id: user.id } });
+        }
       });
+      if (action === "deleteAccount") await recordSecurityEvent({ eventType: "ACCOUNT_DELETED", severity: "High", area: "Account", title: "Account deleted after reauthentication", metadata: { accountIdHash: hashForSecurity(user.id) }, request }).catch(() => undefined);
+      const response = NextResponse.json({ ok: true, redirectTo: "/founder-login", message: action === "deactivateAccount" ? "Account deactivated and sessions revoked." : "Account deleted." });
+      response.cookies.set(SESSION_COOKIE, "", clearSessionCookieOptions());
+      return response;
     }
-
-    return clearAuthResponse({
-      ok: true,
-      message: "Account deactivated.",
-      redirectTo: "/login",
-    });
-  }
-
-  if (action === "deleteAccount") {
-    const confirmation = cleanString(body.confirmation);
-
-    if (confirmation !== "DELETE MY ACCOUNT") {
-      return NextResponse.json(
-        { error: 'Type "DELETE MY ACCOUNT" to confirm permanent account deletion.' },
-        { status: 400 },
-      );
-    }
-
-    await writeAudit({
-      userId: user.id,
-      eventType: "account_deletion_requested",
-      severity: "Critical",
-      area: "Account",
-      title: "Account deletion requested by user",
-      detail: "The user requested permanent account deletion from AI Studio settings.",
-      request,
-    });
-
-    await db.user.delete({
-      where: {
-        id: user.id,
-      },
-    });
-
-    return clearAuthResponse({
-      ok: true,
-      message: "Account deleted.",
-      redirectTo: "/login",
-    });
-  }
-
-  return NextResponse.json(await loadSettings(user));
-}
+    throw new ApiError({ status: 400, code: "UNKNOWN_SETTINGS_ACTION", message: "Choose a supported account setting action." });
+  } catch (error) { asApiError(error); }
+});

@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-route";
 import type { BackendContext } from "@/lib/backend/config";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 
 export const BACKGROUND_JOB_STATUSES = [
   "Queued",
@@ -295,7 +296,7 @@ export function parseBackgroundJobEnvelope(row: JobRunRow): BackgroundJobEnvelop
       payload: normalizedPayload(parsed.payload),
       idempotencyKeyHash: String(parsed.idempotencyKeyHash ?? "legacy"),
       idempotencyEventKey: String(parsed.idempotencyEventKey ?? ""),
-      attempt: clampInteger(parsed.attempt, 0, 0, 100),
+      attempt: clampInteger(parsed.attempt, 0, 0, Number.MAX_SAFE_INTEGER - 1),
       maxAttempts: clampInteger(parsed.maxAttempts, DEFAULT_MAX_ATTEMPTS, 1, 10),
       timeoutMs: clampInteger(parsed.timeoutMs, DEFAULT_TIMEOUT_MS, 5_000, 300_000),
       backoffMs: clampInteger(parsed.backoffMs, DEFAULT_BACKOFF_MS, 1_000, 300_000),
@@ -371,10 +372,11 @@ async function updateIdempotencyEvent(
   envelope: BackgroundJobEnvelope,
   status: string,
   detail?: string,
+  database: Pick<typeof prisma, "backendPlatformEvent"> = prisma,
 ) {
   if (!envelope.idempotencyEventKey) return;
 
-  await prisma.backendPlatformEvent
+  await database.backendPlatformEvent
     .update({
       where: {
         userId_eventKey: {
@@ -453,7 +455,7 @@ export async function enqueueBackgroundJob(
           userId: input.context.userId,
           firmId: input.context.firmId,
           eventKey: identity.eventKey,
-          eventType: "background_job.queued",
+          eventType: backgroundJobEventType(input.jobKey, "background_job.queued"),
           area: "Background Jobs",
           actorName: input.context.actorName,
           title: `Background job queued: ${input.jobName}`,
@@ -527,15 +529,40 @@ export async function enqueueBackgroundJob(
   }
 }
 
+export type BackgroundJobViewer = { userId: string; firmId: string; founder: boolean };
+const PRIVATE_AGENT_JOB_KEYS = ["agent_desk_cycle", "agent_desk_scout"];
+
+/** Job receipts share the same privacy namespace as the underlying agent data. */
+export function backgroundJobEventType(jobKey: string, eventType: string) {
+  return PRIVATE_AGENT_JOB_KEYS.includes(jobKey) ? `SLICE_AGENT_DESK_JOB_${eventType.replace(/^background_job\./, "").toUpperCase()}` : eventType;
+}
+
+/** Also conceals earlier receipts emitted before private job event types existed.
+ * Legacy job keys were serialized by JSON.stringify, including the value quotes. */
+export function backgroundJobEventVisibilityWhere(): Prisma.BackendPlatformEventWhereInput {
+  return { NOT: { OR: [{ eventType: { startsWith: "SLICE_AGENT_DESK_" } }, ...PRIVATE_AGENT_JOB_KEYS.map(jobKey => ({ eventType: { startsWith: "background_job." }, metadataJson: { contains: JSON.stringify(jobKey) } }))] } };
+}
+
+/** Private agent jobs are absent from generic queue reads unless a server-verified
+ * founder is inspecting their own active workspace. Apply before limits/counts. */
+export function backgroundJobVisibilityWhere(viewer?: BackgroundJobViewer): Prisma.BackendJobRunWhereInput {
+  if (viewer?.founder === true && viewer.userId && viewer.firmId) {
+    return { OR: [{ jobKey: { notIn: PRIVATE_AGENT_JOB_KEYS } }, { jobKey: { in: PRIVATE_AGENT_JOB_KEYS }, userId: viewer.userId, firmId: viewer.firmId }] };
+  }
+  return { jobKey: { notIn: PRIVATE_AGENT_JOB_KEYS } };
+}
+
 export async function listBackgroundJobs(input: {
   userId?: string;
   firmId?: string | null;
   statuses?: string[];
   limit?: number;
   includePayload?: boolean;
+  agentViewer?: BackgroundJobViewer;
 }) {
   const limit = clampInteger(input.limit, 30, 1, 100);
   const where: Prisma.BackendJobRunWhereInput = {
+    ...backgroundJobVisibilityWhere(input.agentViewer),
     ...(input.userId ? { userId: input.userId } : {}),
     ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
     ...(input.statuses?.length ? { status: { in: input.statuses.slice(0, 10) } } : {}),
@@ -559,8 +586,10 @@ export async function listBackgroundJobs(input: {
 export async function getBackgroundJobMetrics(input: {
   userId?: string;
   firmId?: string | null;
+  agentViewer?: BackgroundJobViewer;
 }) {
   const where: Prisma.BackendJobRunWhereInput = {
+    ...backgroundJobVisibilityWhere(input.agentViewer),
     ...(input.userId ? { userId: input.userId } : {}),
     ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
   };
@@ -712,48 +741,50 @@ export async function requestBackgroundJobWake(input: {
   userId?: string;
   firmId?: string | null;
 }) {
-  const row = await prisma.backendJobRun.findFirst({
-    where: {
-      id: String(input.jobId ?? "").trim(),
-      ...(input.userId ? { userId: input.userId } : {}),
-      ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
-      status: {
-        in: ["Queued", "Retrying"],
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findFirst({
+      where: {
+        id: String(input.jobId ?? "").trim(),
+        ...(input.userId ? { userId: input.userId } : {}),
+        ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
+        status: {
+          in: ["Queued", "Retrying"],
+        },
       },
-    },
+    });
+
+    if (!row) {
+      return null;
+    }
+
+    const envelope = parseBackgroundJobEnvelope(row);
+    const now = new Date();
+    const nextEnvelope: BackgroundJobEnvelope = {
+      ...envelope,
+      availableAt: now.toISOString(),
+      progress: {
+        value: Math.max(3, envelope.progress.value),
+        message: "Immediate worker recovery requested",
+        updatedAt: now.toISOString(),
+      },
+    };
+
+    const updated = await transaction.backendJobRun.update({
+      where: {
+        id: row.id,
+      },
+      data: {
+        status: "Queued",
+        startedAt: now,
+        completedAt: null,
+        durationMs: null,
+        resultJson: serializeEnvelope(nextEnvelope),
+        error: null,
+      },
+    });
+
+    return publicBackgroundJob(updated);
   });
-
-  if (!row) {
-    return null;
-  }
-
-  const envelope = parseBackgroundJobEnvelope(row);
-  const now = new Date();
-  const nextEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    availableAt: now.toISOString(),
-    progress: {
-      value: Math.max(3, envelope.progress.value),
-      message: "Immediate worker recovery requested",
-      updatedAt: now.toISOString(),
-    },
-  };
-
-  const updated = await prisma.backendJobRun.update({
-    where: {
-      id: row.id,
-    },
-    data: {
-      status: "Queued",
-      startedAt: now,
-      completedAt: null,
-      durationMs: null,
-      resultJson: serializeEnvelope(nextEnvelope),
-      error: null,
-    },
-  });
-
-  return publicBackgroundJob(updated);
 }
 
 export async function claimBackgroundJobById(input: {
@@ -866,6 +897,15 @@ export async function claimBackgroundJobById(input: {
   });
 }
 
+/** Serialize worker/control writes against the same row locks used for claims.
+ * A late heartbeat or old worker must never overwrite cancellation or a new lease. */
+async function withLockedJob<T>(jobId: string, action: (transaction: Pick<typeof prisma, "$queryRaw" | "backendJobRun" | "backendPlatformEvent">) => Promise<T>): Promise<T> {
+  return prisma.$transaction(async transaction => {
+    await transaction.$queryRaw`SELECT "id" FROM "BackendJobRun" WHERE "id" = ${jobId} FOR UPDATE`;
+    return action(transaction);
+  });
+}
+
 export async function heartbeatBackgroundJob(input: {
   jobId: string;
   workerId: string;
@@ -873,50 +913,53 @@ export async function heartbeatBackgroundJob(input: {
   message?: string;
   leaseMs?: number;
 }) {
-  const row = await prisma.backendJobRun.findFirst({
-    where: {
-      id: input.jobId,
-      status: "Processing",
-    },
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findFirst({
+      where: {
+        id: input.jobId,
+        status: "Processing",
+      },
+    });
+
+    if (!row) return { active: false, cancelled: false };
+
+    const envelope = parseBackgroundJobEnvelope(row);
+
+    if (envelope.workerId !== input.workerId) {
+      return { active: false, cancelled: Boolean(envelope.cancellationRequestedAt) };
+    }
+    if (envelope.cancellationRequestedAt) return { active: true, cancelled: true };
+
+    const now = new Date();
+    const leaseMs = clampInteger(input.leaseMs, DEFAULT_LEASE_MS, 20_000, 300_000);
+    const nextEnvelope: BackgroundJobEnvelope = {
+      ...envelope,
+      leaseExpiresAt: new Date(now.getTime() + leaseMs).toISOString(),
+      progress: {
+        value:
+          input.progress === undefined
+            ? envelope.progress.value
+            : clampInteger(input.progress, envelope.progress.value, 0, 100),
+        message:
+          input.message === undefined
+            ? envelope.progress.message
+            : String(input.message).trim().slice(0, 500) || null,
+        updatedAt: now.toISOString(),
+      },
+    };
+
+    await transaction.backendJobRun.update({
+      where: { id: row.id },
+      data: {
+        resultJson: serializeEnvelope(nextEnvelope),
+      },
+    });
+
+    return {
+      active: true,
+      cancelled: Boolean(nextEnvelope.cancellationRequestedAt),
+    };
   });
-
-  if (!row) return { active: false, cancelled: false };
-
-  const envelope = parseBackgroundJobEnvelope(row);
-
-  if (envelope.workerId !== input.workerId) {
-    return { active: false, cancelled: Boolean(envelope.cancellationRequestedAt) };
-  }
-
-  const now = new Date();
-  const leaseMs = clampInteger(input.leaseMs, DEFAULT_LEASE_MS, 20_000, 300_000);
-  const nextEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    leaseExpiresAt: new Date(now.getTime() + leaseMs).toISOString(),
-    progress: {
-      value:
-        input.progress === undefined
-          ? envelope.progress.value
-          : clampInteger(input.progress, envelope.progress.value, 0, 100),
-      message:
-        input.message === undefined
-          ? envelope.progress.message
-          : String(input.message).trim().slice(0, 500) || null,
-      updatedAt: now.toISOString(),
-    },
-  };
-
-  await prisma.backendJobRun.update({
-    where: { id: row.id },
-    data: {
-      resultJson: serializeEnvelope(nextEnvelope),
-    },
-  });
-
-  return {
-    active: true,
-    cancelled: Boolean(nextEnvelope.cancellationRequestedAt),
-  };
 }
 
 export async function readBackgroundJobControl(input: {
@@ -951,46 +994,48 @@ export async function completeBackgroundJob(input: {
   workerId: string;
   output: Record<string, unknown>;
 }) {
-  const row = await prisma.backendJobRun.findUnique({
-    where: { id: input.jobId },
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findUnique({
+      where: { id: input.jobId },
+    });
+
+    if (!row) return null;
+
+    const envelope = parseBackgroundJobEnvelope(row);
+
+    if (row.status !== "Processing" || envelope.workerId !== input.workerId || envelope.cancellationRequestedAt) {
+      return null;
+    }
+
+    const now = new Date();
+    const completedEnvelope: BackgroundJobEnvelope = {
+      ...envelope,
+      workerId: null,
+      lockedAt: null,
+      leaseExpiresAt: null,
+      output: normalizedPayload(input.output),
+      lastError: null,
+      progress: {
+        value: 100,
+        message: "Completed",
+        updatedAt: now.toISOString(),
+      },
+    };
+    const updated = await transaction.backendJobRun.update({
+      where: { id: row.id },
+      data: {
+        status: "Complete",
+        completedAt: now,
+        durationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
+        resultJson: serializeEnvelope(completedEnvelope),
+        error: null,
+      },
+    });
+
+    await updateIdempotencyEvent(row, completedEnvelope, "Complete", "Background job completed.", transaction);
+
+    return publicBackgroundJob(updated);
   });
-
-  if (!row) return null;
-
-  const envelope = parseBackgroundJobEnvelope(row);
-
-  if (row.status !== "Processing" || envelope.workerId !== input.workerId) {
-    return null;
-  }
-
-  const now = new Date();
-  const completedEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    workerId: null,
-    lockedAt: null,
-    leaseExpiresAt: null,
-    output: normalizedPayload(input.output),
-    lastError: null,
-    progress: {
-      value: 100,
-      message: "Completed",
-      updatedAt: now.toISOString(),
-    },
-  };
-  const updated = await prisma.backendJobRun.update({
-    where: { id: row.id },
-    data: {
-      status: "Complete",
-      completedAt: now,
-      durationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
-      resultJson: serializeEnvelope(completedEnvelope),
-      error: null,
-    },
-  });
-
-  await updateIdempotencyEvent(row, completedEnvelope, "Complete", "Background job completed.");
-
-  return publicBackgroundJob(updated);
 }
 
 function retryDelayMs(envelope: BackgroundJobEnvelope) {
@@ -1007,34 +1052,96 @@ export async function failBackgroundJob(input: {
   error: unknown;
   retryable: boolean;
 }) {
-  const row = await prisma.backendJobRun.findUnique({
-    where: { id: input.jobId },
-  });
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findUnique({
+      where: { id: input.jobId },
+    });
 
-  if (!row) return null;
+    if (!row) return null;
 
-  const envelope = parseBackgroundJobEnvelope(row);
+    const envelope = parseBackgroundJobEnvelope(row);
 
-  if (
-    row.status === "Processing" &&
-    input.workerId &&
-    envelope.workerId &&
-    envelope.workerId !== input.workerId
-  ) {
-    return null;
-  }
+    if (input.workerId && (row.status !== "Processing" || envelope.workerId !== input.workerId)) return null;
+    if (["Complete", "Cancelled", "Failed", "DeadLetter"].includes(row.status)) return null;
+    // Recovery rechecks the current lease under the lock: a heartbeat may have
+    // arrived after the initial scan, or another worker may already own it.
+    if (input.code === "JOB_LEASE_EXPIRED" && (row.status !== "Processing"
+      || (envelope.leaseExpiresAt && Date.parse(envelope.leaseExpiresAt) > Date.now()))) return null;
 
-  const now = new Date();
-  const message = safeMessage(input.error);
-  const lastError: BackgroundJobErrorState = {
-    code: String(input.code || "JOB_FAILED").slice(0, 120),
-    message,
-    retryable: input.retryable,
-    at: now.toISOString(),
-  };
+    const now = new Date();
+    const message = safeMessage(input.error);
+    const lastError: BackgroundJobErrorState = {
+      code: String(input.code || "JOB_FAILED").slice(0, 120),
+      message,
+      retryable: input.retryable,
+      at: now.toISOString(),
+    };
 
-  if (envelope.cancellationRequestedAt) {
-    const cancelledEnvelope: BackgroundJobEnvelope = {
+    if (envelope.cancellationRequestedAt) {
+      const cancelledEnvelope: BackgroundJobEnvelope = {
+        ...envelope,
+        workerId: null,
+        lockedAt: null,
+        leaseExpiresAt: null,
+        lastError,
+        progress: {
+          value: envelope.progress.value,
+          message: "Cancelled",
+          updatedAt: now.toISOString(),
+        },
+      };
+      const cancelled = await transaction.backendJobRun.update({
+        where: { id: row.id },
+        data: {
+          status: "Cancelled",
+          completedAt: now,
+          durationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
+          resultJson: serializeEnvelope(cancelledEnvelope),
+          error: null,
+        },
+      });
+
+      await updateIdempotencyEvent(row, cancelledEnvelope, "Cancelled", "Background job cancelled.", transaction);
+      return publicBackgroundJob(cancelled);
+    }
+
+    const recoverableInterruption = researchBetaEnabled(process.env)
+      && (input.code === "JOB_LEASE_EXPIRED" || input.code === "JOB_TIMEOUT");
+    if (input.retryable && (envelope.attempt < envelope.maxAttempts || recoverableInterruption)) {
+      const delayMs = retryDelayMs(envelope);
+      const availableAt = new Date(now.getTime() + delayMs);
+      const retryEnvelope: BackgroundJobEnvelope = {
+        ...envelope,
+        workerId: null,
+        lockedAt: null,
+        leaseExpiresAt: null,
+        availableAt: availableAt.toISOString(),
+        lastError,
+        progress: {
+          value: 0,
+          message: `Retry scheduled after attempt ${envelope.attempt}`,
+          updatedAt: now.toISOString(),
+        },
+      };
+      const retry = await transaction.backendJobRun.update({
+        where: { id: row.id },
+        data: {
+          status: "Retrying",
+          startedAt: availableAt,
+          completedAt: null,
+          durationMs: null,
+          resultJson: serializeEnvelope(retryEnvelope),
+          error: message,
+        },
+      });
+
+      await updateIdempotencyEvent(row, retryEnvelope, "Retrying", message, transaction);
+      return publicBackgroundJob(retry);
+    }
+
+    const finalStatus: BackgroundJobStatus =
+      envelope.attempt >= envelope.maxAttempts ? "DeadLetter" : "Failed";
+    const failedEnvelope: BackgroundJobEnvelope = {
       ...envelope,
       workerId: null,
       lockedAt: null,
@@ -1042,84 +1149,24 @@ export async function failBackgroundJob(input: {
       lastError,
       progress: {
         value: envelope.progress.value,
-        message: "Cancelled",
+        message: finalStatus === "DeadLetter" ? "Moved to dead letter" : "Failed",
         updatedAt: now.toISOString(),
       },
     };
-    const cancelled = await prisma.backendJobRun.update({
+    const failed = await transaction.backendJobRun.update({
       where: { id: row.id },
       data: {
-        status: "Cancelled",
+        status: finalStatus,
         completedAt: now,
         durationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
-        resultJson: serializeEnvelope(cancelledEnvelope),
-        error: null,
-      },
-    });
-
-    await updateIdempotencyEvent(row, cancelledEnvelope, "Cancelled", "Background job cancelled.");
-    return publicBackgroundJob(cancelled);
-  }
-
-  if (input.retryable && envelope.attempt < envelope.maxAttempts) {
-    const delayMs = retryDelayMs(envelope);
-    const availableAt = new Date(now.getTime() + delayMs);
-    const retryEnvelope: BackgroundJobEnvelope = {
-      ...envelope,
-      workerId: null,
-      lockedAt: null,
-      leaseExpiresAt: null,
-      availableAt: availableAt.toISOString(),
-      lastError,
-      progress: {
-        value: 0,
-        message: `Retry scheduled after attempt ${envelope.attempt}`,
-        updatedAt: now.toISOString(),
-      },
-    };
-    const retry = await prisma.backendJobRun.update({
-      where: { id: row.id },
-      data: {
-        status: "Retrying",
-        startedAt: availableAt,
-        completedAt: null,
-        durationMs: null,
-        resultJson: serializeEnvelope(retryEnvelope),
+        resultJson: serializeEnvelope(failedEnvelope),
         error: message,
       },
     });
 
-    await updateIdempotencyEvent(row, retryEnvelope, "Retrying", message);
-    return publicBackgroundJob(retry);
-  }
-
-  const finalStatus: BackgroundJobStatus =
-    envelope.attempt >= envelope.maxAttempts ? "DeadLetter" : "Failed";
-  const failedEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    workerId: null,
-    lockedAt: null,
-    leaseExpiresAt: null,
-    lastError,
-    progress: {
-      value: envelope.progress.value,
-      message: finalStatus === "DeadLetter" ? "Moved to dead letter" : "Failed",
-      updatedAt: now.toISOString(),
-    },
-  };
-  const failed = await prisma.backendJobRun.update({
-    where: { id: row.id },
-    data: {
-      status: finalStatus,
-      completedAt: now,
-      durationMs: Math.max(0, now.getTime() - row.startedAt.getTime()),
-      resultJson: serializeEnvelope(failedEnvelope),
-      error: message,
-    },
+    await updateIdempotencyEvent(row, failedEnvelope, finalStatus, message, transaction);
+    return publicBackgroundJob(failed);
   });
-
-  await updateIdempotencyEvent(row, failedEnvelope, finalStatus, message);
-  return publicBackgroundJob(failed);
 }
 
 export async function requestBackgroundJobCancellation(input: {
@@ -1127,60 +1174,62 @@ export async function requestBackgroundJobCancellation(input: {
   userId?: string;
   firmId?: string | null;
 }) {
-  const row = await prisma.backendJobRun.findFirst({
-    where: {
-      id: input.jobId,
-      ...(input.userId ? { userId: input.userId } : {}),
-      ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
-    },
-  });
-
-  if (!row) {
-    throw new ApiError({
-      status: 404,
-      code: "BACKGROUND_JOB_NOT_FOUND",
-      message: "Background job not found.",
-      expose: true,
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findFirst({
+      where: {
+        id: input.jobId,
+        ...(input.userId ? { userId: input.userId } : {}),
+        ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
+      },
     });
-  }
 
-  if (["Complete", "Failed", "DeadLetter", "Cancelled"].includes(row.status)) {
-    throw new ApiError({
-      status: 409,
-      code: "BACKGROUND_JOB_TERMINAL",
-      message: `The job is already ${row.status.toLowerCase()} and cannot be cancelled.`,
-      expose: true,
+    if (!row) {
+      throw new ApiError({
+        status: 404,
+        code: "BACKGROUND_JOB_NOT_FOUND",
+        message: "Background job not found.",
+        expose: true,
+      });
+    }
+
+    if (["Complete", "Failed", "DeadLetter", "Cancelled"].includes(row.status)) {
+      throw new ApiError({
+        status: 409,
+        code: "BACKGROUND_JOB_TERMINAL",
+        message: `The job is already ${row.status.toLowerCase()} and cannot be cancelled.`,
+        expose: true,
+      });
+    }
+
+    const envelope = parseBackgroundJobEnvelope(row);
+    const now = new Date();
+    const cancellationEnvelope: BackgroundJobEnvelope = {
+      ...envelope,
+      cancellationRequestedAt: envelope.cancellationRequestedAt ?? now.toISOString(),
+      progress: {
+        ...envelope.progress,
+        message: row.status === "Processing" ? "Cancellation requested" : "Cancelled",
+        updatedAt: now.toISOString(),
+      },
+    };
+    const immediate = row.status === "Queued" || row.status === "Retrying";
+    const updated = await transaction.backendJobRun.update({
+      where: { id: row.id },
+      data: {
+        status: immediate ? "Cancelled" : row.status,
+        completedAt: immediate ? now : null,
+        durationMs: immediate ? 0 : null,
+        resultJson: serializeEnvelope(cancellationEnvelope),
+        error: null,
+      },
     });
-  }
 
-  const envelope = parseBackgroundJobEnvelope(row);
-  const now = new Date();
-  const cancellationEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    cancellationRequestedAt: envelope.cancellationRequestedAt ?? now.toISOString(),
-    progress: {
-      ...envelope.progress,
-      message: row.status === "Processing" ? "Cancellation requested" : "Cancelled",
-      updatedAt: now.toISOString(),
-    },
-  };
-  const immediate = row.status === "Queued" || row.status === "Retrying";
-  const updated = await prisma.backendJobRun.update({
-    where: { id: row.id },
-    data: {
-      status: immediate ? "Cancelled" : row.status,
-      completedAt: immediate ? now : null,
-      durationMs: immediate ? 0 : null,
-      resultJson: serializeEnvelope(cancellationEnvelope),
-      error: null,
-    },
+    if (immediate) {
+      await updateIdempotencyEvent(row, cancellationEnvelope, "Cancelled", "Background job cancelled.", transaction);
+    }
+
+    return publicBackgroundJob(updated);
   });
-
-  if (immediate) {
-    await updateIdempotencyEvent(row, cancellationEnvelope, "Cancelled", "Background job cancelled.");
-  }
-
-  return publicBackgroundJob(updated);
 }
 
 export async function retryBackgroundJob(input: {
@@ -1189,69 +1238,74 @@ export async function retryBackgroundJob(input: {
   firmId?: string | null;
   resetAttempts?: boolean;
 }) {
-  const row = await prisma.backendJobRun.findFirst({
-    where: {
-      id: input.jobId,
-      ...(input.userId ? { userId: input.userId } : {}),
-      ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
-    },
-  });
-
-  if (!row) {
-    throw new ApiError({
-      status: 404,
-      code: "BACKGROUND_JOB_NOT_FOUND",
-      message: "Background job not found.",
-      expose: true,
+  return withLockedJob(input.jobId, async transaction => {
+    const row = await transaction.backendJobRun.findFirst({
+      where: {
+        id: input.jobId,
+        ...(input.userId ? { userId: input.userId } : {}),
+        ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
+      },
     });
-  }
 
-  if (!["Failed", "DeadLetter", "Cancelled"].includes(row.status)) {
-    throw new ApiError({
-      status: 409,
-      code: "BACKGROUND_JOB_NOT_RETRYABLE",
-      message: "Only failed, dead-lettered, or cancelled jobs can be retried manually.",
-      expose: true,
+    if (!row) {
+      throw new ApiError({
+        status: 404,
+        code: "BACKGROUND_JOB_NOT_FOUND",
+        message: "Background job not found.",
+        expose: true,
+      });
+    }
+
+    if (!["Failed", "DeadLetter", "Cancelled"].includes(row.status)) {
+      throw new ApiError({
+        status: 409,
+        code: "BACKGROUND_JOB_NOT_RETRYABLE",
+        message: "Only failed, dead-lettered, or cancelled jobs can be retried manually.",
+        expose: true,
+      });
+    }
+
+    const envelope = parseBackgroundJobEnvelope(row);
+    const now = new Date();
+    const retryEnvelope: BackgroundJobEnvelope = {
+      ...envelope,
+      attempt: input.resetAttempts === false ? envelope.attempt : 0,
+      availableAt: now.toISOString(),
+      workerId: null,
+      lockedAt: null,
+      leaseExpiresAt: null,
+      cancellationRequestedAt: null,
+      output: null,
+      lastError: envelope.lastError,
+      progress: {
+        value: 0,
+        message: "Manual retry queued",
+        updatedAt: now.toISOString(),
+      },
+    };
+    const updated = await transaction.backendJobRun.update({
+      where: { id: row.id },
+      data: {
+        status: "Queued",
+        startedAt: now,
+        completedAt: null,
+        durationMs: null,
+        resultJson: serializeEnvelope(retryEnvelope),
+        error: null,
+      },
     });
-  }
 
-  const envelope = parseBackgroundJobEnvelope(row);
-  const now = new Date();
-  const retryEnvelope: BackgroundJobEnvelope = {
-    ...envelope,
-    attempt: input.resetAttempts === false ? envelope.attempt : 0,
-    availableAt: now.toISOString(),
-    workerId: null,
-    lockedAt: null,
-    leaseExpiresAt: null,
-    cancellationRequestedAt: null,
-    output: null,
-    lastError: envelope.lastError,
-    progress: {
-      value: 0,
-      message: "Manual retry queued",
-      updatedAt: now.toISOString(),
-    },
-  };
-  const updated = await prisma.backendJobRun.update({
-    where: { id: row.id },
-    data: {
-      status: "Queued",
-      startedAt: now,
-      completedAt: null,
-      durationMs: null,
-      resultJson: serializeEnvelope(retryEnvelope),
-      error: null,
-    },
+    await updateIdempotencyEvent(row, retryEnvelope, "Queued", "Background job manually retried.", transaction);
+    return publicBackgroundJob(updated);
   });
-
-  await updateIdempotencyEvent(row, retryEnvelope, "Queued", "Background job manually retried.");
-  return publicBackgroundJob(updated);
 }
 
 export async function recoverStalledBackgroundJobs(input: {
   staleAfterMs?: number;
   limit?: number;
+  jobId?: string;
+  userId?: string;
+  firmId?: string | null;
 }) {
   const staleAfterMs = clampInteger(input.staleAfterMs, DEFAULT_LEASE_MS, 20_000, 15 * 60_000);
   const limit = clampInteger(input.limit, 25, 1, 100);
@@ -1259,6 +1313,9 @@ export async function recoverStalledBackgroundJobs(input: {
   const rows = await prisma.backendJobRun.findMany({
     where: {
       status: "Processing",
+      ...(input.jobId ? { id: input.jobId } : {}),
+      ...(input.userId ? { userId: input.userId } : {}),
+      ...(input.firmId !== undefined ? { firmId: input.firmId } : {}),
       updatedAt: {
         lt: cutoff,
       },

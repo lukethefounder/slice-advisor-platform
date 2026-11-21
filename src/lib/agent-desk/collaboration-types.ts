@@ -1,0 +1,126 @@
+import type { AgentFinding, AgentRole } from "./contracts";
+import type { DeskQuote, PaperFill } from "./guardrails";
+
+export type AgentBoardPhase = "discovery" | "research" | "challenge" | "reply" | "decision" | "execution" | "learning";
+export type AgentBoardMessage = {
+  version: 1;
+  id: string;
+  cycleId: string;
+  symbol: string;
+  round: number;
+  phase: AgentBoardPhase;
+  from: AgentRole | "system" | "founder";
+  to: AgentRole | "team" | "founder";
+  replyToIds: string[];
+  body: string;
+  evidenceIds: string[];
+  createdAt: string;
+  researchRunId: string | null;
+  sourceHash: string | null;
+  report?: AgentFinding | null;
+};
+export type AgentBoardMessageInput = Omit<AgentBoardMessage, "version">;
+
+export type AgentTradeBrief = {
+  version: 1;
+  id: string;
+  cycleId: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  title: string;
+  summary: string;
+  createdAt: string;
+  readAt: string | null;
+  delivery: "in-app";
+  classification: "paper-simulation";
+  fill: PaperFill;
+  contextQuote: DeskQuote | null;
+  executionQuote: DeskQuote | null;
+  researchRunId: string | null;
+  sourceHash: string;
+  entryCycleId: string | null;
+  realized: boolean;
+  netPnl: number | null;
+  netReturnPct: number | null;
+  attribution: "entry-open" | "linked-entry" | "legacy-entry-unavailable";
+};
+
+export type AgentTradeOutcome = {
+  version: 1;
+  id: string;
+  symbol: string;
+  entryCycleId: string | null;
+  exitCycleId: string;
+  entryResearchRunId: string | null;
+  exitResearchRunId: string | null;
+  openedAt: string;
+  closedAt: string;
+  quantity: number;
+  entryPrice: number;
+  exitPrice: number;
+  entryFees: number;
+  exitFees: number;
+  netPnl: number;
+  netReturnPct: number;
+  holdingMinutes: number;
+  protective: boolean;
+  exitCode: string;
+  exitReason: string;
+  entrySourceHash: string | null;
+  exitSourceHash: string;
+  entryConfidence: number | null;
+  entryCoverage: number | null;
+  entryConditions: string[];
+  entryAgents: AgentFinding[];
+  attribution: "linked-entry" | "legacy-entry-unavailable";
+  classification: "paper-simulation";
+};
+
+export type AgentLesson = {
+  version: 1;
+  id: string;
+  title: string;
+  description: string;
+  condition: string;
+  status: "observed-pattern" | "review-candidate";
+  sampleCount: number;
+  lossCount: number;
+  netPnl: number;
+  relatedCycleIds: string[];
+  firstObservedAt: string;
+  lastObservedAt: string;
+  advisoryOnly: true;
+};
+export type AgentRoleLearning = {
+  role: AgentRole;
+  reviewedTrades: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  netPnl: number;
+  observedWinRatePct: number | null;
+};
+export type AgentLearningSummary = {
+  version: "slice-agent-learning-1.0.0";
+  generatedAt: string;
+  symbol: string | null;
+  closedTrades: number;
+  linkedTrades: number;
+  unattributedTrades: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  netPnl: number;
+  observedWinRatePct: number | null;
+  byRole: AgentRoleLearning[];
+  lessons: AgentLesson[];
+  recentOutcomes: AgentTradeOutcome[];
+  sampleWindow: { limit: number; totalRecordedTrades: number; truncated: boolean; oldestClosedAt: string | null; newestClosedAt: string | null };
+  advisoryOnly: true;
+  limitations: string[];
+};
+export type AgentCollaborationView = {
+  board: AgentBoardMessage[];
+  briefs: AgentTradeBrief[];
+  learning: AgentLearningSummary;
+};

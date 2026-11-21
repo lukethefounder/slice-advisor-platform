@@ -7,6 +7,7 @@ import { PROVIDER, StrategyError, manifestOf, type Dataset } from "./contracts";
 import { symbolOf } from "./validation";
 import { parseDailyPayload, verifyUsdIdentity } from "./provider-parser";
 import { Series } from "./indicators";
+import { canReuseHistory, shareHistoryImport, type HistoryCoverage } from "./history-reuse";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 function envInt(key: string, fallback: number, min: number, max: number) { const n = Number(process.env[key]); return Number.isInteger(n) && n >= min && n <= max ? n : fallback; }
 export function newYorkToday() { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
@@ -64,13 +65,35 @@ async function providerJson(apiKey: string, params: Record<string, string>): Pro
     throw new StrategyError("PROVIDER_TIMEOUT", "Alpha Vantage could not complete the request. Retry; no substitute data was used.", 504);
   } finally { clearTimeout(timeout); }
 }
-async function performImport(userId: string, rawSymbol: unknown, force = false) {
-  const symbol = symbolOf(rawSymbol), apiKey = keyValue();
+async function reusableHistory(userId: string, symbol: string, coverage?: HistoryCoverage) {
   const hours = envInt("SLICE_STRATEGY_HISTORY_CACHE_HOURS", 6, 1, 24);
-  if (!force) {
-    const stored = await prisma.sliceResearchDataset.findFirst({ where: { userId, provider: PROVIDER, symbol, retrievedAt: { gte: new Date(Date.now() - hours * 3600000) } }, orderBy: { retrievedAt: "desc" } });
-    if (stored) return { ...manifestOf(hydrate(stored)), cached: true };
+  const rows = await prisma.sliceResearchDataset.findMany({
+    where: { userId, provider: PROVIDER, symbol, currency: "USD", endpoint: "TIME_SERIES_DAILY_ADJUSTED",
+      ...(!coverage ? { retrievedAt: { gte: new Date(Date.now() - hours * 3600000) } } : {}) },
+    orderBy: { retrievedAt: "desc" }, take: coverage ? 12 : 1,
+    select: { id: true, firstDate: true, lastDate: true, barCount: true },
+  });
+  for (const candidate of rows) {
+    if (coverage && (candidate.firstDate > coverage.startDate
+      || Date.parse(coverage.endDate) - Date.parse(candidate.lastDate) > 4 * 86400000
+      || candidate.barCount < coverage.warmupSessions + 2)) continue;
+    // List tiny manifests first; do not fetch twelve complete JSON histories
+    // merely to reuse the first suitable version.
+    const row = await prisma.sliceResearchDataset.findFirst({ where: { id: candidate.id, userId, provider: PROVIDER } });
+    if (!row) continue;
+    const data = hydrate(row);
+    if (canReuseHistory(data, { coverage, freshForMs: hours * 3600000 }))
+      return { ...manifestOf(data), cached: true, reuseReason: coverage ? "verified-period" as const : "recent-import" as const };
   }
+  return null;
+}
+async function performImport(userId: string, rawSymbol: unknown, force = false, coverage?: HistoryCoverage) {
+  const symbol = symbolOf(rawSymbol);
+  const stored = !force ? await reusableHistory(userId, symbol, coverage) : null;
+  if (stored) return stored;
+  // Saved historical research stays usable when a provider key is unavailable.
+  // Credentials and endpoint access are needed only for an actual new import.
+  const apiKey = keyValue();
   const identityText = await providerJson(apiKey, { function: "SYMBOL_SEARCH", keywords: symbol });
   verifyUsdIdentity(JSON.parse(identityText) as unknown, symbol);
   const text = await providerJson(apiKey, { function: "TIME_SERIES_DAILY_ADJUSTED", symbol, outputsize: "full" });
@@ -79,11 +102,11 @@ async function performImport(userId: string, rawSymbol: unknown, force = false) 
   new Series({ id: "pending", symbol, provider: PROVIDER, currency: "USD", bars, retrievedAt: new Date().toISOString(), sourceSha256: sha(text) });
   const duplicate = await prisma.sliceResearchDataset.findFirst({ where: { userId, provider: PROVIDER, symbol, sourceSha256: sha(text), endpoint: "TIME_SERIES_DAILY_ADJUSTED" }, orderBy: { retrievedAt: "desc" } });
   if (duplicate && hydrate(duplicate).bars.at(-1)?.date === bars.at(-1)?.date) return { ...manifestOf(hydrate(duplicate)), cached: true };
-  const stored = await prisma.sliceResearchDataset.create({ data: {
+  const created = await prisma.sliceResearchDataset.create({ data: {
     userId, provider: PROVIDER, symbol, currency: "USD", endpoint: "TIME_SERIES_DAILY_ADJUSTED",
     rawJson: text, identityJson: identityText, sourceSha256: sha(text), firstDate: bars[0].date, lastDate: bars.at(-1)!.date, barCount: bars.length,
   } });
-  return { ...manifestOf(hydrate(stored)), cached: false };
+  return { ...manifestOf(hydrate(created)), cached: false };
 }
 type StoredDataset = { id: string; symbol: string; provider: string; currency: string; rawJson: string; identityJson: string; sourceSha256: string; retrievedAt: Date };
 export function hydrate(row: StoredDataset): Dataset {
@@ -101,14 +124,19 @@ export async function loadDatasets(userId: string, ids: string[]) {
 }
 
 /** A short database lease prevents duplicate in-flight imports across tabs and server workers. */
-export async function importHistory(userId: string, rawSymbol: unknown, force = false) {
-  const symbol = symbolOf(rawSymbol), eventKey = `strategy-import-lease:${symbol}`, token = randomUUID();
+export async function importHistory(userId: string, rawSymbol: unknown, force = false, coverage?: HistoryCoverage) {
+  const symbol = symbolOf(rawSymbol);
+  return shareHistoryImport(JSON.stringify([userId, symbol, force, coverage ?? null]), async () => {
+  const cached = !force ? await reusableHistory(userId, symbol, coverage) : null;
+  if (cached) return cached;
+  const eventKey = `strategy-import-lease:${symbol}`, token = randomUUID();
   const key = { userId_eventKey: { userId, eventKey } };
   const row = await prisma.backendPlatformEvent.upsert({ where: key, update: {}, create: { userId, eventKey,
     eventType: "SLICE_STRATEGY_IMPORT_LEASE_V2", area: "Strategy Lab", title: `Historical import: ${symbol}`,
     severity: "Info", status: "Idle", sourceType: "HistoricalImport", metadataJson: "{}" }, select: { id: true } });
   const claimed = await prisma.backendPlatformEvent.updateMany({ where: { id: row.id, userId, OR: [{ status: { not: "Loading" } }, { updatedAt: { lt: new Date(Date.now() - 120000) } }] }, data: { status: "Loading", detail: token } });
   if (claimed.count !== 1) throw new StrategyError("IMPORT_BUSY", `${symbol} is already being imported. Completed versions remain available; retry shortly.`, 409, 5);
-  try { return await performImport(userId, symbol, force); }
+  try { return await performImport(userId, symbol, force, coverage); }
   finally { await prisma.backendPlatformEvent.updateMany({ where: { id: row.id, userId, detail: token, status: "Loading" }, data: { status: "Idle", detail: null } }).catch(() => undefined); }
+  });
 }

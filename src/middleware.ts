@@ -160,6 +160,8 @@ function isPublicApi(request: NextRequest) {
   if (pathname === "/api/auth/me") return method === "GET";
   if (pathname === "/api/auth/login") return method === "POST";
   if (pathname === "/api/auth/register") return method === "POST";
+  if (pathname === "/api/auth/invite-register") return method === "POST";
+  if (pathname === "/api/team-invites/send") return method === "GET";
   if (pathname === "/api/founder-bootstrap") return method === "POST";
 
   if (pathname === "/api/client-portal/access") {
@@ -285,6 +287,24 @@ export function middleware(request: NextRequest) {
       "CROSS_SITE_REQUEST_BLOCKED",
       "Security policy blocked this request.",
     );
+  }
+
+  // Legacy invitation URLs must remain usable before a recipient has an account.
+  // The public endpoint verifies the expiring token; private workspace guards stay intact.
+  if (pathname === "/workspace/team-invite") {
+    const inviteUrl = request.nextUrl.clone();
+    inviteUrl.pathname = "/team-invite";
+    const response = decorate(NextResponse.redirect(inviteUrl), request, id, { sensitive: true });
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
+  }
+
+  if (pathname === "/team-invite") {
+    const response = decorate(NextResponse.next(), request, id, { sensitive: true });
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
   }
 
   const advisorSession = hasAdvisorSession(request);

@@ -5,9 +5,10 @@ import { readPreferences, marketStorage } from "@/lib/market-evidence/storage";
 import { loadMarketSection } from "@/lib/market-visuals/service";
 import { workspaceRequests } from "@/lib/instant-workspace/compose";
 import { randomUUID } from "node:crypto";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 /** Operator-scheduled cache priming. Disabled by default; never enabled by page navigation. */
 export async function GET(request: Request) {
@@ -33,7 +34,10 @@ export async function GET(request: Request) {
       const { preferences: p } = await readPreferences(scope), tasks = workspaceRequests(p);
       const selected = Array.from({ length: Math.min(3,tasks.length) }, (_,i) => tasks[(cursor+i)%tasks.length]);
       for (const task of selected) {
-        try { await loadMarketSection({ ...task, range: p.range, confirmOptions: false }, marketStorage(scope), AbortSignal.any([request.signal,AbortSignal.timeout(14000)])); completed++; } catch { failed++; }
+        try {
+          const signal = researchBetaEnabled(process.env) ? request.signal : AbortSignal.any([request.signal, AbortSignal.timeout(14000)]);
+          await loadMarketSection({ ...task, range: p.range, confirmOptions: false }, marketStorage(scope), signal); completed++;
+        } catch { failed++; }
       }
       cursor = (cursor + selected.length) % tasks.length;
       await prisma.backendPlatformEvent.updateMany({ where: { id: marker.id, detail: token }, data: { status: failed ? "Partial" : "Ready", detail: null, metadataJson: JSON.stringify({ cursor, completed, failed, checkedAt: new Date().toISOString() }) } });

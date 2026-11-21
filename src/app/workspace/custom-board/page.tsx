@@ -1,6 +1,8 @@
 "use client";
 
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useBoardMarket } from "@/lib/market-visuals/use-board-market";
+import type { BoardSnapshot as MarketSnapshot } from "@/lib/market-visuals/board-snapshot";
 
 type Tone = "red" | "green" | "amber" | "purple" | "cyan" | "blue" | "slate";
 type MetricCategory = "Price" | "Volume" | "Technical" | "Risk" | "Valuation" | "Quality" | "Income" | "Macro" | "Custom";
@@ -23,29 +25,6 @@ type MetricDefinition = {
   unit: MetricUnit;
   mirrorMode: "quote" | "chart" | "assist";
   searchTerms: string[];
-};
-
-type MetricValue = {
-  value: number | string | null;
-  display: string;
-  status: "live" | "chart" | "missing" | "review";
-  source: string;
-  asOf: string | null;
-};
-
-type MarketSnapshot = {
-  ok: boolean;
-  symbol: string;
-  tvSymbol: string;
-  provider: string;
-  asOf: string | null;
-  session: string;
-  price: number | null;
-  change: number | null;
-  changePct: number | null;
-  volume: number | null;
-  summary: string;
-  metrics: Record<string, MetricValue>;
 };
 
 type MetricAlertConfig = {
@@ -161,9 +140,9 @@ const METRIC_LIBRARY: MetricDefinition[] = [
   { id: "last-price", label: "Last Price", shortLabel: "Price", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["price", "quote"] },
   { id: "change", label: "Price Change", shortLabel: "Change", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["change", "move"] },
   { id: "change-pct", label: "Change %", shortLabel: "Chg %", category: "Price", unit: "percent", mirrorMode: "quote", searchTerms: ["change percent", "return"] },
-  { id: "open", label: "Open", shortLabel: "Open", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["open"] },
-  { id: "high", label: "High", shortLabel: "High", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["high"] },
-  { id: "low", label: "Low", shortLabel: "Low", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["low"] },
+  { id: "open", label: "Last daily open", shortLabel: "Daily open", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["open"] },
+  { id: "high", label: "Last daily high", shortLabel: "Daily high", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["high"] },
+  { id: "low", label: "Last daily low", shortLabel: "Daily low", category: "Price", unit: "currency", mirrorMode: "quote", searchTerms: ["low"] },
   { id: "volume", label: "Volume", shortLabel: "Volume", category: "Volume", unit: "millions", mirrorMode: "quote", searchTerms: ["volume"] },
   { id: "avg-volume", label: "Average Volume", shortLabel: "Avg Vol", category: "Volume", unit: "millions", mirrorMode: "assist", searchTerms: ["average volume"] },
   { id: "rsi-14", label: "RSI 14", shortLabel: "RSI", category: "Technical", unit: "score", mirrorMode: "chart", searchTerms: ["rsi"] },
@@ -261,7 +240,7 @@ function parseTradingViewSymbol(raw: string, fallbackExchange = "NASDAQ"): Tradi
 
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
+    red: "border-rose-500/25 bg-rose-500/10 text-rose-100 shadow-rose-950/20",
     green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
     purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
@@ -275,7 +254,7 @@ function toneClass(tone: Tone) {
 
 function dotClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "bg-emerald-400 shadow-emerald-400/50",
+    red: "bg-rose-400 shadow-rose-400/50",
     green: "bg-emerald-400 shadow-emerald-400/50",
     amber: "bg-amber-400 shadow-amber-400/50",
     purple: "bg-purple-400 shadow-purple-400/50",
@@ -323,64 +302,16 @@ function priorityTone(priority: AlertPriority): Tone {
 }
 
 function metricDisplay(snapshot: MarketSnapshot | null, metric: MetricDefinition) {
-  if (!snapshot) {
-    return {
-      display: "—",
-      status: "Loading",
-      tone: "amber" as Tone,
-      source: "Loading",
-      asOf: null,
-    };
-  }
-
-  const value = snapshot.metrics?.[metric.id];
-
-  if (!value) {
-    if (metric.mirrorMode === "chart") {
-      return {
-        display: "Chart",
-        status: "Mirror",
-        tone: "purple" as Tone,
-        source: "TradingView chart",
-        asOf: snapshot.asOf,
-      };
-    }
-
-    return {
-      display: "—",
-      status: "Missing",
-      tone: "slate" as Tone,
-      source: snapshot.provider,
-      asOf: snapshot.asOf,
-    };
-  }
-
-  if (value.status === "chart") {
-    return {
-      display: value.display || "Chart",
-      status: "Mirror",
-      tone: "purple" as Tone,
-      source: "TradingView chart",
-      asOf: value.asOf || snapshot.asOf,
-    };
-  }
-
-  if (value.status === "live") {
-    return {
-      display: value.display || "—",
-      status: "Live",
-      tone: categoryTone(metric.category),
-      source: value.source || snapshot.provider,
-      asOf: value.asOf || snapshot.asOf,
-    };
-  }
-
+  const value = snapshot?.metrics[metric.id];
+  const status = value?.status;
+  const labels: Record<string, string> = { realtime: "Real-time quote", delayed: "Delayed", "end-of-day": "Daily close", stale: "Older observation", calculated: "Daily calculation", reference: "Reference", chart: "Chart", unavailable: "Unavailable" };
   return {
-    display: value.display || "—",
-    status: value.status === "review" ? "Review" : "Missing",
-    tone: value.status === "review" ? "amber" as Tone : "slate" as Tone,
-    source: value.source || snapshot.provider,
-    asOf: value.asOf || snapshot.asOf,
+    display: value?.display || "—",
+    status: status ? labels[status] : snapshot ? "Waiting" : "Loading",
+    tone: (status === "stale" ? "amber" : status === "unavailable" ? "slate" : status === "calculated" ? "purple" : categoryTone(metric.category)) as Tone,
+    source: value?.source || "Waiting for provider",
+    asOf: value?.asOf || null,
+    detail: value?.detail || "Quote, history and company fields load independently.",
   };
 }
 
@@ -431,7 +362,7 @@ function TradingViewChart({ symbol }: { symbol: TradingViewSymbol }) {
       style: "1",
       locale: "en",
       enable_publishing: false,
-      allow_symbol_change: true,
+      allow_symbol_change: false,
       calendar: false,
       support_host: "https://www.tradingview.com",
       hide_top_toolbar: false,
@@ -518,55 +449,6 @@ function saveBoardState(state: BoardState) {
   saveJson(STORAGE_KEY, state);
 }
 
-function useMarketSnapshot(activeSymbol: TradingViewSymbol, selectedMetricIds: string[]) {
-  const [snapshot, setSnapshot] = useState<MarketSnapshot | null>(null);
-  const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
-  const [message, setMessage] = useState("Loading market rail...");
-  const metricKey = selectedMetricIds.join(",");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refresh() {
-      setStatus("loading");
-      setMessage("Refreshing market rail...");
-
-      try {
-        const response = await fetch(
-          `/api/custom-board/openai-market?symbol=${encodeURIComponent(activeSymbol.display)}&tvSymbol=${encodeURIComponent(activeSymbol.full)}&metrics=${encodeURIComponent(metricKey)}`,
-          { cache: "no-store" },
-        );
-
-        if (!response.ok) throw new Error("Market route unavailable.");
-
-        const payload = (await response.json()) as MarketSnapshot;
-
-        if (cancelled) return;
-
-        setSnapshot(payload);
-        setStatus(payload.ok ? "live" : "error");
-        setMessage(payload.ok ? "Market rail synced." : "Market rail returned incomplete data.");
-      } catch (error) {
-        if (cancelled) return;
-
-        setSnapshot(null);
-        setStatus("error");
-        setMessage(error instanceof Error ? error.message : "Could not load market rail.");
-      }
-    }
-
-    refresh();
-
-    const interval = window.setInterval(refresh, 60000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [activeSymbol.display, activeSymbol.full, metricKey]);
-
-  return { snapshot, status, message };
-}
 
 function MetricCard({
   selected,
@@ -635,6 +517,7 @@ function MetricCard({
         </button>
       </div>
 
+      <p className="mt-2 truncate text-[9px] leading-4 text-slate-400" title={reading.detail}>{reading.source}{reading.asOf ? ` · ${reading.asOf}` : ""}</p>
       <div className="mt-1.5 grid grid-cols-4 gap-1.5">
         <button
           type="button"
@@ -809,14 +692,17 @@ function MetricLibraryItem({
 export default function CustomAdvisorWorkspacePage() {
   const [boardState, setBoardState] = useState<BoardState>(() => buildDefaultBoardState());
   const [saveMessage, setSaveMessage] = useState("");
+  const [boardReady, setBoardReady] = useState(false);
+  const [automatic, setAutomatic] = useState(true);
 
   useEffect(() => {
     setBoardState(loadBoardState());
+    setBoardReady(true);
   }, []);
 
   useEffect(() => {
-    saveBoardState(boardState);
-  }, [boardState]);
+    if (boardReady) saveBoardState(boardState);
+  }, [boardState, boardReady]);
 
   const selectedMetricIds = useMemo(
     () => new Set(boardState.selectedMetrics.map((metric) => metric.metricId)),
@@ -828,9 +714,8 @@ export default function CustomAdvisorWorkspacePage() {
     [boardState.selectedMetrics],
   );
 
-  const { snapshot, status: providerStatus, message: providerMessage } = useMarketSnapshot(
-    boardState.activeSymbol,
-    selectedMetricIdList,
+  const { snapshot, status: providerStatus, message: providerMessage, busy: providerBusy, refresh: refreshMarket, cadence } = useBoardMarket(
+    boardState.activeSymbol.full, selectedMetricIdList, boardReady, automatic,
   );
 
   const selectedMetricPairs = useMemo(
@@ -996,7 +881,7 @@ export default function CustomAdvisorWorkspacePage() {
             : threshold,
       note:
         selected.alert.note.trim() ||
-        `Custom Board alert for ${metric.label} on ${boardState.activeSymbol.full}. Review the live chart and current market rail before any client recommendation.`,
+        `Custom Board alert for ${metric.label} on ${boardState.activeSymbol.full}. Review the latest chart and timestamped market rail before any client recommendation.`,
       source: "Custom Board",
     };
 
@@ -1044,7 +929,7 @@ export default function CustomAdvisorWorkspacePage() {
     });
   }
 
-  const providerTone: Tone = providerStatus === "live" ? "green" : providerStatus === "loading" ? "amber" : "red";
+  const providerTone: Tone = providerStatus === "realtime" ? "green" : ["loading", "retained", "stale"].includes(providerStatus) ? "amber" : providerStatus === "unavailable" ? "red" : "cyan";
   const priceDisplay = snapshot?.metrics?.["last-price"]?.display || "—";
   const changeDisplay = snapshot?.metrics?.["change-pct"]?.display || "—";
 
@@ -1061,7 +946,7 @@ export default function CustomAdvisorWorkspacePage() {
             <div>
               <div className="flex flex-wrap gap-2">
                 <Pill tone="cyan">TradingView Visual Mirror</Pill>
-                <Pill tone="red">Cached Market Rail</Pill>
+                <Pill tone="cyan">Verified provider rail</Pill>
                 <Pill tone="purple">8 Compact Metrics</Pill>
                 <Pill tone={providerTone}>{providerStatus}</Pill>
               </div>
@@ -1071,7 +956,7 @@ export default function CustomAdvisorWorkspacePage() {
               </h1>
 
               <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400 md:text-base">
-                A cleaner advisor cockpit: live TradingView chart, compact market rail, premium symbol picker, and advanced alert rules that save directly to the Workspace Watchlist.
+                Your chart and metric rail share one selected instrument. Quotes load first, daily technicals and company fields follow independently, and each value keeps its source time. TradingView supplies its own chart feed and entitlements.
               </p>
             </div>
 
@@ -1086,7 +971,7 @@ export default function CustomAdvisorWorkspacePage() {
                       Stocks · ETFs · indices · futures · crypto · macro
                     </div>
                   </div>
-                  <Pill tone="red">Live Chart</Pill>
+                  <Pill tone="cyan">External chart feed</Pill>
                 </div>
 
                 <div className="mt-3 flex gap-2">
@@ -1150,7 +1035,14 @@ export default function CustomAdvisorWorkspacePage() {
 
                 <div className="mt-3 rounded-xl border border-white/10 bg-black/25 p-2 text-[11px] leading-5 text-slate-300">
                   {providerMessage}
+                  {snapshot?.asOf && <div className="mt-1 text-[10px] text-slate-400">Observation: {snapshot.asOf}</div>}
+                  {snapshot?.retrievedAt && <div className="text-[10px] text-slate-400">Retrieved: {snapshot.retrievedAt}</div>}
                 </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" aria-pressed={automatic} onClick={() => setAutomatic(value => !value)} className="rounded-lg border border-white/10 px-2.5 py-2 text-[10px] font-semibold">{automatic ? `Tracking on · ${cadence / 1000}s checks` : "Tracking paused"}</button>
+                  <button type="button" disabled={providerBusy} onClick={() => void refreshMarket(true)} className="rounded-lg border border-white/10 px-2.5 py-2 text-[10px] font-semibold disabled:opacity-50">{providerBusy ? "Updating…" : "Refresh"}</button>
+                </div>
+                <p className="mt-2 text-[9px] leading-4 text-slate-500">Checks pause in hidden or offline tabs. Delayed feeds and saved observations keep their actual timing.</p>
               </div>
             </div>
 
@@ -1210,7 +1102,7 @@ export default function CustomAdvisorWorkspacePage() {
               <div className="flex flex-col gap-3 border-b border-white/10 p-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
-                    Active Live Chart
+                    Active chart
                   </div>
                   <h2 className="mt-1 text-3xl font-black">{boardState.activeSymbol.full}</h2>
                 </div>
@@ -1223,7 +1115,7 @@ export default function CustomAdvisorWorkspacePage() {
               </div>
 
               <div className="h-[620px] min-h-[560px] p-2">
-                <TradingViewChart symbol={boardState.activeSymbol} />
+                {boardReady ? <TradingViewChart symbol={boardState.activeSymbol} /> : <div role="status" className="p-6 text-sm text-slate-400">Opening your saved chart…</div>}
               </div>
             </Card>
 

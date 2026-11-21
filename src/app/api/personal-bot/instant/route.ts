@@ -27,7 +27,7 @@ import { isPotentiallyCrossSiteUnsafeRequest } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 75;
+
 
 const MAXIMUM_JSON_BODY_BYTES = 48_000;
 const MAXIMUM_AUDIO_BYTES = 8 * 1024 * 1024;

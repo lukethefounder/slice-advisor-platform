@@ -1,4 +1,4 @@
-import { METRICS, SECTOR_ETFS, StrategyError, type Rule, type RuleSet, type StrategySpec } from "./contracts";
+import { METRICS, VERSION_3_METRICS, SECTOR_ETFS, StrategyError, type Rule, type RuleSet, type StrategySpec } from "./contracts";
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new StrategyError("INVALID_INPUT", `${label} must be an object.`);
   return value as Record<string, unknown>;
@@ -22,20 +22,21 @@ export function symbolOf(v: unknown): string {
   return v;
 }
 function nullableNumber(v: unknown, label: string, min: number, max: number, int = false) { return v === null ? null : num(v, label, min, max, int); }
-export function validateRuleSet(v: unknown, label: string, version: 1 | 2 = 2, depth = 0, count = { leaves: 0, groups: 0 }): RuleSet {
+export function validateRuleSet(v: unknown, label: string, version: StrategySpec["version"] = 3, depth = 0, count = { leaves: 0, groups: 0 }): RuleSet {
   const r = record(v, label);
   if (depth > 3 || ++count.groups > 21) throw new StrategyError("RULE_DEPTH", "Use at most 3 nested levels and 21 groups per condition tree.");
-  const allowed = version === 2 ? ["mode", "rules", "groups"] : ["mode", "rules"];
+  const allowed = version >= 2 ? ["mode", "rules", "groups"] : ["mode", "rules"];
   if (Object.keys(r).some(k => !allowed.includes(k))) throw new StrategyError("UNKNOWN_RULE_FIELDS", "Rule group contains unsupported fields.");
   if (!Array.isArray(r.rules) || (count.leaves += r.rules.length) > 40 || (version === 1 && r.rules.length > 20))
     throw new StrategyError("INVALID_RULES", "Use at most 40 criteria across one condition tree (20 for legacy rules).");
   const checked: Rule[] = r.rules.map((x, i): Rule => {
     const a = record(x, `${label} ${i + 1}`);
-    if (Object.keys(a).some(k => !["metric", "period", "comparator", "value", "upper", ...(version === 2 ? ["subject"] : [])].includes(k)))
+    if (Object.keys(a).some(k => !["metric", "period", "comparator", "value", "upper", ...(version >= 2 ? ["subject"] : [])].includes(k)))
       throw new StrategyError("UNKNOWN_RULE_FIELDS", "A rule contains unsupported fields; none were discarded.");
     const def = METRICS.find(m => m.id === a.metric);
     if (!def) throw new StrategyError("UNSUPPORTED_HISTORICAL_CRITERION", "This criterion lacks verified historical input. Fundamental vintages, historical sector membership, and future observations are not substituted.");
-    const comparator = choice(a.comparator, version === 2 ? [">", ">=", "<", "<=", "between", "crossesAbove", "crossesBelow"] as const : [">", ">=", "<", "<=", "between"] as const, "Comparator");
+    if (version < 3 && VERSION_3_METRICS.has(def.id)) throw new StrategyError("VERSION_REQUIRED", "This metric requires a new version-3 custom definition. Saved legacy definitions are not upgraded automatically.");
+    const comparator = choice(a.comparator, version >= 2 ? [">", ">=", "<", "<=", "between", "crossesAbove", "crossesBelow"] as const : [">", ">=", "<", "<=", "between"] as const, "Comparator");
     const value = num(a.value, "Threshold", def.min, def.max);
     const upper = comparator === "between" ? num(a.upper, "Upper threshold", value, def.max) : undefined;
     const subject = a.subject === undefined ? undefined : choice(a.subject, ["instrument", "benchmark"] as const, "Rule subject");
@@ -49,9 +50,9 @@ export function validateRuleSet(v: unknown, label: string, version: 1 | 2 = 2, d
 export function validateSpec(raw: unknown, now = new Date(), options: { allowSingleSession?: boolean } = {}): StrategySpec {
   const v = record(raw, "Strategy");
   // Do not silently discard hidden/unsupported criteria provided by a caller.
-  const keys = new Set(["version", "name", "template", "universeMode", "symbols", "benchmark", "startDate", "endDate", "initialCapital", "entry", "exit", "ranking", "rankingPeriod", "weighting", "rebalance", "maxHoldings", "maxPositionPct", "maxExposurePct", "trailingStopPct", "maxHoldingSessions", "portfolioStopPct", "cooldownSessions", "feeBps", "slippageBps", "commissionUsd", "riskFreeRatePct", "acknowledgeFixedUniverse", "regime", "allocationGroups"]);
+  const keys = new Set(["version", "name", "template", "universeMode", "symbols", "benchmark", "startDate", "endDate", "initialCapital", "entry", "exit", "ranking", "rankingPeriod", "weighting", "rebalance", "maxHoldings", "maxPositionPct", "maxExposurePct", "trailingStopPct", "maxHoldingSessions", "stopLossPct", "takeProfitPct", "portfolioStopPct", "cooldownSessions", "feeBps", "slippageBps", "commissionUsd", "riskFreeRatePct", "acknowledgeFixedUniverse", "regime", "allocationGroups"]);
   if (Object.keys(v).some(k => !keys.has(k))) throw new StrategyError("UNKNOWN_FIELDS", "Strategy contains unsupported fields; no criterion was silently ignored.");
-  if ((v.version !== 1 && v.version !== 2) || typeof v.name !== "string" || !v.name.trim() || v.name.length > 100) throw new StrategyError("INVALID_NAME", "Provide a strategy name up to 100 characters and a supported strategy version.");
+  if ((v.version !== 1 && v.version !== 2 && v.version !== 3) || typeof v.name !== "string" || !v.name.trim() || v.name.length > 100) throw new StrategyError("INVALID_NAME", "Provide a strategy name up to 100 characters and a supported strategy version.");
   if (!Array.isArray(v.symbols) || !v.symbols.length || v.symbols.length > 12) throw new StrategyError("UNIVERSE_LIMIT", "Choose 1–12 fixed symbols.");
   const symbols = v.symbols.map(symbolOf);
   if (new Set(symbols).size !== symbols.length) throw new StrategyError("DUPLICATE_SYMBOL", "Remove duplicate symbols.");
@@ -62,6 +63,7 @@ export function validateSpec(raw: unknown, now = new Date(), options: { allowSin
   if ((options.allowSingleSession ? startDate > endDate : startDate >= endDate) || endDate >= nyToday || startDate < "2000-01-01") throw new StrategyError("INVALID_RANGE", "Choose a range after 1999 ending before today's New York date. Incomplete current-day bars are excluded.");
   if (v.acknowledgeFixedUniverse !== true) throw new StrategyError("ACKNOWLEDGMENT_REQUIRED", "Acknowledge that this is a fixed-universe test, not survivorship-bias-free historical sector stock selection.");
   if (v.version === 1 && (v.regime !== undefined || v.allocationGroups !== undefined)) throw new StrategyError("VERSION_REQUIRED", "Advanced rules require a new version-2 strategy.");
+  if (v.version !== 3 && (v.stopLossPct !== undefined || v.takeProfitPct !== undefined)) throw new StrategyError("VERSION_REQUIRED", "Entry-relative exits require a new version-3 custom definition. The original strategy remains unchanged.");
   let allocationGroups: StrategySpec["allocationGroups"];
   if (v.allocationGroups !== undefined) {
     if (!Array.isArray(v.allocationGroups) || v.allocationGroups.length > 12) throw new StrategyError("GROUP_LIMIT", "Use at most 12 user-defined allocation groups.");
@@ -77,7 +79,7 @@ export function validateSpec(raw: unknown, now = new Date(), options: { allowSin
       return { name: a.name.trim(), symbols: groupSymbols, maxExposurePct: num(a.maxExposurePct, "Group target cap (%)", 1, 100) };
     });
   }
-  const version = v.version as 1 | 2;
+  const version = v.version as StrategySpec["version"];
   return { version, name: v.name.trim(), template: typeof v.template === "string" ? v.template.slice(0, 50) : "custom", universeMode, symbols,
     benchmark: symbolOf(v.benchmark), startDate, endDate, initialCapital: num(v.initialCapital, "Capital", 100, 1e10),
     entry: validateRuleSet(v.entry, "Entry", version), exit: validateRuleSet(v.exit, "Exit", version),
@@ -87,6 +89,7 @@ export function validateSpec(raw: unknown, now = new Date(), options: { allowSin
     weighting: choice(v.weighting, ["equal", "inverse-volatility"], "Weighting"), rebalance: choice(v.rebalance, ["once", "daily", "weekly", "monthly", "quarterly"], "Rebalance"),
     maxHoldings: num(v.maxHoldings, "Max holdings", 1, symbols.length, true), maxPositionPct: num(v.maxPositionPct, "Position cap", 1, 100), maxExposurePct: num(v.maxExposurePct, "Exposure cap", 1, 100),
     trailingStopPct: nullableNumber(v.trailingStopPct, "Trailing closing stop", 0.1, 99), maxHoldingSessions: nullableNumber(v.maxHoldingSessions, "Holding sessions", 1, 2520, true),
+    ...(version === 3 ? { stopLossPct: v.stopLossPct === undefined ? null : nullableNumber(v.stopLossPct, "Closing stop-loss", 0.1, 99), takeProfitPct: v.takeProfitPct === undefined ? null : nullableNumber(v.takeProfitPct, "Closing take-profit", 0.1, 10000) } : {}),
     portfolioStopPct: nullableNumber(v.portfolioStopPct, "Portfolio stop", 0.1, 99), cooldownSessions: num(v.cooldownSessions, "Cooldown", 0, 252, true),
     feeBps: num(v.feeBps, "Fees bps", 0, 500), slippageBps: num(v.slippageBps, "Slippage bps", 0, 500), commissionUsd: num(v.commissionUsd, "Commission", 0, 10000),
     riskFreeRatePct: num(v.riskFreeRatePct, "Assumed annual risk-free rate", -5, 30), acknowledgeFixedUniverse: true };

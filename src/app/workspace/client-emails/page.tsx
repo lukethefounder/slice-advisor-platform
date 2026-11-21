@@ -1728,60 +1728,27 @@ export default function ClientEmailCenterPage() {
 
   return (
     <SliceBackground>
-      <main className="slice-email-center-light min-h-0 px-2.5 py-2.5 text-[var(--slice-text)] sm:px-4 sm:py-3 lg:h-[calc(100dvh-6.25rem)] lg:overflow-hidden">
+      <main className="slice-email-center min-h-0 px-2.5 py-2.5 text-[var(--slice-text)] sm:px-4 sm:py-3 lg:h-[calc(100dvh-6.25rem)] lg:overflow-hidden">
         <style jsx global>{`
-          .slice-email-center-light {
+          .slice-email-center {
             --email-rail: clamp(270px, 18vw, 310px);
             --email-preview: clamp(320px, 24vw, 430px);
           }
 
-          .slice-email-center-light :where(input, textarea, select) {
-            border-color: var(--slice-border) !important;
-            background: var(--slice-input) !important;
-            color: var(--slice-heading) !important;
-            box-shadow: 0 1px 0 rgba(255,255,255,.75) inset;
-          }
-
-          .slice-email-center-light :where(input, textarea)::placeholder {
-            color: var(--slice-subtle) !important;
-          }
-
-          .slice-email-center-light :where([class*="border-white/"]):not([data-slice-color-lock], [data-slice-color-lock] *) {
-            border-color: var(--slice-border) !important;
-          }
-
-          .slice-email-center-light :where([class*="bg-black"], [class*="bg-[#02"], [class*="bg-[#03"], [class*="bg-[#04"], [class*="bg-[#05"], [class*="bg-[#08"]):not([data-slice-color-lock], [data-slice-color-lock] *) {
-            background-color: var(--slice-surface-muted) !important;
-          }
-
-          .slice-email-center-light :where([class*="text-white"]):not([data-slice-color-lock], [data-slice-color-lock] *, button[class*="from-emerald"], button[class*="bg-emerald"]) {
-            color: var(--slice-heading) !important;
-          }
-
-          .slice-email-center-light :where([class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"], [class*="text-slate-700"]):not([data-slice-color-lock], [data-slice-color-lock] *) {
-            color: var(--slice-muted) !important;
-          }
-
-          .slice-email-center-light .email-scroll-region {
+          .slice-email-center .email-scroll-region {
             min-height: 0;
             overflow: auto;
             overscroll-behavior: contain;
             scrollbar-gutter: stable;
           }
 
-          .slice-email-center-light button[class*="from-emerald"],
-          .slice-email-center-light button[class*="bg-emerald-6"],
-          .slice-email-center-light button[class*="bg-emerald-7"] {
-            color: white !important;
-          }
-
-          .slice-email-center-light [data-slice-color-lock],
-          .slice-email-center-light [data-slice-color-lock] * {
+          .slice-email-center [data-slice-color-lock],
+          .slice-email-center [data-slice-color-lock] * {
             color-scheme: light;
           }
 
           @media (max-width: 1279px) {
-            .slice-email-center-light {
+            .slice-email-center {
               overflow: visible;
             }
           }

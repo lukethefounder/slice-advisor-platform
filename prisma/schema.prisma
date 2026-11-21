@@ -43,6 +43,7 @@ model User {
   auditLogs                        AuditLog[]
   disclosureAcceptances            DisclosureAcceptance[]
   securitySetting                  UserSecuritySetting?
+  authenticator                    UserAuthenticator?
   createdFirms                     Firm[]                            @relation("FirmCreatedBy")
   firmMemberships                  FirmMembership[]
   firmInvitesSent                  FirmInvite[]                      @relation("FirmInviteSentBy")
@@ -68,6 +69,10 @@ model Session {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  mfaVerifiedAt DateTime?
+  userAgent String?
+  ipHash String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -815,9 +820,25 @@ model UserSecuritySetting {
   alertOnNewLogin                  Boolean   @default(true)
   advisorModeEnabled               Boolean   @default(false)
   sessionTimeoutMinutes            Int       @default(43200)
+  idleTimeoutMinutes               Int       @default(30)
   lastSecurityReviewAt             DateTime?
   createdAt                        DateTime  @default(now())
   updatedAt                        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserAuthenticator {
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
+  secretEncrypted        String?
+  pendingSecretEncrypted String?
+  pendingExpiresAt       DateTime?
+  enabledAt              DateTime?
+  lastUsedStep           Int?
+  recoveryCodeHashesJson String    @default("[]")
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

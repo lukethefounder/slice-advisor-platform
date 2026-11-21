@@ -7,7 +7,7 @@ import type { PublicMarketSummaryFailure } from "@/lib/public-market-types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+
 
 const SUCCESS_CACHE_CONTROL =
   "public, s-maxage=15, stale-while-revalidate=120, max-age=5";

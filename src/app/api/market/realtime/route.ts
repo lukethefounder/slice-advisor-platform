@@ -1,4 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
+import { after } from "next/server";
+import { createLogger } from "@/lib/logger";
 import { getAlphaVantageRealtimeSnapshots } from "@/lib/alpha-vantage-realtime";
 import {
   getRealtimeMarketSnapshots,
@@ -7,6 +9,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+const log = createLogger("realtime-market");
 
 function cleanProvider(value: string | null) {
   const provider = String(value ?? "alphavantage")
@@ -46,8 +49,9 @@ export async function GET(request: Request) {
     }
 
     if (user && shouldPersist && result.snapshots.length) {
-      await persistRealtimeSnapshots(user.id, result.snapshots).catch(() => {
-        // Real-time display should not fail because optional history persistence failed.
+      after(async () => {
+        try { await persistRealtimeSnapshots(user.id, result.snapshots); }
+        catch (error) { log.warn("snapshot.persistence.failed", { userId: user.id, symbols: result.snapshots.map(row => row.symbol), error }); }
       });
     }
 

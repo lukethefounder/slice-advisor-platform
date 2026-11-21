@@ -119,11 +119,11 @@ function toneClasses(tone: SliceTone) {
 
 export function SliceBackground({ children }: { children: ReactNode }) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[var(--slice-bg)] text-[var(--slice-text)]">
+    <div className="slice-neural-backdrop relative min-h-screen overflow-hidden bg-[var(--slice-bg)] text-[var(--slice-text)]">
       <div className="pointer-events-none fixed inset-0" aria-hidden="true">
         <div className="absolute -left-40 -top-52 h-[34rem] w-[34rem] rounded-full bg-[var(--slice-accent-soft)] blur-3xl" />
         <div className="absolute -right-36 top-10 h-[32rem] w-[32rem] rounded-full bg-cyan-400/[0.055] blur-3xl" />
-        <div className="absolute bottom-[-19rem] left-[30%] h-[31rem] w-[31rem] rounded-full bg-emerald-300/[0.09] blur-3xl" />
+        <div className="absolute bottom-[-19rem] left-[30%] h-[31rem] w-[31rem] rounded-full bg-[var(--slice-neural-violet)] blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(color-mix(in_srgb,var(--slice-accent)_3%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_srgb,var(--slice-accent)_3%,transparent)_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:linear-gradient(to_bottom,black,transparent_86%)]" />
       </div>
       <div className="relative">{children}</div>
@@ -140,19 +140,19 @@ export function BrandMark({
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-[var(--slice-accent-border)] bg-white shadow-[0_12px_30px_var(--slice-shadow)]">
-        <div className="absolute inset-1 rounded-[0.95rem] bg-[linear-gradient(145deg,#effcf5,#ffffff_52%,#ddf6e8)]" />
-        <div className="relative grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(145deg,#54d49d,#16a36f_58%,#07533c)] text-lg font-black text-white shadow-md">
+      <div className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[14px_4px_14px_4px] border border-[var(--slice-accent-border)] bg-[var(--slice-surface-strong)] shadow-[0_0_26px_var(--slice-accent-glow)]" aria-hidden="true">
+        <div className="absolute inset-1 rounded-[10px_2px_10px_2px] bg-[linear-gradient(145deg,var(--slice-accent-soft),var(--slice-surface-strong))]" />
+        <div className="relative grid h-8 w-8 place-items-center text-2xl font-semibold text-[var(--slice-accent-strong)]">
           S
         </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-lime-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
+        <div className="absolute right-1.5 top-1.5 h-1 w-1 rounded-full bg-[var(--slice-secondary)]" />
+        <div className="absolute bottom-1.5 left-1.5 h-1 w-1 rounded-full bg-[var(--slice-accent)]" />
       </div>
       <div className="min-w-0">
-        <div className="truncate text-2xl font-black tracking-[-0.045em] text-[var(--slice-heading)]">
+        <div className="truncate text-2xl font-semibold tracking-[-0.045em] text-[var(--slice-heading)]">
           {label}
         </div>
-        <div className="truncate text-[9px] font-black uppercase tracking-[0.24em] text-[var(--slice-accent-strong)]">
+        <div className="truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--slice-accent-strong)]">
           {subtitle}
         </div>
       </div>
@@ -168,9 +168,9 @@ export function Card({
   className?: string;
 }) {
   return (
-    <div
+    <div data-slice-surface="panel"
       className={cx(
-        "relative overflow-hidden rounded-[1.75rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_22px_70px_var(--slice-shadow)] backdrop-blur-xl",
+        "relative overflow-hidden rounded-[1.15rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[var(--slice-elevation-panel)]",
         className,
       )}
     >
@@ -189,7 +189,7 @@ export function SoftCard({
   return (
     <div
       className={cx(
-        "rounded-[1.35rem] border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-4 text-[var(--slice-text)]",
+        "rounded-[1rem] border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-4 text-[var(--slice-text)]",
         className,
       )}
     >
@@ -208,7 +208,7 @@ export function Pill({
   return (
     <span
       className={cx(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em]",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]",
         toneClasses(tone),
       )}
     >
@@ -276,10 +276,10 @@ export function Metric({
         )}
       />
       <div className="relative">
-        <div className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
+        <div className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
           {label}
         </div>
-        <div className="mt-2 truncate text-2xl font-black text-[var(--slice-heading)]">
+        <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-[var(--slice-heading)]">
           {value}
         </div>
         {helper ? (
@@ -306,13 +306,13 @@ export function SectionHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <div className="text-xs font-black uppercase tracking-[0.22em] text-[var(--slice-accent-strong)]">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[var(--slice-accent-strong)]">
           {eyebrow}
         </div>
-        <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)] md:text-4xl">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)] md:text-4xl">
           {title}
         </h2>
-        <p className="mt-2 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--slice-muted)]">
           {description}
         </p>
       </div>
@@ -323,7 +323,7 @@ export function SectionHeader({
 
 function actionVariant(variant: "primary" | "secondary" | "danger" | "light") {
   if (variant === "primary") {
-    return "border-[var(--slice-accent-border)] bg-[linear-gradient(110deg,var(--slice-accent),var(--slice-accent-strong))] text-white shadow-[0_12px_30px_var(--slice-accent-glow)] hover:brightness-105";
+    return "border-[var(--slice-primary-border)] bg-[var(--slice-primary-bg)] text-[var(--slice-primary-text)] shadow-[0_0_26px_var(--slice-accent-glow)] hover:bg-[var(--slice-primary-hover)]";
   }
 
   if (variant === "danger") {
@@ -331,7 +331,7 @@ function actionVariant(variant: "primary" | "secondary" | "danger" | "light") {
   }
 
   if (variant === "light") {
-    return "border-[var(--slice-border)] bg-white text-[var(--slice-heading)] shadow-[0_10px_25px_var(--slice-shadow)] hover:bg-emerald-50";
+    return "border-[var(--slice-border)] bg-[var(--slice-surface-strong)] text-[var(--slice-heading)] shadow-[var(--slice-elevation-panel)] hover:bg-[var(--slice-surface-hover)]";
   }
 
   return "border-[var(--slice-border)] bg-[var(--slice-surface-strong)] text-[var(--slice-text)] shadow-[0_8px_22px_var(--slice-shadow)] hover:border-[var(--slice-accent-border)] hover:bg-[var(--slice-accent-soft)]";
@@ -352,7 +352,7 @@ export function LinkButton({
     <a
       href={href}
       className={cx(
-        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-black transition focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)]",
+        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)]",
         actionVariant(variant),
         className,
       )}
@@ -381,7 +381,7 @@ export function ActionButton({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-black transition focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)] disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)] disabled:cursor-not-allowed disabled:opacity-50",
         actionVariant(variant),
         className,
       )}

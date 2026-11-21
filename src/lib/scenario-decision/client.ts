@@ -1,8 +1,10 @@
 "use client";
+
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 export async function decisionJson<T>(url:string,init:RequestInit={},timeoutMs=40000):Promise<T>{
  const controller=new AbortController();const parent=init.signal;
  const abort=()=>controller.abort(parent?.reason);if(parent?.aborted)abort();else parent?.addEventListener("abort",abort,{once:true});
- const timer=setTimeout(()=>controller.abort(new DOMException("The request timed out. Check saved records before retrying a write.","TimeoutError")),timeoutMs);
+ const timer=startApplicationDeadline(controller, timeoutMs, "The request timed out. Check saved records before retrying a write.");
  try{const response=await globalThis.fetch(url,{credentials:"same-origin",cache:"no-store",...init,signal:controller.signal,headers:{...(init.body?{"Content-Type":"application/json"}:{}),...init.headers}});
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(typeof body.message==="string"?body.message:typeof body.error==="string"?body.error:`Request failed (${response.status}).`);

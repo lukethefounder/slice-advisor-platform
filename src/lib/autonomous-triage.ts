@@ -13,7 +13,7 @@ import {
   enforceStorageLimits,
   retentionDaysForDecision,
 } from "@/lib/intelligence-settings";
-import { ensureNotificationPreferences } from "@/lib/notification-engine";
+import { ensureNotificationPreferences, evaluateAccountNotificationDelivery } from "@/lib/notification-engine";
 import {
   buildInstitutionalResearchMemo,
   gradeInvestmentSignal,
@@ -73,17 +73,6 @@ function uniqueSymbols(symbols: Array<string | null | undefined>) {
         .filter(Boolean)
     )
   );
-}
-
-function urgencyRank(urgency: string) {
-  const normalized = urgency.toLowerCase();
-
-  if (normalized === "critical") return 4;
-  if (normalized === "high") return 3;
-  if (normalized === "medium") return 2;
-  if (normalized === "low") return 1;
-
-  return 0;
 }
 
 function escapeHtml(value: string) {
@@ -299,38 +288,7 @@ async function emailDeliveryDecision(input: {
     };
   }
 
-  if (!email.enabled) {
-    return {
-      allowed: false,
-      reason: "Advisor email alerts are disabled.",
-    };
-  }
-
-  if (email.digestOnly) {
-    return {
-      allowed: false,
-      reason: "Advisor email preference is digest-only.",
-    };
-  }
-
-  if (input.score < email.minScore) {
-    return {
-      allowed: false,
-      reason: `Score ${input.score} is below advisor email threshold ${email.minScore}.`,
-    };
-  }
-
-  if (urgencyRank(input.urgency) < urgencyRank(email.minUrgency)) {
-    return {
-      allowed: false,
-      reason: `Urgency ${input.urgency} is below advisor email threshold ${email.minUrgency}.`,
-    };
-  }
-
-  return {
-    allowed: true,
-    reason: "Passed advisor email delivery criteria.",
-  };
+  return evaluateAccountNotificationDelivery({ ...input, preference: email });
 }
 
 async function buildTriageProfile(userId: string): Promise<TriageProfile> {

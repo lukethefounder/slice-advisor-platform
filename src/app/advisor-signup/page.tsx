@@ -35,7 +35,7 @@ type RegisterResponse = {
     id: string;
     name: string;
   };
-  error?: string;
+  error?: string | { message?: string };
   detail?: string;
 };
 
@@ -60,8 +60,8 @@ export default function AdvisorSignupPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setMessage("Password must be at least 8 characters.");
+    if (password.length < 15 || password.length > 128) {
+      setMessage("Use a password or passphrase with 15–128 characters.");
       return;
     }
 
@@ -87,12 +87,13 @@ export default function AdvisorSignupPage() {
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as RegisterResponse;
+      const errorMessage = typeof payload.error === "string" ? payload.error : payload.error?.message;
 
       if (!response.ok || !payload.user || !payload.firm) {
         throw new Error(
           payload.detail
-            ? `${payload.error || "Registration failed."} ${payload.detail}`
-            : payload.error || "Registration failed.",
+            ? `${errorMessage || "Registration failed."} ${payload.detail}`
+            : errorMessage || "Registration failed.",
         );
       }
 
@@ -115,7 +116,7 @@ export default function AdvisorSignupPage() {
             <BrandMark subtitle="Beta Firm Account Creation" />
             <Link
               href="/founder-login"
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black text-slate-300 hover:border-emerald-400/20 hover:text-white"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-slate-300 hover:border-emerald-400/20 hover:text-white"
             >
               Existing account sign in
             </Link>
@@ -129,7 +130,7 @@ export default function AdvisorSignupPage() {
               <Pill tone="cyan">Persistent account</Pill>
             </div>
 
-            <h1 className="mt-6 max-w-4xl text-5xl font-black leading-[0.94] tracking-[-0.06em] text-white md:text-7xl">
+            <h1 className="mt-6 max-w-4xl text-5xl font-semibold leading-[0.94] tracking-[-0.06em] text-white md:text-7xl">
               Create your green-market advisor workspace.
             </h1>
 
@@ -164,7 +165,7 @@ export default function AdvisorSignupPage() {
               ].map((item) => (
                 <SoftCard key={item.label} className="bg-black/25">
                   <item.icon className="h-5 w-5 text-emerald-300" />
-                  <p className="mt-3 text-lg font-black text-white">{item.label}</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{item.label}</p>
                   <p className="mt-1 text-xs font-semibold text-slate-600">
                     {item.helper}
                   </p>
@@ -189,17 +190,17 @@ export default function AdvisorSignupPage() {
               <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-300/18 bg-emerald-500/[0.08] text-emerald-200">
                 <UserPlus className="h-6 w-6" />
               </div>
-              <p className="mt-5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">
+              <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
                 Firm owner signup
               </p>
-              <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] text-white">
+              <h2 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-white">
                 Establish beta access.
               </h2>
 
               <form onSubmit={register} className="mt-6 grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Firm name
                     </span>
                     <input
@@ -212,7 +213,7 @@ export default function AdvisorSignupPage() {
                   </label>
 
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Firm email optional
                     </span>
                     <input
@@ -228,7 +229,7 @@ export default function AdvisorSignupPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Advisor name
                     </span>
                     <input
@@ -241,7 +242,7 @@ export default function AdvisorSignupPage() {
                   </label>
 
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Advisor email
                     </span>
                     <input
@@ -257,21 +258,23 @@ export default function AdvisorSignupPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Password
                     </span>
                     <input
                       type="password"
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder="Minimum 8 characters"
+                      placeholder="15–128 characters; spaces are welcome"
+                      minLength={15}
+                      maxLength={128}
                       autoComplete="new-password"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/45 px-4 py-3.5 text-sm font-bold text-white outline-none ring-emerald-500 placeholder:text-slate-700 focus:ring-2"
                     />
                   </label>
 
                   <label>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                       Confirm password
                     </span>
                     <input
@@ -288,7 +291,7 @@ export default function AdvisorSignupPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="group relative inline-flex min-h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-400/25 bg-gradient-to-r from-emerald-500 via-emerald-700 to-emerald-950 px-5 text-sm font-black text-white shadow-lg shadow-emerald-950/40 transition hover:brightness-110 disabled:opacity-50"
+                  className="group relative inline-flex min-h-14 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-emerald-400/25 bg-[var(--slice-primary-bg)] px-5 text-sm font-semibold text-[var(--slice-primary-text)] shadow-lg shadow-emerald-950/40 transition hover:brightness-110 disabled:opacity-50"
                 >
                   {loading ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />

@@ -15,7 +15,8 @@
   display: flex;
   justify-content: space-between;
   gap: 24px;
-  background: radial-gradient(at 95% 10%,#168b7655,transparent 70%),#0d2924;
+  background: radial-gradient(at 95% 10%,#245e7555,transparent 70%),radial-gradient(at 0 100%,#3b326733,transparent 65%),#081624;
+  border: 1px solid #2a4f62;
   color: #f2fff8;
   padding: 32px;
   border-radius: 22px;
@@ -130,9 +131,9 @@
 }
 
 .root button.primary {
-  background: #096b52;
-  color: #fff;
-  border-color: #096b52;
+  background: var(--slice-primary-bg,#70e3d2);
+  color: var(--slice-primary-text,#042d2b);
+  border-color: var(--slice-primary-border,#9cf4e3);
 }
 
 .root button:disabled,
@@ -184,13 +185,13 @@
 }
 
 .notice {
-  background: #ebf8f0;
-  color: #145339;
+  background: var(--slice-green-bg,#12382e);
+  color: var(--slice-green-text,#8ee5bd);
 }
 
 .error {
-  background: #fff4e8;
-  color: #844821;
+  background: var(--slice-rose-bg,#351c2b);
+  color: var(--slice-rose-text,#f3a7bc);
 }
 
 .top {

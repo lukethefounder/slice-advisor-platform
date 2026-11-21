@@ -318,7 +318,7 @@ function riskTone(value: string | number | null | undefined): Tone {
 
 function toneClass(tone: Tone) {
   const tones: Record<Tone, string> = {
-    red: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
+    red: "border-rose-500/25 bg-rose-500/10 text-rose-100 shadow-rose-950/20",
     green: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100 shadow-emerald-950/20",
     amber: "border-amber-500/25 bg-amber-500/10 text-amber-100 shadow-amber-950/20",
     purple: "border-purple-500/25 bg-purple-500/10 text-purple-100 shadow-purple-950/20",
@@ -366,7 +366,7 @@ function Metric({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/18",
+    red: "from-rose-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",

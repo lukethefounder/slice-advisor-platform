@@ -30,8 +30,7 @@ export const dynamic =
 export const runtime =
   "nodejs";
 
-export const maxDuration =
-  120;
+
 
 type RequestBody = {
   action?:

@@ -1,5 +1,6 @@
 import { publicAccessContext, getCurrentAccessContext } from "@/lib/access-control";
 import { apiJson, withApiRoute } from "@/lib/api-route";
+import { isAgentDeskFounder } from "@/lib/agent-desk/access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ export const GET = withApiRoute(
       user: access.user,
       access: {
         isFounder: access.isFounder,
+        agentDeskFounder: context.user.platformStatus === "Active" && context.firm?.platformStatus === "Active" && isAgentDeskFounder(context.user.email),
         firm: access.firm,
         membership: access.membership,
         permissions: access.permissions,

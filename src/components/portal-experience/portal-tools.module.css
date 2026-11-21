@@ -1,0 +1,6 @@
+/* Shared backdrop for the existing advanced portals and account forms. */
+.page{isolation:isolate;background:radial-gradient(ellipse at 8% 0,color-mix(in srgb,var(--slice-accent,#70e3d2) 9%,transparent),transparent 38%),radial-gradient(ellipse at 95% 10%,color-mix(in srgb,var(--slice-cyan-text,#6acbe5) 6%,transparent),transparent 35%),var(--slice-page-bg,#030811);color:var(--slice-text,#c5d6e6)}
+.page :is(h1,h2,h3){color:var(--slice-heading,#e9f6ff)}
+.banner{padding:14px clamp(18px,3vw,32px);border-bottom:1px solid var(--slice-border,#243c50);background:var(--slice-surface,#09141f);color:var(--slice-muted,#94a9bf);font-size:12px;line-height:1.7;display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px}
+.banner a{color:var(--slice-accent-strong,#70e3d2);font-weight:650;text-decoration:none;min-height:30px;display:inline-flex;align-items:center}
+.banner a:focus-visible{outline:2px solid var(--slice-accent-strong,#70e3d2);outline-offset:4px}

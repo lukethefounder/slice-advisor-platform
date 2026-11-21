@@ -2,7 +2,7 @@ import { StrategyError, type BacktestResult, type Dataset } from "./contracts";
 import { Series, traceRules } from "./indicators";
 /** Re-explains a saved decision using the exact pinned datasets, never a fresh provider request. */
 export function explainDecision(run: BacktestResult, datasets: Dataset[], date: string, symbol: string) {
-  if (!["slice-daily-event-ledger-1.0.0", "slice-daily-event-ledger-2.0.0"].includes(run.engineVersion)) throw new StrategyError("ENGINE_UNSUPPORTED", "This engine version cannot be audited by the installed evaluator.", 409);
+  if (!["slice-daily-event-ledger-1.0.0", "slice-daily-event-ledger-2.0.0", "slice-daily-event-ledger-3.0.0"].includes(run.engineVersion)) throw new StrategyError("ENGINE_UNSUPPORTED", "This engine version cannot be audited by the installed evaluator.", 409);
   if (!run.spec.symbols.includes(symbol) || !run.equity.some(p => p.date === date)) throw new StrategyError("AUDIT_SELECTION", "Choose a symbol and execution date from this saved run.");
   for (const m of run.manifests) if (!datasets.some(d => d.id === m.id && d.symbol === m.symbol && d.sourceSha256 === m.sourceSha256)) throw new StrategyError("AUDIT_SOURCE", "A pinned dataset differs from the saved source manifest.", 409);
   const data = datasets.find(d => d.symbol === symbol), ref = datasets.find(d => d.symbol === run.spec.benchmark);

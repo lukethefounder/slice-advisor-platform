@@ -1,10 +1,13 @@
 "use client";
+
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 import Link from "@/components/performance/responsive-link";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { Menu, X, Search, Network, FlaskConical, Layers3, Settings, ShieldCheck, LogOut, LayoutDashboard, Sparkles, ChevronDown } from "lucide-react";
+import { Menu, X, Search, Network, FlaskConical, Settings, ShieldCheck, LogOut, LayoutDashboard, Sparkles, ChevronDown } from "lucide-react";
 import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { WORKSPACE_NAVIGATION_SECTIONS, workspaceRouteMeta, workspaceToolIsActive } from "@/lib/workspace/navigation";
+import { workspaceToolVisible } from "@/lib/workspace-green-core";
 import { applyWorkspaceAppearance, readWorkspaceAppearance } from "@/lib/workspace/appearance";
 import { GreenSliceLogo, WorkspaceIcon } from "@/components/workspace/core/workspace-ui";
 import { WorkspaceSessionContext, type WorkspaceSession } from "@/components/workspace/premium/session";
@@ -19,6 +22,7 @@ type Auth = {
         email?: string;
     } | null;
     access?: {
+        agentDeskFounder?: boolean;
         firm?: {
             id: string;
             name?: string;
@@ -47,7 +51,7 @@ export default function WorkspaceShell({ children, initialSession }: {
         const media = window.matchMedia("(prefers-color-scheme: dark)"), events = ["storage", "slice-theme-change", "slice-workspace-settings-change"];
         events.forEach(e => window.addEventListener(e, update));
         media.addEventListener("change", update);
-        const ctrl = new AbortController(), timeout = window.setTimeout(() => ctrl.abort(), 12000);
+        const ctrl = new AbortController(), timeout = startApplicationDeadline(ctrl, 12000);
         void fetch("/api/auth/me", { cache: "no-store", signal: ctrl.signal }).then(async (r) => {
             if (!alive)
                 return;
@@ -58,12 +62,12 @@ export default function WorkspaceShell({ children, initialSession }: {
             if (!r.ok)
                 throw new Error("Session details are temporarily unavailable.");
             const a = await r.json() as Auth;
-            setSession({ loading: false, error: "", user: a.user ?? null, firm: a.access?.firm ?? null, role: a.access?.membership?.role || "Firm access" });
+            setSession({ loading: false, error: "", user: a.user ?? null, firm: a.access?.firm ?? null, role: a.access?.membership?.role || "Firm access", agentDeskFounder: a.access?.agentDeskFounder === true });
         }).catch(() => { if (!alive)
             return; if (!ctrl.signal.aborted)
             setSession({ loading: false, error: "Session details could not be loaded. Refresh the page to retry.", user: null, firm: null, role: "" });
         else
-            setSession(s => ({ ...s, loading: false, error: "Session check timed out. Refresh to retry." })); }).finally(() => window.clearTimeout(timeout));
+            setSession(s => ({ ...s, loading: false, agentDeskFounder: false, error: "Session check timed out. Refresh to retry." })); }).finally(() => window.clearTimeout(timeout));
         return () => { alive = false; ctrl.abort(); window.clearTimeout(timeout); events.forEach(e => window.removeEventListener(e, update)); media.removeEventListener("change", update); };
     }, []);
     useEffect(() => { setDrawer(false); setCommand(false); }, [path]);
@@ -123,12 +127,12 @@ export default function WorkspaceShell({ children, initialSession }: {
 { href: "/workspace/personal-bot", title: "AI Studio", Icon: Sparkles },
 { href: "/workspace/connected", title: "Connected workspace", Icon: Network },
 { href: "/workspace/strategy-lab", title: "Strategy Studio", Icon: FlaskConical }];
-    return <WorkspaceSessionContext.Provider value={session}><div data-slice-future-shell="true" data-rail={railCompact ? "compact" : "full"} className={`${css.root} slice-workspace-theme-root`}><a className={css.skip} href="#workspace-main">Skip to workspace</a><div data-slice-shell-grid="true" className={css.shell}>
+    return <WorkspaceSessionContext.Provider value={session}><div data-slice-future-shell="true" data-slice-neural-shell="true" data-rail={railCompact ? "compact" : "full"} className={`${css.root} slice-workspace-theme-root`}><a className={css.skip} href="#workspace-main">Skip to workspace</a><div data-slice-shell-grid="true" className={css.shell}>
   {drawer && <button className={css.scrim} aria-label="Close navigation" onClick={() => setDrawer(false)}/>}
   <aside ref={side} className={`${css.sidebar} ${drawer ? css.drawer : ""}`} id="slice-premium-navigation" role={drawer ? "dialog" : undefined} aria-modal={drawer ? true : undefined} aria-label="Workspace navigation">
-   <div className={css.brand}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><Link href="/workspace" prefetch={false}><GreenSliceLogo /></Link><button className={`${css.iconButton} ${css.mobileOnly}`} onClick={() => setDrawer(false)} aria-label="Close navigation"><X /></button></div><p>Evidence into action.</p></div>
+   <div className={css.brand}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><Link href="/workspace" prefetch={false} aria-label="Slice workspace overview"><GreenSliceLogo /></Link><button className={`${css.iconButton} ${css.mobileOnly}`} onClick={() => setDrawer(false)} aria-label="Close navigation"><X /></button></div><p><span aria-hidden="true"/>Evidence into action.</p></div>
    <nav aria-label="Primary"><div className={css.group}><p className={css.groupTitle}>Your command space</p>{shortcuts.map(({ href, title, Icon }) => <Link title={title} key={href} href={href} prefetch={false} className={`${css.navItem} ${(path === href || (href === "/workspace/strategy-lab" && path.startsWith(href+"/"))) ? css.navActive : ""}`} aria-current={(path === href || (href === "/workspace/strategy-lab" && path.startsWith(href+"/"))) ? "page" : undefined}><Icon />{title}</Link>)}</div>
-    {WORKSPACE_NAVIGATION_SECTIONS.map(s => <div className={css.group} key={s.id}><p className={css.groupTitle}>{s.label}</p>{s.tools.filter(t => !shortcuts.some(x => x.href === t.href) && !t.href.startsWith("/workspace/strategy-lab") && !["/workspace/intelligence/strategy-lab", "/workspace/intelligence/scenarios"].includes(t.href)).map(t => <Link title={t.label} key={t.id} href={t.href} prefetch={false} className={`${css.navItem} ${workspaceToolIsActive(path, t.href) ? css.navActive : ""}`} aria-current={workspaceToolIsActive(path, t.href) ? "page" : undefined}><WorkspaceIcon name={t.icon}/>{t.label}</Link>)}</div>)}
+    {WORKSPACE_NAVIGATION_SECTIONS.map(s => <div className={css.group} key={s.id}><p className={css.groupTitle}>{s.label}</p>{s.tools.filter(t => workspaceToolVisible(t, session.agentDeskFounder === true) && !shortcuts.some(x => x.href === t.href) && !t.href.startsWith("/workspace/strategy-lab") && !["/workspace/intelligence/strategy-lab", "/workspace/intelligence/scenarios"].includes(t.href)).map(t => <Link title={t.label} key={t.id} href={t.href} prefetch={false} className={`${css.navItem} ${workspaceToolIsActive(path, t.href) ? css.navActive : ""}`} aria-current={workspaceToolIsActive(path, t.href) ? "page" : undefined}><WorkspaceIcon name={t.icon}/>{t.label}</Link>)}</div>)}
    </nav><div className={css.navFooter}><Link title="Settings" className={css.navItem} href="/workspace/settings" prefetch={false}><Settings />Settings</Link><Link title="Security" className={css.navItem} href="/security" prefetch={false}><ShieldCheck />Security</Link><button title="Sign out" className={css.navItem} onClick={() => void signOut()}><LogOut />Sign out</button><div className={css.identity}><span className={css.avatar}>{session.user?.name?.slice(0, 1).toUpperCase() || "S"}</span><div><strong>{session.user?.name || "Slice workspace"}</strong><small>{session.role || "Protected access"}</small></div></div></div></aside>
    <div ref={main} className={css.main}><header className={css.topbar}><button ref={trigger} className={`${css.iconButton} ${css.mobileOnly}`} aria-label="Open navigation" aria-controls="slice-premium-navigation" aria-expanded={drawer} onClick={() => setDrawer(true)}><Menu /></button><div className={css.breadcrumb}>{session.firm?.name || "Slice"} / Workspace<strong>{path === "/workspace" ? "Overview" : path === "/workspace/personal-bot" ? "AI Studio" : path.startsWith("/workspace/strategy-lab") ? "Strategy Studio" : meta.label}</strong></div><div className={css.topActions}><button type="button" data-sidebar-toggle="true" title={railCompact ? "Expand navigation" : "Compact navigation"} aria-label={railCompact ? "Expand navigation" : "Compact navigation"} aria-expanded={!railCompact} onClick={toggleRail}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="3" stroke="currentColor"/><path d="M7 3v14" stroke="currentColor"/></svg></button><ExperienceControls scopeKey={identity}/><button className={css.searchTrigger} onClick={() => setCommand(true)} aria-label="Search workspace"><Search size={14}/><span>Find a workspace</span><kbd>Ctrl K</kbd></button><button className={`${css.button} ${css.contextToggle}`} onClick={() => setContextOpen(v => !v)} aria-expanded={contextOpen}><Network size={14}/>Context<ChevronDown size={12}/></button></div></header>
     {contextOpen && <div className={css.contextRegion}><Suspense fallback={<p className={css.muted}>Loading research context…</p>}><ResearchContextBar identity={identity}/></Suspense></div>}

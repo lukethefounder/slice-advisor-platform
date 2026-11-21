@@ -57,10 +57,10 @@ function IntelligenceAside() {
     <PublicSurface className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-800">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
             Publication model
           </div>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             A calm daily surface backed by a scheduled intelligence process.
           </h2>
         </div>
@@ -120,7 +120,7 @@ export default function DailyIntelligencePage() {
             title="Fast public reading without sacrificing evidence or review controls."
             description="The new route limits provider work, keeps article provenance visible, and clearly separates public intelligence from protected advisor analysis and client-specific action."
             action={
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-900">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-900">
                 <CheckCircle2 className="h-4 w-4" />
                 One scheduled response
               </div>
@@ -135,7 +135,7 @@ export default function DailyIntelligencePage() {
                   <div className="grid h-11 w-11 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
                     <Icon className="h-4.5 w-4.5" />
                   </div>
-                  <h3 className="mt-5 text-lg font-black text-[var(--slice-heading)]">
+                  <h3 className="mt-5 text-lg font-semibold text-[var(--slice-heading)]">
                     {item.title}
                   </h3>
                   <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">

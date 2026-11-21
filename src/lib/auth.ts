@@ -6,6 +6,10 @@ import {
   timingSafeEqual,
 } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { idleLifetimeMinutes, sessionIsExpired, sessionLifetimeMinutes } from "@/lib/account-security/policy";
+import { getClientIp, hashForSecurity } from "@/lib/security";
+import { ApiError } from "@/lib/api-route";
+import { withSecuritySchema } from "@/lib/account-security/schema";
 
 export const SESSION_COOKIE = "slice_session";
 
@@ -14,14 +18,6 @@ const CURRENT_PASSWORD_ITERATIONS = 310000;
 const LEGACY_PASSWORD_ITERATIONS = 120000;
 const PASSWORD_KEY_LENGTH = 64;
 const PASSWORD_DIGEST = "sha512";
-
-function sessionTtlHours() {
-  const parsed = Number(process.env.SESSION_TTL_HOURS);
-
-  if (!Number.isFinite(parsed)) return 12;
-
-  return Math.max(1, Math.min(24 * 30, Math.round(parsed)));
-}
 
 function maxActiveSessions() {
   const parsed = Number(process.env.SESSION_MAX_ACTIVE);
@@ -60,6 +56,7 @@ export function hashPassword(password: string) {
 }
 
 export function verifyPassword(password: string, storedHash: string) {
+  if (typeof password !== "string" || password.length > 256 || typeof storedHash !== "string" || storedHash.length > 1000) return false;
   const parts = storedHash.split(":");
 
   if (parts.length === 2) {
@@ -84,8 +81,9 @@ export function verifyPassword(password: string, storedHash: string) {
 
     if (
       scheme !== CURRENT_PASSWORD_SCHEME ||
-      !Number.isFinite(iterations) ||
+      !Number.isSafeInteger(iterations) ||
       iterations < LEGACY_PASSWORD_ITERATIONS ||
+      iterations > 2_000_000 ||
       !salt ||
       !originalHash
     ) {
@@ -125,60 +123,38 @@ export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function createSession(userId: string) {
-  const token = randomBytes(48).toString("hex");
-  const tokenHash = hashSessionToken(token);
-  const expiresAt = new Date(
-    Date.now() + 1000 * 60 * 60 * sessionTtlHours()
-  );
-
-  await prisma.session.deleteMany({
-    where: {
-      userId,
-      expiresAt: {
-        lt: new Date(),
-      },
-    },
-  });
-
-  const staleActiveSessions = await prisma.session.findMany({
-    where: {
-      userId,
-      expiresAt: {
-        gt: new Date(),
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip: Math.max(0, maxActiveSessions() - 1),
-    select: {
-      id: true,
-    },
-  });
-
-  if (staleActiveSessions.length) {
-    await prisma.session.deleteMany({
-      where: {
-        id: {
-          in: staleActiveSessions.map((session) => session.id),
-        },
-      },
+export async function createSession(userId: string, options: { mfaVerified?: boolean; authenticationStartedAt?: Date; expectedPasswordHash?: string; request?: Request } = {}) {
+  return withSecuritySchema(prisma.$transaction(async tx => {
+    // Password changes update this same row before deleting sessions. Serializing
+    // issuance prevents an in-flight login from restoring a revoked credential.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { passwordHash: true, platformStatus: true } });
+    if (!user || user.platformStatus !== "Active") throw new ApiError({ status: 401, code: "ACCOUNT_UNAVAILABLE", message: "This account is not currently permitted to sign in." });
+    if (options.expectedPasswordHash !== undefined && user.passwordHash !== options.expectedPasswordHash) throw new ApiError({ status: 401, code: "CREDENTIALS_CHANGED", message: "Account credentials changed during sign in. Enter your current password and try again." });
+    const [setting, authenticator] = await Promise.all([
+      tx.userSecuritySetting.findUnique({ where: { userId }, select: { sessionTimeoutMinutes: true } }),
+      tx.userAuthenticator.findUnique({ where: { userId }, select: { enabledAt: true } }),
+    ]);
+    const authenticatedAt = options.authenticationStartedAt?.getTime();
+    if (authenticator?.enabledAt && (options.mfaVerified !== true || authenticatedAt === undefined || !Number.isFinite(authenticatedAt) || authenticatedAt > Date.now() + 1000 || authenticatedAt < authenticator.enabledAt.getTime())) {
+      throw new ApiError({ status: 401, code: "MFA_REQUIRED", message: "Enter an authenticator or recovery code to complete sign in." });
+    }
+    const token = randomBytes(48).toString("hex"), tokenHash = hashSessionToken(token);
+    const expiresAt = new Date(Date.now() + 60_000 * sessionLifetimeMinutes(setting?.sessionTimeoutMinutes, process.env.SESSION_TTL_HOURS));
+    await tx.session.deleteMany({ where: { userId, expiresAt: { lt: new Date() } } });
+    const staleActiveSessions = await tx.session.findMany({
+      where: { userId, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" },
+      skip: Math.max(0, maxActiveSessions() - 1), select: { id: true },
     });
-  }
-
-  await prisma.session.create({
-    data: {
-      userId,
-      tokenHash,
-      expiresAt,
-    },
-  });
-
-  return {
-    token,
-    expiresAt,
-  };
+    if (staleActiveSessions.length) await tx.session.deleteMany({ where: { userId, id: { in: staleActiveSessions.map(session => session.id) } } });
+    await tx.session.create({ data: {
+      userId, tokenHash, expiresAt, lastSeenAt: new Date(),
+      mfaVerifiedAt: authenticator?.enabledAt ? options.authenticationStartedAt : null,
+      userAgent: options.request?.headers.get("user-agent")?.slice(0, 500) ?? null,
+      ipHash: options.request ? hashForSecurity(getClientIp(options.request)) : null,
+    } });
+    return { token, expiresAt };
+  }));
 }
 
 export function sessionCookieOptions(expiresAt: Date) {
@@ -201,7 +177,7 @@ export function clearSessionCookieOptions() {
   };
 }
 
-export async function getCurrentUser() {
+export async function getCurrentSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
 
@@ -211,7 +187,7 @@ export async function getCurrentUser() {
 
   const tokenHash = hashSessionToken(token);
 
-  const session = await prisma.session.findFirst({
+  const session = await withSecuritySchema(prisma.session.findFirst({
     where: {
       tokenHash,
       expiresAt: {
@@ -219,18 +195,26 @@ export async function getCurrentUser() {
       },
     },
     include: {
-      user: true,
+      user: { include: { securitySetting: true, authenticator: { select: { enabledAt: true } } } },
     },
-  });
+  }));
 
   if (!session) {
     return null;
   }
 
-  if (
-    session.user.platformStatus === "Banned" ||
-    session.user.platformStatus === "Suspended"
-  ) {
+  const { securitySetting, authenticator, ...user } = session.user;
+  const now = Date.now();
+  if (sessionIsExpired(session, {
+    sessionTimeoutMinutes: securitySetting?.sessionTimeoutMinutes,
+    idleTimeoutMinutes: securitySetting?.idleTimeoutMinutes,
+    mfaEnabledAt: authenticator?.enabledAt,
+  }, now, process.env.SESSION_TTL_HOURS)) {
+    await prisma.session.deleteMany({ where: { id: session.id, userId: session.userId } });
+    return null;
+  }
+
+  if (session.user.platformStatus !== "Active") {
     await prisma.session.deleteMany({
       where: {
         userId: session.user.id,
@@ -240,7 +224,15 @@ export async function getCurrentUser() {
     return null;
   }
 
-  return session.user;
+  if (now - (session.lastSeenAt ?? session.createdAt).getTime() >= Math.min(60_000, idleLifetimeMinutes(securitySetting?.idleTimeoutMinutes) * 30_000)) {
+    const touched = await prisma.session.updateMany({ where: { id: session.id, userId: session.userId, expiresAt: { gt: new Date(now) } }, data: { lastSeenAt: new Date(now) } });
+    if (touched.count !== 1) return null;
+  }
+  return { ...session, user };
+}
+
+export async function getCurrentUser() {
+  return (await getCurrentSession())?.user ?? null;
 }
 
 export async function requireCurrentUser() {

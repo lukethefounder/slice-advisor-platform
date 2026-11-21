@@ -5,7 +5,7 @@ import { runProductionMaintenance } from "@/lib/production/maintenance";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
 
 function safeEqual(left: string, right: string) {
   const leftBuffer = Buffer.from(left);

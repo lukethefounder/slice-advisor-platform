@@ -39,6 +39,7 @@ import type {
   WorkspaceIconName,
   WorkspaceTone,
 } from "@/lib/workspace-green-core";
+import ui from "./workspace-ui.module.css";
 
 const ICONS: Record<WorkspaceIconName, LucideIcon> = {
   board: LayoutDashboard,
@@ -112,35 +113,12 @@ export function WorkspaceIcon({
 
 export function GreenSliceLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      <div
-        className={cx(
-          "relative grid shrink-0 place-items-center overflow-hidden rounded-2xl border border-[var(--slice-accent-border)] bg-white shadow-[0_10px_28px_var(--slice-shadow)]",
-          compact ? "h-10 w-10" : "h-12 w-12",
-        )}
-        aria-hidden="true"
-      >
-        <div className="absolute inset-1 rounded-[0.9rem] bg-[linear-gradient(145deg,#effcf5,#ffffff_52%,#ddf6e8)]" />
-        <div
-          className={cx(
-            "relative grid place-items-center rounded-full bg-[linear-gradient(145deg,#5bd9a2,#16a36f_58%,#07533c)] font-black text-white shadow-md",
-            compact ? "h-7 w-7 text-sm" : "h-8 w-8 text-lg",
-          )}
-        >
-          S
-        </div>
-        <div className="absolute right-2 top-2 h-1.5 w-1.5 rotate-45 bg-lime-400" />
-        <div className="absolute bottom-2 left-2 h-1.5 w-1.5 rotate-45 bg-emerald-700" />
-      </div>
-
+    <div className={ui.brand}>
+      <div className={cx(ui.brandMark, compact && ui.compactMark)} aria-hidden="true">S<span /></div>
       {!compact ? (
-        <div className="min-w-0">
-          <p className="truncate text-xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
-            Slice
-          </p>
-          <p className="truncate text-[9px] font-black uppercase tracking-[0.22em] text-[var(--slice-accent-strong)]">
-            Advisor Operating System
-          </p>
+        <div className={ui.brandCopy}>
+          <strong>Slice</strong>
+          <small>Connected intelligence</small>
         </div>
       ) : null}
     </div>
@@ -161,7 +139,8 @@ export function WorkspaceSurface({
   return (
     <Component data-slice-surface="panel"
       className={cx(
-        "relative min-w-0 overflow-hidden rounded-[1.45rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_18px_60px_var(--slice-shadow)] backdrop-blur-xl",
+        "relative min-w-0 overflow-hidden rounded-[1.45rem] border border-[var(--slice-border)] bg-[var(--slice-surface)] text-[var(--slice-text)] shadow-[0_18px_60px_var(--slice-shadow)]",
+        ui.surface,
         className,
       )}
     >
@@ -211,7 +190,7 @@ export function WorkspaceMetric({
   icon?: ReactNode;
 }) {
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-2xl border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-3">
+    <div className={cx("relative min-w-0 overflow-hidden rounded-2xl border border-[var(--slice-border)] bg-[var(--slice-surface-muted)] p-4",ui.metric)}>
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
@@ -289,12 +268,13 @@ export function WorkspacePageHeader({
     <header
       className={cx(
         "flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between",
+        ui.pageHeader,
         className,
       )}
     >
       <div className="min-w-0 max-w-5xl">
         {eyebrow ? <SectionEyebrow>{eyebrow}</SectionEyebrow> : null}
-        <h1 className="mt-2 text-balance text-3xl font-black tracking-[-0.045em] text-[var(--slice-heading)] sm:text-4xl lg:text-5xl">
+        <h1 className="mt-2 text-balance text-3xl font-semibold tracking-[-0.045em] text-[var(--slice-heading)] sm:text-4xl lg:text-5xl">
           {title}
         </h1>
         {description ? (
@@ -338,7 +318,7 @@ export function WorkspaceButton({
   } as const;
   const variants = {
     primary:
-      "border-[var(--slice-accent-border)] bg-[linear-gradient(110deg,var(--slice-accent),var(--slice-accent-strong))] text-white shadow-[0_10px_26px_var(--slice-accent-glow)] hover:brightness-105",
+      "border-[var(--slice-primary-border)] bg-[var(--slice-primary-bg)] text-[var(--slice-primary-text)] shadow-[0_10px_26px_var(--slice-accent-glow)] hover:brightness-105",
     secondary: cx(
       "border hover:brightness-98 focus-visible:ring-[var(--slice-accent-border)]",
       toneClasses(tone),
@@ -647,8 +627,8 @@ export function WorkspaceTabs<T extends string>({
             className={cx(
               "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--slice-accent-border)] disabled:opacity-40",
               active
-                ? "bg-[linear-gradient(110deg,var(--slice-accent),var(--slice-accent-strong))] text-white shadow-[0_8px_20px_var(--slice-accent-glow)]"
-                : "text-[var(--slice-muted)] hover:bg-white hover:text-[var(--slice-heading)]",
+                ? "bg-[var(--slice-primary-bg)] text-[var(--slice-primary-text)] shadow-[0_8px_20px_var(--slice-accent-glow)]"
+                : "text-[var(--slice-muted)] hover:bg-[var(--slice-surface-strong)] hover:text-[var(--slice-heading)]",
             )}
           >
             {option.label}
@@ -657,7 +637,7 @@ export function WorkspaceTabs<T extends string>({
                 className={cx(
                   "rounded-full px-1.5 py-0.5 text-[9px]",
                   active
-                    ? "bg-white/20 text-white"
+                    ? "bg-black/10 text-[var(--slice-primary-text)]"
                     : "bg-[var(--slice-slate-bg)] text-[var(--slice-subtle)]",
                 )}
               >

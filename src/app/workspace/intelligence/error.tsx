@@ -26,7 +26,7 @@ export default function IntelligenceError({
             <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-rose-600/20 bg-rose-50 text-rose-700 dark:border-rose-400/25 dark:bg-rose-500/10 dark:text-rose-100">
               <AlertTriangle className="h-8 w-8" />
             </span>
-            <h1 className="mt-5 text-3xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+            <h1 className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
               This intelligence route could not finish loading
             </h1>
             <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -48,7 +48,7 @@ export default function IntelligenceError({
             <button
               type="button"
               onClick={reset}
-              className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--slice-accent-strong)] px-5 text-sm font-black text-white"
+              className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--slice-primary-border)] bg-[var(--slice-primary-bg)] px-5 text-sm font-semibold text-[var(--slice-primary-text)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--slice-accent-strong)]"
             >
               <RefreshCw className="h-4 w-4" />
               Retry this route

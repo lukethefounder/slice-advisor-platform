@@ -112,7 +112,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const tones = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     purple: "bg-purple-500/10 text-purple-300 ring-purple-500/30",
@@ -152,7 +152,7 @@ function Metric({
   tone?: "red" | "green" | "amber" | "purple" | "slate";
 }) {
   const glows = {
-    red: "from-emerald-500/18",
+    red: "from-rose-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     purple: "from-purple-500/18",

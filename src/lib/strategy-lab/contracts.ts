@@ -1,5 +1,5 @@
 /** Shared contracts. Vendor observations and model/backtest outputs are separate. */
-export const ENGINE_VERSION = "slice-daily-event-ledger-2.0.0";
+export const ENGINE_VERSION = "slice-daily-event-ledger-3.0.0";
 export const PROVIDER = "Alpha Vantage" as const;
 export const SECTOR_ETFS = [
   { symbol: "XLK", name: "Technology" }, { symbol: "XLF", name: "Financials" },
@@ -21,14 +21,19 @@ export const METRICS = [
   { id: "averageDollarVolume", label: "Average daily dollar volume (USD)", defaultPeriod: 20, min: 0, max: 1e15 },
   { id: "atrPct", label: "Average true range / close (%)", defaultPeriod: 14, min: 0, max: 10000 },
   { id: "rawClose", label: "As-traded close (USD)", defaultPeriod: 2, min: 0, max: 1e9 },
+  { id: "volumeRatio", label: "Volume / prior average (×)", defaultPeriod: 20, min: 0, max: 10000 },
+  { id: "priceRangePositionPct", label: "Position within high–low range (%)", defaultPeriod: 14, min: 0, max: 100 },
+  { id: "bollingerZ", label: "Distance from average (standard deviations)", defaultPeriod: 20, min: -100, max: 100 },
+  { id: "trendEfficiencyPct", label: "Trend efficiency (%)", defaultPeriod: 20, min: 0, max: 100 },
 ] as const;
+export const VERSION_3_METRICS = new Set<string>(["volumeRatio", "priceRangePositionPct", "bollingerZ", "trendEfficiencyPct"]);
 export type Metric = typeof METRICS[number]["id"];
 export type Comparator = ">" | ">=" | "<" | "<=" | "between" | "crossesAbove" | "crossesBelow";
 export type Rule = { metric: Metric; period: number; comparator: Comparator; value: number; upper?: number; subject?: "instrument" | "benchmark" };
 export type RuleSet = { mode: "all" | "any"; rules: Rule[]; groups?: RuleSet[] };
 export type AllocationGroup = { name: string; symbols: string[]; maxExposurePct: number };
 export type StrategySpec = {
-  version: 1 | 2; name: string; template: string;
+  version: 1 | 2 | 3; name: string; template: string;
   universeMode: "sector-etfs" | "fixed-symbols"; symbols: string[]; benchmark: string;
   startDate: string; endDate: string; initialCapital: number;
   entry: RuleSet; exit: RuleSet;
@@ -38,6 +43,8 @@ export type StrategySpec = {
   rebalance: "once" | "daily" | "weekly" | "monthly" | "quarterly";
   maxHoldings: number; maxPositionPct: number; maxExposurePct: number;
   trailingStopPct: number | null; maxHoldingSessions: number | null;
+  /** Version 3 only: prior-close triggers relative to split-adjusted average purchase fill. */
+  stopLossPct?: number | null; takeProfitPct?: number | null;
   portfolioStopPct: number | null; cooldownSessions: number;
   feeBps: number; slippageBps: number; commissionUsd: number;
   riskFreeRatePct: number; acknowledgeFixedUniverse: boolean;
@@ -120,11 +127,11 @@ export function templateSpec(id: string, prior: StrategySpec = defaultSpec()): S
   if (id === "low-volatility") { s.ranking = "low-volatility"; s.weighting = "inverse-volatility"; s.rankingPeriod = 63;
     s.entry.rules = [{ metric: "volatilityPct", period: 63, comparator: "<", value: 30 }]; s.exit.rules = []; }
   if (id === "buy-and-hold") { s.entry.rules = []; s.exit.rules = []; s.ranking = "alphabetical"; s.rebalance = "once"; s.maxHoldings = prior.symbols.length; s.maxPositionPct = 100; }
-  if (id === "custom") { s.entry.rules = []; s.exit.rules = []; }
+  if (id === "custom") { s.version = 3; s.entry.rules = []; s.exit.rules = []; s.stopLossPct = null; s.takeProfitPct = null; }
   return s;
 }
 
-/** Saved version-1 simulations and registered scenarios keep their original engine. */
+/** Saved simulations and registered scenarios retain their original calculation semantics. */
 export function engineVersionFor(spec: Pick<StrategySpec, "version">): string {
-  return spec.version === 1 ? "slice-daily-event-ledger-1.0.0" : ENGINE_VERSION;
+  return spec.version === 1 ? "slice-daily-event-ledger-1.0.0" : spec.version === 2 ? "slice-daily-event-ledger-2.0.0" : ENGINE_VERSION;
 }

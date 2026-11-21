@@ -3,6 +3,7 @@ import { type Dataset, type Metric, type Rule, type RuleSet, StrategyError } fro
 export class Series {
   readonly index = new Map<string, number>();
   readonly price: number[] = []; readonly high: number[] = []; readonly low: number[] = [];
+  readonly volume: number[] = [];
   private values = new Map<string, Array<number | null>>();
   constructor(readonly data: Dataset) {
     let units = 1;
@@ -14,7 +15,7 @@ export class Series {
         throw new StrategyError("INVALID_BAR", `Invalid or unordered price bar for ${data.symbol} on ${b.date}.`);
       units *= b.split;
       if (!Number.isFinite(units) || units <= 0) throw new StrategyError("INVALID_SPLIT_CHAIN", "Corporate-action normalization overflowed.");
-      this.price.push(b.close * units); this.high.push(b.high * units); this.low.push(b.low * units); this.index.set(b.date, i);
+      this.price.push(b.close * units); this.high.push(b.high * units); this.low.push(b.low * units); this.volume.push(b.volume / units); this.index.set(b.date, i);
     }
   }
   metric(metric: Metric, period: number, index: number, benchmark?: Series): number | null {
@@ -34,6 +35,57 @@ export class Series {
   private calculate(metric: Metric, p: number): Array<number | null> {
     const a = this.price, bars = this.data.bars, n = a.length, out: Array<number | null> = Array(n).fill(null);
     const prefix = (values: number[]) => { const result = [0]; for (const v of values) result.push(result.at(-1)! + v); return result; };
+    if (metric === "volumeRatio" || metric === "trendEfficiencyPct") {
+      const totals = prefix(metric === "volumeRatio" ? this.volume : a.map((value, i) => i ? Math.abs(value - a[i - 1]) : 0));
+      for (let i = p; i < n; i++) {
+        if (metric === "volumeRatio") {
+          const average = (totals[i] - totals[i - p]) / p;
+          out[i] = average > 0 ? this.volume[i] / average : null;
+        } else {
+          const distance = totals[i + 1] - totals[i - p + 1];
+          out[i] = distance > 0 ? Math.min(100, Math.abs(a[i] - a[i - p]) / distance * 100) : 0;
+        }
+        if (out[i] !== null && !Number.isFinite(out[i])) out[i] = null;
+      }
+      return out;
+    }
+    if (metric === "priceRangePositionPct") {
+      const highQueue: number[] = [], lowQueue: number[] = []; let highHead = 0, lowHead = 0;
+      for (let i = 0; i < n; i++) {
+        while (highHead < highQueue.length && highQueue[highHead] <= i - p) highHead++;
+        while (lowHead < lowQueue.length && lowQueue[lowHead] <= i - p) lowHead++;
+        while (highQueue.length > highHead && this.high[highQueue.at(-1)!] <= this.high[i]) highQueue.pop();
+        while (lowQueue.length > lowHead && this.low[lowQueue.at(-1)!] >= this.low[i]) lowQueue.pop();
+        highQueue.push(i); lowQueue.push(i);
+        if (i < p) continue;
+        const low = this.low[lowQueue[lowHead]], span = this.high[highQueue[highHead]] - low;
+        const value = span > 0 ? Math.min(100, Math.max(0, (a[i] - low) / span * 100)) : 50;
+        out[i] = Number.isFinite(value) ? value : null;
+      }
+      return out;
+    }
+    if (metric === "bollingerZ") {
+      // Rolling Welford updates avoid subtracting large squared price totals.
+      // Rebase once per window to bound drift; total work remains O(n).
+      let mean = 0, m2 = 0;
+      for (let i = p; i < n; i++) {
+        if (i % p === 0) {
+          const origin = a[i - p + 1]; let offset = 0;
+          for (let j = i - p + 1; j <= i; j++) offset += a[j] - origin;
+          offset /= p; mean = origin + offset; m2 = 0;
+          for (let j = i - p + 1; j <= i; j++) m2 += (a[j] - origin - offset) ** 2;
+        } else {
+          const removed = a[i - p], oldMean = mean;
+          mean += (mean - removed) / (p - 1);
+          m2 -= (removed - oldMean) * (removed - mean);
+          const delta = a[i] - mean; mean += delta / p; m2 += delta * (a[i] - mean);
+        }
+        const variance = Math.max(0, m2 / p);
+        const value = variance > 0 ? (a[i] - mean) / Math.sqrt(variance) : 0;
+        out[i] = Number.isFinite(value) ? value : null;
+      }
+      return out;
+    }
     const prices = prefix(a), dollars = prefix(bars.map(b => b.close * b.volume));
     const gains = prefix(a.map((v, i) => i ? Math.max(0, v - a[i - 1]) : 0));
     const losses = prefix(a.map((v, i) => i ? Math.max(0, a[i - 1] - v) : 0));

@@ -12,10 +12,12 @@ import { loadHorizonModelSuite, persistShadowHorizonPredictions, scoreHorizonMod
 import { analyzeResearchGraph, projectResearchGraph, getResearchGraphNodeDetail } from "@/lib/intelligence/graph-engine";
 import type { ResearchSwarmResponse, ResearchKnowledgeGraph, ResearchGraphProjectionMode, ResearchGraphAnalytics } from "@/lib/intelligence/research-swarm-types";
 import type { ForecastResponse } from "@/lib/intelligence-forecast/types";
+import { legacyGraphEvidence, pageResearchSources, type ResearchSourceQuery } from "@/lib/intelligence/research-source-index";
+import { pageResearchAgents, type ResearchAgentQuery } from "@/lib/intelligence/research-agent-index";
 import { StrategyError } from "@/lib/strategy-lab/contracts";
-import { HORIZONS, type CanonicalBundle } from "./contracts";
+import { HORIZONS, type CanonicalBundle, type ResearchOnlyBundle } from "./contracts";
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
-type Summary = Pick<ResearchSwarmResponse, "score" | "market" | "warnings" | "companyName" | "sector" | "industry" | "requestedAgents" | "activeAgents" | "durationMs">;
+type Summary = Pick<ResearchSwarmResponse, "score" | "market" | "warnings" | "companyName" | "sector" | "industry" | "requestedAgents" | "activeAgents" | "durationMs"> & Partial<Pick<ResearchSwarmResponse, "evidence" | "researchPlan" | "currentResearch">>;
 /** Called only after the server-side Alpha Vantage-only research collector completes. */
 export async function publishAlphaResearch(userId: string, research: ResearchSwarmResponse): Promise<CanonicalBundle> {
   const existing = await readCanonical(userId, research.symbol, research.runId);
@@ -26,13 +28,13 @@ export async function publishAlphaResearch(userId: string, research: ResearchSwa
     throw new StrategyError("MIXED_SOURCE_BLOCKED", "Research contains media evidence outside Alpha Vantage; this run was not published.", 409);
   if (["media", "technical", "economy"].some(name => {
     const cohort = research.cohorts[name as keyof typeof research.cohorts];
-    return cohort.evidenceCount < 1 || cohort.confidence <= 0;
+    return research.score.weighting[name as keyof typeof research.cohorts] > 0 && (cohort.evidenceCount < 1 || cohort.confidence <= 0);
   })) throw new StrategyError("INCOMPLETE_EVIDENCE", "At least one Alpha Vantage research cohort has no usable evidence. Publication is blocked rather than presenting a neutral placeholder as a complete forecast.", 409);
   const snapshot = normalizeMarketSnapshot({ ...research.forecastSnapshot, requestId: research.runId });
   const snapshotJson = JSON.stringify(snapshot), inputSha256 = digest(snapshotJson);
   const summary: Summary = { score: research.score, market: research.market, warnings: research.warnings,
     companyName: research.companyName, sector: research.sector, industry: research.industry, requestedAgents: research.requestedAgents,
-    activeAgents: research.activeAgents, durationMs: research.durationMs };
+    activeAgents: research.activeAgents, durationMs: research.durationMs, evidence: research.evidence, researchPlan: research.researchPlan, currentResearch: research.currentResearch };
   let reservation: { id: string };
   try {
     reservation = await prisma.sliceForecastBundle.create({ data: { userId, symbol: research.symbol, researchRunId: research.runId,
@@ -78,8 +80,8 @@ export async function publishAlphaResearch(userId: string, research: ResearchSwa
 }
 export async function readCanonical(userId: string, symbol: string, researchRunId?: string | null): Promise<CanonicalBundle | null> {
   await requireResearchStorage(["SliceForecastBundle"]);
-  const row = await prisma.sliceForecastBundle.findFirst({ where: { userId, symbol, status: "Ready", provider: "Alpha Vantage", ...(researchRunId ? { researchRunId } : {}) }, orderBy: { createdAt: "desc" } });
-  if (!row?.forecastJson || !row.outputSha256 || !row.forecastRunId) return null;
+  const row = await prisma.sliceForecastBundle.findFirst({ where: { userId, symbol, status: { in: ["Ready", "ResearchOnly"] }, provider: "Alpha Vantage", ...(researchRunId ? { researchRunId } : {}) }, orderBy: { createdAt: "desc" } });
+  if (!row || row.status !== "Ready" || !row.forecastJson || !row.outputSha256 || !row.forecastRunId) return null;
   if (digest(row.forecastJson) !== row.outputSha256 || digest(row.snapshotJson) !== row.inputSha256) throw new StrategyError("FORECAST_INTEGRITY", "Saved forecast integrity check failed.", 409);
   const summary = JSON.parse(row.researchJson) as Summary;
   const aux = JSON.parse(row.operationsJson ?? "{}") as { operations?: Record<string, string>; targets?: Record<string, string>; graphSha256?: string; researchSha256?: string; graphAnalytics?: ResearchGraphAnalytics };
@@ -89,7 +91,56 @@ export async function readCanonical(userId: string, symbol: string, researchRunI
   return { schemaVersion: "slice-canonical-bundle-1.0.0", id: row.id, symbol: row.symbol, researchRunId: row.researchRunId, forecastRunId: row.forecastRunId,
     inputSha256: row.inputSha256, outputSha256: row.outputSha256, asOf: row.asOfAt.toISOString(), generatedAt: forecast.generatedAt, dataProvider: "Alpha Vantage",
     classification: "model-estimate-not-provider-observation", score: summary.score, market: summary.market, forecast,
-    graphAnalytics: aux.graphAnalytics, operations: aux.operations ?? {}, targets: aux.targets ?? {}, warnings: summary.warnings };
+    graphAnalytics: aux.graphAnalytics, operations: aux.operations ?? {}, targets: aux.targets ?? {}, warnings: summary.warnings, currentResearch: summary.currentResearch };
+}
+
+/** Keep collected research inspectable when a weighted cohort is unavailable.
+ * This path never calls the forecast engine, reserves targets, or fabricates probabilities. */
+export async function publishResearchOnly(userId: string, research: ResearchSwarmResponse): Promise<ResearchOnlyBundle> {
+  await requireResearchStorage(["SliceForecastBundle"]);
+  const existing = await readResearchOnly(userId, research.symbol, research.runId);
+  if (existing) return existing;
+  if (research.market.provider !== "Alpha Vantage" || !(research.market.price > 0) || !research.providerAsOf || !Number.isFinite(Date.parse(research.providerAsOf)))
+    throw new StrategyError("NO_VERIFIED_PRICE", "Research requires an observed price and its original timestamp.", 409);
+  if (!research.currentResearch || research.currentResearch.publication !== "research-only")
+    throw new StrategyError("INVALID_RESEARCH_STATUS", "The incomplete research report is missing.", 409);
+  const summary: Summary = { score: research.score, market: research.market, warnings: research.warnings,
+    companyName: research.companyName, sector: research.sector, industry: research.industry,
+    requestedAgents: research.requestedAgents, activeAgents: research.activeAgents, durationMs: research.durationMs,
+    evidence: research.evidence, researchPlan: research.researchPlan, currentResearch: research.currentResearch };
+  const researchJson = JSON.stringify(summary), graphJson = JSON.stringify(research.graph);
+  const snapshotJson = JSON.stringify(research.forecastSnapshot);
+  try {
+    await prisma.sliceForecastBundle.create({ data: { userId, symbol: research.symbol, researchRunId: research.runId,
+      status: "ResearchOnly", provider: "Alpha Vantage", inputSha256: digest(snapshotJson), snapshotJson,
+      researchJson, graphJson, asOfAt: new Date(research.providerAsOf),
+      operationsJson: JSON.stringify({ operations: { persistence: "stored", forecast: "withheld-incomplete-evidence" },
+        graphAnalytics: research.graphAnalytics, graphSha256: digest(graphJson), researchSha256: digest(researchJson) }) } });
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && error.code === "P2002")) throw error;
+    const winner = await readResearchOnly(userId, research.symbol, research.runId);
+    if (winner) return winner;
+    throw new StrategyError("RESEARCH_RUN_CONFLICT", "This immutable run identifier is already reserved for a different publication.", 409);
+  }
+  const stored = await readResearchOnly(userId, research.symbol, research.runId);
+  if (!stored) throw new StrategyError("PUBLICATION_FAILED", "Research could not be read back after storage.", 500);
+  return stored;
+}
+
+export async function readResearchOnly(userId: string, symbol: string, researchRunId?: string | null): Promise<ResearchOnlyBundle | null> {
+  await requireResearchStorage(["SliceForecastBundle"]);
+  // Choose the latest usable research first: an older partial run must not hide a newer forecast.
+  const row = await prisma.sliceForecastBundle.findFirst({ where: { userId, symbol, provider: "Alpha Vantage",
+    status: { in: ["Ready", "ResearchOnly"] }, ...(researchRunId ? { researchRunId } : {}) }, orderBy: { createdAt: "desc" } });
+  if (!row || row.status !== "ResearchOnly") return null;
+  const audit = JSON.parse(row.operationsJson ?? "{}") as { researchSha256?: string; graphSha256?: string };
+  if (audit.researchSha256 !== digest(row.researchJson) || audit.graphSha256 !== digest(row.graphJson) || digest(row.snapshotJson) !== row.inputSha256)
+    throw new StrategyError("RESEARCH_INTEGRITY", "Saved research integrity check failed.", 409);
+  if (row.forecastJson || row.forecastRunId || row.outputSha256) throw new StrategyError("RESEARCH_INTEGRITY", "Research-only records cannot contain a forecast.", 409);
+  const summary = JSON.parse(row.researchJson) as Summary;
+  return { schemaVersion: "slice-research-only-bundle-1.0.0", id: row.id, symbol: row.symbol, researchRunId: row.researchRunId,
+    generatedAt: summary.score.generatedAt, classification: "research-only-no-forecast", score: summary.score,
+    market: summary.market, currentResearch: summary.currentResearch, warnings: summary.warnings };
 }
 export function attachForecastNodes(graph: ResearchKnowledgeGraph, forecast: ForecastResponse, bundleId: string, forecastRunId: string, targets: Record<string, string>): ResearchKnowledgeGraph {
   const scoreNode = graph.nodes.find(n => n.kind === "score");
@@ -104,7 +155,7 @@ export function attachForecastNodes(graph: ResearchKnowledgeGraph, forecast: For
 }
 export async function readCanonicalGraph(input: { userId: string; symbol: string; runId?: string; projection?: ResearchGraphProjectionMode; selectedNodeId?: string | null }) {
   await requireResearchStorage(["SliceForecastBundle"]);
-  const row = await prisma.sliceForecastBundle.findFirst({ where: { userId: input.userId, symbol: input.symbol, status: "Ready", ...(input.runId ? { researchRunId: input.runId } : {}) }, orderBy: { createdAt: "desc" } });
+  const row = await prisma.sliceForecastBundle.findFirst({ where: { userId: input.userId, symbol: input.symbol, status: { in: ["Ready", "ResearchOnly"] }, ...(input.runId ? { researchRunId: input.runId } : {}) }, orderBy: { createdAt: "desc" } });
   if (!row) return null;
   const audit = JSON.parse(row.operationsJson ?? "{}") as { graphSha256?: string; researchSha256?: string; graphAnalytics?: ResearchGraphAnalytics };
   if (audit.graphSha256 !== digest(row.graphJson) || audit.researchSha256 !== digest(row.researchJson)) throw new StrategyError("GRAPH_INTEGRITY", "Saved graph integrity check failed.", 409);
@@ -114,8 +165,47 @@ export async function readCanonicalGraph(input: { userId: string; symbol: string
     graph: retainCanonicalNodes(graph, projectResearchGraph(graph, { mode: input.projection ?? "overview", selectedNodeId: input.selectedNodeId, analytics })), analytics,
     selectedNode: getResearchGraphNodeDetail(graph, input.selectedNodeId),
     metadata: { companyName: summary.companyName, sector: summary.sector, industry: summary.industry, requestedAgents: summary.requestedAgents,
-      activeAgents: summary.activeAgents, score: summary.score.overall, confidence: summary.score.confidence, providerAsOf: summary.score.providerAsOf, durationMs: summary.durationMs },
+      activeAgents: summary.activeAgents, score: summary.score.overall, confidence: summary.score.confidence, providerAsOf: summary.score.providerAsOf, durationMs: summary.durationMs,
+      researchWeights: summary.score.weighting, researchPlan: summary.researchPlan, currentResearch: summary.currentResearch },
     persistence: { configured: true, status: "available" as const } };
+}
+
+/** Authenticated ownership is enforced at the database query, including explicit run IDs. */
+export async function readCanonicalResearchSources(input: { userId: string; symbol: string; runId?: string } & ResearchSourceQuery) {
+  await requireResearchStorage(["SliceForecastBundle"]);
+  const row = await prisma.sliceForecastBundle.findFirst({
+    where: { userId: input.userId, symbol: input.symbol, status: { in: ["Ready", "ResearchOnly"] }, ...(input.runId ? { researchRunId: input.runId } : {}) },
+    orderBy: { createdAt: "desc" },
+    select: { researchRunId: true, symbol: true, researchJson: true, graphJson: true, operationsJson: true },
+  });
+  if (!row) return null;
+  const audit = JSON.parse(row.operationsJson ?? "{}") as { researchSha256?: string; graphSha256?: string };
+  if (audit.researchSha256 !== digest(row.researchJson) || audit.graphSha256 !== digest(row.graphJson)) {
+    throw new StrategyError("RESEARCH_INTEGRITY", "The saved research evidence failed its integrity check.", 409);
+  }
+  const summary = JSON.parse(row.researchJson) as Summary;
+  const legacy = !Array.isArray(summary.evidence);
+  const evidence = legacy ? legacyGraphEvidence(JSON.parse(row.graphJson) as ResearchKnowledgeGraph, row.symbol) : summary.evidence!;
+  return { ok: true as const, symbol: row.symbol, runId: row.researchRunId, legacy, researchPlan: summary.researchPlan ?? null, currentResearch: summary.currentResearch ?? null,
+    ...pageResearchSources(evidence, input) };
+}
+
+export async function readCanonicalResearchAgents(input: { userId: string; symbol: string; runId?: string } & ResearchAgentQuery) {
+  await requireResearchStorage(["SliceForecastBundle"]);
+  const row = await prisma.sliceForecastBundle.findFirst({
+    where: { userId: input.userId, symbol: input.symbol, status: { in: ["Ready", "ResearchOnly"] }, ...(input.runId ? { researchRunId: input.runId } : {}) },
+    orderBy: { createdAt: "desc" },
+    select: { researchRunId: true, symbol: true, researchJson: true, graphJson: true, operationsJson: true },
+  });
+  if (!row) return null;
+  const audit = JSON.parse(row.operationsJson ?? "{}") as { researchSha256?: string; graphSha256?: string };
+  if (audit.researchSha256 !== digest(row.researchJson) || audit.graphSha256 !== digest(row.graphJson)) {
+    throw new StrategyError("RESEARCH_INTEGRITY", "The saved agent evidence failed its integrity check.", 409);
+  }
+  const summary = JSON.parse(row.researchJson) as Summary;
+  const graph = JSON.parse(row.graphJson) as ResearchKnowledgeGraph;
+  return { ok: true as const, symbol: row.symbol, runId: row.researchRunId, requestedAgents: summary.requestedAgents,
+    ...pageResearchAgents(graph, input) };
 }
 
 /** Canonical horizon nodes remain visible in every projection without rebuilding their numbers. */

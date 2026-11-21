@@ -4,9 +4,10 @@ import { marketConfiguration } from "@/lib/market-evidence/provider";
 import { MarketError } from "@/lib/market-evidence/core";
 import { parseSection } from "@/lib/market-visuals/parse";
 import { loadMarketSection } from "@/lib/market-visuals/service";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const access = await studioAccess(request), config = marketConfiguration();
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
   try {
     const access = await studioAccess(request, true), input = parseSection(await limitedJson(request, 2000));
     const started = performance.now();
-    const result = await loadMarketSection(input, marketStorage(access), AbortSignal.any([request.signal, AbortSignal.timeout(45000)]));
+    const signal = researchBetaEnabled(process.env) ? request.signal : AbortSignal.any([request.signal, AbortSignal.timeout(45000)]);
+    const result = await loadMarketSection(input, marketStorage(access), signal);
     return Response.json({ ...result, scope: `${access.userId}:${access.firmId}` }, { headers: { ...PRIVATE_HEADERS, "Server-Timing": `market_section;dur=${(performance.now() - started).toFixed(1)}`, "X-Slice-Market-Section": input.section } });
   } catch (e) {
     if (e instanceof MarketError) return Response.json({ ok: false, code: e.code, message: e.message, retryAt:e.retryAt }, { status: e.status, headers: { ...PRIVATE_HEADERS, ...([409, 429].includes(e.status) ? { "Retry-After": String(e.retryAfterSeconds || 30) } : {}) } });

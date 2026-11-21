@@ -1,3 +1,6 @@
+import { applicationRequestTimeout } from "@/lib/research/beta-client";
+import { normalizeResearchSymbol } from "./research-instrument";
+
 export type IntelligenceApiErrorBody = {
   code?: string;
   message?: string;
@@ -156,11 +159,7 @@ export function clientTimestampFreshness(
 }
 
 export function cleanIntelligenceSymbol(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.\-:$]/g, "")
-    .slice(0, 24);
+  try { return normalizeResearchSymbol(String(value ?? "")); } catch { return ""; }
 }
 
 export function isAbortError(error: unknown) {
@@ -203,21 +202,20 @@ function mergeSignals(
 
 function sleep(milliseconds: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(resolve, milliseconds);
-
-    if (!signal) return;
-
     const abort = () => {
       window.clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
       reject(new DOMException("The request was aborted.", "AbortError"));
     };
-
-    if (signal.aborted) {
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, milliseconds);
+    if (signal?.aborted) {
       abort();
       return;
     }
-
-    signal.addEventListener("abort", abort, { once: true });
+    signal?.addEventListener("abort", abort, { once: true });
   });
 }
 
@@ -232,17 +230,17 @@ export async function intelligenceFetch<T>(
 ): Promise<T> {
   const method = String(init.method ?? "GET").toUpperCase();
   const retries = method === "GET" ? Math.max(0, options.retries ?? 1) : 0;
-  const timeoutMs = Math.max(1_000, options.timeoutMs ?? 30_000);
+  const timeoutMs = applicationRequestTimeout(options.timeoutMs ?? 30_000);
   const retryDelayMs = Math.max(100, options.retryDelayMs ?? 450);
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const controller = new AbortController();
     const releaseSignal = mergeSignals(controller, init.signal);
-    const timeout = window.setTimeout(
+    const timeout = timeoutMs > 0 ? window.setTimeout(
       () => controller.abort(new DOMException("Request timed out.", "TimeoutError")),
       timeoutMs,
-    );
+    ) : undefined;
 
     try {
       const headers = new Headers(init.headers);
@@ -262,9 +260,15 @@ export async function intelligenceFetch<T>(
         signal: controller.signal,
       });
 
-      const body = (await response.json().catch(() => ({}))) as
+      const body = (await response.json().catch((error: unknown) => {
+        controller.signal.throwIfAborted();
+        if (isAbortError(error)) throw error;
+        if (response.ok) throw new IntelligenceApiError("The server response was incomplete. Check saved records before retrying a write.", { status: 502, code: "INVALID_RESPONSE" });
+        return {};
+      })) as
         | T
         | IntelligenceErrorEnvelope;
+      controller.signal.throwIfAborted();
 
       if (!response.ok) {
         const envelope = body as IntelligenceErrorEnvelope;
@@ -272,7 +276,8 @@ export async function intelligenceFetch<T>(
           envelope.error && typeof envelope.error === "object"
             ? envelope.error
             : null;
-        const retryAfterHeader = Number(response.headers.get("retry-after"));
+        const retryAfterRaw = response.headers.get("retry-after");
+        const retryAfterHeader = retryAfterRaw === null ? NaN : Number(retryAfterRaw);
         const retryAfterDetails = Number(
           structured?.details?.retryAfterSeconds,
         );
@@ -298,6 +303,7 @@ export async function intelligenceFetch<T>(
         );
       }
 
+      controller.signal.throwIfAborted();
       return body as T;
     } catch (error) {
       lastError = error;
@@ -316,9 +322,12 @@ export async function intelligenceFetch<T>(
 
       if (!retryable || attempt >= retries) throw error;
 
-      await sleep(retryDelayMs * (attempt + 1), init.signal ?? undefined);
+      const delay = error instanceof IntelligenceApiError && error.retryAfterSeconds !== null
+        ? Math.max(retryDelayMs * (attempt + 1), error.retryAfterSeconds * 1000)
+        : retryDelayMs * (attempt + 1);
+      await sleep(delay, init.signal ?? undefined);
     } finally {
-      window.clearTimeout(timeout);
+      if (timeout !== undefined) window.clearTimeout(timeout);
       releaseSignal();
     }
   }

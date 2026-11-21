@@ -132,7 +132,8 @@ export function permissionsForMembership(input: {
     "inbox.read",
   ]);
 
-  const managementRole = roleMatches(role, [
+  // Administrative authority requires an exact role, never a title substring.
+  const managementRole = [
     "owner",
     "founder",
     "principal",
@@ -142,7 +143,7 @@ export function permissionsForMembership(input: {
     "administrator",
     "admin",
     "manager",
-  ]);
+  ].includes(role);
 
   const advisorRole = roleMatches(role, [
     "advisor",

@@ -135,7 +135,7 @@ export function Badge({
     green:
       "border-emerald-400/25 bg-emerald-500/10 text-emerald-200",
     red:
-      "border-emerald-400/25 bg-emerald-500/10 text-emerald-200",
+      "border-rose-400/25 bg-rose-500/10 text-rose-200",
     amber:
       "border-amber-400/25 bg-amber-500/10 text-amber-100",
     cyan:
@@ -171,7 +171,7 @@ export function Progress({
     | "purple";
 }) {
   const colors = {
-    red: "from-emerald-500 to-emerald-800",
+    red: "from-rose-500 to-rose-800",
     green:
       "from-emerald-400 to-emerald-700",
     amber:

@@ -20,8 +20,7 @@ export const dynamic =
 export const runtime =
   "nodejs";
 
-export const maxDuration =
-  120;
+
 
 function isVercelCronRequest(
   request: Request,

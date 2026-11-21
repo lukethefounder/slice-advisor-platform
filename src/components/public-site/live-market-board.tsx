@@ -210,7 +210,7 @@ function StateBadge({ snapshot }: { snapshot: PublicMarketSnapshot }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em]",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em]",
         classes,
       )}
     >
@@ -243,11 +243,11 @@ function Sparkline({ values, positive }: { values: number[]; positive: boolean }
     >
       <defs>
         <linearGradient id={positive ? "spark-positive" : "spark-negative"} x1="0" x2="1">
-          <stop offset="0" stopColor={positive ? "#047857" : "#be123c"} stopOpacity="0.35" />
-          <stop offset="1" stopColor={positive ? "#16a36f" : "#fb7185"} stopOpacity="0.95" />
+          <stop offset="0" stopColor={positive ? "var(--slice-green-text)" : "var(--slice-rose-text)"} stopOpacity="0.35" />
+          <stop offset="1" stopColor={positive ? "var(--slice-green-text)" : "var(--slice-rose-text)"} stopOpacity="0.95" />
         </linearGradient>
       </defs>
-      <path d="M0 71 H280" stroke="rgba(7,83,60,0.10)" strokeWidth="1" />
+      <path d="M0 71 H280" stroke="var(--slice-border)" strokeWidth="1" />
       {path ? (
         <path
           d={path}
@@ -277,10 +277,10 @@ function Metric({
     <div className="rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
+          <div className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
             {label}
           </div>
-          <div className="mt-2 truncate text-2xl font-black tracking-[-0.035em] text-[var(--slice-heading)]">
+          <div className="mt-2 truncate text-2xl font-semibold tracking-[-0.035em] text-[var(--slice-heading)]">
             {value}
           </div>
           <div className="mt-1 truncate text-[10px] font-bold text-[var(--slice-muted)]">
@@ -316,22 +316,22 @@ function DetailPanel({
       <div className="rounded-[1.6rem] border border-emerald-950/10 bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
               Selected symbol
             </div>
-            <h3 className="mt-1 text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)]">
+            <h3 className="mt-1 text-3xl font-semibold tracking-[-0.05em] text-[var(--slice-heading)]">
               {snapshot.symbol}
             </h3>
           </div>
           <StateBadge snapshot={snapshot} />
         </div>
 
-        <div className="mt-5 text-4xl font-black tracking-[-0.05em] text-[var(--slice-heading)]">
+        <div className="mt-5 text-4xl font-semibold tracking-[-0.05em] text-[var(--slice-heading)]">
           {formatCurrency(snapshot.price)}
         </div>
         <div
           className={cx(
-            "mt-2 inline-flex items-center gap-1.5 text-sm font-black",
+            "mt-2 inline-flex items-center gap-1.5 text-sm font-semibold",
             (snapshot.changePercent ?? 0) >= 0
               ? "text-emerald-800"
               : "text-rose-800",
@@ -347,15 +347,15 @@ function DetailPanel({
 
         <dl className="mt-6 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-3">
-            <dt className="font-black uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Previous close</dt>
-            <dd className="mt-1 font-black text-[var(--slice-heading)]">{formatCurrency(snapshot.previousClose)}</dd>
+            <dt className="font-semibold uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Previous close</dt>
+            <dd className="mt-1 font-semibold text-[var(--slice-heading)]">{formatCurrency(snapshot.previousClose)}</dd>
           </div>
           <div className="rounded-xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-3">
-            <dt className="font-black uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Volume</dt>
-            <dd className="mt-1 font-black text-[var(--slice-heading)]">{formatCompact(snapshot.volume)}</dd>
+            <dt className="font-semibold uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Volume</dt>
+            <dd className="mt-1 font-semibold text-[var(--slice-heading)]">{formatCompact(snapshot.volume)}</dd>
           </div>
           <div className="col-span-2 rounded-xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-3">
-            <dt className="font-black uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Provider time</dt>
+            <dt className="font-semibold uppercase tracking-[0.12em] text-[var(--slice-subtle)]">Provider time</dt>
             <dd className="mt-1 font-bold text-[var(--slice-heading)]">{formatTime(snapshot.providerTimestamp)}</dd>
           </div>
         </dl>
@@ -364,7 +364,7 @@ function DetailPanel({
           type="button"
           onClick={onLoad}
           disabled={loading}
-          className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-[linear-gradient(110deg,#16a36f,#07533c)] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(5,120,83,0.20)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--slice-primary-border)] bg-[var(--slice-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--slice-primary-text)] shadow-[0_12px_26px_rgba(5,120,83,0.20)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -390,7 +390,7 @@ function DetailPanel({
               <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
                 <Database className="h-6 w-6" />
               </div>
-              <h3 className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+              <h3 className="mt-5 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
                 Deep analysis is paused until requested.
               </h3>
               <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -405,7 +405,7 @@ function DetailPanel({
           <div className="grid min-h-[25rem] place-items-center text-center">
             <div>
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-700" />
-              <p className="mt-4 text-sm font-black text-[var(--slice-heading)]">
+              <p className="mt-4 text-sm font-semibold text-[var(--slice-heading)]">
                 Coordinating six Alpha Vantage endpoints…
               </p>
             </div>
@@ -423,10 +423,10 @@ function DetailPanel({
           <div>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
                   Full provider analysis
                 </div>
-                <h3 className="mt-1 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+                <h3 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
                   {detail.freshness?.label ?? "Alpha Vantage intelligence"}
                 </h3>
                 <p className="mt-2 text-xs font-semibold leading-6 text-[var(--slice-muted)]">
@@ -436,7 +436,7 @@ function DetailPanel({
               </div>
               <span
                 className={cx(
-                  "rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.14em]",
+                  "rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em]",
                   detail.health?.degraded
                     ? "border-amber-700/20 bg-amber-50 text-amber-900"
                     : "border-emerald-700/20 bg-emerald-50 text-emerald-900",
@@ -485,7 +485,7 @@ function DetailPanel({
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
               <div className="rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4">
-                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
                   <BarChart3 className="h-3.5 w-3.5" />
                   Technical context
                 </div>
@@ -510,7 +510,7 @@ function DetailPanel({
               </div>
 
               <div className="rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4">
-                <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
                   <Newspaper className="h-3.5 w-3.5" />
                   Symbol news
                 </div>
@@ -523,7 +523,7 @@ function DetailPanel({
                       rel="noreferrer noopener"
                       className="rounded-xl border border-emerald-950/10 bg-white p-3 transition hover:border-emerald-700/25 hover:bg-emerald-50"
                     >
-                      <div className="line-clamp-2 text-xs font-black leading-5 text-[var(--slice-heading)]">
+                      <div className="line-clamp-2 text-xs font-semibold leading-5 text-[var(--slice-heading)]">
                         {item.title}
                       </div>
                       <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--slice-subtle)]">
@@ -542,7 +542,7 @@ function DetailPanel({
 
             {detail.health?.warnings?.length ? (
               <details className="mt-5 rounded-2xl border border-amber-700/20 bg-amber-50 p-4">
-                <summary className="cursor-pointer text-xs font-black text-amber-950">
+                <summary className="cursor-pointer text-xs font-semibold text-amber-950">
                   View provider warnings ({detail.health.warnings.length})
                 </summary>
                 <ul className="mt-3 grid gap-2 text-xs font-semibold leading-6 text-amber-950">
@@ -842,13 +842,13 @@ export default function LiveMarketBoard() {
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-emerald-900">
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-emerald-900">
               <Signal className="h-3.5 w-3.5" />
               Alpha Vantage market summary
             </span>
             <span
               className={cx(
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em]",
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.15em]",
                 online
                   ? "border-emerald-700/20 bg-white text-emerald-900"
                   : "border-rose-700/20 bg-rose-50 text-rose-900",
@@ -858,7 +858,7 @@ export default function LiveMarketBoard() {
               {online ? "Device online" : "Device offline"}
             </span>
           </div>
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
             Confirmed quotes first. Deep analysis second.
           </h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -872,7 +872,7 @@ export default function LiveMarketBoard() {
           type="button"
           onClick={() => void refreshSummary(true)}
           disabled={status === "loading" || status === "refreshing"}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-950/15 bg-white px-4 py-3 text-sm font-black text-emerald-950 shadow-sm transition hover:border-emerald-700/30 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-950/15 bg-white px-4 py-3 text-sm font-semibold text-emerald-950 shadow-sm transition hover:border-emerald-700/30 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCcw
             className={cx(
@@ -940,7 +940,7 @@ export default function LiveMarketBoard() {
             <CloudOff className="mt-0.5 h-4 w-4 shrink-0" />
           )}
           <div>
-            <div className="font-black">Market refresh notice</div>
+            <div className="font-semibold">Market refresh notice</div>
             <div className="mt-1">{error}</div>
           </div>
         </div>
@@ -948,7 +948,7 @@ export default function LiveMarketBoard() {
 
       {summary?.warnings.length ? (
         <details className="mt-4 rounded-2xl border border-amber-700/15 bg-amber-50/70 p-4">
-          <summary className="cursor-pointer text-xs font-black text-amber-950">
+          <summary className="cursor-pointer text-xs font-semibold text-amber-950">
             Provider and entitlement notes ({summary.warnings.length})
           </summary>
           <ul className="mt-3 grid gap-2 text-xs font-semibold leading-6 text-amber-950">
@@ -967,7 +967,7 @@ export default function LiveMarketBoard() {
             ) : (
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-700" />
             )}
-            <h3 className="mt-4 text-xl font-black text-[var(--slice-heading)]">
+            <h3 className="mt-4 text-xl font-semibold text-[var(--slice-heading)]">
               {status === "error"
                 ? "The provider summary is unavailable."
                 : "Loading confirmed Alpha Vantage quotes…"}
@@ -1003,21 +1003,21 @@ export default function LiveMarketBoard() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-lg font-black tracking-[-0.03em] text-[var(--slice-heading)]">
+                      <div className="text-lg font-semibold tracking-[-0.03em] text-[var(--slice-heading)]">
                         {snapshot.symbol}
                       </div>
-                      <div className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
+                      <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--slice-subtle)]">
                         Alpha Vantage
                       </div>
                     </div>
                     <StateBadge snapshot={snapshot} />
                   </div>
-                  <div className="mt-5 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+                  <div className="mt-5 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
                     {formatCurrency(snapshot.price)}
                   </div>
                   <div
                     className={cx(
-                      "mt-2 inline-flex items-center gap-1 text-xs font-black",
+                      "mt-2 inline-flex items-center gap-1 text-xs font-semibold",
                       positive ? "text-emerald-800" : "text-rose-800",
                     )}
                   >
@@ -1042,7 +1042,7 @@ export default function LiveMarketBoard() {
               <div className="mb-4 grid gap-4 rounded-[1.35rem] border border-emerald-950/10 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)] lg:items-center">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
                       Confirmed quote history
                     </span>
                     <span className="inline-flex items-center gap-1 text-[9px] font-bold text-[var(--slice-subtle)]">
@@ -1050,7 +1050,7 @@ export default function LiveMarketBoard() {
                       Last summary {relativeTime(summary?.generatedAt)}
                     </span>
                   </div>
-                  <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+                  <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
                     {selected.symbol} has {history[selected.symbol]?.length ?? 0} retained in-session points.
                   </h3>
                   <p className="mt-2 text-xs font-semibold leading-6 text-[var(--slice-muted)]">

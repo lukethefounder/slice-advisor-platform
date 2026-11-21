@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { searchWorkspaceTools } from "@/lib/workspace-green-core";
+import { useWorkspaceSession } from "@/components/workspace/premium/session";
 import {
   WorkspaceIcon,
   WorkspacePill,
@@ -28,6 +29,7 @@ export default function WorkspaceCommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const { agentDeskFounder } = useWorkspaceSession();
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -36,7 +38,7 @@ export default function WorkspaceCommandPalette({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const deferredQuery = useDeferredValue(query);
-  const tools = useMemo(() => searchWorkspaceTools(deferredQuery), [deferredQuery]);
+  const tools = useMemo(() => searchWorkspaceTools(deferredQuery, agentDeskFounder === true), [deferredQuery, agentDeskFounder]);
 
   useEffect(() => setMounted(true), []);
 
@@ -162,13 +164,13 @@ export default function WorkspaceCommandPalette({
             className="min-w-0 flex-1 bg-transparent text-base font-bold text-[var(--slice-heading)] outline-none placeholder:text-[var(--slice-subtle)]"
             autoComplete="off"
           />
-          <span className="hidden rounded-lg border border-[var(--slice-border)] bg-white px-2 py-1 text-[9px] font-black uppercase text-[var(--slice-subtle)] sm:inline-flex">
+          <span className="hidden rounded-lg border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-2 py-1 text-[9px] font-black uppercase text-[var(--slice-subtle)] sm:inline-flex">
             ↑ ↓ Enter
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--slice-border)] bg-white text-[var(--slice-muted)] shadow-sm transition hover:border-[var(--slice-accent-border)] hover:text-[var(--slice-heading)]"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] text-[var(--slice-muted)] shadow-sm transition hover:border-[var(--slice-accent-border)] hover:text-[var(--slice-heading)]"
             aria-label="Close command palette"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -206,7 +208,7 @@ export default function WorkspaceCommandPalette({
                   "group flex w-full min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition",
                   active
                     ? "border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] shadow-sm"
-                    : "border-[var(--slice-border)] bg-[var(--slice-surface-muted)] hover:border-[var(--slice-border-strong)] hover:bg-white",
+                    : "border-[var(--slice-border)] bg-[var(--slice-surface-muted)] hover:border-[var(--slice-border-strong)] hover:bg-[var(--slice-surface-strong)]",
                 )}
               >
                 <span

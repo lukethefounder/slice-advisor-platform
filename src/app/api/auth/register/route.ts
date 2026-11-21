@@ -12,28 +12,18 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { passwordProblem } from "@/lib/account-security/policy";
+import { requireSecurityOrigin, securityJson } from "@/lib/account-security/service";
 import { consumeRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   getClientIp,
   hashForSecurity,
-  isPotentiallyCrossSiteUnsafeRequest,
   maskEmail,
   recordSecurityEvent,
 } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const MAX_BODY_BYTES = 16_384;
-const COMMON_PASSWORDS = new Set([
-  "password",
-  "password123",
-  "12345678",
-  "qwerty123",
-  "letmein123",
-  "welcome123",
-  "slice1234",
-]);
 
 function clean(value: unknown, maximum: number) {
   return typeof value === "string"
@@ -50,48 +40,22 @@ function firmCode(name: string) {
   return `${prefix || "FIRM"}-${randomBytes(5).toString("hex").toUpperCase()}`;
 }
 
-function passwordIssue(password: string) {
-  if (password.length < 10) return "Use a password containing at least 10 characters.";
-  if (password.length > 128) return "Password must contain no more than 128 characters.";
-  if (COMMON_PASSWORDS.has(password.toLowerCase())) return "Choose a less common password.";
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "Password must include at least one letter and one number.";
-  }
-  return null;
-}
-
 export const POST = withApiRoute(
   {
     route: "/api/auth/register",
     timeoutMs: 25_000,
+    cacheControl: "private, no-store",
   },
   async ({ request, log }) => {
-    if (isPotentiallyCrossSiteUnsafeRequest(request)) {
-      return apiJson({ error: "Security check failed." }, { status: 403 });
-    }
-
-    if (!(request.headers.get("content-type") ?? "").includes("application/json")) {
-      return apiJson({ error: "Invalid request format." }, { status: 415 });
-    }
-
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
-      return apiJson({ error: "Registration request is too large." }, { status: 413 });
-    }
-
-    let body: Record<string, unknown>;
-    try {
-      body = JSON.parse(raw || "{}") as Record<string, unknown>;
-    } catch {
-      return apiJson({ error: "Request body must contain valid JSON." }, { status: 400 });
-    }
+    requireSecurityOrigin(request);
+    const body = await securityJson(request);
 
     const firmName = clean(body.firmName, 200);
     const firmEmail = clean(body.firmEmail, 320).toLowerCase() || null;
     const name = clean(body.name, 160);
     const email = clean(body.email, 320).toLowerCase();
     const password = typeof body.password === "string" ? body.password : "";
-    const issue = passwordIssue(password);
+    const issue = passwordProblem(password);
 
     if (!firmName || !name || !email || issue) {
       return apiJson(
@@ -118,12 +82,14 @@ export const POST = withApiRoute(
         scope: "auth.register.ip",
         limit: 8,
         windowMs: 60 * 60_000,
+        failOpen: false,
       }),
       consumeRateLimit({
         key: emailKey,
         scope: "auth.register.email",
         limit: 3,
         windowMs: 24 * 60 * 60_000,
+        failOpen: false,
       }),
     ]);
     const blockingLimit = !ipLimit.allowed ? ipLimit : !emailLimit.allowed ? emailLimit : null;
@@ -222,7 +188,7 @@ export const POST = withApiRoute(
       return { user, firm, membership };
     });
 
-    const session = await createSession(result.user.id);
+    const session = await createSession(result.user.id, { expectedPasswordHash: result.user.passwordHash, request });
 
     await recordSecurityEvent({
       userId: result.user.id,

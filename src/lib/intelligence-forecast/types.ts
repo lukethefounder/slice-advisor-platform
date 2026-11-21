@@ -46,6 +46,8 @@ export type MarketSnapshot = {
     current: number;
     previousClose: number;
     volume: number;
+    /** Actual price observation time; independent of the decision snapshot time. */
+    observedAt?: string;
   };
 
   slice: {

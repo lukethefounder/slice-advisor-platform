@@ -8,7 +8,7 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 180;
+
 
 type SpeechRequestBody = {
   text?: unknown;

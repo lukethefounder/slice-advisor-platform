@@ -51,7 +51,7 @@ function Pill({
   tone?: "red" | "cyan" | "purple" | "amber" | "green";
 }) {
   const tones = {
-    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    red: "border-rose-500/30 bg-rose-500/10 text-rose-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
     purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",

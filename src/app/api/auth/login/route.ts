@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { apiJson, withApiRoute } from "@/lib/api-route";
+import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
 import {
   createSession,
   hashPassword,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/founder-access";
 import { prisma } from "@/lib/prisma";
+import { accountHasMfa, requireSecurityOrigin, securityJson, verifyAccountSecondFactor } from "@/lib/account-security/service";
 import {
   consumeRateLimit,
   rateLimitHeaders,
@@ -22,7 +23,6 @@ import {
 import {
   getClientIp,
   hashForSecurity,
-  isPotentiallyCrossSiteUnsafeRequest,
   maskEmail,
   recordSecurityEvent,
 } from "@/lib/security";
@@ -30,7 +30,6 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const MAX_BODY_BYTES = 8_192;
 const LOGIN_WINDOW_MS = 15 * 60_000;
 
 function invalidLoginResponse(headers?: HeadersInit) {
@@ -44,35 +43,16 @@ export const POST = withApiRoute(
   {
     route: "/api/auth/login",
     timeoutMs: 20_000,
+    cacheControl: "private, no-store",
   },
   async ({ request, log }) => {
-    if (isPotentiallyCrossSiteUnsafeRequest(request)) {
-      await recordSecurityEvent({
-        eventType: "auth.login.cross_site_blocked",
-        severity: "High",
-        area: "Authentication",
-        title: "Cross-site login request blocked",
-        request,
-      }).catch((error) => log.error("security_event.failed", error));
-
-      return apiJson({ error: "Security check failed." }, { status: 403 });
+    try { requireSecurityOrigin(request); }
+    catch (error) {
+      await recordSecurityEvent({ eventType: "auth.login.cross_site_blocked", severity: "High", area: "Authentication", title: "Cross-site login request blocked", request }).catch((caught) => log.error("security_event.failed", caught));
+      throw error;
     }
-
-    if (!(request.headers.get("content-type") ?? "").includes("application/json")) {
-      return apiJson({ error: "Invalid request format." }, { status: 415 });
-    }
-
-    const raw = await request.text();
-    if (Buffer.byteLength(raw, "utf8") > MAX_BODY_BYTES) {
-      return apiJson({ error: "Login request is too large." }, { status: 413 });
-    }
-
-    let body: { email?: unknown; password?: unknown };
-    try {
-      body = JSON.parse(raw || "{}") as { email?: unknown; password?: unknown };
-    } catch {
-      return apiJson({ error: "Invalid JSON request body." }, { status: 400 });
-    }
+    const body = await securityJson(request);
+    const authenticationStartedAt = new Date();
 
     const email =
       typeof body.email === "string"
@@ -96,12 +76,14 @@ export const POST = withApiRoute(
         scope: "auth.login.ip",
         limit: 25,
         windowMs: LOGIN_WINDOW_MS,
+        failOpen: false,
       }),
       consumeRateLimit({
         key: emailKey,
         scope: "auth.login.email",
         limit: 10,
         windowMs: LOGIN_WINDOW_MS,
+        failOpen: false,
       }),
     ]);
 
@@ -162,7 +144,7 @@ export const POST = withApiRoute(
       return invalidLoginResponse(rateLimitHeaders(emailLimit));
     }
 
-    if (["Banned", "Suspended"].includes(user.platformStatus)) {
+    if (user.platformStatus !== "Active") {
       await recordSecurityEvent({
         userId: user.id,
         eventType: "auth.login.governed_account_blocked",
@@ -224,16 +206,22 @@ export const POST = withApiRoute(
       );
     }
 
+    const mfaRequired = await accountHasMfa(user.id);
+    if (mfaRequired && !await verifyAccountSecondFactor(user.id, body.factorCode)) {
+      await recordSecurityEvent({ userId: user.id, eventType: "auth.login.factor_required", severity: body.factorCode ? "Medium" : "Info", area: "Authentication", title: body.factorCode ? "Second-factor sign in failed" : "Sign in awaiting second factor", request }).catch((error) => log.error("security_event.failed", error));
+      return apiJson({ error: body.factorCode ? "That code was not accepted. Use a fresh authenticator code or an unused recovery code." : "Enter your authenticator code or a recovery code.", code: "MFA_REQUIRED", mfaRequired: true }, { status: 401, headers: rateLimitHeaders(emailLimit) });
+    }
+
     if (needsPasswordRehash(user.passwordHash)) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { passwordHash: hashPassword(password) },
-      });
+      const upgradedHash = hashPassword(password);
+      const upgraded = await prisma.user.updateMany({ where: { id: user.id, passwordHash: user.passwordHash, platformStatus: "Active" }, data: { passwordHash: upgradedHash } });
+      if (upgraded.count !== 1) throw new ApiError({ status: 401, code: "CREDENTIALS_CHANGED", message: "Account credentials changed during sign in. Try again with your current password." });
+      user.passwordHash = upgradedHash;
     }
 
     await prisma.userSecuritySetting.upsert({
       where: { userId: user.id },
-      update: { lastSecurityReviewAt: new Date() },
+      update: {},
       create: {
         userId: user.id,
         mfaEnabled: false,
@@ -241,11 +229,10 @@ export const POST = withApiRoute(
         alertOnNewLogin: true,
         advisorModeEnabled: true,
         sessionTimeoutMinutes: 720,
-        lastSecurityReviewAt: new Date(),
       },
     });
 
-    const session = await createSession(user.id);
+    const session = await createSession(user.id, { mfaVerified: mfaRequired, authenticationStartedAt, expectedPasswordHash: user.passwordHash, request });
 
     await Promise.all([
       resetRateLimit({ key: emailKey, scope: "auth.login.email" }),

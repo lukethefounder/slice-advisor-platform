@@ -1,4 +1,5 @@
 import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import { normalizeResearchSymbol } from "@/lib/intelligence/research-instrument";
 import { requireCurrentAccessContext } from "@/lib/access-control";
 import { timestampFreshness } from "@/lib/intelligence/freshness";
 import {
@@ -20,9 +21,9 @@ function clean(value: string | null, maximum = 220) {
 }
 
 function symbol(value: string | null) {
-  return clean(value, 24)
-    .toUpperCase()
-    .replace(/[^A-Z0-9.\-:$]/g, "");
+  if (!value?.trim()) return "";
+  try { return normalizeResearchSymbol(value); }
+  catch { throw new ApiError({ status: 400, code: "INVALID_RESEARCH_SYMBOL", message: "Use a valid stock symbol or explicit index identifier.", expose: true }); }
 }
 
 function projection(

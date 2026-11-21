@@ -2,6 +2,7 @@ import type {
   MarketRegime,
   MarketSnapshot,
 } from "@/lib/intelligence-forecast/types";
+import { normalizeResearchSymbol } from "@/lib/intelligence/research-instrument";
 
 const INPUT_SCHEMA_VERSION = "slice-forecast-input-1.0.0" as const;
 
@@ -85,11 +86,7 @@ function boundedScore(
 }
 
 function cleanSymbol(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.\-]/g, "")
-    .slice(0, 15);
+  try { return normalizeResearchSymbol(String(value ?? "")); } catch { return ""; }
 }
 
 function cleanRequestId(value: unknown) {
@@ -191,7 +188,20 @@ export function normalizeMarketSnapshot(
   }
 
   const asOf = readIsoDate(root.asOf);
-  const ageMs = Date.now() - Date.parse(asOf);
+  let observedAt: string | undefined;
+  if (price.observedAt !== undefined) {
+    const raw = typeof price.observedAt === "string" ? price.observedAt : "";
+    const isoShape = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2}))?$/.test(raw);
+    const calendarDay = Date.parse(`${raw.slice(0, 10)}T00:00:00Z`);
+    const realDay = Number.isFinite(calendarDay) && new Date(calendarDay).toISOString().slice(0, 10) === raw.slice(0, 10);
+    const observation = isoShape && realDay ? Date.parse(raw) : NaN;
+    if (!Number.isFinite(observation) || observation > Date.now() + 300_000 || observation > Date.parse(asOf) + 300_000) {
+      issues.push("price.observedAt must be a valid observation no later than the decision snapshot (five-minute clock tolerance).");
+    } else observedAt = price.observedAt as string;
+  }
+  // A new decision clock must never make an older reference price fresh.
+  // Legacy snapshots without an explicit price time keep their original rule.
+  const ageMs = Date.now() - Date.parse(observedAt ?? asOf);
 
   const staleFromTimestamp =
     Number.isFinite(ageMs) &&
@@ -210,6 +220,7 @@ export function normalizeMarketSnapshot(
     price: {
       current: currentPrice,
       previousClose,
+      ...(observedAt ? { observedAt } : {}),
       volume: finiteNumber(
         price.volume,
         0,

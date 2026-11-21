@@ -33,7 +33,7 @@ import { createLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 300;
+
 
 const immediateWorkerLog = createLogger("client-emails:immediate-worker");
 

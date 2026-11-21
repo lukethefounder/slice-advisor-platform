@@ -1,31 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import {
-  ArrowRight,
-  CheckCircle2,
-  LockKeyhole,
-  LogIn,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  UsersRound,
-} from "lucide-react";
 import {
   useState,
   type FormEvent,
 } from "react";
 
-import {
-  BrandMark,
-  Card,
-  Pill,
-  SliceBackground,
-  SoftCard,
-  cx,
-} from "@/components/slice-ui";
-// SLICE_ACCESS_SURFACE_V1 — existing authentication and client context retained.
-import { AccessFrame } from "@/components/access-experience/access-frame";
+import FounderAccessFrame from "@/components/access-experience/founder-access-frame";
 
 
 type LoginResponse = {
@@ -36,16 +16,19 @@ type LoginResponse = {
   };
   isFounder?: boolean;
   betaAccess?: boolean;
-  error?: string;
+  error?: string | { message?: string };
+  mfaRequired?: boolean;
 };
 
 export default function FounderLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState(
-    "Use a real firm owner or invited advisor account.",
+    "Your research and firm workspace are waiting.",
   );
   const [loading, setLoading] = useState(false);
+  const [factorRequired, setFactorRequired] = useState(false);
+  const [factorCode, setFactorCode] = useState("");
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,12 +50,20 @@ export default function FounderLoginPage() {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
+          factorCode: factorRequired ? factorCode : undefined,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as LoginResponse;
+      const errorMessage = typeof payload.error === "string" ? payload.error : payload.error?.message;
+
+      if (payload.mfaRequired) {
+        setFactorRequired(true); setFactorCode("");
+        setMessage(errorMessage || "Enter your authenticator code or a saved recovery code.");
+        return;
+      }
 
       if (!response.ok || !payload.user) {
-        throw new Error(payload.error || "Sign in failed.");
+        throw new Error(errorMessage || "Sign in failed.");
       }
 
       setMessage("Access verified. Opening the advisor workspace.");
@@ -86,5 +77,5 @@ export default function FounderLoginPage() {
     }
   }
 
-  return <AccessFrame variant="founder" email={email} secret={password} onEmailChange={setEmail} onSecretChange={setPassword} onSubmit={login} loading={loading} message={message}/>;
+  return <FounderAccessFrame email={email} secret={password} onEmailChange={value => {setEmail(value);setFactorRequired(false);setFactorCode("");}} onSecretChange={value => {setPassword(value);setFactorRequired(false);setFactorCode("");}} onSubmit={login} loading={loading} message={message} factorRequired={factorRequired} factorCode={factorCode} onFactorChange={setFactorCode}/>;
 }

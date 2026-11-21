@@ -2,6 +2,9 @@ import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { acceptTeamInvitation, manageTeamInvitation, publicInvitation } from "@/lib/team/invitations";
+import { guardTeamRate, readTeamJson, teamFailure } from "@/lib/team/http";
+import { changeTeamMember } from "@/lib/team/memberships";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +26,7 @@ type FirmWorkspaceBody = Record<string, unknown>;
 
 async function getUserMembershipsWithFirm(userId: string) {
   return prisma.firmMembership.findMany({
-    where: { userId, status: "Active" },
+    where: { userId, status: "Active", firm: { platformStatus: "Active" } },
     include: { firm: true },
     orderBy: { createdAt: "desc" },
   });
@@ -33,10 +36,6 @@ type MembershipWithFirm = Awaited<ReturnType<typeof getUserMembershipsWithFirm>>
 
 function teamColor(index: number) {
   return TEAM_COLORS[index % TEAM_COLORS.length];
-}
-
-function inviteCode() {
-  return randomBytes(12).toString("hex").toUpperCase();
 }
 
 function firmCode(name: string) {
@@ -112,64 +111,11 @@ function startOfWeek(dateString?: string | null) {
   return date.toISOString().slice(0, 10);
 }
 
-function permissionsForRole(roleValue: string) {
-  const role = roleValue.trim().toLowerCase();
-
-  if (role === "owner") {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: true,
-      canInviteMembers: true,
-      canManageFirm: true,
-    };
-  }
-
-  if (
-    role === "admin" ||
-    role === "firm admin" ||
-    role === "manager" ||
-    role === "lead advisor" ||
-    role === "principal"
-  ) {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: true,
-      canInviteMembers: true,
-      canManageFirm: false,
-    };
-  }
-
-  if (
-    role === "advisor" ||
-    role === "portfolio manager" ||
-    role === "analyst" ||
-    role === "operations"
-  ) {
-    return {
-      canAccessPortfolios: true,
-      canManageProjects: true,
-      canInviteMembers: false,
-      canManageFirm: false,
-    };
-  }
-
-  return {
-    canAccessPortfolios: false,
-    canManageProjects: false,
-    canInviteMembers: false,
-    canManageFirm: false,
-  };
-}
-
 async function getActiveMembership(userId: string, firmId: string) {
   return prisma.firmMembership.findFirst({
-    where: { userId, firmId, status: "Active" },
-    include: { firm: true, user: true },
+    where: { userId, firmId, status: "Active", firm: { platformStatus: "Active" } },
+    include: { firm: true, user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
   });
-}
-
-function canManageFirm(membership: { role: string; canManageFirm: boolean }) {
-  return membership.role === "Owner" || membership.canManageFirm;
 }
 
 function canInvite(membership: {
@@ -417,12 +363,12 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
     await Promise.all([
       prisma.firmMembership.findMany({
         where: { firmId, status: "Active" },
-        include: { user: true },
+        include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
         orderBy: { createdAt: "asc" },
       }),
       prisma.firmInvite.findMany({
         where: { firmId, status: "Pending" },
-        include: { sentBy: true },
+        include: { sentBy: { select: { id: true, name: true, email: true } } },
         orderBy: { createdAt: "desc" },
       }),
       prisma.firmProject.findMany({
@@ -431,7 +377,7 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
           assignments: {
             include: {
               membership: {
-                include: { user: true },
+                include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
               },
             },
           },
@@ -443,13 +389,13 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
         where: { firmId },
         include: {
           membership: {
-            include: { user: true },
+            include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
           },
           tasks: {
             include: {
               project: true,
               comments: {
-                include: { user: true },
+                include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
                 orderBy: { createdAt: "desc" },
               },
             },
@@ -463,7 +409,7 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
         include: {
           project: true,
           authorMembership: {
-            include: { user: true },
+            include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
           },
         },
         orderBy: { createdAt: "desc" },
@@ -566,7 +512,7 @@ async function loadFirmWorkspace(userId: string, requestedFirmId?: string | null
     firm: membership.firm,
     membership,
     members,
-    invites,
+    invites: canInvite(membership) ? invites.map(invite => ({ ...publicInvitation(invite), inviteCode: "", sentBy: invite.sentBy })) : [],
     projects,
     agendas,
     posts: normalizedPosts,
@@ -613,7 +559,8 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
-  const body = (await request.json()) as FirmWorkspaceBody;
+  let body: FirmWorkspaceBody;
+  try { body = await readTeamJson(request, 256_000); } catch (error) { return teamFailure(error); }
   const action = cleanText(body.action);
   const requestedFirmId = cleanNullableText(body.firmId);
 
@@ -653,61 +600,11 @@ export async function POST(request: Request) {
   }
 
   if (action === "acceptInvite") {
-    const code = cleanText(body.inviteCode);
-
-    if (!code) {
-      return NextResponse.json({ error: "Invite code is required." }, { status: 400 });
-    }
-
-    const invite = await prisma.firmInvite.findFirst({
-      where: { inviteCode: code, status: "Pending" },
-    });
-
-    if (!invite) {
-      return NextResponse.json({ error: "Invite not found." }, { status: 404 });
-    }
-
-    const memberCount = await prisma.firmMembership.count({
-      where: { firmId: invite.firmId, status: "Active" },
-    });
-
-    const invitePermissions = permissionsForRole(invite.role);
-
-    await prisma.firmMembership.upsert({
-      where: {
-        firmId_userId: {
-          firmId: invite.firmId,
-          userId: user.id,
-        },
-      },
-      update: {
-        status: "Active",
-        role: invite.role,
-        calendarColor: teamColor(memberCount),
-        canAccessPortfolios: invitePermissions.canAccessPortfolios,
-        canManageProjects: invitePermissions.canManageProjects,
-        canInviteMembers: invitePermissions.canInviteMembers,
-        canManageFirm: invitePermissions.canManageFirm,
-      },
-      create: {
-        firmId: invite.firmId,
-        userId: user.id,
-        role: invite.role,
-        status: "Active",
-        calendarColor: teamColor(memberCount),
-        canAccessPortfolios: invitePermissions.canAccessPortfolios,
-        canManageProjects: invitePermissions.canManageProjects,
-        canInviteMembers: invitePermissions.canInviteMembers,
-        canManageFirm: invitePermissions.canManageFirm,
-      },
-    });
-
-    await prisma.firmInvite.update({
-      where: { id: invite.id },
-      data: { status: "Accepted", acceptedAt: new Date() },
-    });
-
-    return NextResponse.json(await loadFirmWorkspace(user.id, invite.firmId));
+    try {
+      await guardTeamRate(request, "accept-member", user.id, 12);
+      const joined = await acceptTeamInvitation({ code: cleanText(body.inviteCode), userId: user.id, request });
+      return NextResponse.json(await loadFirmWorkspace(user.id, joined.firm.id));
+    } catch (error) { return teamFailure(error); }
   }
 
   if (!requestedFirmId) {
@@ -727,107 +624,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (action === "inviteMember") {
-    if (!canInvite(membership)) {
-      return NextResponse.json(
-        { error: "You do not have permission to invite firm members." },
-        { status: 403 }
-      );
-    }
-
-    const email = cleanText(body.email).toLowerCase();
-
-    if (!email) {
-      return NextResponse.json({ error: "Invite email is required." }, { status: 400 });
-    }
-
-    const invite = await prisma.firmInvite.create({
-      data: {
-        firmId,
-        email,
-        inviteCode: inviteCode(),
-        role: cleanText(body.role, "Member") || "Member",
-        status: "Pending",
-        sentByUserId: user.id,
-      },
-    });
-
-    return NextResponse.json({
-      ...(await loadFirmWorkspace(user.id, firmId)),
-      createdInvite: invite,
-    });
+  if (action === "inviteMember" || action === "createInvite") {
+    try {
+      const result = await manageTeamInvitation(request, { ...body, action: "create", firmId, role: body.role || "Member", delivery: "link" });
+      return NextResponse.json({ ...(await loadFirmWorkspace(user.id, firmId)), ...("invite" in result ? { createdInvite: result.invite, inviteCode: result.invite.inviteCode, inviteLink: result.invite.inviteLink } : {}) });
+    } catch (error) { return teamFailure(error); }
   }
 
-  if (action === "updateMember") {
-    if (!canManageFirm(membership)) {
-      return NextResponse.json(
-        { error: "You do not have permission to update firm members." },
-        { status: 403 }
-      );
-    }
-
-    const membershipId = cleanText(body.membershipId);
-
-    const target = await prisma.firmMembership.findFirst({
-      where: { id: membershipId, firmId },
-    });
-
-    if (!target) return NextResponse.json({ error: "Member not found." }, { status: 404 });
-
-    await prisma.firmMembership.update({
-      where: { id: target.id },
-      data: {
-        role: cleanText(body.role) || undefined,
-        calendarColor: cleanText(body.calendarColor) || undefined,
-        canAccessPortfolios:
-          typeof body.canAccessPortfolios === "boolean" ? body.canAccessPortfolios : undefined,
-        canManageProjects:
-          typeof body.canManageProjects === "boolean" ? body.canManageProjects : undefined,
-        canInviteMembers:
-          typeof body.canInviteMembers === "boolean" ? body.canInviteMembers : undefined,
-        canManageFirm:
-          typeof body.canManageFirm === "boolean" ? body.canManageFirm : undefined,
-      },
-    });
-
-    return NextResponse.json(await loadFirmWorkspace(user.id, firmId));
-  }
-
-  if (action === "removeMember") {
-    if (!canManageFirm(membership)) {
-      return NextResponse.json(
-        { error: "You do not have permission to remove firm members." },
-        { status: 403 }
-      );
-    }
-
-    const membershipId = cleanText(body.membershipId);
-
-    const target = await prisma.firmMembership.findFirst({
-      where: { id: membershipId, firmId },
-    });
-
-    if (!target) return NextResponse.json({ error: "Member not found." }, { status: 404 });
-
-    if (target.role === "Owner") {
-      return NextResponse.json(
-        { error: "Owner access cannot be removed here." },
-        { status: 403 }
-      );
-    }
-
-    await prisma.firmMembership.update({
-      where: { id: target.id },
-      data: {
-        status: "Removed",
-        canAccessPortfolios: false,
-        canManageProjects: false,
-        canInviteMembers: false,
-        canManageFirm: false,
-      },
-    });
-
-    return NextResponse.json(await loadFirmWorkspace(user.id, firmId));
+  if (action === "updateMember" || action === "removeMember") {
+    try {
+      await changeTeamMember(request, body, action === "removeMember" ? "remove" : "update");
+      return NextResponse.json(await loadFirmWorkspace(user.id, firmId));
+    } catch (error) { return teamFailure(error); }
   }
 
   if (action === "createProject") {
@@ -1020,7 +828,7 @@ export async function POST(request: Request) {
 
     const targetMembership = await prisma.firmMembership.findFirst({
       where: { id: targetMembershipId, firmId, status: "Active" },
-      include: { user: true },
+      include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
     });
 
     if (!targetMembership) {
@@ -1282,7 +1090,7 @@ export async function POST(request: Request) {
     const mentioned = extractMentions(`${title} ${postBody}`);
     const firmMembers = await prisma.firmMembership.findMany({
       where: { firmId, status: "Active" },
-      include: { user: true },
+      include: { user: { select: { id: true, name: true, email: true, createdAt: true, platformStatus: true } } },
     });
 
     const targets = mentioned.length

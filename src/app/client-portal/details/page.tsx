@@ -1,5 +1,7 @@
 "use client";
 
+import portalTheme from "@/components/portal-experience/portal-tools.module.css";
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Cell,
@@ -166,7 +168,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "cyan" | "purple" | "blue" | "slate";
 }) {
   const tones = {
-    red: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    red: "border-rose-500/30 bg-rose-500/10 text-rose-200",
     green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
     amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
     cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
@@ -178,7 +180,7 @@ function Pill({
   return (
     <span
       className={cx(
-        "inline-flex rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+        "inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
         tones[tone],
       )}
     >
@@ -208,7 +210,7 @@ function Card({
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
       {children}
     </span>
   );
@@ -717,10 +719,10 @@ export default function ClientPortalPage() {
 
   if (!hasHydrated) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+      <main className={`${portalTheme.page} grid min-h-screen place-items-center  p-5`}>
         <Card className="max-w-xl text-center">
           <Pill tone="cyan">Client Portal</Pill>
-          <h1 className="mt-4 text-4xl font-black">Loading portal...</h1>
+          <h1 className="mt-4 text-4xl font-semibold">Loading portal...</h1>
           <p className="mt-3 text-sm leading-7 text-slate-400">
             Preparing your secure client workspace.
           </p>
@@ -731,16 +733,16 @@ export default function ClientPortalPage() {
 
   if (!session) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+      <main className={`${portalTheme.page} grid min-h-screen place-items-center  p-5`}>
         <Card className="max-w-xl text-center">
           <Pill tone="red">Client Portal</Pill>
-          <h1 className="mt-4 text-4xl font-black">Client login required</h1>
+          <h1 className="mt-4 text-4xl font-semibold">Client login required</h1>
           <p className="mt-3 text-sm leading-7 text-slate-400">
             Enter through your advisor email invite.
           </p>
           <a
             href="/client-login"
-            className="mt-5 inline-flex rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
+            className="mt-5 inline-flex rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]"
           >
             Go to Client Login
           </a>
@@ -750,7 +752,7 @@ export default function ClientPortalPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.34),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(135deg,_#030712,_#050505,_#111827)] p-5 text-white">
+    <main className={`${portalTheme.page} min-h-screen  p-5`}>
       <div className="mx-auto grid max-w-[1800px] gap-5">
         <header className="relative overflow-hidden rounded-[2.25rem] border border-white/10 bg-black/70 p-5 shadow-2xl shadow-emerald-950/30 backdrop-blur-xl">
           <div className="absolute right-[-140px] top-[-180px] hidden h-[420px] w-[420px] rounded-full border border-emerald-500/10 xl:block">
@@ -770,7 +772,7 @@ export default function ClientPortalPage() {
                   Advisor Access {profile.advisorAccessStatus}
                 </Pill>
               </div>
-              <h1 className="mt-4 text-4xl font-black md:text-6xl">
+              <h1 className="mt-4 text-4xl font-semibold md:text-6xl">
                 Welcome, {profile.clientName}.
               </h1>
               <p className="mt-3 max-w-5xl text-sm leading-7 text-slate-400">
@@ -783,13 +785,13 @@ export default function ClientPortalPage() {
             <div className="flex flex-wrap gap-2">
               <a
                 href="/client-login"
-                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white"
+                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold text-white"
               >
                 Login Page
               </a>
               <button
                 onClick={signOut}
-                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
+                className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100"
               >
                 Sign Out
               </button>
@@ -807,17 +809,17 @@ export default function ClientPortalPage() {
           <Card className="border-amber-500/30 bg-amber-500/10">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
                   Next step
                 </div>
-                <h2 className="mt-2 text-2xl font-black">Complete your risk profile</h2>
+                <h2 className="mt-2 text-2xl font-semibold">Complete your risk profile</h2>
                 <p className="mt-2 text-sm leading-6 text-amber-50">
                   Your advisor needs your risk tolerance, preferences, and investment goals before reviewing requests.
                 </p>
               </div>
               <button
                 onClick={() => setTab("risk")}
-                className="rounded-2xl bg-white px-5 py-4 text-sm font-black text-slate-950"
+                className="rounded-2xl bg-white px-5 py-4 text-sm font-semibold text-slate-950"
               >
                 Complete Risk Survey
               </button>
@@ -827,31 +829,31 @@ export default function ClientPortalPage() {
 
         <section className="grid gap-4 md:grid-cols-4">
           <Card>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Open Conversations
             </div>
-            <div className="mt-2 text-4xl font-black">{openThreads}</div>
+            <div className="mt-2 text-4xl font-semibold">{openThreads}</div>
             <p className="mt-1 text-sm text-slate-400">Tracked threads</p>
           </Card>
           <Card>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Pending Documents
             </div>
-            <div className="mt-2 text-4xl font-black">{pendingDocs}</div>
+            <div className="mt-2 text-4xl font-semibold">{pendingDocs}</div>
             <p className="mt-1 text-sm text-slate-400">Need action</p>
           </Card>
           <Card>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Advisor Review
             </div>
-            <div className="mt-2 text-4xl font-black">{reviewCount}</div>
+            <div className="mt-2 text-4xl font-semibold">{reviewCount}</div>
             <p className="mt-1 text-sm text-slate-400">Under review</p>
           </Card>
           <Card>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               New Items
             </div>
-            <div className="mt-2 text-4xl font-black">{newCount}</div>
+            <div className="mt-2 text-4xl font-semibold">{newCount}</div>
             <p className="mt-1 text-sm text-slate-400">Waiting for advisor</p>
           </Card>
         </section>
@@ -879,7 +881,7 @@ export default function ClientPortalPage() {
                       : "border-white/10 bg-white/[0.045] text-white hover:bg-white/[0.075]",
                   )}
                 >
-                  <div className="text-sm font-black">{label}</div>
+                  <div className="text-sm font-semibold">{label}</div>
                   <div
                     className={cx(
                       "mt-1 text-xs",
@@ -898,10 +900,10 @@ export default function ClientPortalPage() {
               <div className="grid gap-5">
                 <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
                   <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
                       Portal Activity
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">Recent advisor submissions</h2>
+                    <h2 className="mt-2 text-3xl font-semibold">Recent advisor submissions</h2>
                     <div className="mt-5 grid gap-3">
                       {clientEvents.slice(0, 7).map((event) => (
                         <div
@@ -910,7 +912,7 @@ export default function ClientPortalPage() {
                         >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div>
-                              <div className="text-sm font-black text-white">{event.title}</div>
+                              <div className="text-sm font-semibold text-white">{event.title}</div>
                               <div className="mt-1 text-xs text-slate-500">
                                 {event.type} · {formatPortalDate(event.createdAt)}
                               </div>
@@ -920,7 +922,7 @@ export default function ClientPortalPage() {
                             </div>
                             <span
                               className={cx(
-                                "rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+                                "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
                                 toneForStatus(event.status),
                               )}
                             >
@@ -933,16 +935,16 @@ export default function ClientPortalPage() {
                   </Card>
 
                   <Card>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
                       Action Center
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">Make life easier</h2>
+                    <h2 className="mt-2 text-3xl font-semibold">Make life easier</h2>
                     <div className="mt-5 grid gap-3">
                       <button
                         onClick={() => setTab("conversations")}
                         className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 text-left"
                       >
-                        <div className="font-black text-white">Continue conversation</div>
+                        <div className="font-semibold text-white">Continue conversation</div>
                         <p className="mt-1 text-sm text-purple-100">
                           Tracked messages stay in threads.
                         </p>
@@ -951,7 +953,7 @@ export default function ClientPortalPage() {
                         onClick={() => setTab("documents")}
                         className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-left"
                       >
-                        <div className="font-black text-white">Review documents</div>
+                        <div className="font-semibold text-white">Review documents</div>
                         <p className="mt-1 text-sm text-cyan-100">
                           Sign, return, remove, or revoke access.
                         </p>
@@ -960,7 +962,7 @@ export default function ClientPortalPage() {
                         onClick={() => setTab("allocation")}
                         className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-left"
                       >
-                        <div className="font-black text-white">Update portfolio pie</div>
+                        <div className="font-semibold text-white">Update portfolio pie</div>
                         <p className="mt-1 text-sm text-green-100">
                           Set preferred allocation by investment type.
                         </p>
@@ -969,7 +971,7 @@ export default function ClientPortalPage() {
                         onClick={() => setTab("risk")}
                         className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-left"
                       >
-                        <div className="font-black text-white">Update risk survey</div>
+                        <div className="font-semibold text-white">Update risk survey</div>
                         <p className="mt-1 text-sm text-amber-100">
                           Dropdown-only answers for easy updates.
                         </p>
@@ -984,10 +986,10 @@ export default function ClientPortalPage() {
               <Card>
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-purple-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-purple-400">
                       Conversations
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">Tracked advisor messages</h2>
+                    <h2 className="mt-2 text-3xl font-semibold">Tracked advisor messages</h2>
                     <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
                       Conversations are stored as persistent threads and do not disappear.
                     </p>
@@ -1001,7 +1003,7 @@ export default function ClientPortalPage() {
                       onSubmit={createNewThread}
                       className="rounded-2xl border border-white/10 bg-white/[0.045] p-4"
                     >
-                      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         New conversation
                       </div>
                       <input
@@ -1016,7 +1018,7 @@ export default function ClientPortalPage() {
                         placeholder="Message"
                         className="mt-2 min-h-[90px] w-full rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm font-bold text-white"
                       />
-                      <button className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white">
+                      <button className="mt-3 w-full rounded-xl bg-[var(--slice-primary-bg)] px-4 py-3 text-xs font-semibold text-[var(--slice-primary-text)]">
                         Start Thread
                       </button>
                     </form>
@@ -1033,7 +1035,7 @@ export default function ClientPortalPage() {
                               : "border-white/10 bg-white/[0.045] text-white hover:bg-white/[0.075]",
                           )}
                         >
-                          <div className="truncate text-sm font-black">{thread.subject}</div>
+                          <div className="truncate text-sm font-semibold">{thread.subject}</div>
                           <div
                             className={cx(
                               "mt-1 text-xs",
@@ -1064,7 +1066,7 @@ export default function ClientPortalPage() {
                       <>
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div>
-                            <h3 className="text-2xl font-black">{activeThread.subject}</h3>
+                            <h3 className="text-2xl font-semibold">{activeThread.subject}</h3>
                             <div className="mt-1 text-xs text-slate-500">
                               {activeThread.category} · {activeThread.status} · Assigned to{" "}
                               {activeThread.assignedToName ?? "Unassigned"}
@@ -1084,7 +1086,7 @@ export default function ClientPortalPage() {
                                   : "justify-self-start border-cyan-500/25 bg-cyan-500/10",
                               )}
                             >
-                              <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                                 {message.senderName} · {message.senderRole}
                               </div>
                               <p className="mt-2 text-sm leading-6 text-white">
@@ -1104,7 +1106,7 @@ export default function ClientPortalPage() {
                             placeholder="Reply to this thread..."
                             className="min-h-[100px] rounded-2xl border border-white/10 bg-black/45 px-4 py-3 text-sm font-bold text-white"
                           />
-                          <button className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white">
+                          <button className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]">
                             Send Reply
                           </button>
                         </form>
@@ -1123,10 +1125,10 @@ export default function ClientPortalPage() {
               <Card>
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
                       Advisor Documents
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">Review, sign, return, or remove</h2>
+                    <h2 className="mt-2 text-3xl font-semibold">Review, sign, return, or remove</h2>
                     <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
                       Advisor-sent documents remain labeled and tracked. Demo signatures are local
                       acknowledgements; production should integrate approved e-signature and secure
@@ -1147,7 +1149,7 @@ export default function ClientPortalPage() {
                           <div className="flex flex-wrap gap-2">
                             <span
                               className={cx(
-                                "rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em]",
+                                "rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]",
                                 toneForStatus(packet.status),
                               )}
                             >
@@ -1158,7 +1160,7 @@ export default function ClientPortalPage() {
                               <Pill tone="amber">Signature Required</Pill>
                             ) : null}
                           </div>
-                          <h3 className="mt-4 text-2xl font-black">{packet.title}</h3>
+                          <h3 className="mt-4 text-2xl font-semibold">{packet.title}</h3>
                           <p className="mt-2 text-sm leading-6 text-slate-400">
                             {packet.description}
                           </p>
@@ -1174,7 +1176,7 @@ export default function ClientPortalPage() {
                                 key={file.id}
                                 className="rounded-2xl border border-white/10 bg-black/35 p-3"
                               >
-                                <div className="font-black text-white">{file.name}</div>
+                                <div className="font-semibold text-white">{file.name}</div>
                                 <div className="mt-1 text-xs text-slate-500">
                                   {file.type} · {formatDocumentSize(file.size)}
                                 </div>
@@ -1199,19 +1201,19 @@ export default function ClientPortalPage() {
                           />
                           <button
                             onClick={() => signPacket(packet)}
-                            className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
+                            className="rounded-2xl bg-[var(--slice-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--slice-primary-text)]"
                           >
                             Sign & Return
                           </button>
                           <button
                             onClick={() => removePacket(packet)}
-                            className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100"
+                            className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100"
                           >
                             Remove from My Portal
                           </button>
                           <button
                             onClick={() => revokePacketAccess(packet)}
-                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100"
+                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100"
                           >
                             Revoke Advisor Access
                           </button>
@@ -1222,7 +1224,7 @@ export default function ClientPortalPage() {
                 </div>
 
                 <div className="mt-6 rounded-[1.5rem] border border-purple-500/25 bg-purple-500/10 p-5">
-                  <h3 className="text-xl font-black">Submit your own documents</h3>
+                  <h3 className="text-xl font-semibold">Submit your own documents</h3>
                   <p className="mt-2 text-sm leading-6 text-purple-100">
                     You can still upload document metadata for your advisor to review.
                   </p>
@@ -1251,7 +1253,7 @@ export default function ClientPortalPage() {
                         key={document.id}
                         className="rounded-2xl border border-white/10 bg-white/[0.045] p-4"
                       >
-                        <div className="font-black text-white">{document.name}</div>
+                        <div className="font-semibold text-white">{document.name}</div>
                         <div className="mt-1 text-xs text-slate-500">
                           {document.type} · {formatDocumentSize(document.size)}
                         </div>
@@ -1261,7 +1263,7 @@ export default function ClientPortalPage() {
 
                   <button
                     onClick={submitDocuments}
-                    className="mt-5 rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
+                    className="mt-5 rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]"
                   >
                     Submit Documents
                   </button>
@@ -1273,10 +1275,10 @@ export default function ClientPortalPage() {
               <Card>
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-400">
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
                       Portfolio Preference Builder
                     </div>
-                    <h2 className="mt-2 text-3xl font-black">
+                    <h2 className="mt-2 text-3xl font-semibold">
                       Build your desired allocation pie chart
                     </h2>
                     <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
@@ -1311,7 +1313,7 @@ export default function ClientPortalPage() {
                           </Pie>
                           <Tooltip
                             contentStyle={{
-                              background: "#09090b",
+                              background: "var(--slice-surface-strong)",
                               border: "1px solid rgba(255,255,255,0.12)",
                               borderRadius: 16,
                               color: "#fff",
@@ -1337,13 +1339,13 @@ export default function ClientPortalPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={addInvestmentType}
-                          className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-black text-cyan-100"
+                          className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100"
                         >
                           Add Type
                         </button>
                         <button
                           onClick={normalizeClientAllocation}
-                          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100"
+                          className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100"
                         >
                           Normalize to 100%
                         </button>
@@ -1351,7 +1353,7 @@ export default function ClientPortalPage() {
 
                       <button
                         onClick={submitAllocationPreference}
-                        className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
+                        className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]"
                       >
                         Submit Allocation to Advisor
                       </button>
@@ -1372,7 +1374,7 @@ export default function ClientPortalPage() {
                                 style={{ backgroundColor: chartColors[index % chartColors.length] }}
                               />
                               <div>
-                                <div className="font-black text-white">{item.label}</div>
+                                <div className="font-semibold text-white">{item.label}</div>
                                 <div className="text-xs text-slate-500">{item.category}</div>
                               </div>
                             </div>
@@ -1387,10 +1389,10 @@ export default function ClientPortalPage() {
                               }
                               className="w-28 rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm font-bold text-white"
                             />
-                            <span className="text-sm font-black text-slate-400">%</span>
+                            <span className="text-sm font-semibold text-slate-400">%</span>
                             <button
                               onClick={() => removeAllocation(item.id)}
-                              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100"
+                              className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
                             >
                               Remove
                             </button>
@@ -1400,14 +1402,14 @@ export default function ClientPortalPage() {
                     ))}
 
                     <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         By category
                       </div>
                       <div className="mt-3 grid gap-2">
                         {categoryAllocation.map((item) => (
                           <div key={item.category} className="flex items-center justify-between text-sm">
                             <span className="font-bold text-slate-300">{item.category}</span>
-                            <span className="font-black text-white">
+                            <span className="font-semibold text-white">
                               {item.percent.toFixed(1)}%
                             </span>
                           </div>
@@ -1421,10 +1423,10 @@ export default function ClientPortalPage() {
 
             {tab === "requests" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
                   Submit Request
                 </div>
-                <h2 className="mt-2 text-3xl font-black">Advisor review request</h2>
+                <h2 className="mt-2 text-3xl font-semibold">Advisor review request</h2>
 
                 <form onSubmit={submitRequest} className="mt-5 grid gap-3">
                   <div className="grid gap-3 md:grid-cols-3">
@@ -1537,7 +1539,7 @@ export default function ClientPortalPage() {
                     Requests involving stocks or ETFs are submitted for advisor review and are not automatic orders.
                   </div>
 
-                  <button className="rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white">
+                  <button className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]">
                     Submit to Advisor
                   </button>
                 </form>
@@ -1546,10 +1548,10 @@ export default function ClientPortalPage() {
 
             {tab === "permissions" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-amber-400">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-400">
                   Permissions
                 </div>
-                <h2 className="mt-2 text-3xl font-black">Holding discussion permissions</h2>
+                <h2 className="mt-2 text-3xl font-semibold">Holding discussion permissions</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   These are client preferences for advisor review. They do not authorize automatic trading.
                 </p>
@@ -1615,7 +1617,7 @@ export default function ClientPortalPage() {
                         placeholder="Permission note"
                         className="rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm font-bold text-white"
                       />
-                      <label className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+                      <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-300">
                         <input
                           type="checkbox"
                           checked={row.allowed}
@@ -1643,13 +1645,13 @@ export default function ClientPortalPage() {
                         { symbol: "", allowed: true, maxPercent: "", maxDollar: "", note: "" },
                       ])
                     }
-                    className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-black text-white"
+                    className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-semibold text-white"
                   >
                     Add Holding
                   </button>
                   <button
                     onClick={submitPermissions}
-                    className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white"
+                    className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-3 text-sm font-semibold text-[var(--slice-primary-text)]"
                   >
                     Submit Permissions
                   </button>
@@ -1659,10 +1661,10 @@ export default function ClientPortalPage() {
 
             {tab === "risk" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-green-400">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-green-400">
                   Risk Survey
                 </div>
-                <h2 className="mt-2 text-3xl font-black">Update risk tolerance</h2>
+                <h2 className="mt-2 text-3xl font-semibold">Update risk tolerance</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   This can be changed at any time and uses dropdowns so you do not need to type manually.
                 </p>
@@ -1686,7 +1688,7 @@ export default function ClientPortalPage() {
 
                 <button
                   onClick={submitRiskSurvey}
-                  className="mt-5 rounded-2xl bg-emerald-600 px-5 py-4 text-sm font-black text-white"
+                  className="mt-5 rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-4 text-sm font-semibold text-[var(--slice-primary-text)]"
                 >
                   Submit Risk Update
                 </button>
@@ -1695,10 +1697,10 @@ export default function ClientPortalPage() {
 
             {tab === "access" ? (
               <Card>
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-400">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-400">
                   Access Control
                 </div>
-                <h2 className="mt-2 text-3xl font-black">Control advisor access</h2>
+                <h2 className="mt-2 text-3xl font-semibold">Control advisor access</h2>
                 <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
                   Clients can remove document packets or revoke advisor portal access in this demo.
                   Production should enforce this with secure permissions and auditable records.
@@ -1707,8 +1709,8 @@ export default function ClientPortalPage() {
                 <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/[0.045] p-5">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
-                      <div className="text-sm font-black text-white">Advisor access status</div>
-                      <div className="mt-1 text-2xl font-black">
+                      <div className="text-sm font-semibold text-white">Advisor access status</div>
+                      <div className="mt-1 text-2xl font-semibold">
                         {profile.advisorAccessStatus}
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-400">
@@ -1717,7 +1719,7 @@ export default function ClientPortalPage() {
                     </div>
                     <button
                       onClick={revokeAdvisorAccess}
-                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm font-black text-emerald-100"
+                      className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm font-semibold text-emerald-100"
                     >
                       Revoke Advisor Access
                     </button>

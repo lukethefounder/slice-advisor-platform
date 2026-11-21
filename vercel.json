@@ -83,7 +83,11 @@
     },
     {
       "path": "/api/cron/strategy-scenarios",
-      "schedule": "20 * * * *"
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/agent-desk",
+      "schedule": "* * * * *"
     }
   ]
 }

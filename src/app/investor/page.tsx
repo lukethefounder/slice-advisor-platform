@@ -1,5 +1,9 @@
 "use client";
 
+import { PublicBrandMark } from "@/components/public-site/public-shell";
+
+import portalTheme from "@/components/portal-experience/portal-tools.module.css";
+
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type User = {
@@ -82,7 +86,7 @@ function Pill({
   tone?: "red" | "green" | "amber" | "slate";
 }) {
   const tones = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -91,7 +95,7 @@ function Pill({
   return (
     <span
       className={cx(
-        "inline-flex rounded-full px-3 py-1 text-xs font-black ring-1",
+        "inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1",
         tones[tone]
       )}
     >
@@ -101,27 +105,7 @@ function Pill({
 }
 
 function Logo() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-950 via-zinc-950 to-emerald-700 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/40">
-        <div className="absolute inset-1 rounded-[1rem] border border-white/10" />
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-900 text-lg font-black text-white shadow-inner">
-          S
-        </div>
-        <div className="absolute right-2 top-2 h-2 w-2 rotate-45 bg-emerald-400" />
-        <div className="absolute bottom-2 left-2 h-2 w-2 rotate-45 bg-emerald-700" />
-      </div>
-
-      <div>
-        <div className="text-2xl font-black tracking-tight text-white">
-          Slice
-        </div>
-        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-400">
-          Investor Workspace
-        </div>
-      </div>
-    </div>
-  );
+  return <PublicBrandMark subtitle="Investor Workspace" />;
 }
 
 export default function InvestorPage() {
@@ -337,10 +321,10 @@ export default function InvestorPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+      <main className={`${portalTheme.page} min-h-screen  p-6`}>
         <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col items-center justify-center text-center">
           <Logo />
-          <h1 className="mt-8 text-5xl font-black tracking-tight">
+          <h1 className="mt-8 text-5xl font-semibold tracking-tight">
             Sign in to open the investor workspace.
           </h1>
           <p className="mt-4 max-w-2xl text-slate-400">
@@ -348,7 +332,7 @@ export default function InvestorPage() {
           </p>
           <a
             href="/portal"
-            className="mt-8 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-6 py-4 font-black text-white shadow-lg shadow-emerald-950/40"
+            className="mt-8 rounded-2xl bg-[var(--slice-primary-bg)] px-6 py-4 font-semibold text-[var(--slice-primary-text)] shadow-lg shadow-emerald-950/40"
           >
             Go to Login Portal
           </a>
@@ -358,36 +342,36 @@ export default function InvestorPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(6,78,59,0.42),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(4,120,87,0.20),_transparent_26%),linear-gradient(135deg,_#030712,_#09090b,_#111827,_#1f0707)] p-6 text-white">
+    <main className={`${portalTheme.page} min-h-screen  p-6`}>
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-5 rounded-[2rem] border border-white/10 bg-black/60 p-5 shadow-xl shadow-emerald-950/30 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
           <Logo />
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-2xl bg-white/5 px-4 py-3">
-              <div className="text-xs font-black uppercase text-slate-500">
+              <div className="text-xs font-semibold uppercase text-slate-500">
                 Investor
               </div>
-              <div className="font-black text-white">{user.name}</div>
+              <div className="font-semibold text-white">{user.name}</div>
             </div>
 
             <a
               href="/"
-              className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950"
+              className="rounded-2xl bg-white px-4 py-3 font-semibold text-slate-950"
             >
               Main App
             </a>
 
             <a
               href="/portal"
-              className="rounded-2xl bg-emerald-600 px-4 py-3 font-black text-white"
+              className="rounded-2xl bg-[var(--slice-primary-bg)] px-4 py-3 font-semibold text-[var(--slice-primary-text)]"
             >
               Portal
             </a>
 
             <button
               onClick={runDemoScan}
-              className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-4 py-3 font-black text-white"
+              className="rounded-2xl bg-[var(--slice-primary-bg)] px-4 py-3 font-semibold text-[var(--slice-primary-text)]"
             >
               Run Demo Scan
             </button>
@@ -403,28 +387,28 @@ export default function InvestorPage() {
         <section className="mt-6 grid gap-5 md:grid-cols-4">
           <Card className="p-5">
             <div className="text-sm font-bold text-slate-400">Goals</div>
-            <div className="mt-1 text-4xl font-black">{goals.length}</div>
+            <div className="mt-1 text-4xl font-semibold">{goals.length}</div>
           </Card>
 
           <Card className="p-5">
             <div className="text-sm font-bold text-slate-400">Research Notes</div>
-            <div className="mt-1 text-4xl font-black">{research.length}</div>
+            <div className="mt-1 text-4xl font-semibold">{research.length}</div>
           </Card>
 
           <Card className="p-5">
             <div className="text-sm font-bold text-slate-400">Unread Alerts</div>
-            <div className="mt-1 text-4xl font-black">{unreadAlerts.length}</div>
+            <div className="mt-1 text-4xl font-semibold">{unreadAlerts.length}</div>
           </Card>
 
           <Card className="p-5">
             <div className="text-sm font-bold text-slate-400">Insights</div>
-            <div className="mt-1 text-4xl font-black">{insights.length}</div>
+            <div className="mt-1 text-4xl font-semibold">{insights.length}</div>
           </Card>
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
           <Card className="p-6">
-            <h2 className="text-2xl font-black">Investor Goals</h2>
+            <h2 className="text-2xl font-semibold">Investor Goals</h2>
 
             <form onSubmit={addGoal} className="mt-5 grid gap-3 md:grid-cols-2">
               <input
@@ -496,7 +480,7 @@ export default function InvestorPage() {
                 placeholder="Current amount"
               />
 
-              <button className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 font-black text-white md:col-span-2">
+              <button className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-3 font-semibold text-[var(--slice-primary-text)] md:col-span-2">
                 Add Goal
               </button>
             </form>
@@ -509,7 +493,7 @@ export default function InvestorPage() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-lg font-black">{goal.title}</div>
+                      <div className="text-lg font-semibold">{goal.title}</div>
                       <div className="mt-1 text-sm font-semibold text-slate-400">
                         {goal.goalType} · {goal.priority} priority
                       </div>
@@ -521,14 +505,14 @@ export default function InvestorPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => completeGoal(goal)}
-                        className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
+                        className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30"
                       >
                         {goal.status === "Complete" ? "Reopen" : "Complete"}
                       </button>
 
                       <button
                         onClick={() => deleteGoal(goal.id)}
-                        className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
+                        className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30"
                       >
                         Delete
                       </button>
@@ -540,7 +524,7 @@ export default function InvestorPage() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-2xl font-black">Research Notes</h2>
+            <h2 className="text-2xl font-semibold">Research Notes</h2>
 
             <form onSubmit={addResearch} className="mt-5 grid gap-3">
               <input
@@ -625,7 +609,7 @@ export default function InvestorPage() {
                 </select>
               </div>
 
-              <button className="rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-950 px-5 py-3 font-black text-white">
+              <button className="rounded-2xl bg-[var(--slice-primary-bg)] px-5 py-3 font-semibold text-[var(--slice-primary-text)]">
                 Save Research
               </button>
             </form>
@@ -638,7 +622,7 @@ export default function InvestorPage() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="font-black">{note.title}</div>
+                      <div className="font-semibold">{note.title}</div>
                       <div className="mt-1 text-sm font-semibold text-slate-400">
                         {note.ticker || "General"} · {note.decision} ·{" "}
                         {note.conviction}
@@ -650,7 +634,7 @@ export default function InvestorPage() {
 
                     <button
                       onClick={() => deleteResearch(note.id)}
-                      className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
+                      className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30"
                     >
                       Delete
                     </button>
@@ -665,7 +649,7 @@ export default function InvestorPage() {
           <Card className="p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-2xl font-black">Alert Inbox</h2>
+                <h2 className="text-2xl font-semibold">Alert Inbox</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-400">
                   Saved alerts from Slice intelligence decisions.
                 </p>
@@ -704,7 +688,7 @@ export default function InvestorPage() {
                           </Pill>
                         </div>
 
-                        <div className="mt-3 text-lg font-black">{alert.title}</div>
+                        <div className="mt-3 text-lg font-semibold">{alert.title}</div>
                         <p className="mt-2 text-sm leading-6 text-slate-400">
                           {alert.body}
                         </p>
@@ -718,7 +702,7 @@ export default function InvestorPage() {
                         {alert.status === "Unread" ? (
                           <button
                             onClick={() => markAlertRead(alert.id)}
-                            className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
+                            className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30"
                           >
                             Mark Read
                           </button>
@@ -726,7 +710,7 @@ export default function InvestorPage() {
 
                         <button
                           onClick={() => deleteAlert(alert.id)}
-                          className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-300 ring-1 ring-emerald-500/30"
+                          className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30"
                         >
                           Delete
                         </button>
@@ -739,7 +723,7 @@ export default function InvestorPage() {
           </Card>
 
           <Card className="p-6">
-            <h2 className="text-2xl font-black">Portfolio Health Insights</h2>
+            <h2 className="text-2xl font-semibold">Portfolio Health Insights</h2>
             <p className="mt-1 text-sm font-semibold text-slate-400">
               Derived from goals, watchlist, research, alerts, crypto, and private
               venture tracking.
@@ -753,7 +737,7 @@ export default function InvestorPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-black">{insight.title}</div>
+                      <div className="font-semibold">{insight.title}</div>
                       <div className="mt-1 text-xs font-bold uppercase text-emerald-300">
                         {insight.category}
                       </div>

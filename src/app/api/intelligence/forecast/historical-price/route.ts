@@ -20,8 +20,7 @@ export const dynamic =
 export const runtime =
   "nodejs";
 
-export const maxDuration =
-  60;
+
 
 const VALID_HORIZONS =
   new Set<ForecastHorizon>([

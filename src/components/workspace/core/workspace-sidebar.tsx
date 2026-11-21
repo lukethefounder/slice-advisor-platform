@@ -8,9 +8,12 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  UserPlus,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useWorkspaceSession } from "@/components/workspace/premium/session";
+import { workspaceToolVisible } from "@/lib/workspace-green-core";
 
 import {
   WORKSPACE_NAVIGATION_SECTIONS,
@@ -36,6 +39,7 @@ export default function WorkspaceSidebar({
   firmName: string;
 }) {
   const pathname = usePathname();
+  const { agentDeskFounder } = useWorkspaceSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const openButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -174,7 +178,7 @@ export default function WorkspaceSidebar({
                 {section.label}
               </p>
               <div className="grid gap-1">
-                {section.tools.map((tool) => {
+                {section.tools.filter(tool => workspaceToolVisible(tool, agentDeskFounder === true)).map((tool) => {
                   const active = workspaceToolIsActive(pathname, tool.href);
 
                   return (
@@ -228,6 +232,9 @@ export default function WorkspaceSidebar({
       </div>
 
       <div className="grid gap-2 border-t border-[var(--slice-border)] p-3">
+        <Link href="/workspace/team" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] px-3 py-2 text-xs font-black text-[var(--slice-accent)] transition hover:brightness-110">
+          <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />Team & invitations
+        </Link>
         <div className="grid grid-cols-2 gap-2">
           <Link
             href="/workspace/settings"

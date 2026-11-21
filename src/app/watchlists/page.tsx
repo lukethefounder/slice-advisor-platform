@@ -274,7 +274,7 @@ function statusTone(value: string | number): Tone {
 
 function toneClass(tone: Tone) {
   const classes: Record<Tone, string> = {
-    red: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+    red: "border-rose-400/25 bg-rose-400/10 text-rose-100",
     green: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
     amber: "border-amber-400/25 bg-amber-400/10 text-amber-100",
     cyan: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",

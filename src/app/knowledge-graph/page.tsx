@@ -57,10 +57,10 @@ function GraphAside() {
     <PublicSurface className="p-6 sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-800">
+          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
             Connected intelligence
           </div>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             Relationships are part of the product, not a hidden database detail.
           </h2>
         </div>
@@ -77,7 +77,7 @@ function GraphAside() {
       </div>
 
       <div className="mt-6 rounded-2xl border border-emerald-700/15 bg-emerald-50 p-4">
-        <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+        <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
           <BrainCircuit className="h-3.5 w-3.5" />
           Reasoning advantage
         </div>
@@ -133,7 +133,7 @@ export default function KnowledgeGraphPage() {
                   <div className="grid h-11 w-11 place-items-center rounded-2xl border border-emerald-700/15 bg-emerald-50 text-emerald-800">
                     <Icon className="h-4.5 w-4.5" />
                   </div>
-                  <h3 className="mt-5 text-lg font-black text-[var(--slice-heading)]">
+                  <h3 className="mt-5 text-lg font-semibold text-[var(--slice-heading)]">
                     {benefit.title}
                   </h3>
                   <p className="mt-3 text-sm font-semibold leading-7 text-[var(--slice-muted)]">

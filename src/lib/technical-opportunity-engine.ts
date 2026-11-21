@@ -1,3 +1,4 @@
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 
@@ -2168,6 +2169,7 @@ export async function runTechnicalOpportunityScanForUser(
   const minCompositeScore = clamp(options.minCompositeScore ?? 70, 50, 95);
   const requestedLimit = Math.max(1, Math.min(125, options.limit ?? 40));
   const maxDurationMs = Math.max(8_000, Math.min(55_000, options.maxDurationMs ?? 38_000));
+  const noExecutionDeadline = researchBetaEnabled(process.env);
   const advisorContext = await loadAdvisorContext(userId);
 
   const advisorSymbols =
@@ -2198,7 +2200,7 @@ export async function runTechnicalOpportunityScanForUser(
   const candidates: ScreenedCandidate[] = [];
 
   for (const group of chunk(symbols, 3)) {
-    if (Date.now() - startedAt > maxDurationMs) {
+    if (!noExecutionDeadline && Date.now() - startedAt > maxDurationMs) {
       timedOut = true;
       break;
     }
@@ -2269,7 +2271,8 @@ export async function runTechnicalOpportunityScanForUser(
     providerErrors,
     minCompositeScore,
     advancedFilters: options.advancedFilters ?? null,
-    maxDurationMs,
+    maxDurationMs: noExecutionDeadline ? null : maxDurationMs,
+    applicationDeadlineDisabled: noExecutionDeadline,
     durationMs: Date.now() - startedAt,
     topCandidates: opportunities
       .sort((a, b) => b.compositeScore - a.compositeScore)

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { getOptionalEnv } from "@/lib/env";
 import { getOpenAiRuntimeStatus } from "@/lib/integrations/ai";
+import { researchBetaEnabled } from "@/lib/research/beta-policy";
 
 export type CustomAiEmailOption = {
   subject: string;
@@ -442,16 +443,23 @@ async function fetchWithDeadline(input: {
   timeoutMs: number;
   signal?: AbortSignal;
 }) {
+  input.signal?.throwIfAborted();
   const controller = new AbortController();
-  const abortFromCaller = () => controller.abort();
+  const abortFromCaller = () => controller.abort(input.signal?.reason);
   input.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
 
   try {
-    return await fetch(input.url, {
+    const response = await fetch(input.url, {
       ...input.init,
       signal: controller.signal,
     });
+    const payload = (await response.json().catch(() => {
+      controller.signal.throwIfAborted();
+      return {};
+    })) as OpenAiPayload;
+    controller.signal.throwIfAborted();
+    return { response, payload };
   } finally {
     clearTimeout(timeout);
     input.signal?.removeEventListener("abort", abortFromCaller);
@@ -485,6 +493,7 @@ function shouldMoveToNextModel(status: number, error: string) {
 export async function generateCustomAiEmailOptions(
   input: CustomAiEmailGenerationInput,
 ): Promise<CustomAiEmailGenerationResult> {
+  input.signal?.throwIfAborted();
   const startedAt = Date.now();
   const token = apiKey();
   const models = modelCandidates(input.speedMode);
@@ -506,7 +515,9 @@ export async function generateCustomAiEmailOptions(
     };
   }
 
-  const totalDeadlineMs = input.speedMode === "Quick" ? 65_000 : 135_000;
+  const totalDeadlineMs = researchBetaEnabled(process.env)
+    ? Number.POSITIVE_INFINITY
+    : input.speedMode === "Quick" ? 65_000 : 135_000;
   const maximumTokens = input.speedMode === "Quick" ? 2_600 : 5_400;
   let lastError = "No configured OpenAI model returned a complete custom email.";
   let lastModel: string | null = models[0] ?? null;
@@ -549,7 +560,7 @@ export async function generateCustomAiEmailOptions(
 
       try {
         const reasoning = reasoningForModel(model, input.speedMode);
-        const response = await fetchWithDeadline({
+        const { response, payload } = await fetchWithDeadline({
           url: "https://api.openai.com/v1/responses",
           timeoutMs,
           signal: input.signal,
@@ -585,7 +596,6 @@ export async function generateCustomAiEmailOptions(
           },
         });
 
-        const payload = (await response.json().catch(() => ({}))) as OpenAiPayload;
         const requestId =
           response.headers.get("x-request-id") ||
           (typeof payload.id === "string" ? payload.id : null);

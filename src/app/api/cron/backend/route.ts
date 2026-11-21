@@ -7,7 +7,7 @@ import { constantTimeEqual } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 300;
+
 
 function clampInteger(
   value: string | null,

@@ -1,4 +1,6 @@
 "use client";
+
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 import Link from "next/link";
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent} from "react";
 import {CalendarDays,ChevronLeft,ChevronRight,Plus,RefreshCw,Users,CheckCircle2,Clock3,ArrowUpRight,X} from "lucide-react";
@@ -16,7 +18,7 @@ function TaskBody({scope,firmName}:{scope:string;firmName:string}){
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;read.current?.abort();write.current?.abort();};},[]);
  useEffect(()=>{const t=setTimeout(()=>setSearch(query.trim()),250);return()=>clearTimeout(t);},[query]);
  const load=useCallback(async(cursor:string|null=null)=>{
-  read.current?.abort();const c=new AbortController();read.current=c;const seq=++generation.current,t=setTimeout(()=>c.abort(),22000);setLoading(true);setError("");
+  read.current?.abort();const c=new AbortController();read.current=c;const seq=++generation.current,t=startApplicationDeadline(c, 22000);setLoading(true);setError("");
   try{const q=new URLSearchParams({day:week,member,status,q:search,backlog:String(backlog)});if(cursor)q.set("cursor",cursor);const r=await fetch(`/api/task-center?${q}`,{cache:"no-store",credentials:"same-origin",signal:c.signal});const p=await r.json();if(r.status===401||r.status===403){if(mounted.current)setPayload(null);}if(!r.ok||!p.ok)throw Error(failure(p));if(p.scope!==scope)throw Error("The active workspace changed. Reload the page before continuing.");if(mounted.current&&seq===generation.current)setPayload(old=>cursor&&old?{...p,tasks:[...old.tasks,...p.tasks.filter((x:TaskItem)=>!old.tasks.some(o=>o.id===x.id))]}:p);}
   catch(e){if(mounted.current&&seq===generation.current)setError(c.signal.aborted?"The task list took too long. Retry; no task was changed.":e instanceof Error?e.message:"Task list unavailable.");}
   finally{clearTimeout(t);if(mounted.current&&seq===generation.current)setLoading(false);}
@@ -28,7 +30,7 @@ function TaskBody({scope,firmName}:{scope:string;firmName:string}){
  const shown=payload?.tasks??[],done=shown.filter(t=>complete(t.status)).length;
  function move(n:number){if(saving)return;const next=addDays(week,n*7);setWeek(next);setMobileDay(next);}
  function edit(t?:TaskItem,day=mobileDay){if(!payload||saving)return;if(t&&!t.canEdit){setNotice("Only the assigned team member or a task manager may edit this task.");return;}setError("");setNotice("");receipt.current=null;setDraft(t?{taskId:t.id,expectedUpdatedAt:t.updatedAt,title:t.title,detail:t.detail||"",status:complete(t.status)?"Complete":TASK_STATUSES.includes(t.status as TaskStatus)?t.status as TaskStatus:"To Do",priority:TASK_PRIORITIES.includes(t.priority as TaskPriority)?t.priority as TaskPriority:"Medium",dueDate:t.dueDate||"",assigneeId:t.assigneeId,projectId:t.projectId||""}:{taskId:"",expectedUpdatedAt:"",title:"",detail:"",status:"To Do",priority:"Medium",dueDate:day,assigneeId:payload.actor.membershipId,projectId:""});}
- async function save(e:FormEvent){e.preventDefault();if(!draft||!payload||saving)return;setSaving(true);setError("");setNotice("");const body={...draft,scope,action:draft.taskId?"update":"create",dueDate:draft.dueDate||null,projectId:draft.projectId||null},content=JSON.stringify(body);if(receipt.current?.content!==content)receipt.current={content,id:crypto.randomUUID()};const c=new AbortController();write.current=c;const t=setTimeout(()=>c.abort(),25000);
+ async function save(e:FormEvent){e.preventDefault();if(!draft||!payload||saving)return;setSaving(true);setError("");setNotice("");const body={...draft,scope,action:draft.taskId?"update":"create",dueDate:draft.dueDate||null,projectId:draft.projectId||null},content=JSON.stringify(body);if(receipt.current?.content!==content)receipt.current={content,id:crypto.randomUUID()};const c=new AbortController();write.current=c;const t=startApplicationDeadline(c, 25000);
  try{const r=await fetch("/api/task-center",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...body,requestId:receipt.current.id}),signal:c.signal});const p=await r.json();if(!r.ok||!p.ok)throw Error(failure(p));if(!mounted.current)return;setDraft(null);receipt.current=null;setNotice(p.notification||"Task saved.");await load();}
  catch(e){if(mounted.current)setError(c.signal.aborted?"The save response timed out. The task may have saved. Retry unchanged content to reuse its request receipt.":e instanceof Error?e.message:"Task save failed.");}finally{clearTimeout(t);if(mounted.current)setSaving(false);}}
  function patch<K extends keyof Draft>(key:K,value:Draft[K]){setDraft(d=>d?{...d,[key]:value}:d);}

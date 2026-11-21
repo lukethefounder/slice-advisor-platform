@@ -272,7 +272,7 @@ function Panel({
   tone?: Tone;
 }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/16",
+    red: "from-rose-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -301,7 +301,7 @@ function Pill({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -355,7 +355,7 @@ function StatCard({
   tone?: Tone;
 }) {
   const tones: Record<Tone, string> = {
-    red: "from-emerald-500/16",
+    red: "from-rose-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -385,7 +385,7 @@ function ProgressBar({
   tone?: Tone;
 }) {
   const colors: Record<Tone, string> = {
-    red: "from-emerald-500 to-emerald-800",
+    red: "from-rose-500 to-rose-800",
     green: "from-emerald-400 to-emerald-700",
     amber: "from-amber-400 to-amber-700",
     purple: "from-purple-400 to-purple-800",

@@ -37,6 +37,8 @@ import {
 } from "@/components/advisor-brief/ui";
 import BriefSchedulePanel from "@/components/advisor-brief/schedule-panel";
 import BriefResultsPanel from "@/components/advisor-brief/results-panel";
+import FounderAgentCollaboration from "@/components/intelligence/agent-collaboration";
+import FounderBrokerTradeBriefs from "@/components/agent-broker/broker-trade-briefs";
 import {
   WorkspaceAlert,
   WorkspaceButton,
@@ -254,6 +256,8 @@ export default function AdvisorBriefPage() {
   return (
     <main className="min-h-full px-3 py-4 text-white sm:px-5 sm:py-6 lg:px-6">
       <div className="mx-auto max-w-[1880px] space-y-4">
+        <FounderAgentCollaboration mode="briefs" />
+        <FounderBrokerTradeBriefs />
         <WorkspaceSurface className="overflow-visible p-5 sm:p-7">
           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
             <div className="absolute -left-24 -top-32 h-80 w-80 rounded-full bg-[var(--slice-accent-glow)] blur-3xl" />

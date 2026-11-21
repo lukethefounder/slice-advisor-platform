@@ -1,4 +1,7 @@
 import { ApiError, apiJson, withApiRoute } from "@/lib/api-route";
+import { after } from "next/server";
+import { processBackgroundJobIds } from "@/lib/background-jobs/worker";
+import { assertAgentJobViewer } from "@/lib/agent-desk/access";
 import {
   hasFirmPermission,
   requireCurrentAccessContext,
@@ -7,6 +10,7 @@ import {
   getBackgroundJob,
   requestBackgroundJobCancellation,
   retryBackgroundJob,
+  recoverStalledBackgroundJobs,
 } from "@/lib/background-jobs/queue";
 import {
   checkRateLimit,
@@ -68,6 +72,8 @@ export const GET = withApiRoute(
       });
     }
 
+    assertAgentJobViewer(access, job);
+
     return apiJson({
       ok: true,
       job,
@@ -80,7 +86,7 @@ export const PATCH = withApiRoute(
     route: "/api/jobs/[id]",
     timeoutMs: 15_000,
   },
-  async ({ request }) => {
+  async ({ request, log }) => {
     if (isPotentiallyCrossSiteUnsafeRequest(request)) {
       throw new ApiError({
         status: 403,
@@ -121,6 +127,23 @@ export const PATCH = withApiRoute(
     const firmScope = Boolean(body.firmScope);
     const scope = jobScope({ access, firmScope });
 
+    const controlledJob = await getBackgroundJob({ jobId: id, ...scope });
+    if (controlledJob) assertAgentJobViewer(access, controlledJob);
+
+    if (action === "resume") {
+      const existing = await getBackgroundJob({ jobId: id, ...scope });
+      if (!existing || !["intelligence_graph_refresh", "agent_desk_cycle", "agent_desk_scout"].includes(existing.jobKey)) {
+        throw new ApiError({ status: 404, code: "RESEARCH_JOB_NOT_FOUND", message: "Research job not found.", expose: true });
+      }
+      await recoverStalledBackgroundJobs({ jobId: id, ...scope, staleAfterMs: 90_000, limit: 1 });
+      const job = await getBackgroundJob({ jobId: id, ...scope });
+      after(async () => {
+        try { await processBackgroundJobIds({ jobIds: [id], concurrency: 1, workerPrefix: "research-resume" }); }
+        catch { log.warn("research.worker_resume_deferred", { jobId: id }); }
+      });
+      return apiJson({ ok: true, action, job, message: "Reconnected to the durable research job. Provider retry schedules are retained." });
+    }
+
     if (action === "cancel") {
       const job = await requestBackgroundJobCancellation({
         jobId: id,
@@ -151,7 +174,7 @@ export const PATCH = withApiRoute(
     throw new ApiError({
       status: 400,
       code: "UNSUPPORTED_JOB_ACTION",
-      message: "Use action=cancel or action=retry.",
+      message: "Use action=cancel, action=retry, or action=resume for research jobs.",
       expose: true,
     });
   },

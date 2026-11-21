@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { legacyMarketForecast } from "@/lib/intelligence-unified/market-adapter";
+import { parseQuotes as verifiedQuotes } from "@/lib/market-evidence/core";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -715,203 +716,23 @@ function parseTimeSeries(
     );
 }
 
-function parseBulkQuote(
-  payload: AlphaPayload,
-  symbol: string,
-  session: ReturnType<
-    typeof marketSession
-  >
-) {
-  const rows = Array.isArray(
-    payload.data
-  )
-    ? payload.data
-    : Array.isArray(payload.quotes)
-      ? payload.quotes
-      : Array.isArray(
-            payload.realtime_quotes
-          )
-        ? payload.realtime_quotes
-        : [];
-
-  const row = (
-    rows as Array<
-      Record<string, unknown>
-    >
-  ).find(
-    (item) =>
-      String(
-        item.symbol ?? ""
-      ).toUpperCase() === symbol
-  );
-
-  if (!row) {
-    return null;
-  }
-
-  const regularPrice =
-    toNumber(row.close);
-
-  const extendedPrice =
-    toNumber(
-      row.extended_hours_quote
-    );
-
-  const useExtended =
-    session.isExtendedHours &&
-    extendedPrice !== null &&
-    extendedPrice > 0;
-
-  const price = useExtended
-    ? extendedPrice
-    : regularPrice;
-
-  if (
-    price === null ||
-    price <= 0
-  ) {
-    return null;
-  }
-
-  const previousClose =
-    toNumber(row.previous_close);
-
-  const providerChange =
-    useExtended
-      ? toNumber(
-          row.extended_hours_change
-        )
-      : toNumber(row.change);
-
-  const change =
-    providerChange ??
-    (previousClose !== null &&
-    previousClose > 0
-      ? price - previousClose
-      : null);
-
-  const providerChangePct =
-    useExtended
-      ? toNumber(
-          row.extended_hours_change_percent
-        )
-      : toNumber(
-          row.change_percent
-        );
-
-  const changePct =
-    providerChangePct ??
-    (previousClose !== null &&
-    previousClose > 0 &&
-    change !== null
-      ? (change / previousClose) *
-        100
-      : null);
-
-  const timestampRaw = String(
-    row.timestamp ?? ""
-  );
-
-  const timestamp =
-    zonedDateToUtc(
-      timestampRaw
-    )?.toISOString() ??
-    new Date().toISOString();
-
-  return {
-    symbol,
-    price,
-    regularPrice,
-    extendedHoursPrice:
-      extendedPrice,
-    previousClose,
-    change,
-    changePct,
-    open: toNumber(row.open),
-    high: toNumber(row.high),
-    low: toNumber(row.low),
-    volume: toNumber(row.volume),
-    timestamp,
-    session: session.session,
-    source:
-      "Alpha Vantage REALTIME_BULK_QUOTES" as const,
-  };
+function parseBulkQuote(payload: AlphaPayload, symbol: string, session: ReturnType<typeof marketSession>): RealtimeQuote | null {
+  const rows = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.quotes) ? payload.quotes : Array.isArray(payload.realtime_quotes) ? payload.realtime_quotes : [];
+  try {
+    const verified = verifiedQuotes({ data: rows }, [symbol], "realtime")[0];
+    const raw = (rows as Array<Record<string, unknown>>).find(row => String(row.symbol).toUpperCase() === symbol)!;
+    return { symbol, price: verified.price, regularPrice: toNumber(raw.close), extendedHoursPrice: toNumber(raw.extended_hours_quote), previousClose: verified.previousClose, change: verified.change, changePct: verified.changePct,
+      open: toNumber(raw.open), high: toNumber(raw.high), low: toNumber(raw.low), volume: verified.volume, timestamp: verified.observedAt, session: session.session, source: "Alpha Vantage REALTIME_BULK_QUOTES" };
+  } catch { return null; }
 }
 
-function parseGlobalQuote(
-  payload: AlphaPayload,
-  symbol: string,
-  session: ReturnType<
-    typeof marketSession
-  >
-) {
-  const row = (payload[
-    "Global Quote"
-  ] ?? {}) as Record<
-    string,
-    string
-  >;
-
-  const price =
-    toNumber(row["05. price"]);
-
-  if (
-    price === null ||
-    price <= 0
-  ) {
-    return null;
-  }
-
-  const previousClose =
-    toNumber(
-      row["08. previous close"]
-    );
-
-  const change =
-    toNumber(
-      row["09. change"]
-    ) ??
-    (previousClose !== null
-      ? price - previousClose
-      : null);
-
-  const changePct =
-    toNumber(
-      row["10. change percent"]
-    ) ??
-    (previousClose !== null &&
-    previousClose > 0 &&
-    change !== null
-      ? (change / previousClose) *
-        100
-      : null);
-
-  return {
-    symbol,
-    price,
-    regularPrice: price,
-    extendedHoursPrice: null,
-    previousClose,
-    change,
-    changePct,
-    open: toNumber(
-      row["02. open"]
-    ),
-    high: toNumber(
-      row["03. high"]
-    ),
-    low: toNumber(
-      row["04. low"]
-    ),
-    volume: toNumber(
-      row["06. volume"]
-    ),
-    timestamp:
-      new Date().toISOString(),
-    session: session.session,
-    source:
-      "Alpha Vantage GLOBAL_QUOTE" as const,
-  };
+function parseGlobalQuote(payload: AlphaPayload, symbol: string, session: ReturnType<typeof marketSession>): RealtimeQuote | null {
+  try {
+    const verified = verifiedQuotes(payload, [symbol], "historical")[0];
+    const raw = (payload["Global Quote"] ?? {}) as Record<string, string>;
+    return { symbol, price: verified.price, regularPrice: verified.price, extendedHoursPrice: null, previousClose: verified.previousClose, change: verified.change, changePct: verified.changePct,
+      open: toNumber(raw["02. open"]), high: toNumber(raw["03. high"]), low: toNumber(raw["04. low"]), volume: verified.volume, timestamp: verified.observedAt, session: session.session, source: "Alpha Vantage GLOBAL_QUOTE" };
+  } catch { return null; }
 }
 
 function quoteFromCandles(
@@ -2255,6 +2076,13 @@ function freshness(
     )
   );
 
+  if (!Number.isFinite(ageSeconds) || Date.parse(timestamp) > Date.now() + 60_000) {
+    return { status: "Unavailable" as const, asOf: null, ageSeconds: null, message: "The provider observation time is invalid; no live status was inferred." };
+  }
+  if (quote?.source !== "Alpha Vantage REALTIME_BULK_QUOTES") {
+    return { status: ageSeconds > 4 * 86_400 ? "Stale" as const : "Delayed" as const, asOf: timestamp, ageSeconds,
+      message: quote?.source === "Alpha Vantage GLOBAL_QUOTE" ? "The provider supplied a trading date, not an intraday timestamp. This is not a verified real-time quote." : "This value comes from completed time-series observations, not a real-time quote endpoint." };
+  }
   if (!session.isOpen) {
     return {
       status: "Closed" as const,
@@ -2458,7 +2286,7 @@ export async function GET(
     cached.expiresAt > Date.now()
   ) {
     return NextResponse.json(
-      { ...cached.payload, forecast: await legacyMarketForecast(user.id, symbol, url.searchParams.get("forecastHorizon") ?? "2-5d", url.searchParams.get("researchRunId")) },
+      { ...cached.payload, marketSession: session, freshness: freshness(cached.payload.quote, cached.payload.candles, session, entitlement), isRealtime: freshness(cached.payload.quote, cached.payload.candles, session, entitlement).status === "Live", forecast: await legacyMarketForecast(user.id, symbol, url.searchParams.get("forecastHorizon") ?? "2-5d", url.searchParams.get("researchRunId")) },
       {
         headers: {
           "Cache-Control":
@@ -2749,10 +2577,7 @@ export async function GET(
       provider: "Alpha Vantage",
       providerOnly: true,
       entitlement,
-      isRealtime:
-        entitlement ===
-          "realtime" &&
-        Boolean(quote),
+      isRealtime: currentFreshness.status === "Live",
       marketSession: session,
       freshness:
         currentFreshness,

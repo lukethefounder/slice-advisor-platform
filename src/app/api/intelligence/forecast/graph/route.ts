@@ -24,8 +24,7 @@ export const dynamic =
 export const runtime =
   "nodejs";
 
-export const maxDuration =
-  120;
+
 
 type GraphBody = {
   action?: unknown;

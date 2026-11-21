@@ -1,18 +1,5 @@
 /* Slice Connected Experience. Theme-aware tokens, no changes to permissions or calculations. */
-:root[data-slice-theme="light"] {
- --slice-heading:#102f2b; --slice-text:#243e39; --slice-muted:#546c65; --slice-subtle:#6b7f78;
- --slice-border:#dce6e1; --slice-border-strong:#c8dad1; --slice-surface:#f9fcfa;
- --slice-surface-strong:#ffffff; --slice-surface-muted:#f1f7f3;
- --slice-accent:#128565; --slice-accent-strong:#087557; --slice-accent-soft:#e7f4ed;
- --slice-accent-border:#b9dfcc; --slice-shadow:rgba(12,55,41,.065);
-}
-:root[data-slice-theme="dark"] {
- --slice-heading:#e4f4eb; --slice-text:#d1e4d9; --slice-muted:#adc4b7; --slice-subtle:#91ad9e;
- --slice-border:#294438; --slice-border-strong:#375c49; --slice-surface:#11291f;
- --slice-surface-strong:#10261d; --slice-surface-muted:#183327;
- --slice-accent:#4cdca5; --slice-accent-strong:#72e2b7; --slice-accent-soft:#163e2d;
- --slice-accent-border:#346b51; --slice-shadow:rgba(0,0,0,.22);
-}
+/* Shared tokens are supplied by neural-theme.css. */
 .slice-app-theme{font-kerning:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
 .slice-app-theme :where(button,input,select,textarea){font-family:inherit;}
 .slice-app-theme :where(h1,h2,h3){text-wrap:balance;}

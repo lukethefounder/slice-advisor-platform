@@ -266,25 +266,25 @@ const LAYER_STYLE: Record<
   market: {
     button: "border-sky-700/25 bg-sky-50 text-sky-950",
     icon: "border-sky-700/20 bg-white text-sky-800",
-    edge: "#0284c7",
+    edge: "var(--slice-cyan-text)",
     label: "Market layer",
   },
   intelligence: {
     button: "border-emerald-700/25 bg-emerald-50 text-emerald-950",
     icon: "border-emerald-700/20 bg-white text-emerald-800",
-    edge: "#059669",
+    edge: "var(--slice-accent-strong)",
     label: "Intelligence layer",
   },
   advisor: {
     button: "border-cyan-700/25 bg-cyan-50 text-cyan-950",
     icon: "border-cyan-700/20 bg-white text-cyan-800",
-    edge: "#0891b2",
+    edge: "var(--slice-cyan-text)",
     label: "Advisor layer",
   },
   governance: {
     button: "border-violet-700/25 bg-violet-50 text-violet-950",
     icon: "border-violet-700/20 bg-white text-violet-800",
-    edge: "#7c3aed",
+    edge: "var(--slice-violet-text)",
     label: "Governance layer",
   },
 };
@@ -342,11 +342,11 @@ export default function KnowledgeGraphExplorer() {
     <section className="rounded-[2rem] border border-emerald-950/10 bg-white/88 p-4 shadow-[0_24px_80px_rgba(6,78,55,0.11)] backdrop-blur-xl sm:p-6 lg:p-8">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-900">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-700/20 bg-emerald-50 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-900">
             <GitBranch className="h-3.5 w-3.5" />
             Interactive relationship map
           </div>
-          <h2 className="mt-4 text-3xl font-black tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-[var(--slice-heading)] sm:text-4xl">
             Select a node to inspect its role, inputs, and outputs.
           </h2>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -364,7 +364,7 @@ export default function KnowledgeGraphExplorer() {
               onClick={() => setFilter(item.key)}
               aria-pressed={filter === item.key}
               className={cx(
-                "rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition",
+                "rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] transition",
                 filter === item.key
                   ? "border-emerald-800/25 bg-emerald-700 text-white"
                   : "border-emerald-950/10 bg-white text-[var(--slice-muted)] hover:border-emerald-700/25 hover:bg-emerald-50",
@@ -377,9 +377,9 @@ export default function KnowledgeGraphExplorer() {
       </div>
 
       <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="overflow-x-auto rounded-[1.7rem] border border-emerald-950/10 bg-[linear-gradient(145deg,#f7fcf9,#eef9f3)] p-3 sm:p-4">
+        <div className="overflow-x-auto rounded-[1.7rem] border border-emerald-950/10 bg-[linear-gradient(145deg,var(--slice-surface),var(--slice-surface-muted))] p-3 sm:p-4">
           <div className="relative min-h-[620px] min-w-[1000px] overflow-hidden rounded-[1.35rem] border border-emerald-950/10 bg-white/75">
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(5,120,83,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(5,120,83,0.035)_1px,transparent_1px)] [background-size:44px_44px]" />
+            <div className="absolute inset-0 bg-[linear-gradient(color-mix(in_srgb,var(--slice-border)_30%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_srgb,var(--slice-border)_30%,transparent)_1px,transparent_1px)] [background-size:44px_44px]" />
 
             <svg
               className="absolute inset-0 h-full w-full"
@@ -433,10 +433,10 @@ export default function KnowledgeGraphExplorer() {
                       <Icon className="h-4 w-4" />
                     </span>
                     <span>
-                      <span className="block text-[8px] font-black uppercase tracking-[0.13em] opacity-70">
+                      <span className="block text-[8px] font-semibold uppercase tracking-[0.13em] opacity-70">
                         {node.eyebrow}
                       </span>
-                      <span className="mt-0.5 block whitespace-nowrap text-[10px] font-black">
+                      <span className="mt-0.5 block whitespace-nowrap text-[10px] font-semibold">
                         {node.label}
                       </span>
                     </span>
@@ -445,7 +445,7 @@ export default function KnowledgeGraphExplorer() {
               );
             })}
 
-            <div className="absolute bottom-3 left-3 z-20 rounded-full border border-emerald-950/10 bg-white/90 px-3 py-2 text-[9px] font-black uppercase tracking-[0.13em] text-[var(--slice-muted)] shadow-sm">
+            <div className="absolute bottom-3 left-3 z-20 rounded-full border border-emerald-950/10 bg-white/90 px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.13em] text-[var(--slice-muted)] shadow-sm">
               {visibleNodeIds.size} visible nodes · {visibleEdges.length} visible paths
             </div>
           </div>
@@ -456,15 +456,15 @@ export default function KnowledgeGraphExplorer() {
             <div className={cx("grid h-12 w-12 place-items-center rounded-2xl border", LAYER_STYLE[selected.layer].icon)}>
               <SelectedIcon className="h-5 w-5" />
             </div>
-            <span className={cx("rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.15em]", LAYER_STYLE[selected.layer].button)}>
+            <span className={cx("rounded-full border px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.15em]", LAYER_STYLE[selected.layer].button)}>
               {LAYER_STYLE[selected.layer].label}
             </span>
           </div>
 
-          <div className="mt-6 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-800">
+          <div className="mt-6 text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
             {selected.eyebrow}
           </div>
-          <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--slice-heading)]">
+          <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--slice-heading)]">
             {selected.label}
           </h3>
           <p className="mt-4 text-sm font-semibold leading-7 text-[var(--slice-muted)]">
@@ -473,7 +473,7 @@ export default function KnowledgeGraphExplorer() {
 
           <div className="mt-6 grid gap-4">
             <div className="rounded-2xl border border-emerald-950/10 bg-[var(--slice-surface-muted)] p-4">
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[var(--slice-subtle)]">
                 Inputs
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ export default function KnowledgeGraphExplorer() {
             </div>
 
             <div className="rounded-2xl border border-emerald-700/15 bg-emerald-50 p-4">
-              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-800">
+              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-800">
                 Outputs
               </div>
               <div className="mt-3 grid gap-2">
@@ -502,7 +502,7 @@ export default function KnowledgeGraphExplorer() {
 
           <Link prefetch={false}
             href={selected.href}
-            className="group mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-[linear-gradient(110deg,#16a36f,#07533c)] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(5,120,83,0.20)] transition hover:brightness-105"
+            className="group mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--slice-primary-border)] bg-[var(--slice-primary-bg)] px-4 py-3 text-sm font-semibold text-[var(--slice-primary-text)] shadow-[0_12px_26px_rgba(5,120,83,0.20)] transition hover:brightness-105"
           >
             Open connected module
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />

@@ -16,7 +16,7 @@ import { noStoreJson } from "@/lib/client-data-security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 30;
+
 
 const MAXIMUM_BODY_BYTES = 48_000;
 

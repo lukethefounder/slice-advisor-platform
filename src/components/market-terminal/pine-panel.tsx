@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import css from "./terminal.module.css";
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 export default function PinePanel({ symbol, interval, marketContext }: { symbol: string; interval: string; marketContext: Record<string, unknown> }) {
  const [prompt, setPrompt] = useState("Create a non-repainting trend indicator using EMA 20, SMA 50, volume confirmation and clearly labeled risk levels."), [scriptType, setScriptType] = useState<"indicator" | "strategy">("indicator");
  const [code, setCode] = useState(""), [busy, setBusy] = useState(false), [message, setMessage] = useState(""), [confirm, setConfirm] = useState(false), [warnings, setWarnings] = useState<string[]>([]);
  const controller = useRef<AbortController | null>(null), mounted = useRef(true);
  useEffect(() => { mounted.current = true; return () => { mounted.current = false; controller.current?.abort(); }; }, []);
  async function generate() {
-  if (!confirm || busy || !prompt.trim()) return; const c = new AbortController(); controller.current = c; setBusy(true); setMessage(""); const t = setTimeout(() => c.abort(), 90000);
+  if (!confirm || busy || !prompt.trim()) return; const c = new AbortController(); controller.current = c; setBusy(true); setMessage(""); const t = startApplicationDeadline(c, 90000);
   try {
    const response = await fetch("/api/market-visuals/pine", { method: "POST", signal: c.signal, credentials: "same-origin", headers: { "Content-Type": "application/json", "x-slice-sensitive-action": "generate-pine-script" }, body: JSON.stringify({ symbol, interval, prompt, scriptType, existingCode: code, marketContext }) });
    const result = await response.json() as { code?: string; error?: string; detail?: string; warnings?: unknown; model?: string };

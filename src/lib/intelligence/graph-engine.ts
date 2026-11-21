@@ -26,19 +26,19 @@ const PROJECTION_LIMITS: Record<
   { nodes: number; edges: number; agentCapPerCohort: number }
 > = {
   overview: {
-    nodes: 420,
-    edges: 1_300,
-    agentCapPerCohort: 90,
+    nodes: 240,
+    edges: 720,
+    agentCapPerCohort: 40,
   },
   balanced: {
-    nodes: 1_000,
-    edges: 3_600,
-    agentCapPerCohort: 260,
+    nodes: 800,
+    edges: 2_800,
+    agentCapPerCohort: 200,
   },
   full: {
-    nodes: 4_000,
-    edges: 14_000,
-    agentCapPerCohort: 2_000,
+    nodes: 1_600,
+    edges: 5_600,
+    agentCapPerCohort: 500,
   },
 };
 
@@ -162,6 +162,9 @@ function pageRank(
   damping = 0.85,
 ) {
   const nodeCount = Math.max(1, graph.nodes.length);
+  const outgoingByNode = new Map(graph.nodes.map((node) => [node.id,
+    (index.adjacency.get(node.id) ?? []).filter((entry) => entry.direction === "outgoing"),
+  ]));
   let current = new Map<string, number>(
     graph.nodes.map((node) => [node.id, 1 / nodeCount]),
   );
@@ -173,9 +176,7 @@ function pageRank(
     let dangling = 0;
 
     for (const node of graph.nodes) {
-      const outgoing = (index.adjacency.get(node.id) ?? []).filter(
-        (entry) => entry.direction === "outgoing",
-      );
+      const outgoing = outgoingByNode.get(node.id) ?? [];
       const rank = current.get(node.id) ?? 0;
 
       if (!outgoing.length) {
@@ -222,8 +223,8 @@ function connectedComponents(index: GraphIndex) {
     const component: string[] = [];
     visited.add(nodeId);
 
-    while (queue.length) {
-      const current = queue.shift();
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const current = queue[cursor];
       if (!current) continue;
       component.push(current);
 
@@ -273,8 +274,8 @@ function approximateBetweenness(index: GraphIndex) {
     distance.set(source, 0);
     const queue = [source];
 
-    while (queue.length) {
-      const vertex = queue.shift();
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const vertex = queue[cursor];
       if (!vertex) continue;
       stack.push(vertex);
 
@@ -414,14 +415,17 @@ function communitiesFromLabels(
 function sourceConcentration(graph: ResearchKnowledgeGraph) {
   const counts = new Map<string, number>();
   let total = 0;
+  const verifiedSources = new Set(graph.nodes.filter((node) => node.kind === "source"
+    && typeof node.properties.sourceUrl === "string" && /^https?:\/\//.test(node.properties.sourceUrl)).map((node) => node.id));
 
   for (const edge of graph.edges) {
-    if (edge.kind !== "PUBLISHED_BY") continue;
+    if (edge.kind !== "PUBLISHED_BY" || !verifiedSources.has(edge.target)) continue;
     counts.set(edge.target, (counts.get(edge.target) ?? 0) + 1);
     total += 1;
   }
 
-  if (!total || counts.size <= 1) return total ? 100 : 0;
+  // Unknown provenance must not earn a diversity bonus in downstream quality diagnostics.
+  if (!total || counts.size <= 1) return 100;
 
   const hhi = [...counts.values()].reduce((sum, count) => {
     const share = count / total;
@@ -453,8 +457,8 @@ function networkResilience(
     let count = 0;
     visited.add(start);
 
-    while (queue.length) {
-      const current = queue.shift();
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const current = queue[cursor];
       if (!current) continue;
       count += 1;
 
@@ -715,8 +719,8 @@ export function shortestPath(
   const visited = new Set([sourceId]);
   const previous = new Map<string, string>();
 
-  while (queue.length) {
-    const current = queue.shift();
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const current = queue[cursor];
     if (!current) continue;
 
     for (const neighbor of index.undirected.get(current) ?? []) {
@@ -882,6 +886,7 @@ export function projectResearchGraph(
   const selectedPathIds = new Set(selectedPath);
   const pathEdgeIds = edgeIdsForPath(graph, selectedPath);
   const required = new Set<string>();
+  const preferred = new Set<string>();
 
   for (const node of graph.nodes) {
     if (STRUCTURAL_KINDS.has(node.kind)) required.add(node.id);
@@ -892,12 +897,12 @@ export function projectResearchGraph(
   if (selectedNodeId) {
     required.add(selectedNodeId);
     for (const entry of index.adjacency.get(selectedNodeId) ?? []) {
-      required.add(entry.nodeId);
+      preferred.add(entry.nodeId);
     }
   }
 
   const candidates = graph.nodes.filter((node) => {
-    if (required.has(node.id)) return true;
+    if (required.has(node.id) || preferred.has(node.id)) return true;
     if (cohortSet && !cohortSet.has(node.cohort)) return false;
     if (kindSet && !kindSet.has(node.kind)) return false;
     if (!normalizedSearch) return true;
@@ -909,23 +914,27 @@ export function projectResearchGraph(
 
   if (normalizedSearch) {
     for (const node of candidates) {
-      for (const entry of index.adjacency.get(node.id) ?? []) required.add(entry.nodeId);
+      for (const entry of index.adjacency.get(node.id) ?? []) preferred.add(entry.nodeId);
     }
   }
 
   const agentCountByCohort = new Map<ResearchCohort | "shared", number>();
   const selectedNodes: ResearchGraphNode[] = [];
+  const priorities = new Map(candidates.map((node) => [node.id, nodeImportance(node, index, analytics)]));
 
   for (const node of [...candidates].sort((left, right) => {
     const requiredDelta = Number(required.has(right.id)) - Number(required.has(left.id));
     if (requiredDelta) return requiredDelta;
+    const preferredDelta = Number(preferred.has(right.id)) - Number(preferred.has(left.id));
+    if (preferredDelta) return preferredDelta;
     return (
-      nodeImportance(right, index, analytics) -
-        nodeImportance(left, index, analytics) ||
+      (priorities.get(right.id) ?? 0) - (priorities.get(left.id) ?? 0) ||
       left.id.localeCompare(right.id)
     );
   })) {
-    if (selectedNodes.length >= limits.nodes && !required.has(node.id)) continue;
+    // A selected cohort/evidence hub can have ten thousand neighbors. The visual
+    // budget is a hard cap; the selected node and its score path rank first.
+    if (selectedNodes.length >= limits.nodes) break;
 
     if (node.kind === "agent" && !required.has(node.id)) {
       const current = agentCountByCohort.get(node.cohort) ?? 0;
@@ -967,6 +976,16 @@ export function projectResearchGraph(
   const finalEdges = selectedEdges.filter(
     (edge) => finalNodeIds.has(edge.source) && finalNodeIds.has(edge.target),
   );
+  // Driver archives belong to the paginated agent inspector and selected-node
+  // details. Do not repeat them for every rendered bot or mutate the saved graph.
+  const projectedNodes = finalNodes.map((node) => {
+    if (node.kind !== "agent") return node;
+    const properties = { ...node.properties };
+    delete properties.positiveDriversJson;
+    delete properties.negativeDriversJson;
+    delete properties.contradictionsJson;
+    return { ...node, properties };
+  });
   const cohortIds = ["media", "technical", "economy", "shared"] as const;
   const clusters = cohortIds.map((cohort) => {
     const cohortNodes = finalNodes.filter((node) => node.cohort === cohort);
@@ -988,7 +1007,7 @@ export function projectResearchGraph(
     ...graph,
     nodeCount: finalNodes.length,
     edgeCount: finalEdges.length,
-    nodes: finalNodes,
+    nodes: projectedNodes,
     edges: finalEdges,
     clusters,
     projection: {

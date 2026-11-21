@@ -20,6 +20,11 @@
     "validate:phase12": "node scripts/production/acceptance.mjs",
     "test:phase4": "node scripts/tests/phase-4-pagination.test.mjs",
     "test:phase12": "node scripts/tests/phase-12-security.test.mjs",
+    "test:knowledge-graph": "node scripts/tests/knowledge-graph-research.test.mjs && node scripts/tests/knowledge-graph-sources.test.mjs",
+    "test:neural-graph": "npm run test:knowledge-graph && node scripts/tests/neural-provenance.test.mjs && node scripts/tests/neural-geometry.test.mjs && node scripts/tests/neural-workspace.test.mjs && node scripts/tests/neural-entry.test.mjs",
+    "test:neural-theme": "node scripts/tests/neural-theme-runtime.test.mjs && node scripts/tests/light-theme-email-center.test.mjs",
+    "test:neural-platform": "npm run test:neural-theme && npm run test:neural-graph",
+    "test:beta-intelligence": "node scripts/tests/beta-runtime.test.mjs && node scripts/tests/score-interpretation.test.mjs && node scripts/tests/research-lifecycle.test.mjs && node scripts/tests/market-speed.test.mjs && node scripts/tests/beta-strategy-history.test.mjs && node scripts/tests/scenario-tracking.test.mjs && npm run test:neural-platform",
     "test:smoke": "node scripts/production/smoke.mjs",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
@@ -34,7 +39,14 @@
     "quality": "npm run validate:phase1 && npm run validate:phase2 && npm run validate:phase3 && npm run validate:phase4 && npm run validate:phase12 && npm run test:phase4 && npm run test:phase12 && npm run validate:env && npm run db:validate && npm run db:generate && npm run typecheck && npm run lint",
     "validate": "npm run quality && npm run build && npm run test:smoke",
     "verify": "npm run typecheck && npm run lint",
-    "verify:production": "npm run validate:phase12 -- --mode=production && npm run validate && npm run audit:production"
+    "verify:production": "npm run validate:phase12 -- --mode=production && npm run validate && npm run audit:production",
+    "beta:worker": "node scripts/run-beta-worker.mjs",
+    "db:security-upgrade": "node scripts/apply-account-security.mjs",
+    "test:strategy-security-team": "node scripts/tests/custom-strategy.test.mjs && node scripts/tests/account-settings.test.mjs && node scripts/tests/account-security.test.mjs && node scripts/tests/team-invitations.test.mjs && node scripts/tests/account-security-migration.test.mjs && npm run test:beta-intelligence",
+    "test:current-research": "node scripts/tests/fresh-research-news.test.mjs && node scripts/tests/market-research-identity.test.mjs && node scripts/tests/research-confidence.test.mjs && node scripts/tests/current-research.test.mjs && npm run test:strategy-security-team",
+    "test:agent-desk": "node scripts/tests/agent-desk-guardrails.test.mjs && node scripts/tests/agent-desk-runtime.test.mjs && node scripts/tests/agent-desk-ui.test.mjs && npm run test:current-research",
+    "test:founder-agents": "node scripts/tests/agent-desk-research-tools.test.mjs && node scripts/tests/agent-desk-scouting.test.mjs && node scripts/tests/agent-desk-scheduler.test.mjs && node scripts/tests/agent-desk-learning.test.mjs && node scripts/tests/agent-desk-collaboration-route.test.mjs && node scripts/tests/founder-agent-access.test.mjs && node scripts/tests/founder-agent-ui.test.mjs && npm run test:agent-desk",
+    "test:agent-autonomy": "node scripts/tests/agent-operations.test.mjs && node scripts/tests/agent-desk-research-access.test.mjs && node scripts/tests/agent-market-stream.test.mjs && node scripts/tests/agent-market-stream-worker.test.mjs && node scripts/tests/agent-market-stream-routes.test.mjs && node scripts/tests/agent-broker.test.mjs && node scripts/tests/founder-broker-ui.test.mjs && node scripts/tests/broker-trade-briefs.test.mjs && npm run test:founder-agents"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.8.0",

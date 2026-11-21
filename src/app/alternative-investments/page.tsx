@@ -394,7 +394,7 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 function Panel({ children, className = "", tone = "slate" }: { children: ReactNode; className?: string; tone?: Tone }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/16",
+    red: "from-rose-500/16",
     green: "from-emerald-500/16",
     amber: "from-amber-500/16",
     purple: "from-purple-500/16",
@@ -412,7 +412,7 @@ function Panel({ children, className = "", tone = "slate" }: { children: ReactNo
 
 function Pill({ children, tone = "red" }: { children: ReactNode; tone?: Tone }) {
   const tones: Record<Tone, string> = {
-    red: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
+    red: "bg-rose-500/10 text-rose-300 ring-rose-500/30",
     green: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30",
     amber: "bg-amber-500/10 text-amber-300 ring-amber-500/30",
     slate: "bg-slate-500/10 text-slate-300 ring-slate-500/30",
@@ -449,7 +449,7 @@ function Logo() {
 
 function MetricBubble({ label, value, helper, tone = "slate" }: { label: string; value: string | number; helper?: string; tone?: Tone }) {
   const glows: Record<Tone, string> = {
-    red: "from-emerald-500/18",
+    red: "from-rose-500/18",
     green: "from-emerald-500/18",
     amber: "from-amber-500/18",
     slate: "from-slate-400/10",
@@ -471,7 +471,7 @@ function MetricBubble({ label, value, helper, tone = "slate" }: { label: string;
 
 function ScoreBar({ value, tone = "red" }: { value: number; tone?: Tone }) {
   const fills: Record<Tone, string> = {
-    red: "from-emerald-700 to-emerald-400",
+    red: "from-rose-700 to-rose-400",
     green: "from-emerald-700 to-emerald-300",
     amber: "from-amber-700 to-amber-300",
     purple: "from-purple-700 to-purple-300",

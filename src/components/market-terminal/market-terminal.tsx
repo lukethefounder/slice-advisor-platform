@@ -13,6 +13,8 @@ import { chartRows } from "@/lib/market-evidence/chart-model";
 import { DEFAULT_CHART, type ChartSettings } from "@/lib/market-evidence/chart-settings";
 import type { Entitlement, MarketRange } from "@/lib/market-evidence/contracts";
 import { sectionValue, useMarketResources, type Resource } from "@/lib/market-visuals/client";
+import { useMarketRefresh } from "@/lib/market-visuals/use-market-refresh";
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 
 import type { Section } from "@/lib/market-visuals/contracts";
 import css from "./terminal.module.css";
@@ -56,20 +58,21 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
  const [range, setRange] = useState<MarketRange>((["1D","1M","3M","6M","1Y"].includes(params.get("range") || "") ? params.get("range") : params.get("interval") && params.get("interval") !== "daily" ? "1D" : initialData?.defaultRange || "3M") as MarketRange);
  const [session, setSession] = useState<Session | null>(initialData?.session ?? null), [sessionError, setSessionError] = useState(""), [retrySession, setRetrySession] = useState(0);
  const [options, setOptions] = useState<ChartSettings>({ ...DEFAULT_CHART, height: "tall" }), [compareInput, setCompareInput] = useState("SPY"), [comparison, setComparison] = useState<string | null>(null);
- const [auto, setAuto] = useState(false), [online, setOnline] = useState(true), [now, setNow] = useState(initialData?.preparedAt ? Date.parse(initialData.preparedAt) : Date.now()), [notice, setNotice] = useState("");
+ const [auto, setAuto] = useState(true), [online, setOnline] = useState(true), [now, setNow] = useState(initialData?.preparedAt ? Date.parse(initialData.preparedAt) : Date.now()), [notice, setNotice] = useState("");
  const [approvedOptions, setApprovedOptions] = useState(false), [motion, setMotion] = useState(true);
  const tabsRef = useRef<HTMLDivElement>(null);
  const signedOut = useCallback(() => { setSession(null); setSessionError("Session or firm access changed. Sign in again before loading data."); }, []);
  const resources = useMarketResources(session?.scope ?? null, signedOut, initialData?.sections ?? []), { get, load, all } = resources;
  useEffect(() => {
-  let alive = true; const c = new AbortController(), t = setTimeout(() => c.abort(), 12000);
+  if (initialData?.session && retrySession === 0) return;
+  let alive = true; const c = new AbortController(), t = startApplicationDeadline(c, 12000);
   setSessionError("");
   void fetch("/api/market-visuals/sections", { cache: "no-store", credentials: "same-origin", signal: c.signal }).then(async r => {
     const p = await r.json() as Session & { message?: string }; if (r.status === 401 || r.status === 403) { signedOut(); } if (!r.ok || !p.ok) throw new Error(p.message || "Sign in to your firm workspace to use Market Visuals.");
     if (alive) setSession(p);
   }).catch(e => { if (alive) setSessionError(c.signal.aborted ? "Session lookup timed out. Retry without changing your credentials." : e instanceof Error ? e.message : "Session unavailable."); }).finally(() => clearTimeout(t));
   return () => { alive = false; c.abort(); clearTimeout(t); };
- }, [retrySession]);
+ }, [retrySession, initialData?.session, signedOut]);
  useEffect(() => {
   setOnline(navigator.onLine); const update = () => { setOnline(navigator.onLine); setNow(Date.now()); };
   window.addEventListener("online", update); window.addEventListener("offline", update); document.addEventListener("visibilitychange", update);
@@ -86,19 +89,24 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
  const changeChartOptions = useCallback((next: ChartSettings) => { setOptions(next); if (tab === "compare") setComparison(next.compareSymbol); }, [tab]);
  useEffect(() => {
   if (!session || !session.configured || !online) return;
-  if (wantsChart) { void load("quote", active, range); void load("history", active, range); if (comparisonSymbol && comparisonSymbol !== active) void load("history", comparisonSymbol, range); }
+  void load("quote", active, range);
+  if (wantsChart) { void load("history", active, range); if (comparisonSymbol && comparisonSymbol !== active) void load("history", comparisonSymbol, range); }
   if (!nativeIndex && ["fundamentals", "earnings", "news"].includes(tab)) void load(tab as Section, active, range);
  }, [session, active, tab, range, wantsChart, comparisonSymbol, online, load]);
- useEffect(() => {
-  if (!auto || !session?.configured || !wantsChart) return;
-  const timer = setInterval(() => { if (navigator.onLine && document.visibilityState === "visible") { void load("quote", active, range, true); void load("history", active, range, true); if (comparisonSymbol && comparisonSymbol !== active) void load("history", comparisonSymbol, range, true); } }, 60000);
-  return () => clearInterval(timer);
- }, [auto, session, wantsChart, active, range, comparisonSymbol, load]);
+
  const q = get("quote", active, range), h = get("history", active, range), quote = sectionValue(q)?.[0] ?? null, series = sectionValue(h);
  const comparative = comparisonSymbol && comparisonSymbol !== active ? get("history", comparisonSymbol, range) : null;
  const company = get("fundamentals", active, range), earnings = get("earnings", active, range), news = get("news", active, range), chain = get("options", active, range);
  useEffect(()=>{const delay=chain.retryAt-Date.now();if(delay<=0)return;const timer=setTimeout(()=>setNow(Date.now()),Math.min(delay+25,86_400_025));return()=>clearTimeout(timer);},[chain.retryAt]);
  const quoteFreshness = quote && session ? freshness(quote.observedAt, quote.precision, session.entitlement, now) : null;
+ const refreshCadence = session?.entitlement === "realtime" && quoteFreshness?.state !== "stale" ? 15_000 : 60_000;
+ useMarketRefresh(Boolean(auto && session?.configured), `${session?.scope}:${active}:${range}:${tab}:${comparisonSymbol}`, async () => {
+  setNow(Date.now());
+  const pending = [load("quote", active, range)];
+  if (wantsChart) { pending.push(load("history", active, range)); if (comparisonSymbol && comparisonSymbol !== active) pending.push(load("history", comparisonSymbol, range)); }
+  if (!nativeIndex && ["fundamentals", "earnings", "news"].includes(tab)) pending.push(load(tab as Section, active, range));
+  await Promise.allSettled(pending);
+ }, refreshCadence);
  const receiptRows = all().flatMap(s => s.value?.receipts ?? []), receipts = [...new Map(receiptRows.map(r => [`${r.endpoint}:${r.sha256}`, r])).values()];
  
  const currentTab = TABS.find(([id]) => id === tab)!;
@@ -111,7 +119,8 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
   } catch(e){setNotice(e instanceof Error?e.message:"Enter a ticker.");}
  }
  function refresh() {
-  if (wantsChart) { void load("quote", active, range, true); void load("history", active, range, true); if (comparisonSymbol) void load("history", comparisonSymbol, range, true); }
+  void load("quote", active, range, true);
+  if (wantsChart) { void load("history", active, range, true); if (comparisonSymbol) void load("history", comparisonSymbol, range, true); }
   else if (!nativeIndex && ["fundamentals", "earnings", "news"].includes(tab)) void load(tab as Section, active, range, true);
  }
  async function share() {
@@ -121,14 +130,15 @@ export default function MarketTerminal({ initialData }: { initialData?: Terminal
  return <main data-slice-market-terminal="true" className={css.terminal} data-motion={motion ? "on" : "off"}><ResearchBetaBanner />
   <DataReadinessPanel />
   <div className={css.topline}><ExperienceControls scopeKey={session?.scope ?? null}/><Link href="/workspace" prefetch={false}><ArrowLeft size={14}/>Workspace</Link><span>RESEARCH / MARKET VISUALS</span><div><span className={`${css.dot} ${online ? "" : css.offline}`}/>{online ? "Browser online" : "Offline"}</div></div>
-  <header className={css.hero}><div className={css.heroText}><p className={css.kicker}><LineChart size={15}/>SLICE MARKET INTELLIGENCE</p><h1>A clearer view.<br/><span>A faster decision.</span></h1><p>Observed markets, explainable signals and one shared forecast. Each section loads independently—without collecting data you did not ask for.</p><div className={css.heroTags}><span><ShieldCheck size={12}/>Alpha Vantage observations</span><span><Zap size={12}/>Local chart controls</span><span><Database size={12}/>Source receipts retained</span></div></div><div className={css.heroQuote}><span className={css.label}>{active} / {nativeIndex?"COMPLETED INDEX CLOSE":"LAST PROVIDER QUOTE"}</span><strong>{quote ? number(quote.price) : "—"}<small>{company.value?.data.currency ? ` ${company.value.data.currency}` : ""}</small></strong><p className={quote?.changePct != null && quote.changePct < 0 ? css.negative : css.positive}>{quote?.changePct == null ? "Open Market to load a quote" : `${quote.changePct > 0 ? "+" : ""}${number(quote.changePct)}% vs prior close`}</p><span className={css.badge}>{quoteFreshness?.state ?? "Not loaded"}</span><small>{quote ? `${quote.observedAt} · ${quote.priceKind}` : "No sample prices. No implied live status."}</small></div></header>
+  <header className={css.hero}><div className={css.heroText}><p className={css.kicker}><LineChart size={15}/>SLICE MARKET INTELLIGENCE</p><h1>A clearer view.<br/><span>A faster decision.</span></h1><p>Quotes arrive independently of charts and research. Active sections keep checking for newer observations, while saved snapshots stay visible during refresh.</p><div className={css.heroTags}><span><ShieldCheck size={12}/>Alpha Vantage observations</span><span><Zap size={12}/>Local chart controls</span><span><Database size={12}/>Source receipts retained</span></div></div><div className={css.heroQuote}><span className={css.label}>{active} / {nativeIndex?"COMPLETED INDEX CLOSE":"LAST PROVIDER QUOTE"}</span><strong>{quote ? number(quote.price) : "—"}<small>{company.value?.data.currency ? ` ${company.value.data.currency}` : ""}</small></strong><p className={quote?.changePct != null && quote.changePct < 0 ? css.negative : css.positive}>{quote?.changePct == null ? "Loading provider quote" : `${quote.changePct > 0 ? "+" : ""}${number(quote.changePct)}% vs prior close`}</p><span className={css.badge}>{quoteFreshness?.state ?? "Not loaded"}</span><small>{quote ? `${quote.observedAt} · ${quote.priceKind}` : "Waiting for a timestamped provider observation."}</small></div></header>
   {sessionError && <div className={css.failure} role="alert"><p>{sessionError}</p><button onClick={() => setRetrySession(v => v+1)}>Retry session</button><Link href="/advisor-login">Sign in</Link></div>}
   {session && !session.configured && <div className={css.failure} role="alert"><p>The server market credential is missing or is a demonstration key. No substitute prices were generated. Ask your administrator to check the private provider configuration.</p></div>}
   {notice && <div className={css.notice} role="status"><p>{notice}</p><button aria-label="Dismiss message" onClick={() => setNotice("")}>×</button></div>}
   <div className={css.commandBar}><form onSubmit={e => { e.preventDefault(); chooseSymbol(); }} className={css.symbolForm}><Search size={17}/><label className={css.srOnly} htmlFor="market-symbol">Instrument symbol</label><input id="market-symbol" value={input} onChange={e => setInput(e.target.value.toUpperCase())} maxLength={21} spellCheck={false} autoComplete="off"/><button type="submit">Load</button></form>
    <div className={css.rangeGroup} aria-label="Observed history range">{(["1D","1M","3M","6M","1Y"] as MarketRange[]).map(r => <button key={r} aria-pressed={range === r} className={range === r ? css.selected : ""} disabled={r==="1D"&&(nativeIndex||session?.entitlement==="historical")} onClick={() => setRange(r)}>{r}</button>)}</div>
-   <div className={css.commandActions}><button disabled={!session?.configured || !online || tab === "options" || tab === "forecast" || tab === "pine" || tab === "data"} onClick={refresh}><RefreshCw size={14}/>Refresh section</button><button aria-pressed={auto} onClick={() => setAuto(v => !v)}>{auto ? <Check size={14}/> : <Clock3 size={14}/>}Auto {auto ? "on · 60s" : "off"}</button><button onClick={() => void share()}>Share view</button></div>
+   <div className={css.commandActions}><button disabled={!session?.configured || !online || tab === "options" || tab === "forecast" || tab === "pine" || tab === "data"} onClick={refresh}><RefreshCw size={14}/>Refresh section</button><button aria-pressed={auto} onClick={() => setAuto(v => !v)}>{auto ? <Check size={14}/> : <Clock3 size={14}/>}Tracking {auto ? `on · ${refreshCadence / 1000}s checks` : "paused"}</button><button onClick={() => void share()}>Share view</button></div>
   </div>
+  <p className={css.fine}>Automatic checks pause when this tab is hidden or offline. Quotes follow your provider entitlement; chart history uses completed bars. Check frequency is not exchange delivery speed.</p>
   <div className={css.tabBar} ref={tabsRef} role="tablist" aria-label="Market research sections">{TABS.map(([id, label, helper], index) => <button id={`tab-${id}`} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} tabIndex={tab === id ? 0 : -1} key={id} className={tab === id ? css.activeTab : ""} onClick={() => setTab(id)} onKeyDown={e => { let target = index; if (e.key === "ArrowRight") target = (index+1)%TABS.length; else if (e.key === "ArrowLeft") target = (index+TABS.length-1)%TABS.length; else if (e.key === "Home") target = 0; else if (e.key === "End") target = TABS.length-1; else return; e.preventDefault(); setTab(TABS[target][0]); tabsRef.current?.querySelectorAll<HTMLButtonElement>("button")[target]?.focus(); }}><span>{label}</span><small>{helper}</small></button>)}</div>
   <section className={css.panel} role="tabpanel" aria-labelledby={`tab-${tab}`} id={`panel-${tab}`}>
    {!session && !sessionError && <Placeholder text="Checking protected firm access…"/>}

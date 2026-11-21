@@ -1,4 +1,6 @@
 "use client";
+
+import { startApplicationDeadline } from "@/lib/research/beta-client";
 import { useEffect, useRef, useState } from "react";
 import type { Readiness } from "@/lib/data-readiness/core";
 import css from "./readiness.module.css";
@@ -7,7 +9,7 @@ export default function DataReadinessPanel() {
  const abort = useRef<AbortController | null>(null);
  async function check() {
   abort.current?.abort(); const c = new AbortController(); abort.current = c;
-  const timer = setTimeout(() => c.abort(), 13000); setBusy(true); setError("");
+  const timer = startApplicationDeadline(c, 13000); setBusy(true); setError("");
   try {
    const r = await globalThis.fetch("/api/data-readiness", { signal: c.signal, cache: "no-store", credentials: "same-origin" });
    const p = await r.json() as { readiness?: Readiness };

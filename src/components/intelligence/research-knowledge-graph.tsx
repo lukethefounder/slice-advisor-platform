@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  ArrowUpRight,
   Eye,
   EyeOff,
   Focus,
@@ -39,10 +40,15 @@ import type {
   ResearchGraphNodeKind,
   ResearchKnowledgeGraph,
 } from "@/lib/intelligence/research-swarm-types";
+import { safeResearchSourceUrl } from "@/lib/intelligence/research-evidence";
+import { cortexPoint, neuralDrift, researchBrainPosition, NEURAL_COLORS } from "@/components/knowledge-graph/neural-geometry";
+import neuralStyles from "@/components/knowledge-graph/neural-brain-scene.module.css";
 
 type PositionedNode = ResearchGraphNode & {
   x: number;
   y: number;
+  z: number;
+  phase: number;
 };
 
 type PositionedEdge = {
@@ -96,18 +102,9 @@ type NeighborEntry = {
   direction: "incoming" | "outgoing";
 };
 
-const COHORT_COLORS: Record<ResearchCohort | "shared", string> = {
-  media: "#d97706",
-  technical: "#0891b2",
-  economy: "#7c3aed",
-  shared: "#059669",
-};
-
+const COHORT_COLORS: Record<ResearchCohort | "shared", string> = NEURAL_COLORS;
 const COHORT_CENTERS: Record<ResearchCohort | "shared", [number, number]> = {
-  media: [-0.6, -0.16],
-  technical: [0.6, -0.17],
-  economy: [0, 0.59],
-  shared: [0, -0.04],
+  media: [-0.31, -0.12], technical: [0.31, -0.12], economy: [0, 0.34], shared: [0, 0],
 };
 
 const NODE_KINDS: Array<ResearchGraphNodeKind | "all"> = [
@@ -126,15 +123,13 @@ const NODE_KINDS: Array<ResearchGraphNodeKind | "all"> = [
 ];
 
 const DEFAULT_PALETTE: Palette = {
-  surface: "#ffffff",
-  surfaceMuted: "#eef8f2",
-  heading: "#031f17",
-  muted: "#587166",
-  border: "rgba(7, 83, 60, 0.18)",
-  accent: "#16a36f",
+  surface: "#040b14",
+  surfaceMuted: "#0b1927",
+  heading: "#dcfff3",
+  muted: "#91b1bc",
+  border: "rgba(109, 194, 191, 0.14)",
+  accent: "#56ecc2",
 };
-
-const SPATIAL_CELL_SIZE = 0.065;
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -151,96 +146,16 @@ function hashNumber(value: string) {
   return Math.abs(hash);
 }
 
-function ringPosition(input: {
-  index: number;
-  count: number;
-  center: [number, number];
-  ringBase: number;
-  id: string;
-}) {
-  const safeCount = Math.max(input.count, 1);
-  const ring = Math.floor(Math.sqrt(input.index / 10));
-  const radius = input.ringBase + ring * 0.048;
-  const phase = ((hashNumber(input.id) % 360) / 360) * 0.65;
-  const angle =
-    (input.index / safeCount) *
-      Math.PI *
-      2 *
-      (1 + ring * 0.09) +
-    phase;
-  const jitter =
-    ((hashNumber(`${input.id}:jitter`) % 100) / 100 - 0.5) *
-    0.014;
-
-  return {
-    x:
-      input.center[0] +
-      Math.cos(angle) * (radius + jitter),
-    y:
-      input.center[1] +
-      Math.sin(angle) * (radius + jitter),
-  };
-}
-
 function buildPositions(graph: ResearchKnowledgeGraph) {
-  const counts = new Map<string, number>();
-
+  const counts = new Map<string, number>(), indexes = new Map<string, number>();
   for (const node of graph.nodes) {
     const key = `${node.cohort}:${node.kind}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-
-  const indexes = new Map<string, number>();
-
-  return graph.nodes.map<PositionedNode>((node) => {
-    const center = COHORT_CENTERS[node.cohort];
-    const key = `${node.cohort}:${node.kind}`;
-    const index = indexes.get(key) ?? 0;
+  return graph.nodes.map<PositionedNode>(node => {
+    const key = `${node.cohort}:${node.kind}`, index = indexes.get(key) ?? 0;
     indexes.set(key, index + 1);
-    const count = counts.get(key) ?? 1;
-
-    if (node.kind === "score") {
-      return { ...node, x: 0, y: -0.02 };
-    }
-    if (node.kind === "asset") {
-      return { ...node, x: 0, y: -0.34 };
-    }
-    if (node.kind === "run") {
-      return { ...node, x: -0.18, y: -0.2 };
-    }
-    if (node.kind === "cohort") {
-      return { ...node, x: center[0], y: center[1] };
-    }
-    if (node.kind === "sector") {
-      return { ...node, x: 0.18, y: 0.42 };
-    }
-    if (node.kind === "industry") {
-      return { ...node, x: -0.18, y: 0.43 };
-    }
-
-    const ringBase =
-      node.kind === "agent"
-        ? 0.11
-        : node.kind === "evidence" ||
-            node.kind === "economic-series"
-          ? 0.29
-          : node.kind === "source"
-            ? 0.42
-            : node.kind === "topic" ||
-                node.kind === "factor"
-              ? 0.51
-              : 0.36;
-
-    return {
-      ...node,
-      ...ringPosition({
-        index,
-        count,
-        center,
-        ringBase,
-        id: node.id,
-      }),
-    };
+    return { ...node, ...researchBrainPosition(node, index, counts.get(key) ?? 1), phase: (hashNumber(node.id) % 1000) / 159 };
   });
 }
 
@@ -260,10 +175,10 @@ function nodeRadius(node: ResearchGraphNode, zoom: number) {
 }
 
 function nodeColor(node: ResearchGraphNode) {
-  if (node.kind === "score") return "#052e22";
-  if (node.kind === "asset") return "#10b981";
-  if (node.kind === "source") return "#64748b";
-  if (node.kind === "topic") return "#94a3b8";
+  if (node.kind === "score") return "#e0fff1";
+  if (node.kind === "asset") return "#72fbd6";
+  if (node.kind === "source") return "#92c7e5";
+  if (node.kind === "topic") return "#b7a8ea";
   return COHORT_COLORS[node.cohort];
 }
 
@@ -462,36 +377,13 @@ function pathEdgeIds(
   );
 }
 
-function spatialKey(x: number, y: number) {
-  return `${Math.floor(x / SPATIAL_CELL_SIZE)}:${Math.floor(
-    y / SPATIAL_CELL_SIZE,
-  )}`;
-}
-
-function createSpatialIndex(
-  nodes: PositionedNode[],
-  visible: Set<string>,
-) {
-  const buckets = new Map<string, PositionedNode[]>();
-
-  for (const node of nodes) {
-    if (!visible.has(node.id)) continue;
-    const key = spatialKey(node.x, node.y);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(node);
-    buckets.set(key, bucket);
-  }
-
-  return buckets;
-}
-
 function hardwareProfile(): HardwareProfile {
   if (typeof navigator === "undefined") {
     return {
       lowPower: false,
       edgeMultiplier: 1,
-      frameInterval: 55,
-      animatedEdgeLimit: 40,
+      frameInterval: 34,
+      animatedEdgeLimit: 96,
     };
   }
 
@@ -507,14 +399,14 @@ function hardwareProfile(): HardwareProfile {
     ? {
         lowPower: true,
         edgeMultiplier: 0.55,
-        frameInterval: 85,
-        animatedEdgeLimit: 18,
+        frameInterval: 66,
+        animatedEdgeLimit: 34,
       }
     : {
         lowPower: false,
         edgeMultiplier: 1,
-        frameInterval: 55,
-        animatedEdgeLimit: 40,
+        frameInterval: 34,
+        animatedEdgeLimit: 96,
       };
 }
 
@@ -540,7 +432,7 @@ function edgeBudget(
 }
 
 function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
+  const [reduced, setReduced] = useState(true);
 
   useEffect(() => {
     const media = window.matchMedia(
@@ -557,71 +449,19 @@ function useReducedMotion() {
   return reduced;
 }
 
-function usePalette() {
-  const [palette, setPalette] =
-    useState<Palette>(DEFAULT_PALETTE);
-
-  useEffect(() => {
-    const update = () => {
-      const style = getComputedStyle(
-        document.documentElement,
-      );
-      const read = (name: string, fallback: string) =>
-        style.getPropertyValue(name).trim() || fallback;
-
-      setPalette({
-        surface: read(
-          "--slice-surface-strong",
-          DEFAULT_PALETTE.surface,
-        ),
-        surfaceMuted: read(
-          "--slice-surface-muted",
-          DEFAULT_PALETTE.surfaceMuted,
-        ),
-        heading: read(
-          "--slice-heading",
-          DEFAULT_PALETTE.heading,
-        ),
-        muted: read("--slice-muted", DEFAULT_PALETTE.muted),
-        border: read(
-          "--slice-border",
-          DEFAULT_PALETTE.border,
-        ),
-        accent: read(
-          "--slice-accent",
-          DEFAULT_PALETTE.accent,
-        ),
-      });
-    };
-
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: [
-        "data-slice-theme",
-        "data-slice-appearance",
-        "class",
-        "style",
-      ],
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  return palette;
-}
-
 export default function ResearchKnowledgeGraphCanvas({
   graph,
   analytics = null,
   height = 680,
-  live = false,
+  animated = true,
+  initialNodeId = null,
 }: {
   graph: ResearchKnowledgeGraph;
   analytics?: ResearchGraphAnalytics | null;
   height?: number;
   live?: boolean;
+  animated?: boolean;
+  initialNodeId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -640,13 +480,14 @@ export default function ResearchKnowledgeGraphCanvas({
     zoom: 1,
   });
   const reducedMotion = useReducedMotion();
-  const palette = usePalette();
+  const palette = DEFAULT_PALETTE;
+  const drawnPositionsRef = useRef(new Map<string, { x: number; y: number; radius: number }>());
   const [profile, setProfile] =
     useState<HardwareProfile>({
       lowPower: false,
       edgeMultiplier: 1,
-      frameInterval: 55,
-      animatedEdgeLimit: 40,
+      frameInterval: 34,
+      animatedEdgeLimit: 96,
     });
   const [dimensions, setDimensions] =
     useState<Dimensions>({
@@ -664,7 +505,7 @@ export default function ResearchKnowledgeGraphCanvas({
     zoom: 1,
   });
   const [selectedNodeId, setSelectedNodeId] =
-    useState<string | null>(null);
+    useState<string | null>(initialNodeId);
   const [hoveredNodeId, setHoveredNodeId] =
     useState<string | null>(null);
   const [cohortFilter, setCohortFilter] = useState<
@@ -678,7 +519,7 @@ export default function ResearchKnowledgeGraphCanvas({
     search.trim().toLowerCase(),
   );
   const [minEdgeWeight, setMinEdgeWeight] = useState(0);
-  const [motionEnabled, setMotionEnabled] = useState(false);
+  const [motionEnabled, setMotionEnabled] = useState(true);
   const [isolateSelection, setIsolateSelection] =
     useState(false);
 
@@ -842,28 +683,15 @@ export default function ResearchKnowledgeGraphCanvas({
       visibleNodeIds,
     ],
   );
-  const animatedEdges = useMemo(
-    () =>
-      visibleEdges
-        .filter(
-          (record) =>
-            selectedPathEdges.has(record.edge.id) ||
-            record.edge.source === selectedNodeId ||
-            record.edge.target === selectedNodeId ||
-            record.edge.weight >= 0.72,
-        )
-        .slice(0, profile.animatedEdgeLimit),
-    [
-      profile.animatedEdgeLimit,
-      selectedNodeId,
-      selectedPathEdges,
-      visibleEdges,
-    ],
-  );
-  const spatialIndex = useMemo(
-    () => createSpatialIndex(positions, visibleNodeIds),
-    [positions, visibleNodeIds],
-  );
+  const animatedEdges = useMemo(() => {
+    const priority = visibleEdges.filter(record => selectedPathEdges.has(record.edge.id) || record.edge.source === selectedNodeId || record.edge.target === selectedNodeId).slice(0, Math.floor(profile.animatedEdgeLimit / 2));
+    const selectedIds = new Set(priority.map(record => record.edge.id));
+    const candidates = visibleEdges.filter(record => !selectedIds.has(record.edge.id));
+    const remaining = profile.animatedEdgeLimit - priority.length;
+    const step = Math.max(1, candidates.length / Math.max(1, remaining));
+    for (let index = 0; index < remaining && Math.floor(index * step) < candidates.length; index += 1) priority.push(candidates[Math.floor(index * step)]);
+    return priority;
+  }, [profile.animatedEdgeLimit, selectedNodeId, selectedPathEdges, visibleEdges]);
   const selectedDetail = useMemo(
     () =>
       nodeDetail(
@@ -875,7 +703,7 @@ export default function ResearchKnowledgeGraphCanvas({
     [adjacency, graph, selectedNodeId, selectedPath],
   );
   const animationActive =
-    live &&
+    animated &&
     motionEnabled &&
     !reducedMotion &&
     isIntersecting &&
@@ -1005,13 +833,18 @@ export default function ResearchKnowledgeGraphCanvas({
         ? (Math.sin(time / 850) + 1) / 2
         : 0.28;
 
-      const screen = (node: PositionedNode) => ({
-        x: centerX + node.x * scale,
-        y: centerY + node.y * scale,
-      });
+      const screens = new Map<string, { x: number; y: number; radius: number }>();
+      for (const node of positions) {
+        if (!visibleNodeIds.has(node.id)) continue;
+        const drift = neuralDrift(node, node.phase, time / 1000, animationActive && node.id !== selectedNodeId && node.id !== hoveredNodeId);
+        screens.set(node.id, { x: centerX + drift.x * scale, y: centerY + drift.y * scale, radius: nodeRadius(node, view.zoom) });
+      }
+      drawnPositionsRef.current = screens;
+      const screen = (node: PositionedNode) => screens.get(node.id) ?? { x: centerX + node.x * scale, y: centerY + node.y * scale };
+
 
       context.strokeStyle = palette.border;
-      context.globalAlpha = 0.32;
+      context.globalAlpha = 0.18;
       context.lineWidth = 1;
       const grid = 48;
       const offsetX =
@@ -1034,6 +867,21 @@ export default function ResearchKnowledgeGraphCanvas({
       }
 
       context.stroke();
+      context.globalAlpha = 1;
+
+      // Cortical contour lines are visual guides; only actual evidence edges carry pulses.
+      for (const side of [-1, 1]) {
+        for (let band = 0; band < 10; band += 1) {
+          context.beginPath();
+          for (let step = 0; step <= 64; step += 1) {
+            const point = cortexPoint(side, -0.88 + band / 9 * 1.76 + Math.sin(step / 6 + band) * 0.028, step / 64 * Math.PI * 2);
+            const x = centerX + point.x * scale, y = centerY + point.y * scale;
+            if (step === 0) context.moveTo(x, y); else context.lineTo(x, y);
+          }
+          context.strokeStyle = side < 0 ? "#68c4ef" : "#65ecc9";
+          context.globalAlpha = 0.08; context.lineWidth = 0.55; context.stroke();
+        }
+      }
       context.globalAlpha = 1;
 
       for (const [
@@ -1109,15 +957,15 @@ export default function ResearchKnowledgeGraphCanvas({
           targetScreen.y,
         );
         context.strokeStyle = contradiction
-          ? "#e11d48"
+          ? "#fb839c"
           : support
-            ? "#059669"
+            ? "#61f3c4"
             : COHORT_COLORS[edge.cohort];
         context.globalAlpha = active
           ? 0.9
           : contradiction
-            ? 0.3
-            : 0.18;
+            ? 0.38
+            : 0.24;
         context.lineWidth = path
           ? 2.2
           : active
@@ -1137,7 +985,7 @@ export default function ResearchKnowledgeGraphCanvas({
             y: centerY + record.controlY * scale,
           };
           const t =
-            (time / 1_900 +
+            (time / (3_000 + hashNumber(record.edge.id) % 2_000) +
               (hashNumber(record.edge.id) % 100) /
                 100) %
             1;
@@ -1157,23 +1005,24 @@ export default function ResearchKnowledgeGraphCanvas({
               controlScreen.y +
             t * t * targetScreen.y;
 
-          context.beginPath();
-          context.arc(
-            x,
-            y,
-            selectedPathEdges.has(record.edge.id)
-              ? 2.5
-              : 1.35,
-            0,
-            Math.PI * 2,
-          );
-          context.fillStyle =
-            record.edge.kind === "CONTRADICTS" ||
-            record.edge.kind === "OPPOSES"
-              ? "#e11d48"
-              : palette.heading;
-          context.globalAlpha = 0.75;
-          context.fill();
+          const signalColor = record.edge.kind === "CONTRADICTS" || record.edge.kind === "OPPOSES" ? "#ff94aa" : COHORT_COLORS[record.edge.cohort];
+          const glow = context.createRadialGradient(x, y, 0, x, y, 8);
+          glow.addColorStop(0, `${signalColor}b0`); glow.addColorStop(1, `${signalColor}00`);
+          context.fillStyle = glow; context.globalAlpha = 0.85; context.fillRect(x - 8, y - 8, 16, 16);
+          for (let tail = 3; tail >= 0; tail -= 1) {
+            const progress = Math.max(0, t - tail * 0.018), remaining = 1 - progress;
+            const trailX = remaining * remaining * sourceScreen.x + 2 * remaining * progress * controlScreen.x + progress * progress * targetScreen.x;
+            const trailY = remaining * remaining * sourceScreen.y + 2 * remaining * progress * controlScreen.y + progress * progress * targetScreen.y;
+            context.beginPath(); context.arc(trailX, trailY, tail === 0 ? 1.85 : 1.2, 0, Math.PI * 2);
+            context.fillStyle = tail === 0 ? "#effff8" : signalColor;
+            context.globalAlpha = tail === 0 ? 0.95 : 0.4 - tail * 0.08; context.fill();
+          }
+          if (t > 0.88) {
+            const firing = (t - 0.88) / 0.12;
+            context.beginPath(); context.arc(targetScreen.x, targetScreen.y, 3 + firing * 10, 0, Math.PI * 2);
+            context.strokeStyle = signalColor; context.lineWidth = 1; context.globalAlpha = (1 - firing) * 0.65; context.stroke();
+          }
+
         }
 
         context.globalAlpha = 1;
@@ -1238,8 +1087,8 @@ export default function ResearchKnowledgeGraphCanvas({
           selected || hovered || path
             ? 1
             : node.kind === "agent"
-              ? 0.62
-              : 0.9;
+              ? 0.6 + (animationActive ? (Math.sin(time / 900 + node.phase) + 1) * 0.12 : 0)
+              : 0.95;
         context.fill();
         context.globalAlpha = 1;
         context.beginPath();
@@ -1402,59 +1251,18 @@ export default function ResearchKnowledgeGraphCanvas({
     };
   }
 
-  function findNode(
-    clientX: number,
-    clientY: number,
-  ) {
-    const point = screenToGraph(clientX, clientY);
-    if (!point) return null;
-    const baseCellX = Math.floor(
-      point.x / SPATIAL_CELL_SIZE,
-    );
-    const baseCellY = Math.floor(
-      point.y / SPATIAL_CELL_SIZE,
-    );
-    const candidates: PositionedNode[] = [];
-
-    for (
-      let x = baseCellX - 1;
-      x <= baseCellX + 1;
-      x += 1
-    ) {
-      for (
-        let y = baseCellY - 1;
-        y <= baseCellY + 1;
-        y += 1
-      ) {
-        candidates.push(
-          ...(spatialIndex.get(`${x}:${y}`) ?? []),
-        );
+  function findNode(clientX: number, clientY: number) {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rectangle = canvas.getBoundingClientRect();
+    const x = clientX - rectangle.left, y = clientY - rectangle.top;
+    let closest: PositionedNode | null = null, closestDistance = Infinity;
+    for (const [id, point] of drawnPositionsRef.current) {
+      const distance = Math.hypot(point.x - x, point.y - y);
+      if (distance < Math.max(7, point.radius + 5) && distance < closestDistance) {
+        closest = positionMap.get(id) ?? null; closestDistance = distance;
       }
     }
-
-    let closest: PositionedNode | null = null;
-    let closestDistance =
-      Number.POSITIVE_INFINITY;
-
-    for (const node of candidates) {
-      const distance = Math.hypot(
-        node.x - point.x,
-        node.y - point.y,
-      );
-      const threshold =
-        nodeRadius(node, point.view.zoom) /
-          point.scale +
-        0.014;
-
-      if (
-        distance <= threshold &&
-        distance < closestDistance
-      ) {
-        closest = node;
-        closestDistance = distance;
-      }
-    }
-
     return closest;
   }
 
@@ -1625,7 +1433,7 @@ export default function ResearchKnowledgeGraphCanvas({
   );
 
   return (
-    <div className="overflow-hidden rounded-[1.55rem] border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] shadow-[0_18px_55px_var(--slice-shadow)]">
+    <div className={`${neuralStyles.research} overflow-hidden rounded-[1.55rem] border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] shadow-[0_18px_55px_var(--slice-shadow)]`}>
       <div className="border-b border-[var(--slice-border)] bg-[var(--slice-surface)] p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-3">
@@ -1634,7 +1442,7 @@ export default function ResearchKnowledgeGraphCanvas({
             </div>
             <div>
               <p className="text-sm font-black text-[var(--slice-heading)]">
-                Research Knowledge Graph
+                Neural Research Network
               </p>
               <p className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-[var(--slice-subtle)]">
                 {visibleNodeIds.size.toLocaleString()} visible nodes ·{" "}
@@ -1649,23 +1457,24 @@ export default function ResearchKnowledgeGraphCanvas({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <IntelligencePill tone="emerald">
+            <IntelligencePill tone="emerald" className={neuralStyles.graphPill}>
               <Activity className="h-3.5 w-3.5" />
               {graph.projection?.mode ?? "full"} view
             </IntelligencePill>
             <IntelligencePill
               tone={profile.lowPower ? "amber" : "cyan"}
+              className={neuralStyles.graphPill}
             >
               {profile.lowPower
                 ? "Adaptive performance"
-                : "Enhanced renderer"}
+                : "Neural renderer"}
             </IntelligencePill>
             <button
               type="button"
               onClick={() =>
                 setMotionEnabled((current) => !current)
               }
-              disabled={!live || reducedMotion}
+              disabled={!animated || reducedMotion}
               className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-3 text-[9px] font-black uppercase tracking-[0.11em] text-[var(--slice-muted)] transition hover:border-[var(--slice-accent-border)] hover:text-[var(--slice-heading)] disabled:cursor-not-allowed disabled:opacity-40"
               aria-pressed={motionEnabled}
             >
@@ -1674,7 +1483,7 @@ export default function ResearchKnowledgeGraphCanvas({
               ) : (
                 <Play className="h-3.5 w-3.5" />
               )}
-              Signal flow
+              {reducedMotion ? "Reduced motion" : motionEnabled && animated ? "Pause neural flow" : "Resume neural flow"}
             </button>
             <button
               type="button"
@@ -1837,7 +1646,7 @@ export default function ResearchKnowledgeGraphCanvas({
                 setKindFilter("all");
                 setMinEdgeWeight(0);
                 setIsolateSelection(false);
-                setMotionEnabled(false);
+                setMotionEnabled(true);
               }}
               className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] text-[var(--slice-muted)] hover:text-[var(--slice-heading)]"
               aria-label="Reset graph"
@@ -1848,7 +1657,22 @@ export default function ResearchKnowledgeGraphCanvas({
         </div>
       </div>
 
-      <div className="grid xl:grid-cols-[minmax(0,1fr)_350px]">
+      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--slice-border)] bg-[var(--slice-surface-muted)] px-4 py-3">
+        <label className="flex min-w-0 flex-1 items-center gap-3 text-xs font-bold text-[var(--slice-muted)]">
+          Inspect a node
+          <select
+            aria-label="Select a graph node to inspect"
+            value={selectedNodeId ?? ""}
+            onChange={(event) => event.target.value ? focusNode(event.target.value) : setSelectedNodeId(null)}
+            className="min-h-10 min-w-0 flex-1 rounded-xl border border-[var(--slice-border)] bg-[var(--slice-surface-strong)] px-3 text-xs text-[var(--slice-heading)] focus-visible:outline-2 focus-visible:outline-[var(--slice-accent)]"
+          >
+            <option value="">Choose evidence, a source, or an outcome</option>
+            {positions.filter(node => visibleNodeIds.has(node.id)).slice(0, 200).map(node => <option key={node.id} value={node.id}>{node.kind} · {node.label}</option>)}
+          </select>
+        </label>
+        <p className="text-[10px] font-semibold text-[var(--slice-muted)]">Search to narrow the first 200 visible nodes. All source records are available below the graph.</p>
+      </div>
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_310px]">
         <div
           ref={containerRef}
           className="relative cursor-grab overflow-hidden active:cursor-grabbing"
@@ -1939,12 +1763,12 @@ export default function ResearchKnowledgeGraphCanvas({
 
           <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-[var(--slice-border)] bg-[var(--slice-surface)] px-2.5 py-1 text-[9px] font-black text-[var(--slice-muted)] shadow-sm">
-              Edge budget {budget.toLocaleString()}
+              Saved relationships · {budget.toLocaleString()} edge budget
             </span>
             <span className="rounded-full border border-[var(--slice-border)] bg-[var(--slice-surface)] px-2.5 py-1 text-[9px] font-black text-[var(--slice-muted)] shadow-sm">
               {motionEnabled && animationActive
-                ? "Flow active"
-                : "Static render"}
+                ? "Synaptic flow active"
+                : "Motion paused"}
             </span>
           </div>
         </div>
@@ -1976,6 +1800,17 @@ export default function ResearchKnowledgeGraphCanvas({
                 {selectedDetail.node.label}
               </h3>
 
+              {typeof selectedDetail.node.properties.researchQuestion === "string" ? <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-text)]">{selectedDetail.node.properties.researchQuestion}</p> : null}
+              {typeof selectedDetail.node.properties.summary === "string" ? <p className="mt-3 text-xs font-semibold leading-6 text-[var(--slice-muted)]">{selectedDetail.node.properties.summary}</p> : null}
+              {selectedDetail.node.properties.evidenceReused === true ? <p className="mt-3 rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-[11px] font-semibold leading-5 text-[var(--slice-text)]">This pathway shares its evidence assignment with another agent. It does not add an independent source.</p> : null}
+              {typeof selectedDetail.node.properties.duplicateCount === "number" && selectedDetail.node.properties.duplicateCount > 0 ? <p className="mt-2 text-[11px] font-semibold text-[var(--slice-muted)]">{selectedDetail.node.properties.duplicateCount} duplicate records grouped. Additional original-site links are retained in the source registry.</p> : null}
+
+              {safeResearchSourceUrl(selectedDetail.node.properties.sourceUrl) ? (
+                <a href={safeResearchSourceUrl(selectedDetail.node.properties.sourceUrl)!} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[var(--slice-accent-border)] bg-[var(--slice-accent-soft)] px-3 text-xs font-bold text-[var(--slice-accent-strong)]">
+                  Open original source <ArrowUpRight className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {[
                   [
@@ -1992,7 +1827,7 @@ export default function ResearchKnowledgeGraphCanvas({
                       : `${formatIntelligenceNumber(
                           selectedDetail.node.confidence,
                           0,
-                        )}%`,
+                        )} / 100`,
                   ],
                   [
                     "Incoming",

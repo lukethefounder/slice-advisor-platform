@@ -16,7 +16,7 @@ import { constantTimeEqual } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+
 
 function isAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
